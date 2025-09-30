@@ -1,103 +1,211 @@
-import Image from "next/image";
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [input, setInput] = useState('');
+  const { messages, sendMessage, status } = useChat();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const isLoading = status === 'streaming';
+    if (!input.trim() || isLoading) return;
+    sendMessage({ text: input });
+    setInput('');
+  };
+
+  const isLoading = status === 'streaming';
+
+  return (
+    <div className="min-h-screen bg-black text-white flex flex-col transition-all duration-700 ease-in-out">
+      {/* Landing Page */}
+      {messages.length === 0 && (
+        <div className="flex-1 flex items-center justify-center p-4 transition-all duration-500">
+          <div className="w-full max-w-3xl text-center space-y-12">
+            {/* Title */}
+            <div className="space-y-4">
+              <h1 className="text-6xl md:text-7xl font-light tracking-tight">
+                SentryVibe
+              </h1>
+              <p className="text-xl text-gray-400 font-light">What would you like to create?</p>
+            </div>
+
+            {/* Main Input - Centered */}
+            <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto">
+              <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 transition-all duration-300">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your message..."
+                  className="w-full px-6 py-5 bg-transparent text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 text-lg font-light"
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-md bg-white text-black hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {/* Chat View - Animated transition */}
+      {messages.length > 0 && (
+        <div className="flex-1 flex flex-col animate-in fade-in duration-700">
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto p-6 space-y-6">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
+                  <div className={`max-w-[85%] rounded-lg p-4 shadow-lg ${message.role === 'user' ? 'bg-white text-black' : 'bg-white/5 border border-white/10 text-white'}`}>
+                    {message.parts.map((part, i) => {
+                      if (part.type === 'text') {
+                        return (
+                          <div key={i} className="prose prose-invert max-w-none">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              rehypePlugins={[rehypeHighlight]}
+                              components={{
+                                code: ({ node, className, children, ...props }) => {
+                                  const match = /language-(\w+)/.exec(className || '');
+                                  const isInline = !match;
+                                  return isInline ? (
+                                    <code className="bg-white/10 text-white px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                      {children}
+                                    </code>
+                                  ) : (
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  );
+                                },
+                                pre: ({ children }) => (
+                                  <pre className="bg-black text-white p-4 rounded-lg overflow-x-auto border border-white/10">
+                                    {children}
+                                  </pre>
+                                ),
+                                p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+                                ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-1">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal list-inside mb-4 space-y-1">{children}</ol>,
+                                li: ({ children }) => <li className="ml-2">{children}</li>,
+                                h1: ({ children }) => <h1 className="text-2xl font-semibold mb-4 mt-6 first:mt-0">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 mt-5 first:mt-0">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-lg font-semibold mb-2 mt-4 first:mt-0">{children}</h3>,
+                                blockquote: ({ children }) => (
+                                  <blockquote className="border-l-4 border-white/20 pl-4 italic my-4">{children}</blockquote>
+                                ),
+                                a: ({ children, href }) => (
+                                  <a href={href} className="text-gray-300 underline hover:text-white" target="_blank" rel="noopener noreferrer">
+                                    {children}
+                                  </a>
+                                ),
+                              }}
+                            >
+                              {part.text}
+                            </ReactMarkdown>
+                          </div>
+                        );
+                      }
+                      if (part.type === 'tool-bash') {
+                        const bashInput = part.input as { command?: string } | undefined;
+                        return (
+                          <div key={i} className="mt-2 p-3 bg-black/40 rounded-lg border border-white/10">
+                            <div className="text-xs font-mono text-gray-400 mb-2">$ BASH</div>
+                            <pre className="text-sm text-gray-300 font-mono">{bashInput?.command || 'No command'}</pre>
+                            {'output' in part && part.output ? (
+                              <div className="mt-2">
+                                <div className="text-xs font-mono text-gray-400 mb-1">Output:</div>
+                                <pre className="text-xs text-gray-500 font-mono">{JSON.stringify(part.output, null, 2)}</pre>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+                      if (part.type === 'tool-text_editor') {
+                        return (
+                          <div key={i} className="mt-2 p-3 bg-black/40 rounded-lg border border-white/10">
+                            <div className="text-xs font-mono text-gray-400 mb-2">EDITOR</div>
+                            <pre className="text-xs text-gray-300 font-mono">{part.input ? JSON.stringify(part.input, null, 2) : 'No input'}</pre>
+                            {'output' in part && part.output ? (
+                              <div className="mt-2">
+                                <div className="text-xs font-mono text-gray-400 mb-1">Output:</div>
+                                <pre className="text-xs text-gray-500 font-mono">{JSON.stringify(part.output, null, 2)}</pre>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+                      if (part.type === 'tool-web_search') {
+                        const searchInput = part.input as { query?: string } | undefined;
+                        return (
+                          <div key={i} className="mt-2 p-3 bg-black/40 rounded-lg border border-white/10">
+                            <div className="text-xs font-mono text-gray-400 mb-2">SEARCH</div>
+                            <pre className="text-xs text-gray-300 font-mono">{searchInput?.query || 'No query'}</pre>
+                            {'output' in part && part.output ? (
+                              <div className="mt-2">
+                                <div className="text-xs font-mono text-gray-400 mb-1">Results:</div>
+                                <pre className="text-xs text-gray-500 font-mono max-h-40 overflow-y-auto">{JSON.stringify(part.output, null, 2)}</pre>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start animate-in fade-in duration-500">
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Fixed Bottom Input */}
+          <div className="border-t border-white/10 bg-black/50 backdrop-blur-sm p-4">
+            <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+              <div className="relative bg-white/5 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 transition-all duration-300">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Continue the conversation..."
+                  className="w-full px-6 py-4 bg-transparent text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 font-light"
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-md bg-white text-black hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
