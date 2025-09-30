@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --sentry-purple: 266 100% 62%;
+    --sentry-pink: 330 100% 80%;
+    --sentry-dark: 240 10% 10%;
+    --background: 0 0% 100%;
+    --foreground: 240 10% 10%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

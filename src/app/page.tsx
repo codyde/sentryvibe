@@ -1,74 +1,115 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
+import { motion, AnimatePresence } from 'framer-motion';
+import FileExplorer from '@/components/FileExplorer';
+import PreviewPanel from '@/components/PreviewPanel';
 
 export default function Home() {
   const [input, setInput] = useState('');
   const { messages, sendMessage, status } = useChat();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const isLoading = status === 'streaming';
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const isLoading = status === 'streaming';
     if (!input.trim() || isLoading) return;
     sendMessage({ text: input });
     setInput('');
   };
 
-  const isLoading = status === 'streaming';
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col transition-all duration-700 ease-in-out">
+    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Landing Page */}
-      {messages.length === 0 && (
-        <div className="flex-1 flex items-center justify-center p-4 transition-all duration-500">
-          <div className="w-full max-w-3xl text-center space-y-12">
-            {/* Title */}
-            <div className="space-y-4">
-              <h1 className="text-6xl md:text-7xl font-light tracking-tight">
-                SentryVibe
-              </h1>
-              <p className="text-xl text-gray-400 font-light">What would you like to create?</p>
-            </div>
-
-            {/* Main Input - Centered */}
-            <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto">
-              <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 transition-all duration-300">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="w-full px-6 py-5 bg-transparent text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 text-lg font-light"
-                  disabled={isLoading}
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-md bg-white text-black hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </button>
+      <AnimatePresence mode="wait">
+        {messages.length === 0 && (
+          <motion.div
+            key="landing"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.5 }}
+            className="flex-1 flex items-center justify-center p-4"
+          >
+            <div className="w-full max-w-3xl text-center space-y-12">
+              {/* Title */}
+              <div className="space-y-4">
+                <h1 className="text-6xl md:text-7xl font-light tracking-tight">
+                  SentryVibe
+                </h1>
+                <p className="text-xl text-gray-400 font-light">What would you like to create?</p>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* Chat View - Animated transition */}
-      {messages.length > 0 && (
-        <div className="flex-1 flex flex-col animate-in fade-in duration-700">
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-4xl mx-auto p-6 space-y-6">
+              {/* Main Input - Centered */}
+              <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto">
+                <div className="relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type your message..."
+                    rows={3}
+                    className="w-full px-6 py-5 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none text-lg font-light resize-none"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading || !input.trim()}
+                    className="absolute right-3 bottom-3 p-2 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Three-Panel Layout - Chat on left, Preview/Explorer on right */}
+        {messages.length > 0 && (
+          <motion.div
+            key="chat-layout"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0 overflow-hidden"
+          >
+            {/* Left Panel - Chat */}
+            <motion.div
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex-1 flex flex-col min-w-0 min-h-0 max-h-full"
+            >
+              <div className="flex-1 flex flex-col min-h-0 max-h-full bg-black/50 backdrop-blur-sm border border-white/10 rounded-lg overflow-hidden">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 min-h-0">
+                  <div className="space-y-6">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
-                  <div className={`max-w-[85%] rounded-lg p-4 shadow-lg ${message.role === 'user' ? 'bg-white text-black' : 'bg-white/5 border border-white/10 text-white'}`}>
+                  <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${message.role === 'user' ? 'bg-white text-black' : 'bg-white/5 border border-white/10 text-white'}`}>
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         return (
@@ -106,7 +147,7 @@ export default function Home() {
                                   <blockquote className="border-l-4 border-white/20 pl-4 italic my-4">{children}</blockquote>
                                 ),
                                 a: ({ children, href }) => (
-                                  <a href={href} className="text-gray-300 underline hover:text-white" target="_blank" rel="noopener noreferrer">
+                                  <a href={href} className="text-blue-400 underline hover:text-blue-300 break-all" target="_blank" rel="noopener noreferrer">
                                     {children}
                                   </a>
                                 ),
@@ -177,35 +218,53 @@ export default function Home() {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+                    <div ref={messagesEndRef} />
+                  </div>
+                </div>
 
-          {/* Fixed Bottom Input */}
-          <div className="border-t border-white/10 bg-black/50 backdrop-blur-sm p-4">
-            <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-              <div className="relative bg-white/5 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 transition-all duration-300">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Continue the conversation..."
-                  className="w-full px-6 py-4 bg-transparent text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 font-light"
-                  disabled={isLoading}
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-md bg-white text-black hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </button>
+                {/* Fixed Bottom Input */}
+                <div className="border-t border-white/10 bg-black/50 backdrop-blur-sm p-4 flex-shrink-0">
+                  <form onSubmit={handleSubmit}>
+                    <div className="relative bg-white/5 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                      <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Continue the conversation..."
+                        rows={2}
+                        className="w-full px-6 py-4 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none font-light resize-none"
+                        disabled={isLoading}
+                      />
+                      <button
+                        type="submit"
+                        disabled={isLoading || !input.trim()}
+                        className="absolute right-3 bottom-3 p-2 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                        </svg>
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </motion.div>
+
+            {/* Right Panel - Split into Preview (top) and File Explorer (bottom) */}
+            <div className="lg:w-1/2 flex flex-col gap-4 min-w-0">
+              {/* Preview Panel - Top */}
+              <div className="flex-1 min-h-0">
+                <PreviewPanel />
+              </div>
+
+              {/* File Explorer - Bottom */}
+              <div className="h-80">
+                <FileExplorer />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
