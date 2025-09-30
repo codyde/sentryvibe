@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
+import { ProjectProvider } from "@/contexts/ProjectContext";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: "800",
+const dammitSans = localFont({
+  src: "../../public/dammitsansv0.2-bold.otf",
+  variable: "--font-dammit-sans",
 });
 
 export const metadata: Metadata = {
@@ -21,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} antialiased`}
+        className={`${dammitSans.variable} antialiased`}
       >
-        {children}
+        <ProjectProvider>
+          {children}
+        </ProjectProvider>
       </body>
     </html>
   );

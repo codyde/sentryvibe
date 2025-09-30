@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Folder, File, Play, Square, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
+import { Folder, File, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
+import { useProjects } from '@/contexts/ProjectContext';
 
 interface FileNode {
   name: string;
@@ -11,93 +12,54 @@ interface FileNode {
   children?: FileNode[];
 }
 
-export default function FileExplorer() {
-  const [files, setFiles] = useState<FileNode[]>([]);
+interface FileExplorerProps {
+  projectFilter?: string | null;
+  onDirectorySelect?: (directory: string | null) => void;
+}
+
+export default function FileExplorer({ projectFilter, onDirectorySelect }: FileExplorerProps) {
+  const { files: allFiles } = useProjects();
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
-  const [isStarting, setIsStarting] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [runningDirectory, setRunningDirectory] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
+  const files = useMemo(() => {
+    let filteredFiles = allFiles;
+
+    // Filter by project if specified
+    if (projectFilter) {
+      filteredFiles = allFiles.filter((file: FileNode) => file.name === projectFilter);
+      // If we're filtering to a single project, expand its contents
+      if (filteredFiles.length === 1 && filteredFiles[0].children) {
+        filteredFiles = filteredFiles[0].children;
+      }
+    }
+
+    return filteredFiles;
+  }, [allFiles, projectFilter]);
+
   useEffect(() => {
-    fetchFiles();
-    const interval = setInterval(fetchFiles, 3000); // Refresh every 3 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchFiles = async () => {
-    try {
-      const response = await fetch('/api/files');
-      const data = await response.json();
-      const fetchedFiles = data.files || [];
-      setFiles(fetchedFiles);
-
-      // On initial load, collapse all folders
-      if (collapsedFolders.size === 0 && fetchedFiles.length > 0) {
-        const allFolderPaths = new Set<string>();
-        const collectFolderPaths = (nodes: FileNode[], parentPath = '') => {
-          nodes.forEach((node) => {
-            if (node.type === 'directory') {
-              allFolderPaths.add(node.path);
-              if (node.children) {
-                collectFolderPaths(node.children, node.path);
-              }
+    // On initial load or when files change, collapse all folders
+    if (files.length > 0) {
+      const allFolderPaths = new Set<string>();
+      const collectFolderPaths = (nodes: FileNode[]) => {
+        nodes.forEach((node) => {
+          if (node.type === 'directory') {
+            allFolderPaths.add(node.path);
+            if (node.children) {
+              collectFolderPaths(node.children);
             }
-          });
-        };
-        collectFolderPaths(fetchedFiles);
-        setCollapsedFolders(allFolderPaths);
-      }
-    } catch (error) {
-      console.error('Failed to fetch files:', error);
+          }
+        });
+      };
+      collectFolderPaths(files);
+      setCollapsedFolders(allFolderPaths);
     }
-  };
+  }, [files]);
 
-  const handleStartDev = async () => {
-    if (!selectedDirectory) return;
-
-    setIsStarting(true);
-    try {
-      const response = await fetch('/api/start-dev', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directory: selectedDirectory }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setRunningDirectory(selectedDirectory);
-        // Notify parent about the dev server URL
-        window.dispatchEvent(new CustomEvent('devServerStarted', {
-          detail: { url: data.url }
-        }));
-      }
-    } catch (error) {
-      console.error('Failed to start dev server:', error);
-    } finally {
-      setIsStarting(false);
-    }
-  };
-
-  const handleStopDev = async () => {
-    if (!runningDirectory) return;
-
-    setIsStopping(true);
-    try {
-      const response = await fetch('/api/start-dev', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directory: runningDirectory }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setRunningDirectory(null);
-        // Notify parent that dev server stopped
-        window.dispatchEvent(new CustomEvent('devServerStopped'));
-      }
-    } catch (error) {
-      console.error('Failed to stop dev server:', error);
-    } finally {
-      setIsStopping(false);
+  const handleDirectorySelect = (path: string) => {
+    setSelectedDirectory(path);
+    if (onDirectorySelect) {
+      onDirectorySelect(path);
     }
   };
 
@@ -140,7 +102,7 @@ export default function FileExplorer() {
                   )}
                 </button>
                 <button
-                  onClick={() => setSelectedDirectory(node.path)}
+                  onClick={() => handleDirectorySelect(node.path)}
                   className="flex items-center gap-2 flex-1"
                 >
                   {isOpen ? (
@@ -172,36 +134,21 @@ export default function FileExplorer() {
       initial={{ opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
-      className="h-full flex flex-col bg-black border border-white/10 rounded-lg overflow-hidden"
+      className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
     >
-      <div className="border-b border-white/10 p-4 flex items-center justify-between">
+      <div className="border-b border-white/10 p-4">
         <h2 className="text-lg font-light">File Explorer</h2>
-        <div className="flex items-center gap-2">
-          {runningDirectory && (
-            <button
-              onClick={handleStopDev}
-              disabled={isStopping}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              <Square className="w-4 h-4" />
-              {isStopping ? 'Stopping...' : 'Stop'}
-            </button>
-          )}
-          <button
-            onClick={handleStartDev}
-            disabled={!selectedDirectory || isStarting || !!runningDirectory}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-          >
-            <Play className="w-4 h-4" />
-            {isStarting ? 'Starting...' : 'Start'}
-          </button>
-        </div>
+        {projectFilter && (
+          <p className="text-xs text-gray-500 mt-1">Showing: {projectFilter}</p>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {files.length > 0 ? (
           renderFileTree(files)
         ) : (
-          <div className="text-gray-500 text-sm p-4">No files found in /projects/</div>
+          <div className="text-gray-500 text-sm p-4">
+            {projectFilter ? `No files found in ${projectFilter}` : 'No files found in /projects/'}
+          </div>
         )}
       </div>
     </motion.div>

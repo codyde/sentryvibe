@@ -13,13 +13,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Directory is required' }, { status: 400 });
     }
 
-    const projectPath = join(process.cwd(), 'projects', directory);
+    // Handle both formats: "hello-sentry" and "projects/hello-sentry"
+    const cleanDirectory = directory.startsWith('projects/') ? directory.substring('projects/'.length) : directory;
+    const projectPath = join(process.cwd(), 'projects', cleanDirectory);
 
     // Kill existing process for this directory if any
-    if (activeProcesses.has(directory)) {
-      const existing = activeProcesses.get(directory);
+    if (activeProcesses.has(cleanDirectory)) {
+      const existing = activeProcesses.get(cleanDirectory);
       existing?.process.kill();
-      activeProcesses.delete(directory);
+      activeProcesses.delete(cleanDirectory);
     }
 
     // Generate random port in range 3100-3199
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
     // Listen for output to detect the dev server URL
     devProcess.stdout.on('data', (data) => {
       const output = data.toString();
-      console.log(`[${directory}] ${output}`);
+      console.log(`[${cleanDirectory}] ${output}`);
 
       // Try to extract URL from common patterns
       const urlMatch = output.match(/(?:Local:|http:\/\/|https:\/\/)[\w:./-]+/);
@@ -54,16 +56,16 @@ export async function POST(request: NextRequest) {
     });
 
     devProcess.stderr.on('data', (data) => {
-      console.error(`[${directory}] Error: ${data}`);
+      console.error(`[${cleanDirectory}] Error: ${data}`);
     });
 
     devProcess.on('close', (code) => {
-      console.log(`[${directory}] Process exited with code ${code}`);
-      activeProcesses.delete(directory);
+      console.log(`[${cleanDirectory}] Process exited with code ${code}`);
+      activeProcesses.delete(cleanDirectory);
     });
 
     // Store the process with metadata
-    activeProcesses.set(directory, { process: devProcess, port: randomPort });
+    activeProcesses.set(cleanDirectory, { process: devProcess, port: randomPort });
 
     // Wait a bit to try to capture the URL
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -89,19 +91,22 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Directory is required' }, { status: 400 });
     }
 
-    console.log(`Attempting to stop process for directory: ${directory}`);
+    // Handle both formats: "hello-sentry" and "projects/hello-sentry"
+    const cleanDirectory = directory.startsWith('projects/') ? directory.substring('projects/'.length) : directory;
+
+    console.log(`Attempting to stop process for directory: ${cleanDirectory}`);
     console.log(`Active processes:`, Array.from(activeProcesses.keys()));
 
-    if (activeProcesses.has(directory)) {
-      const processData = activeProcesses.get(directory);
+    if (activeProcesses.has(cleanDirectory)) {
+      const processData = activeProcesses.get(cleanDirectory);
       if (processData?.process) {
-        console.log(`Killing process for ${directory} (PID: ${processData.process.pid})`);
+        console.log(`Killing process for ${cleanDirectory} (PID: ${processData.process.pid})`);
         processData.process.kill('SIGTERM');
 
         // Give it a moment to terminate gracefully
         setTimeout(() => {
-          if (activeProcesses.has(directory)) {
-            const pd = activeProcesses.get(directory);
+          if (activeProcesses.has(cleanDirectory)) {
+            const pd = activeProcesses.get(cleanDirectory);
             if (pd?.process) {
               try {
                 pd.process.kill('SIGKILL');
@@ -109,7 +114,7 @@ export async function DELETE(request: NextRequest) {
                 // Process already dead
               }
             }
-            activeProcesses.delete(directory);
+            activeProcesses.delete(cleanDirectory);
           }
         }, 1000);
 
@@ -117,8 +122,8 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    console.log(`No active process found for directory: ${directory}`);
-    return NextResponse.json({ error: 'No active process found', directory, activeProcesses: Array.from(activeProcesses.keys()) }, { status: 404 });
+    console.log(`No active process found for directory: ${cleanDirectory}`);
+    return NextResponse.json({ error: 'No active process found', directory: cleanDirectory, activeProcesses: Array.from(activeProcesses.keys()) }, { status: 404 });
   } catch (error) {
     console.error('Error stopping dev server:', error);
     return NextResponse.json({ error: 'Failed to stop dev server' }, { status: 500 });

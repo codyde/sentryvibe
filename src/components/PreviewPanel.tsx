@@ -2,11 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { ExternalLink, RefreshCw, Play, Square } from 'lucide-react';
 
-export default function PreviewPanel() {
+interface PreviewPanelProps {
+  selectedProject?: string | null;
+}
+
+export default function PreviewPanel({ selectedProject }: PreviewPanelProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [key, setKey] = useState(0);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [runningProject, setRunningProject] = useState<string | null>(null);
 
   useEffect(() => {
     const handleDevServerStarted = (event: Event) => {
@@ -14,8 +21,16 @@ export default function PreviewPanel() {
       setPreviewUrl(customEvent.detail.url);
     };
 
+    const handleDevServerStopped = () => {
+      setPreviewUrl('');
+    };
+
     window.addEventListener('devServerStarted', handleDevServerStarted);
-    return () => window.removeEventListener('devServerStarted', handleDevServerStarted);
+    window.addEventListener('devServerStopped', handleDevServerStopped);
+    return () => {
+      window.removeEventListener('devServerStarted', handleDevServerStarted);
+      window.removeEventListener('devServerStopped', handleDevServerStopped);
+    };
   }, []);
 
   const handleRefresh = () => {
@@ -28,12 +43,69 @@ export default function PreviewPanel() {
     }
   };
 
+  const handleStartDev = async () => {
+    if (!selectedProject) return;
+
+    setIsStarting(true);
+    try {
+      const directory = `projects/${selectedProject}`;
+      const response = await fetch('/api/start-dev', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setRunningProject(selectedProject);
+        // Notify about the dev server URL
+        window.dispatchEvent(new CustomEvent('devServerStarted', {
+          detail: { url: data.url }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to start dev server:', error);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const handleStopDev = async () => {
+    if (!runningProject) return;
+
+    setIsStopping(true);
+    try {
+      const directory = `projects/${runningProject}`;
+      const response = await fetch('/api/start-dev', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setRunningProject(null);
+        setPreviewUrl('');
+        setKey(prev => prev + 1); // Force iframe refresh
+        // Notify that dev server stopped
+        window.dispatchEvent(new CustomEvent('devServerStopped'));
+      }
+    } catch (error) {
+      console.error('Failed to stop dev server:', error);
+      // Even if there's an error, try to reset the state
+      setRunningProject(null);
+      setPreviewUrl('');
+      setKey(prev => prev + 1);
+      window.dispatchEvent(new CustomEvent('devServerStopped'));
+    } finally {
+      setIsStopping(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5, delay: 0.1 }}
-      className="h-full flex flex-col bg-black border border-white/10 rounded-lg overflow-hidden"
+      className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
     >
       <div className="border-b border-white/10 p-4 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1">
@@ -59,9 +131,29 @@ export default function PreviewPanel() {
           >
             <ExternalLink className="w-4 h-4" />
           </button>
+
+          {/* Start/Stop Buttons */}
+          {runningProject && (
+            <button
+              onClick={handleStopDev}
+              disabled={isStopping}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <Square className="w-4 h-4" />
+              {isStopping ? 'Stopping...' : 'Stop'}
+            </button>
+          )}
+          <button
+            onClick={handleStartDev}
+            disabled={!selectedProject || isStarting || !!runningProject}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            <Play className="w-4 h-4" />
+            {isStarting ? 'Starting...' : 'Start'}
+          </button>
         </div>
       </div>
-      <div className="flex-1 bg-white">
+      <div className="flex-1 bg-gray-800">
         {previewUrl ? (
           <iframe
             key={key}
