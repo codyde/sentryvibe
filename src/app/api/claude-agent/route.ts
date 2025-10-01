@@ -1,13 +1,10 @@
-import { query as originalQuery, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { createInstrumentedClaudeQuery } from '@sentry/node';
+import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
 import type { MessageParam } from '@anthropic-ai/sdk/resources';
-import { instrumentClaudeCodeQuery } from '../../../../sentry-claude-code-integration.js';
 
-// Wrap the query function with Sentry instrumentation
-const query = instrumentClaudeCodeQuery(originalQuery, {
-  recordInputs: true,
-  recordOutputs: true,
-});
+// Create instrumented query function (automatically uses claudeCodeIntegration options)
+const query = createInstrumentedClaudeQuery();
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -206,7 +203,17 @@ export async function POST(req: Request) {
 
 CRITICAL WORKFLOW - FOLLOW THIS EXACT SEQUENCE:
 
-Projects should ALWAYS be created in the <current-project-root>/projects/ directory. Do NOT EVER create projects outside of this directory under any circumstances. When creating a new JavaScript project, you MUST:
+Projects should ALWAYS be created in the <current-project-root>/projects/ directory. Do NOT EVER create projects outside of this directory under any circumstances. This includes the /projects/projects directory. 
+
+GOOD EXAMPLE: 
+- /sentryvibe/projects/hello-sentry
+- /sentryvibe/projects/new-agent
+
+BAD EXAMPLE - DO NOT DO THIS:: 
+- /sentryvibe/projects/projects/hello-sentry
+- /sentryvibe/projects/projects/new-agent
+
+When creating a new JavaScript project, you MUST:
 
 1. ALWAYS use CLI tools to scaffold projects - NEVER manually create project files:
    - For Next.js: npx create-next-app@latest <project-name>
@@ -242,7 +249,7 @@ ALWAYS verify each step is complete before moving to the next.`;
             model: 'claude-sonnet-4-5',
             cwd: '/Users/codydearkland/sentryvibe/projects',
             permissionMode: 'bypassPermissions',
-            maxTurns: 10,
+            maxTurns: 100,
             systemPrompt: systemPrompt,
           },
         });

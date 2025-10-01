@@ -3,17 +3,17 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
+import { claudeCodeIntegration } from "@sentry/node";
 
 Sentry.init({
   dsn: "https://b2d14d69bd0b4eb23548c0e522ef99b5@o4508130833793024.ingest.us.sentry.io/4510105426853888",
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
   spotlight: true,
   integrations: [
     Sentry.spotlightIntegration(),
-    Sentry.consoleLoggingIntegration(),
-    Sentry.anthropicAIIntegration({
+    // NEW: Automatic Claude Code SDK instrumentation (prototype)
+    claudeCodeIntegration({
       recordInputs: true,
       recordOutputs: true,
     }),
