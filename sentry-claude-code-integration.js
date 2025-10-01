@@ -98,6 +98,11 @@ export function instrumentClaudeCodeQuery(originalQueryFn, options = {}) {
   const recordOutputs = options.recordOutputs ?? defaultPii;
 
   return function instrumentedQuery({ prompt, options: queryOptions }) {
+    console.log('🔧 SENTRY: instrumentedQuery called');
+    console.log('🔧 SENTRY: Prompt is string:', typeof prompt === 'string');
+    console.log('🔧 SENTRY: Prompt is async iterable:',
+      prompt && typeof prompt === 'object' && Symbol.asyncIterator in prompt);
+
     const model = queryOptions?.model ?? 'sonnet';
 
     // Create the original query instance (needed for method preservation)
@@ -141,6 +146,13 @@ function createInstrumentedGenerator(originalQuery, prompt, model, instrumentati
       },
     },
     async function* (span) {
+      console.log('🔧 SENTRY: Span created:', span.spanContext().spanId);
+      console.log('🔧 SENTRY: Span is recording:', span.isRecording());
+      console.log('🔧 SENTRY: Creating instrumented generator');
+      console.log('🔧 SENTRY: Prompt type:', typeof prompt);
+      console.log('🔧 SENTRY: Is async iterable:', Symbol.asyncIterator in Object(prompt));
+      console.log('🔧 SENTRY: Options:', instrumentationOptions);
+
       // Record prompt if enabled
       if (instrumentationOptions.recordInputs && typeof prompt === 'string') {
         span.setAttributes({
@@ -157,7 +169,10 @@ function createInstrumentedGenerator(originalQuery, prompt, model, instrumentati
       let finalUsage = null;
 
       try {
+        let messageCount = 0;
         for await (const message of originalQuery) {
+          messageCount++;
+          console.log(`🔧 SENTRY: Message ${messageCount} type:`, message.type);
           // Extract session ID from system message
           if (message.type === 'system' && message.session_id) {
             sessionId = message.session_id;
@@ -191,26 +206,37 @@ function createInstrumentedGenerator(originalQuery, prompt, model, instrumentati
           yield message;
         }
 
+        console.log(`🔧 SENTRY: Total messages processed: ${messageCount}`);
+        console.log(`🔧 SENTRY: Assistant content length: ${assistantContent.length}`);
+        console.log(`🔧 SENTRY: Tool calls count: ${toolCalls.length}`);
+        console.log(`🔧 SENTRY: Final usage:`, finalUsage);
+
         // Set final attributes after stream completes
+        console.log('🔧 SENTRY: Setting final attributes');
+
         if (instrumentationOptions.recordOutputs && assistantContent) {
+          console.log('🔧 SENTRY: Setting response text attribute');
           span.setAttributes({
             [GEN_AI_ATTRIBUTES.RESPONSE_TEXT]: assistantContent,
           });
         }
 
         if (instrumentationOptions.recordOutputs && toolCalls.length > 0) {
+          console.log('🔧 SENTRY: Setting tool calls attribute');
           span.setAttributes({
             [GEN_AI_ATTRIBUTES.RESPONSE_TOOL_CALLS]: JSON.stringify(toolCalls),
           });
         }
 
         if (sessionId) {
+          console.log('🔧 SENTRY: Setting session ID attribute');
           span.setAttributes({
             [GEN_AI_ATTRIBUTES.RESPONSE_ID]: sessionId,
           });
         }
 
         if (finalUsage) {
+          console.log('🔧 SENTRY: Setting token usage attributes');
           setTokenUsageAttributes(
             span,
             finalUsage.input_tokens,
@@ -224,10 +250,12 @@ function createInstrumentedGenerator(originalQuery, prompt, model, instrumentati
         span.setStatus({ code: 1 }); // SPAN_STATUS_OK
 
       } catch (error) {
+        console.error('🔧 SENTRY: Error in instrumentation:', error);
         // Mark span as error
         span.setStatus({ code: 2, message: error.message }); // SPAN_STATUS_ERROR
         throw error;
       } finally {
+        console.log('🔧 SENTRY: Ending span');
         // End span
         span.end();
       }
