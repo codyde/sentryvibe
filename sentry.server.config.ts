@@ -12,11 +12,10 @@ Sentry.init({
 
   integrations: [
     Sentry.consoleLoggingIntegration(),
-    Sentry.vercelAIIntegration({
+    Sentry.anthropicAIIntegration({
       recordInputs: true,
       recordOutputs: true,
-      force: true,
-    })
+    }),
   ],
 
   // Enable logs to be sent to Sentry

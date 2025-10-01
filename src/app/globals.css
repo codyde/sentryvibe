@@ -40,6 +40,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --animate-swing: swing 0.75s ease;
 }
 
 :root {
@@ -109,6 +110,36 @@
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(0.12 0 0);
   --sidebar-ring: oklch(1 0 0);
+}
+
+@keyframes swing {
+  0% {
+    transform: rotate(0deg);
+  }
+  60% {
+    transform: rotate(0deg);
+  }
+  70% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(-7deg);
+  }
+  80% {
+    transform: rotate(-7.8deg);
+  }
+  85% {
+    transform: rotate(-7.2deg);
+  }
+  90% {
+    transform: rotate(-7.5deg);
+  }
+  95% {
+    transform: rotate(-7.4deg);
+  }
+  100% {
+    transform: rotate(-7.5deg);
+  }
 }
 
 @layer base {

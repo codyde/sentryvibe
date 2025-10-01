@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -16,7 +17,9 @@ import { useProjects } from '@/contexts/ProjectContext';
 
 export default function Home() {
   const [input, setInput] = useState('');
-  const { messages, sendMessage, status } = useChat();
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/claude-agent' }),
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
@@ -103,31 +106,31 @@ export default function Home() {
                 <div className="w-full text-center space-y-12 overflow-x-auto">
                   {/* Title */}
                   <div className="space-y-4">
-                    <h1 className="text-[6rem] md:text-[8rem] font-bold inline-block">
-                      <div>Code <span className="inline-block -rotate-[10deg]" style={{ color: '#FD44B0' }}>breaks</span>,</div>
+                    <h1 className="text-[6rem] md:text-[8rem] font-bold inline-block leading-tight">
+                      <div>Code <span className="inline-block hover:animate-swing origin-bottom-right" style={{ color: '#FD44B0' }}>breaks</span>,</div>
                       <div>build it anyways.</div>
                     </h1>
-                    <p className="text-xl text-gray-400 font-light">What would you like to create?</p>
                   </div>
 
                   {/* Main Input - Centered */}
-                  <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto">
+                  <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
                     <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
                       <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Type your message..."
-                        rows={3}
-                        className="w-full px-6 py-5 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none text-lg font-light resize-none"
+                        placeholder="What do you want to build?"
+                        rows={2}
+                        className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
+                        style={{ minHeight: '80px' }}
                         disabled={isLoading}
                       />
                       <button
                         type="submit"
                         disabled={isLoading || !input.trim()}
-                        className="absolute right-3 bottom-3 p-2 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                        className="absolute right-4 bottom-4 p-3 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
                       >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                         </svg>
                       </button>
@@ -167,7 +170,7 @@ export default function Home() {
                               remarkPlugins={[remarkGfm]}
                               rehypePlugins={[rehypeHighlight]}
                               components={{
-                                code: ({ node, className, children, ...props }) => {
+                                code: ({ className, children, ...props }) => {
                                   const match = /language-(\w+)/.exec(className || '');
                                   const isInline = !match;
                                   return isInline ? (
@@ -207,50 +210,48 @@ export default function Home() {
                           </div>
                         );
                       }
-                      if (part.type === 'tool-bash') {
-                        const bashInput = part.input as { command?: string } | undefined;
+
+                      // Handle dynamic tool parts (AI SDK 5.0 format)
+                      if (part.type.startsWith('tool-') || part.type === 'dynamic-tool') {
+                        const toolName = part.type.replace('tool-', '');
+                        const state = 'state' in part ? part.state : undefined;
+
                         return (
-                          <div key={i} className="mt-2 p-3 bg-background/40 rounded-lg border border-white/10">
-                            <div className="text-xs font-mono text-gray-400 mb-2">$ BASH</div>
-                            <pre className="text-sm text-gray-300 font-mono">{bashInput?.command || 'No command'}</pre>
-                            {'output' in part && part.output ? (
-                              <div className="mt-2">
+                          <div key={i} className="mt-2 p-3 bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-500/30">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="text-xs font-mono text-purple-300">🔧 {toolName}</div>
+                              {state === 'input-streaming' && (
+                                <div className="text-xs text-gray-400 animate-pulse">Preparing...</div>
+                              )}
+                              {state === 'input-available' && (
+                                <div className="text-xs text-yellow-400">Running...</div>
+                              )}
+                              {state === 'output-available' && (
+                                <div className="text-xs text-green-400">✓ Complete</div>
+                              )}
+                            </div>
+
+                            {('input' in part && part.input) && (
+                              <div className="mb-2">
+                                <div className="text-xs font-mono text-gray-400 mb-1">Input:</div>
+                                <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap">
+                                  {typeof part.input === 'string' ? part.input : JSON.stringify(part.input, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+
+                            {('output' in part && part.output) && (
+                              <div>
                                 <div className="text-xs font-mono text-gray-400 mb-1">Output:</div>
-                                <pre className="text-xs text-gray-500 font-mono">{JSON.stringify(part.output, null, 2)}</pre>
+                                <pre className="text-xs text-gray-400 font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
+                                  {typeof part.output === 'string' ? part.output : JSON.stringify(part.output, null, 2)}
+                                </pre>
                               </div>
-                            ) : null}
+                            )}
                           </div>
                         );
                       }
-                      if (part.type === 'tool-text_editor') {
-                        return (
-                          <div key={i} className="mt-2 p-3 bg-background/40 rounded-lg border border-white/10">
-                            <div className="text-xs font-mono text-gray-400 mb-2">EDITOR</div>
-                            <pre className="text-xs text-gray-300 font-mono">{part.input ? JSON.stringify(part.input, null, 2) : 'No input'}</pre>
-                            {'output' in part && part.output ? (
-                              <div className="mt-2">
-                                <div className="text-xs font-mono text-gray-400 mb-1">Output:</div>
-                                <pre className="text-xs text-gray-500 font-mono">{JSON.stringify(part.output, null, 2)}</pre>
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      }
-                      if (part.type === 'tool-web_search') {
-                        const searchInput = part.input as { query?: string } | undefined;
-                        return (
-                          <div key={i} className="mt-2 p-3 bg-background/40 rounded-lg border border-white/10">
-                            <div className="text-xs font-mono text-gray-400 mb-2">SEARCH</div>
-                            <pre className="text-xs text-gray-300 font-mono">{searchInput?.query || 'No query'}</pre>
-                            {'output' in part && part.output ? (
-                              <div className="mt-2">
-                                <div className="text-xs font-mono text-gray-400 mb-1">Results:</div>
-                                <pre className="text-xs text-gray-500 font-mono max-h-40 overflow-y-auto">{JSON.stringify(part.output, null, 2)}</pre>
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      }
+
                       return null;
                     })}
                   </div>
