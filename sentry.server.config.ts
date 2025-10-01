@@ -22,5 +22,8 @@ Sentry.init({
   enableLogs: true,
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
-  debug: false,
+  debug: true,
+
+  // Enable sending PII to capture prompts and responses
+  sendDefaultPii: true,
 });

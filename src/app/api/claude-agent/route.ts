@@ -1,6 +1,13 @@
-import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query as originalQuery, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
 import type { MessageParam } from '@anthropic-ai/sdk/resources';
+import { instrumentClaudeCodeQuery } from '../../../../sentry-claude-code-integration.js';
+
+// Wrap the query function with Sentry instrumentation
+const query = instrumentClaudeCodeQuery(originalQuery, {
+  recordInputs: true,
+  recordOutputs: true,
+});
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -193,6 +200,8 @@ export async function POST(req: Request) {
     // Create UI Message Stream using AI SDK
     const stream = createUIMessageStream({
       async execute({ writer }) {
+        console.log('🎯 Creating instrumented Claude Code query...');
+
         // Create Claude Agent SDK query with proper configuration
         const agentStream = query({
           // Pass conversation history as async iterable of SDK messages
