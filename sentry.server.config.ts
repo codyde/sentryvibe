@@ -9,8 +9,9 @@ Sentry.init({
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
-
+  spotlight: true,
   integrations: [
+    Sentry.spotlightIntegration(),
     Sentry.consoleLoggingIntegration(),
     Sentry.anthropicAIIntegration({
       recordInputs: true,
@@ -22,7 +23,7 @@ Sentry.init({
   enableLogs: true,
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
-  debug: true,
+  debug: false,
 
   // Enable sending PII to capture prompts and responses
   sendDefaultPii: true,

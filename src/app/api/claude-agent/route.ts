@@ -202,16 +202,7 @@ export async function POST(req: Request) {
       async execute({ writer }) {
         console.log('🎯 Creating instrumented Claude Code query...');
 
-        // Create Claude Agent SDK query with proper configuration
-        const agentStream = query({
-          // Pass conversation history as async iterable of SDK messages
-          prompt: createConversationHistory(messages),
-          options: {
-            model: 'claude-sonnet-4-5',
-            cwd: '/Users/codydearkland/sentryvibe/projects',
-            permissionMode: 'bypassPermissions',
-            maxTurns: 10,
-            systemPrompt: `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
+        const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
 CRITICAL WORKFLOW - FOLLOW THIS EXACT SEQUENCE:
 
@@ -230,7 +221,29 @@ Projects should ALWAYS be created in the <current-project-root>/projects/ direct
    - Follow Sentry's official setup guide for the specific framework
 
 NEVER manually create project files when a CLI tool exists.
-ALWAYS verify each step is complete before moving to the next.`,
+ALWAYS verify each step is complete before moving to the next.`;
+
+        // Get only the LAST user message to avoid replaying entire conversation
+        const lastUserMessage = messages[messages.length - 1];
+
+        // Convert UI messages to Anthropic format for Sentry, including system prompt
+        const inputMessages = [
+          { role: 'system', content: systemPrompt },
+          ...messages.map(convertUIMessageToAnthropicFormat)
+        ];
+
+        // Create Claude Agent SDK query with proper configuration
+        const agentStream = query({
+          // Pass only the new user message (SDK manages its own session state)
+          prompt: lastUserMessage.parts.find(p => p.type === 'text')?.text || 'Continue',
+          // Pass input messages for Sentry instrumentation (system + user messages)
+          inputMessages: inputMessages,
+          options: {
+            model: 'claude-sonnet-4-5',
+            cwd: '/Users/codydearkland/sentryvibe/projects',
+            permissionMode: 'bypassPermissions',
+            maxTurns: 10,
+            systemPrompt: systemPrompt,
           },
         });
 
