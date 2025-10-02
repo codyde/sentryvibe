@@ -2,6 +2,8 @@
 
 A Next.js application featuring Claude Code AI agent integration with Sentry monitoring.
 
+> **⚠️ IMPORTANT:** This project requires locally-built Sentry SDK packages from [PR #17844](https://github.com/getsentry/sentry-javascript/pull/17844). The Claude Code integration is not yet available in the published npm packages. See [Testing with Sentry SDK PR](#testing-with-sentry-sdk-pr) for installation instructions.
+
 ## Getting Started
 
 ### Install Dependencies
