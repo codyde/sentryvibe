@@ -26,9 +26,13 @@ export default function Home() {
   const router = useRouter();
   const selectedProject = searchParams.get('project');
   const [lastProjectName, setLastProjectName] = useState<string | null>(null);
+  const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const { projects } = useProjects();
 
   const isLoading = status === 'streaming';
+
+  // Use selectedProject from URL if available, otherwise use directory from FileExplorer
+  const activeProject = selectedProject || selectedDirectory;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -304,13 +308,18 @@ export default function Home() {
             <div className="lg:w-1/2 flex flex-col gap-4 min-w-0">
               {/* Preview Panel - Top */}
               <div className="flex-1 min-h-0">
-                <PreviewPanel selectedProject={selectedProject} />
+                <PreviewPanel selectedProject={activeProject} />
               </div>
 
               {/* File Explorer - Bottom */}
               <div className="h-80">
                 <FileExplorer
                   projectFilter={selectedProject}
+                  onDirectorySelect={(directory) => {
+                    // Extract just the project name from the full path
+                    const projectName = directory?.split('/').pop() || null;
+                    setSelectedDirectory(projectName);
+                  }}
                 />
               </div>
             </div>
