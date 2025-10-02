@@ -12,10 +12,14 @@
 
 # testing
 /coverage
-
+/projects/*
 # next.js
 /.next/
 /out/
+
+
+
+sqlite*
 
 # production
 /build

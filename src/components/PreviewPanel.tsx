@@ -1,37 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLink, RefreshCw, Play, Square } from 'lucide-react';
+import { useProjects } from '@/contexts/ProjectContext';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
+  onStartServer?: () => void;
+  onStopServer?: () => void;
 }
 
-export default function PreviewPanel({ selectedProject }: PreviewPanelProps) {
-  const [previewUrl, setPreviewUrl] = useState<string>('');
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer }: PreviewPanelProps) {
+  const { projects } = useProjects();
   const [key, setKey] = useState(0);
-  const [isStarting, setIsStarting] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [runningProject, setRunningProject] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleDevServerStarted = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      setPreviewUrl(customEvent.detail.url);
-    };
+  // Find the current project
+  const project = projects.find(p => p.slug === selectedProject);
 
-    const handleDevServerStopped = () => {
-      setPreviewUrl('');
-    };
-
-    window.addEventListener('devServerStarted', handleDevServerStarted);
-    window.addEventListener('devServerStopped', handleDevServerStopped);
-    return () => {
-      window.removeEventListener('devServerStarted', handleDevServerStarted);
-      window.removeEventListener('devServerStopped', handleDevServerStopped);
-    };
-  }, []);
+  // Construct preview URL from project data
+  const previewUrl = project?.devServerPort
+    ? `http://localhost:${project.devServerPort}`
+    : '';
 
   const handleRefresh = () => {
     setKey(prev => prev + 1);
@@ -43,63 +33,6 @@ export default function PreviewPanel({ selectedProject }: PreviewPanelProps) {
     }
   };
 
-  const handleStartDev = async () => {
-    if (!selectedProject) return;
-
-    setIsStarting(true);
-    try {
-      const directory = `projects/${selectedProject}`;
-      const response = await fetch('/api/start-dev', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directory }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setRunningProject(selectedProject);
-        // Notify about the dev server URL
-        window.dispatchEvent(new CustomEvent('devServerStarted', {
-          detail: { url: data.url }
-        }));
-      }
-    } catch (error) {
-      console.error('Failed to start dev server:', error);
-    } finally {
-      setIsStarting(false);
-    }
-  };
-
-  const handleStopDev = async () => {
-    if (!runningProject) return;
-
-    setIsStopping(true);
-    try {
-      const directory = `projects/${runningProject}`;
-      const response = await fetch('/api/start-dev', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directory }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setRunningProject(null);
-        setPreviewUrl('');
-        setKey(prev => prev + 1); // Force iframe refresh
-        // Notify that dev server stopped
-        window.dispatchEvent(new CustomEvent('devServerStopped'));
-      }
-    } catch (error) {
-      console.error('Failed to stop dev server:', error);
-      // Even if there's an error, try to reset the state
-      setRunningProject(null);
-      setPreviewUrl('');
-      setKey(prev => prev + 1);
-      window.dispatchEvent(new CustomEvent('devServerStopped'));
-    } finally {
-      setIsStopping(false);
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, x: 50 }}
@@ -108,49 +41,60 @@ export default function PreviewPanel({ selectedProject }: PreviewPanelProps) {
       className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
     >
       <div className="border-b border-white/10 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-1">
-          <h2 className="text-lg font-light">Preview</h2>
-          {previewUrl && (
-            <span className="text-xs text-gray-500 font-mono">{previewUrl}</span>
+        <div className="flex items-center gap-3 flex-1">
+          {previewUrl ? (
+            <>
+              {/* Control buttons on the left */}
+              <button
+                onClick={handleRefresh}
+                className="p-2 rounded-md hover:bg-white/5 transition-all duration-200"
+                title="Refresh"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleOpenInNewTab}
+                className="p-2 rounded-md hover:bg-white/5 transition-all duration-200"
+                title="Open in new tab"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+
+              {/* URL Display */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/50 border border-white/10 rounded-md">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <span className="text-sm font-mono text-gray-300">{previewUrl}</span>
+              </div>
+            </>
+          ) : (
+            <h2 className="text-lg font-light">Preview</h2>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={!previewUrl}
-            className="p-2 rounded-md hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleOpenInNewTab}
-            disabled={!previewUrl}
-            className="p-2 rounded-md hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-            title="Open in new tab"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
 
-          {/* Start/Stop Buttons */}
-          {runningProject && (
-            <button
-              onClick={handleStopDev}
-              disabled={isStopping}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              <Square className="w-4 h-4" />
-              {isStopping ? 'Stopping...' : 'Stop'}
-            </button>
+        {/* Dev Server Controls - Right side */}
+        <div className="flex items-center gap-2">
+          {project?.runCommand && (
+            <>
+              {project.devServerStatus === 'running' ? (
+                <button
+                  onClick={onStopServer}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-md transition-colors"
+                >
+                  <Square className="w-4 h-4" />
+                  Stop
+                </button>
+              ) : (
+                <button
+                  onClick={onStartServer}
+                  disabled={project.devServerStatus === 'starting'}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-md transition-colors disabled:opacity-50"
+                >
+                  <Play className="w-4 h-4" />
+                  {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
+                </button>
+              )}
+            </>
           )}
-          <button
-            onClick={handleStartDev}
-            disabled={!selectedProject || isStarting || !!runningProject}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md hover:bg-gray-200 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-          >
-            <Play className="w-4 h-4" />
-            {isStarting ? 'Starting...' : 'Start'}
-          </button>
         </div>
       </div>
       <div className="flex-1 bg-gray-800">
@@ -163,7 +107,11 @@ export default function PreviewPanel({ selectedProject }: PreviewPanelProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <p>Select a directory and click Start to see preview</p>
+            {project?.devServerStatus === 'running' ? (
+              <p>Waiting for dev server...</p>
+            ) : (
+              <p>Start the dev server to see preview</p>
+            )}
           </div>
         )}
       </div>

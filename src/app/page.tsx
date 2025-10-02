@@ -1,7 +1,5 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -9,75 +7,250 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Play, Square, Terminal } from 'lucide-react';
 import FileExplorer from '@/components/FileExplorer';
 import PreviewPanel from '@/components/PreviewPanel';
+import ProcessManagerModal from '@/components/ProcessManagerModal';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { useProjects } from '@/contexts/ProjectContext';
+import { useProjects, type Project } from '@/contexts/ProjectContext';
+
+interface MessagePart {
+  type: string;
+  text?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  parts: MessagePart[];
+}
 
 export default function Home() {
   const [input, setInput] = useState('');
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/claude-agent' }),
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
+  const [showProcessModal, setShowProcessModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const selectedProject = searchParams.get('project');
-  const [lastProjectName, setLastProjectName] = useState<string | null>(null);
-  const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
-  const { projects } = useProjects();
+  const selectedProjectSlug = searchParams.get('project');
+  const shouldGenerate = searchParams.get('generate') === 'true';
+  const { projects, refetch } = useProjects();
 
-  const isLoading = status === 'streaming';
-
-  // Use selectedProject from URL if available, otherwise use directory from FileExplorer
-  const activeProject = selectedProject || selectedDirectory;
+  const isLoading = isCreatingProject || isGenerating;
+  const activeProject = selectedProjectSlug || selectedDirectory;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const isNearBottom = () => {
+    if (!scrollContainerRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const threshold = 100; // pixels from bottom
+    return scrollHeight - scrollTop - clientHeight < threshold;
+  };
+
+  // Only auto-scroll if user is near bottom or if loading (new message streaming)
   useEffect(() => {
-    scrollToBottom();
+    if (isLoading || isNearBottom()) {
+      scrollToBottom();
+    }
   }, [messages, isLoading]);
 
-  // Watch for new project directories being created
-  useEffect(() => {
-    // Extract project name from the last assistant message if it's about creating a project
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'assistant') {
-      const textParts = lastMessage.parts.filter(part => part.type === 'text');
-      const fullText = textParts.map(part => 'text' in part ? part.text : '').join(' ');
+  const loadMessages = async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/messages`);
+      const data = await res.json();
 
-      // Look for project name patterns in the message
-      const projectNameMatch = fullText.match(/(?:creating|created|building|project)\s+(?:called\s+)?["']?([a-z0-9-]+)["']?/i);
-      if (projectNameMatch) {
-        const projectName = projectNameMatch[1];
-        if (projectName !== lastProjectName) {
-          setLastProjectName(projectName);
+      if (data.messages) {
+        const formattedMessages: Message[] = data.messages.map((msg: { id: string; role: 'user' | 'assistant'; content: MessagePart[] }) => ({
+          id: msg.id,
+          role: msg.role,
+          parts: Array.isArray(msg.content) ? msg.content : [],
+        }));
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+
+  // Load project data when selected
+  useEffect(() => {
+    if (selectedProjectSlug) {
+      const project = projects.find(p => p.slug === selectedProjectSlug);
+      if (project) {
+        setCurrentProject(project);
+        loadMessages(project.id);
+      }
+    } else {
+      setCurrentProject(null);
+      setMessages([]);
+    }
+  }, [selectedProjectSlug, projects]);
+
+  // Auto-start generation if needed
+  useEffect(() => {
+    if (currentProject && shouldGenerate && messages.length === 0 && !isGenerating) {
+      // Remove generate flag from URL
+      router.replace(`/?project=${currentProject.slug}`);
+
+      // Start generation with the description as prompt
+      if (currentProject.description) {
+        startGeneration(currentProject.id, currentProject.description);
+      }
+    }
+  }, [currentProject, shouldGenerate, messages.length, isGenerating, router]);
+
+  const startGeneration = async (projectId: string, prompt: string) => {
+    setIsGenerating(true);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Generation failed');
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      const decoder = new TextDecoder();
+      let currentMessage: Message | null = null;
+      let currentTextPart: { id: string; text: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'start') {
+              currentMessage = {
+                id: data.messageId || `msg-${Date.now()}`,
+                role: 'assistant',
+                parts: [],
+              };
+            } else if (data.type === 'text-start') {
+              currentTextPart = { id: data.id, text: '' };
+            } else if (data.type === 'text-delta' && currentTextPart) {
+              currentTextPart.text += data.delta;
+
+              if (currentMessage) {
+                const existingPartIndex = currentMessage.parts.findIndex(p => p.type === 'text' && p.text?.includes(currentTextPart!.text));
+                if (existingPartIndex === -1) {
+                  currentMessage.parts.push({ type: 'text', text: currentTextPart.text });
+                } else {
+                  currentMessage.parts[existingPartIndex] = { type: 'text', text: currentTextPart.text };
+                }
+
+                setMessages(prev => {
+                  const existing = prev.find(m => m.id === currentMessage!.id);
+                  if (existing) {
+                    return prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m);
+                  }
+                  return [...prev, { ...currentMessage! }];
+                });
+              }
+            } else if (data.type === 'tool-input-available' && currentMessage) {
+              currentMessage.parts.push({
+                type: `tool-${data.toolName}`,
+                toolCallId: data.toolCallId,
+                toolName: data.toolName,
+                input: data.input,
+                state: 'input-available',
+              });
+              setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+            } else if (data.type === 'tool-output-available' && currentMessage) {
+              const toolPart = currentMessage.parts.find(p => p.toolCallId === data.toolCallId);
+              if (toolPart) {
+                toolPart.output = data.output;
+                toolPart.state = 'output-available';
+                setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+              }
+            } else if (data.type === 'finish') {
+              currentMessage = null;
+              currentTextPart = null;
+            }
+          } catch (e) {
+            // Skip malformed JSON
+          }
         }
       }
-    }
-  }, [messages, lastProjectName]);
 
-  // Auto-select the project when its directory appears
-  useEffect(() => {
-    if (lastProjectName && !selectedProject) {
-      // Check if the project now exists in the projects list
-      const projectExists = projects.some(p => p.slug === lastProjectName);
-      if (projectExists) {
-        // Update the URL to select this project
-        router.push(`/?project=${lastProjectName}`);
-      }
+      refetch(); // Refresh project list to update status
+    } catch (error) {
+      console.error('Generation error:', error);
+    } finally {
+      setIsGenerating(false);
     }
-  }, [lastProjectName, selectedProject, projects, router]);
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-    sendMessage({ text: input });
+
+    const userPrompt = input;
     setInput('');
+
+    // If no project selected, create new project
+    if (!currentProject) {
+      setIsCreatingProject(true);
+
+      try {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: userPrompt }),
+        });
+
+        if (!res.ok) throw new Error('Failed to create project');
+
+        const data = await res.json();
+        const project = data.project;
+
+        refetch(); // Refresh project list
+
+        // Redirect to new project with generate flag
+        router.push(`/?project=${project.slug}&generate=true`);
+      } catch (error) {
+        console.error('Error creating project:', error);
+      } finally {
+        setIsCreatingProject(false);
+      }
+    } else {
+      // Continue existing conversation
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'user',
+        parts: [{ type: 'text', text: userPrompt }],
+      };
+      setMessages(prev => [...prev, userMessage]);
+
+      await startGeneration(currentProject.id, userPrompt);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -87,9 +260,36 @@ export default function Home() {
     }
   };
 
+  const startDevServer = async () => {
+    if (!currentProject) return;
+
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/start`, { method: 'POST' });
+      if (res.ok) {
+        refetch(); // Refresh project data
+      }
+    } catch (error) {
+      console.error('Failed to start dev server:', error);
+    }
+  };
+
+  const stopDevServer = async () => {
+    if (!currentProject) return;
+
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/stop`, { method: 'POST' });
+      if (res.ok) {
+        refetch(); // Refresh project data
+      }
+    } catch (error) {
+      console.error('Failed to stop dev server:', error);
+    }
+  };
+
   return (
-    <SidebarProvider defaultOpen={!selectedProject}>
-      <AppSidebar />
+    <SidebarProvider defaultOpen={!selectedProjectSlug}>
+      <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
+      <ProcessManagerModal isOpen={showProcessModal} onClose={() => setShowProcessModal(false)} />
       <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
         <div className="h-screen bg-gradient-to-tr from-[#1D142F] to-[#31145F] text-white flex flex-col overflow-hidden">
           {/* Sidebar Trigger - Always visible */}
@@ -99,7 +299,7 @@ export default function Home() {
 
           {/* Landing Page */}
           <AnimatePresence mode="wait">
-            {messages.length === 0 && !selectedProject && (
+            {messages.length === 0 && !selectedProjectSlug && !isCreatingProject && (
               <motion.div
                 key="landing"
                 initial={{ opacity: 1 }}
@@ -144,8 +344,27 @@ export default function Home() {
               </motion.div>
             )}
 
+            {/* Loading state for project creation */}
+            {isCreatingProject && (
+              <motion.div
+                key="creating"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex-1 flex items-center justify-center p-4"
+              >
+                <div className="text-center space-y-4">
+                  <div className="flex items-center gap-3 justify-center">
+                    <div className="w-3 h-3 bg-white rounded-full animate-bounce"></div>
+                    <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                  </div>
+                  <p className="text-xl font-light">Creating your project...</p>
+                </div>
+              </motion.div>
+            )}
+
             {/* Three-Panel Layout - Chat on left, Preview/Explorer on right */}
-            {(messages.length > 0 || selectedProject) && (
+            {(messages.length > 0 || selectedProjectSlug) && !isCreatingProject && (
           <motion.div
             key="chat-layout"
             initial={{ opacity: 0 }}
@@ -161,6 +380,69 @@ export default function Home() {
               className="flex-1 flex flex-col min-w-0 min-h-0 max-h-full"
             >
               <div className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                {/* Project Status Header */}
+                {currentProject && (
+                  <div className="border-b border-white/10 p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      {/* Status Indicator Circle */}
+                      <div className="relative group">
+                        <div className={`w-3 h-3 rounded-full ${
+                          currentProject.status === 'pending' ? 'bg-gray-500' :
+                          currentProject.status === 'in_progress' ? 'bg-yellow-500 animate-pulse' :
+                          currentProject.status === 'completed' ? 'bg-green-500' :
+                          'bg-red-500'
+                        }`} />
+                        {/* Tooltip */}
+                        <div className="absolute left-0 top-6 hidden group-hover:block z-50">
+                          <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap border border-white/10">
+                            {currentProject.status === 'pending' && 'Pending'}
+                            {currentProject.status === 'in_progress' && 'Generating...'}
+                            {currentProject.status === 'completed' && 'Completed'}
+                            {currentProject.status === 'failed' && 'Failed'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex-1">
+                        <h2 className="text-lg font-semibold">{currentProject.name}</h2>
+                        {currentProject.description && (
+                          <p className="text-sm text-gray-400">{currentProject.description}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Error message and retry button */}
+                    {currentProject.status === 'failed' && (
+                      <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-red-400 mb-1">Generation Failed</p>
+                            {currentProject.errorMessage && (
+                              <p className="text-xs text-red-300/80">{currentProject.errorMessage}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (currentProject.description) {
+                                await fetch(`/api/projects/${currentProject.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: 'pending', errorMessage: null }),
+                                });
+                                refetch();
+                                await startGeneration(currentProject.id, currentProject.description);
+                              }
+                            }}
+                            className="px-3 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded transition-colors"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 min-h-0">
                   <div className="space-y-6">
               {messages.map((message) => (
@@ -215,10 +497,10 @@ export default function Home() {
                         );
                       }
 
-                      // Handle dynamic tool parts (AI SDK 5.0 format)
-                      if (part.type.startsWith('tool-') || part.type === 'dynamic-tool') {
-                        const toolName = part.type.replace('tool-', '');
-                        const state = 'state' in part ? part.state : undefined;
+                      // Handle dynamic tool parts
+                      if (part.type.startsWith('tool-')) {
+                        const toolName = part.toolName || part.type.replace('tool-', '');
+                        const state = part.state;
 
                         return (
                           <div key={i} className="mt-2 p-3 bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-500/30">
@@ -235,7 +517,7 @@ export default function Home() {
                               )}
                             </div>
 
-                            {('input' in part && part.input) && (
+                            {part.input !== undefined && part.input !== null && (
                               <div className="mb-2">
                                 <div className="text-xs font-mono text-gray-400 mb-1">Input:</div>
                                 <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap">
@@ -244,7 +526,7 @@ export default function Home() {
                               </div>
                             )}
 
-                            {('output' in part && part.output) && (
+                            {part.output !== undefined && part.output !== null && (
                               <div>
                                 <div className="text-xs font-mono text-gray-400 mb-1">Output:</div>
                                 <pre className="text-xs text-gray-400 font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
@@ -261,7 +543,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-              {isLoading && (
+              {isGenerating && (
                 <div className="flex justify-start animate-in fade-in duration-500">
                   <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                     <div className="flex items-center gap-2">
@@ -308,15 +590,18 @@ export default function Home() {
             <div className="lg:w-1/2 flex flex-col gap-4 min-w-0">
               {/* Preview Panel - Top */}
               <div className="flex-1 min-h-0">
-                <PreviewPanel selectedProject={activeProject} />
+                <PreviewPanel
+                  selectedProject={selectedProjectSlug}
+                  onStartServer={startDevServer}
+                  onStopServer={stopDevServer}
+                />
               </div>
 
               {/* File Explorer - Bottom */}
               <div className="h-80">
                 <FileExplorer
-                  projectFilter={selectedProject}
+                  projectFilter={selectedProjectSlug}
                   onDirectorySelect={(directory) => {
-                    // Extract just the project name from the full path
                     const projectName = directory?.split('/').pop() || null;
                     setSelectedDirectory(projectName);
                   }}

@@ -1,7 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
-import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
-import type { MessageParam } from '@anthropic-ai/sdk/resources';
+import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage, type UIMessageStreamWriter } from 'ai';
+import type { MessageParam, ContentBlockParam } from '@anthropic-ai/sdk/resources';
 
 // Create instrumented query function (automatically uses claudeCodeIntegration options)
 const query = Sentry.createInstrumentedClaudeQuery();
@@ -11,7 +10,7 @@ export const maxDuration = 30;
 
 // Convert AI SDK UIMessage to Anthropic Messages API format
 function convertUIMessageToAnthropicFormat(msg: UIMessage): MessageParam {
-  const content: any[] = [];
+  const content: ContentBlockParam[] = [];
 
   for (const part of msg.parts) {
     if (part.type === 'text' && 'text' in part && part.text) {
@@ -25,19 +24,22 @@ function convertUIMessageToAnthropicFormat(msg: UIMessage): MessageParam {
 
       // For tool input (assistant's tool call) - check if it has input
       if ('input' in part && part.input) {
+        const toolCallId = 'toolCallId' in part && typeof part.toolCallId === 'string' ? part.toolCallId : `tool_${Date.now()}`;
+        const toolNameFromPart = 'toolName' in part && typeof part.toolName === 'string' ? part.toolName : toolName;
         content.push({
           type: 'tool_use',
-          id: 'toolCallId' in part ? (part as any).toolCallId : `tool_${Date.now()}`,
-          name: 'toolName' in part ? (part as any).toolName : toolName,
+          id: toolCallId,
+          name: toolNameFromPart,
           input: part.input,
         });
       }
 
       // For tool results (user's tool result) - check if it has output
       if ('output' in part && part.output) {
+        const toolCallId = 'toolCallId' in part && typeof part.toolCallId === 'string' ? part.toolCallId : `tool_${Date.now()}`;
         content.push({
           type: 'tool_result',
-          tool_use_id: 'toolCallId' in part ? (part as any).toolCallId : `tool_${Date.now()}`,
+          tool_use_id: toolCallId,
           content: typeof part.output === 'string' ? part.output : JSON.stringify(part.output),
         });
       }
@@ -50,32 +52,22 @@ function convertUIMessageToAnthropicFormat(msg: UIMessage): MessageParam {
   };
 }
 
-// Create async iterable of SDK messages for conversation history
-async function* createConversationHistory(messages: UIMessage[]): AsyncGenerator<SDKUserMessage> {
-  // Yield all messages except the last one (which will be the new prompt)
-  for (const msg of messages.slice(0, -1)) {
-    yield {
-      type: 'user' as const,
-      message: convertUIMessageToAnthropicFormat(msg),
-      parent_tool_use_id: null,
-      session_id: 'web-session',
-    };
-  }
-
-  // Yield the final user message
-  const lastMessage = messages[messages.length - 1];
-  yield {
-    type: 'user' as const,
-    message: convertUIMessageToAnthropicFormat(lastMessage),
-    parent_tool_use_id: null,
-    session_id: 'web-session',
+// Define the agent message type
+interface AgentMessage {
+  type: string;
+  subtype?: string;
+  message?: {
+    id?: string;
+    content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown; tool_use_id?: string; content?: string }>;
   };
+  uuid?: string;
+  error?: unknown;
 }
 
 // Process Agent SDK messages and write to UI Message Stream
 async function writeAgentMessagesToStream(
-  agentStream: AsyncGenerator<any>,
-  writer: any
+  agentStream: AsyncGenerator<AgentMessage>,
+  writer: UIMessageStreamWriter
 ) {
   let currentMessageId: string | null = null;
   let messageStarted = false;
@@ -103,7 +95,7 @@ async function writeAgentMessagesToStream(
         }
 
         // Start new message
-        currentMessageId = assistantMessageId;
+        currentMessageId = assistantMessageId ?? null;
         messageStarted = true;
         writer.write({
           type: 'start',
@@ -113,7 +105,7 @@ async function writeAgentMessagesToStream(
 
       if (Array.isArray(content)) {
         for (const block of content) {
-          if (block.type === 'text') {
+          if (block.type === 'text' && block.text) {
             // Generate unique text block ID
             const textBlockId = `${assistantMessageId}-text-${Date.now()}`;
 
@@ -132,7 +124,33 @@ async function writeAgentMessagesToStream(
               type: 'text-end',
               id: textBlockId,
             });
-          } else if (block.type === 'tool_use') {
+          } else if (block.type === 'tool_use' && block.id && block.name) {
+            // 🛡️ PATH VIOLATION DETECTION
+            if (block.name === 'Bash' || block.name === 'Read' || block.name === 'Write' || block.name === 'Edit') {
+              const input = block.input as any;
+              const pathToCheck = input?.command || input?.file_path || input?.path || '';
+
+              if (typeof pathToCheck === 'string') {
+                // Check for absolute paths with /Users/ or /home/
+                if (pathToCheck.includes('/Users/') || pathToCheck.includes('/home/')) {
+                  console.error('🚨 PATH VIOLATION DETECTED:');
+                  console.error(`   Tool: ${block.name}`);
+                  console.error(`   Input: ${pathToCheck}`);
+                  console.error(`   Expected CWD: ${projectsDir}`);
+
+                  // Check if it's using wrong username
+                  if (pathToCheck.includes('/Users/') && !pathToCheck.includes(process.env.USER || '')) {
+                    console.error('   ⚠️  WARNING: Using different username in path!');
+                  }
+                }
+
+                // Check for Desktop paths (common hallucination pattern)
+                if (pathToCheck.includes('/Desktop/')) {
+                  console.error('🚨 DESKTOP PATH DETECTED - Likely hallucinated:', pathToCheck);
+                }
+              }
+            }
+
             // Send tool input with available state
             writer.write({
               type: 'tool-input-available',
@@ -149,7 +167,7 @@ async function writeAgentMessagesToStream(
       const content = message.message.content;
       if (Array.isArray(content)) {
         for (const block of content) {
-          if (block.type === 'tool_result') {
+          if (block.type === 'tool_result' && block.tool_use_id) {
             writer.write({
               type: 'tool-output-available',
               toolCallId: block.tool_use_id,
@@ -199,19 +217,37 @@ export async function POST(req: Request) {
       async execute({ writer }) {
         console.log('🎯 Creating instrumented Claude Code query...');
 
+        const projectsDir = '/Users/codydearkland/sentryvibe/projects';
+
         const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
+🚨 CRITICAL PATH REQUIREMENTS 🚨
+
+Your current working directory (CWD) is set to:
+${projectsDir}
+
+This means you are ALREADY INSIDE the projects directory. When you run commands, you are executing them FROM this location.
+
+PATH RULES - READ CAREFULLY:
+1. Use ONLY relative paths from your CWD (${projectsDir})
+2. NEVER construct absolute paths starting with /Users/, /home/, or /Desktop/
+3. NEVER use paths with usernames in them
+4. Project directories are simply: <project-name> (just the name, nothing else)
+
+CORRECT COMMAND EXAMPLES:
+✅ npx create-vite@latest my-app -- --template react-ts
+✅ cd my-app && npm install
+✅ ls my-app
+✅ cat my-app/package.json
+✅ ls -la
+
+INCORRECT COMMANDS - NEVER DO THIS:
+❌ ls -la /Users/anyone/my-app
+❌ cd /Users/droddy/Desktop/sentryvibe/projects/my-app
+❌ ls /Users/codydearkland/sentryvibe/projects/my-app
+❌ Any command with /Users/ or /home/ in it
+
 CRITICAL WORKFLOW - FOLLOW THIS EXACT SEQUENCE:
-
-Projects should ALWAYS be created in the <current-project-root>/projects/ directory. Do NOT EVER create projects outside of this directory under any circumstances. This includes the /projects/projects directory. 
-
-GOOD EXAMPLE: 
-- /sentryvibe/projects/hello-sentry
-- /sentryvibe/projects/new-agent
-
-BAD EXAMPLE - DO NOT DO THIS:: 
-- /sentryvibe/projects/projects/hello-sentry
-- /sentryvibe/projects/projects/new-agent
 
 When creating a new JavaScript project, you MUST:
 
@@ -252,7 +288,7 @@ ALWAYS verify each step is complete before moving to the next.`;
             maxTurns: 100,
             systemPrompt: systemPrompt,
           },
-        });
+        }) as AsyncGenerator<AgentMessage>;
 
         // Process agent messages and write to stream
         await writeAgentMessagesToStream(agentStream, writer);

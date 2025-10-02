@@ -2,12 +2,27 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-interface Project {
+export interface Project {
+  id: string;
   name: string;
   slug: string;
+  description: string | null;
+  icon: string | null;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  projectType: string | null;
+  path: string;
+  runCommand: string | null;
+  port: number | null;
+  devServerPid: number | null;
+  devServerPort: number | null;
+  devServerStatus: 'stopped' | 'starting' | 'running' | 'failed' | null;
+  lastActivityAt: Date | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-interface FileNode {
+export interface FileNode {
   name: string;
   type: 'file' | 'directory';
   path: string;
@@ -50,11 +65,20 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Fetch on mount
   useEffect(() => {
     fetchData();
-    // Refresh every 5 seconds
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+  }, []);
+
+  // Refetch when window regains focus (catches external changes like terminal commands)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('🔄 Window focused, refreshing project data...');
+      fetchData();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   return (
