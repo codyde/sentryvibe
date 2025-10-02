@@ -68,11 +68,20 @@ export function getRunCommandWithPort(projectType: string | null, baseCommand: s
 
   switch (projectType) {
     case 'next':
+      // Next.js uses PORT env var
       return `PORT=${port} ${baseCommand}`;
+    case 'astro':
+      // Astro uses --port flag
+      return `${baseCommand} -- --port ${port}`;
+    case 'angular':
+      // Angular uses --port flag
+      return `${baseCommand} -- --port ${port}`;
     case 'vite':
-      // Vite uses --port flag
-      return `${baseCommand} --port ${port}`;
+      // Vite uses --port flag, need -- to pass args through npm
+      return `${baseCommand} -- --port ${port}`;
+    case 'unknown':
     default:
-      return baseCommand;
+      // Unknown type - try PORT env var (safest fallback)
+      return `PORT=${port} ${baseCommand}`;
   }
 }

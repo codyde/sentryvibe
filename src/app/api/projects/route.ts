@@ -91,6 +91,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no code blocks):
       name: metadata.friendlyName,
       slug: finalSlug,
       description: metadata.description,
+      originalPrompt: prompt, // Store the original user prompt
       icon: metadata.icon || 'Folder',
       status: 'pending',
       path: projectPath,

@@ -25,14 +25,19 @@ interface AgentMessage {
 async function writeAgentMessagesToStream(
   agentStream: AsyncGenerator<AgentMessage>,
   writer: UIMessageStreamWriter,
-  projectId: string
+  projectId: string,
+  expectedCwd: string
 ) {
   let currentMessageId: string | null = null;
   let messageStarted = false;
   let currentMessageParts: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown }> = [];
+  let messageCount = 0;
+
+  console.log('🔄 Starting to process agent stream...');
 
   for await (const message of agentStream) {
-    console.log('📦 Agent Message:', JSON.stringify(message, null, 2));
+    messageCount++;
+    console.log(`📦 Agent Message #${messageCount}:`, JSON.stringify(message, null, 2));
 
     if (message.type === 'system' && message.subtype === 'init') {
       continue;
@@ -87,7 +92,7 @@ async function writeAgentMessagesToStream(
                   console.error('🚨 PATH VIOLATION DETECTED:');
                   console.error(`   Tool: ${block.name}`);
                   console.error(`   Input: ${pathToCheck}`);
-                  console.error(`   Expected CWD: ${projectsDir}`);
+                  console.error(`   Expected CWD: ${expectedCwd}`);
 
                   // Check if it's using wrong username
                   if (pathToCheck.includes('/Users/') && !pathToCheck.includes(process.env.USER || '')) {
@@ -176,6 +181,8 @@ async function writeAgentMessagesToStream(
   if (messageStarted && currentMessageId) {
     writer.write({ type: 'finish' });
   }
+
+  console.log(`✅ Agent stream processing complete. Total messages: ${messageCount}`);
 }
 
 export async function POST(
@@ -220,8 +227,17 @@ export async function POST(
     const stream = createUIMessageStream({
       async execute({ writer }) {
         console.log('🎯 Starting Claude Code generation...');
+        console.log('   Execute function called, writer:', !!writer);
 
-        const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
+        try {
+          // IMPORTANT: Declare these BEFORE using them in template strings
+          const projectsDir = join(process.cwd(), 'projects');
+          const projectName = project[0].slug;
+
+          console.log('🗂️  CWD:', projectsDir);
+          console.log('📁 Project name:', projectName);
+
+          const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
 🚨 CRITICAL PATH REQUIREMENTS 🚨
 
@@ -288,13 +304,13 @@ IMPORTANT RULES:
 NEVER manually create project files when a CLI tool exists.
 ALWAYS verify each step is complete before moving to the next.`;
 
-        try {
-          // IMPORTANT: cwd must be the PARENT directory, agent will create project subdirectory
-          const projectsDir = join(process.cwd(), 'projects');
-          const projectName = project[0].slug;
+          console.log('📄 System prompt created, length:', systemPrompt.length);
+
+          const fullPrompt = `Create this project in the directory: ${projectName}\n\n${prompt}`;
+          console.log('📝 Full prompt to Claude:', fullPrompt.substring(0, 200) + '...');
 
           const agentStream = query({
-            prompt: `Create this project in the directory: ${projectName}\n\n${prompt}`,
+            prompt: fullPrompt,
             inputMessages: [{ role: 'system', content: systemPrompt }],
             options: {
               model: 'claude-sonnet-4-5',
@@ -305,12 +321,18 @@ ALWAYS verify each step is complete before moving to the next.`;
             },
           }) as AsyncGenerator<AgentMessage>;
 
-          await writeAgentMessagesToStream(agentStream, writer, id);
+          console.log('✅ Agent stream created, beginning iteration...');
+
+          await writeAgentMessagesToStream(agentStream, writer, id, projectsDir);
+
+          console.log('✅ Agent stream completed successfully');
 
           // Update project status to completed
           await db.update(projects)
             .set({ status: 'completed', lastActivityAt: new Date() })
             .where(eq(projects.id, id));
+
+          console.log('✅ Project marked as completed');
 
           // Try to detect project metadata (runCommand, projectType, port)
           try {
@@ -323,14 +345,28 @@ ALWAYS verify each step is complete before moving to the next.`;
 
             // Detect project type and run command
             // NOTE: Actual port will be allocated dynamically when starting the server
-            if (packageJson.dependencies?.next) {
+            // Check in priority order (most specific first)
+            if (packageJson.dependencies?.next || packageJson.devDependencies?.next) {
               projectType = 'next';
               runCommand = 'npm run dev';
-              port = 3001; // Preferred port, will be allocated dynamically
-            } else if (packageJson.devDependencies?.vite) {
+              port = 3001;
+            } else if (packageJson.dependencies?.astro || packageJson.devDependencies?.astro) {
+              projectType = 'astro';
+              runCommand = 'npm run dev';
+              port = 4321; // Astro default
+            } else if (packageJson.dependencies?.['@angular/core']) {
+              projectType = 'angular';
+              runCommand = 'npm run start';
+              port = 4200; // Angular default
+            } else if (packageJson.devDependencies?.vite && !packageJson.dependencies?.astro) {
               projectType = 'vite';
               runCommand = 'npm run dev';
-              port = 5173; // Preferred port
+              port = 5173;
+            } else if (packageJson.scripts?.dev) {
+              // Fallback: Has a dev script but unknown type
+              projectType = 'unknown';
+              runCommand = 'npm run dev';
+              port = 3001;
             }
 
             await db.update(projects)
@@ -342,15 +378,19 @@ ALWAYS verify each step is complete before moving to the next.`;
             console.warn('⚠️  Could not detect project metadata:', error);
           }
 
-        } catch (error) {
-          console.error('❌ Generation error:', error);
+        } catch (innerError) {
+          console.error('❌ Inner generation error (inside execute):', innerError);
+          console.error('   Error type:', innerError?.constructor?.name);
+          console.error('   Error message:', innerError instanceof Error ? innerError.message : 'Unknown');
+          console.error('   Error stack:', innerError instanceof Error ? innerError.stack : 'No stack');
+
           await db.update(projects)
             .set({
               status: 'failed',
-              errorMessage: error instanceof Error ? error.message : 'Unknown error',
+              errorMessage: innerError instanceof Error ? innerError.message : 'Unknown error',
             })
             .where(eq(projects.id, id));
-          throw error;
+          throw innerError;
         }
       },
     });

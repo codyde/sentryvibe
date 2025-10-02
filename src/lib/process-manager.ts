@@ -10,8 +10,17 @@ interface DevServerProcess {
   startTime: Date;
 }
 
-// In-memory store of running processes
-const runningProcesses = new Map<string, DevServerProcess>();
+// Global singleton to survive Next.js HMR (Hot Module Reload)
+// Without this, the Map gets cleared every time routes recompile
+declare global {
+  var __devProcesses: Map<string, DevServerProcess> | undefined;
+}
+
+// In-memory store of running processes (survives HMR)
+const runningProcesses = global.__devProcesses || new Map<string, DevServerProcess>();
+global.__devProcesses = runningProcesses;
+
+console.log('🔧 Process manager initialized, current processes:', runningProcesses.size);
 
 export interface StartDevServerOptions {
   projectId: string;
@@ -38,20 +47,24 @@ export function startDevServer(options: StartDevServerOptions): {
   const emitter = new EventEmitter();
   const logs: string[] = [];
 
-  // Parse command (e.g., "npm run dev" -> ["npm", "run", "dev"])
-  const [cmd, ...args] = command.split(' ');
-
   console.log(`🚀 Starting dev server for ${projectId}`);
   console.log(`   Command: ${command}`);
   console.log(`   CWD: ${cwd}`);
 
-  // Spawn process with proper shell environment
-  const childProcess = spawn(cmd, args, {
+  // Spawn process using shell to handle full command
+  // Don't split - let shell handle it (supports pipes, &&, env vars, etc)
+  const childProcess = spawn(command, {
     cwd,
     shell: true,
     detached: false,
-    stdio: ['ignore', 'pipe', 'pipe'], // Explicitly set stdio
-    env: { ...process.env, FORCE_COLOR: '0' }, // Disable colors in output
+    stdio: ['pipe', 'pipe', 'pipe'], // Keep stdin open (some servers need it)
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0',
+      // Ensure CI mode is off (prevents auto-exit)
+      CI: 'false',
+      NODE_ENV: 'development',
+    },
   });
 
   if (!childProcess.pid) {
@@ -59,8 +72,23 @@ export function startDevServer(options: StartDevServerOptions): {
   }
 
   console.log(`   PID: ${childProcess.pid}`);
+  console.log(`   Process spawned successfully`);
+  console.log(`   stdin connected: ${!!childProcess.stdin}`);
+  console.log(`   stdout connected: ${!!childProcess.stdout}`);
+  console.log(`   stderr connected: ${!!childProcess.stderr}`);
+
+  // Keep stdin open but don't write to it (prevents "no tty" exits)
+  if (childProcess.stdin) {
+    childProcess.stdin.on('error', (err) => {
+      console.log(`[${projectId}] stdin error:`, err.message);
+    });
+    childProcess.stdin.on('close', () => {
+      console.log(`[${projectId}] stdin closed`);
+    });
+  }
 
   let detectedPort: number | null = null;
+  const startTime = Date.now();
 
   // Capture stdout
   childProcess.stdout?.on('data', (data: Buffer) => {
@@ -109,10 +137,25 @@ export function startDevServer(options: StartDevServerOptions): {
   });
 
   // Handle exit
-  childProcess.on('exit', (code) => {
-    console.log(`❌ Process ${projectId} exited with code ${code}`);
+  childProcess.on('exit', (code, signal) => {
+    const timeAlive = Date.now() - startTime;
+    console.log(`❌ Process ${projectId} exited`);
+    console.log(`   Exit code: ${code}`);
+    console.log(`   Signal: ${signal}`);
+    console.log(`   Time alive: ${timeAlive}ms`);
+    console.log(`   Expected behavior: Dev servers should NOT exit`);
+
+    if (timeAlive < 5000) {
+      console.error(`   ⚠️  QUICK EXIT: Process died within 5 seconds - likely a startup error`);
+    }
+
+    if (code === 0) {
+      console.error(`   ⚠️  EXIT CODE 0: Process exited cleanly - check if it received exit signal`);
+    }
+
     emitter.emit('exit', code);
     runningProcesses.delete(projectId);
+    console.log(`   Removed from Map. Map size now: ${runningProcesses.size}`);
   });
 
   // Handle errors
@@ -120,6 +163,16 @@ export function startDevServer(options: StartDevServerOptions): {
     console.error(`❌ Process ${projectId} error:`, error);
     emitter.emit('error', error);
     runningProcesses.delete(projectId);
+  });
+
+  // Handle close event (different from exit)
+  childProcess.on('close', (code, signal) => {
+    console.log(`🔒 Process ${projectId} closed (code: ${code}, signal: ${signal})`);
+  });
+
+  // Handle disconnect
+  childProcess.on('disconnect', () => {
+    console.log(`🔌 Process ${projectId} disconnected`);
   });
 
   // Store in memory
@@ -133,6 +186,7 @@ export function startDevServer(options: StartDevServerOptions): {
   };
 
   runningProcesses.set(projectId, processInfo);
+  console.log(`✅ Stored process in Map. Map size now: ${runningProcesses.size}`);
 
   return {
     pid: childProcess.pid,
@@ -168,10 +222,15 @@ export function stopDevServer(projectId: string): boolean {
 }
 
 export function getProcessInfo(projectId: string): DevServerProcess | undefined {
-  return runningProcesses.get(projectId);
+  const info = runningProcesses.get(projectId);
+  console.log(`🔍 getProcessInfo(${projectId}):`, !!info);
+  console.log(`   Map size: ${runningProcesses.size}`);
+  console.log(`   Map keys:`, Array.from(runningProcesses.keys()));
+  return info;
 }
 
 export function getAllProcesses(): Map<string, DevServerProcess> {
+  console.log(`📋 getAllProcesses: ${runningProcesses.size} processes`);
   return runningProcesses;
 }
 

@@ -6,6 +6,7 @@ export const projects = sqliteTable('projects', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   description: text('description'),
+  originalPrompt: text('original_prompt'), // User's original input
   icon: text('icon').default('Folder'), // Lucide icon name
   status: text('status', { enum: ['pending', 'in_progress', 'completed', 'failed'] })
     .notNull()

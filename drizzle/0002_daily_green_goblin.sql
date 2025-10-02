@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `original_prompt` text;

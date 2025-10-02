@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLink, RefreshCw, Play, Square } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -14,14 +14,60 @@ interface PreviewPanelProps {
 export default function PreviewPanel({ selectedProject, onStartServer, onStopServer }: PreviewPanelProps) {
   const { projects } = useProjects();
   const [key, setKey] = useState(0);
+  const [isServerReady, setIsServerReady] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
 
   // Construct preview URL from project data
-  const previewUrl = project?.devServerPort
+  const previewUrl = project?.devServerPort && isServerReady
     ? `http://localhost:${project.devServerPort}`
     : '';
+
+  // Health check when dev server port changes
+  useEffect(() => {
+    if (project?.devServerPort && project.devServerStatus === 'running') {
+      checkServerHealth(project.devServerPort);
+    } else {
+      setIsServerReady(false);
+    }
+  }, [project?.devServerPort, project?.devServerStatus]);
+
+  const checkServerHealth = async (port: number) => {
+    const url = `http://localhost:${port}`;
+    setIsChecking(true);
+    setIsServerReady(false);
+
+    console.log(`🏥 Health checking ${url}...`);
+
+    // Retry up to 10 times with 500ms delay
+    for (let i = 0; i < 10; i++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+        const res = await fetch(url, {
+          signal: controller.signal,
+          mode: 'no-cors', // Ignore CORS for health check
+        });
+
+        clearTimeout(timeoutId);
+
+        // If we get here, server responded (even 404 is ok, means server is up)
+        console.log(`✅ Server is ready at ${url}`);
+        setIsServerReady(true);
+        setIsChecking(false);
+        return;
+      } catch (error) {
+        console.log(`   Attempt ${i + 1}/10 failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    console.error(`❌ Server health check failed after 10 attempts`);
+    setIsChecking(false);
+  };
 
   const handleRefresh = () => {
     setKey(prev => prev + 1);
@@ -107,7 +153,16 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            {project?.devServerStatus === 'running' ? (
+            {isChecking ? (
+              <div className="text-center space-y-3">
+                <div className="flex items-center gap-2 justify-center">
+                  <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                </div>
+                <p>Waiting for server to be ready...</p>
+              </div>
+            ) : project?.devServerStatus === 'running' ? (
               <p>Waiting for dev server...</p>
             ) : (
               <p>Start the dev server to see preview</p>

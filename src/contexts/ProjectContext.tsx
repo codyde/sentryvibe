@@ -7,6 +7,7 @@ export interface Project {
   name: string;
   slug: string;
   description: string | null;
+  originalPrompt: string | null;
   icon: string | null;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   projectType: string | null;

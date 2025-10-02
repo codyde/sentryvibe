@@ -35,7 +35,7 @@ export async function PATCH(
 
     // Validate allowed fields
     const allowedFields = [
-      'name', 'description', 'icon', 'status', 'projectType', 'runCommand',
+      'name', 'description', 'originalPrompt', 'icon', 'status', 'projectType', 'runCommand',
       'port', 'devServerPid', 'devServerPort', 'devServerStatus',
       'lastActivityAt', 'errorMessage'
     ];

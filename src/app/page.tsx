@@ -7,9 +7,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Square, Terminal } from 'lucide-react';
-import FileExplorer from '@/components/FileExplorer';
-import PreviewPanel from '@/components/PreviewPanel';
+import TabbedPreview from '@/components/TabbedPreview';
+import TerminalOutput from '@/components/TerminalOutput';
 import ProcessManagerModal from '@/components/ProcessManagerModal';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -39,6 +38,7 @@ export default function Home() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
+  const hasStartedGenerationRef = useRef<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
@@ -69,16 +69,19 @@ export default function Home() {
   }, [messages, isLoading]);
 
   const loadMessages = async (projectId: string) => {
+    console.log('📥 Loading messages for project:', projectId);
     try {
       const res = await fetch(`/api/projects/${projectId}/messages`);
       const data = await res.json();
 
       if (data.messages) {
+        console.log(`   Found ${data.messages.length} messages in DB`);
         const formattedMessages: Message[] = data.messages.map((msg: { id: string; role: 'user' | 'assistant'; content: MessagePart[] }) => ({
           id: msg.id,
           role: msg.role,
           parts: Array.isArray(msg.content) ? msg.content : [],
         }));
+        console.log('   Setting messages:', formattedMessages.length);
         setMessages(formattedMessages);
       }
     } catch (error) {
@@ -97,24 +100,56 @@ export default function Home() {
     } else {
       setCurrentProject(null);
       setMessages([]);
+      // Clear generation tracking when leaving project
+      hasStartedGenerationRef.current.clear();
     }
   }, [selectedProjectSlug, projects]);
 
   // Auto-start generation if needed
   useEffect(() => {
-    if (currentProject && shouldGenerate && messages.length === 0 && !isGenerating) {
-      // Remove generate flag from URL
+    if (
+      currentProject &&
+      shouldGenerate &&
+      messages.length === 0 &&
+      !isGenerating &&
+      !hasStartedGenerationRef.current.has(currentProject.id)
+    ) {
+      // Mark this project as having started generation
+      hasStartedGenerationRef.current.add(currentProject.id);
+
+      // Use original prompt from database, fallback to description
+      const promptToUse = currentProject.originalPrompt || currentProject.description;
+
+      // Clean up URL (remove generate flag)
       router.replace(`/?project=${currentProject.slug}`);
 
-      // Start generation with the description as prompt
-      if (currentProject.description) {
-        startGeneration(currentProject.id, currentProject.description);
+      // Add user message to UI before starting generation
+      if (promptToUse) {
+        const userMessage: Message = {
+          id: `msg-${Date.now()}`,
+          role: 'user',
+          parts: [{ type: 'text', text: promptToUse }],
+        };
+        setMessages([userMessage]);
+
+        // Start generation (don't add message again since we just did)
+        startGeneration(currentProject.id, promptToUse, false);
       }
     }
-  }, [currentProject, shouldGenerate, messages.length, isGenerating, router]);
+  }, [currentProject, shouldGenerate, messages.length, isGenerating]);
 
-  const startGeneration = async (projectId: string, prompt: string) => {
+  const startGeneration = async (projectId: string, prompt: string, addUserMessage = false) => {
     setIsGenerating(true);
+
+    // Only add user message to UI if this is a continuation (not auto-start)
+    if (addUserMessage) {
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'user',
+        parts: [{ type: 'text', text: prompt }],
+      };
+      setMessages(prev => [...prev, userMessage]);
+    }
 
     try {
       const res = await fetch(`/api/projects/${projectId}/generate`, {
@@ -233,7 +268,7 @@ export default function Home() {
 
         refetch(); // Refresh project list
 
-        // Redirect to new project with generate flag
+        // Redirect to new project with generate flag (prompt stored in DB)
         router.push(`/?project=${project.slug}&generate=true`);
       } catch (error) {
         console.error('Error creating project:', error);
@@ -241,15 +276,8 @@ export default function Home() {
         setIsCreatingProject(false);
       }
     } else {
-      // Continue existing conversation
-      const userMessage: Message = {
-        id: `msg-${Date.now()}`,
-        role: 'user',
-        parts: [{ type: 'text', text: userPrompt }],
-      };
-      setMessages(prev => [...prev, userMessage]);
-
-      await startGeneration(currentProject.id, userPrompt);
+      // Continue existing conversation - add user message to UI
+      await startGeneration(currentProject.id, userPrompt, true);
     }
   };
 
@@ -423,14 +451,15 @@ export default function Home() {
                           </div>
                           <button
                             onClick={async () => {
-                              if (currentProject.description) {
+                              const promptToRetry = currentProject.originalPrompt || currentProject.description;
+                              if (promptToRetry) {
                                 await fetch(`/api/projects/${currentProject.id}`, {
                                   method: 'PATCH',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ status: 'pending', errorMessage: null }),
                                 });
                                 refetch();
-                                await startGeneration(currentProject.id, currentProject.description);
+                                await startGeneration(currentProject.id, promptToRetry);
                               }
                             }}
                             className="px-3 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded transition-colors"
@@ -586,26 +615,21 @@ export default function Home() {
               </div>
             </motion.div>
 
-            {/* Right Panel - Split into Preview (top) and File Explorer (bottom) */}
+            {/* Right Panel - Split into Tabbed Preview (top) and Terminal (bottom) */}
             <div className="lg:w-1/2 flex flex-col gap-4 min-w-0">
-              {/* Preview Panel - Top */}
+              {/* Tabbed Preview Panel - Top */}
               <div className="flex-1 min-h-0">
-                <PreviewPanel
+                <TabbedPreview
                   selectedProject={selectedProjectSlug}
+                  projectId={currentProject?.id}
                   onStartServer={startDevServer}
                   onStopServer={stopDevServer}
                 />
               </div>
 
-              {/* File Explorer - Bottom */}
+              {/* Terminal Output - Bottom */}
               <div className="h-80">
-                <FileExplorer
-                  projectFilter={selectedProjectSlug}
-                  onDirectorySelect={(directory) => {
-                    const projectName = directory?.split('/').pop() || null;
-                    setSelectedDirectory(projectName);
-                  }}
-                />
+                <TerminalOutput projectId={currentProject?.id} />
               </div>
             </div>
           </motion.div>
