@@ -1,10 +1,10 @@
-import { createInstrumentedClaudeQuery } from '@sentry/node';
+import * as Sentry from '@sentry/nextjs';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from 'ai';
 import type { MessageParam } from '@anthropic-ai/sdk/resources';
 
 // Create instrumented query function (automatically uses claudeCodeIntegration options)
-const query = createInstrumentedClaudeQuery();
+const query = Sentry.createInstrumentedClaudeQuery();
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;

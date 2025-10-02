@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SentryVibe
+
+A Next.js application featuring Claude Code AI agent integration with Sentry monitoring.
 
 ## Getting Started
 
-First, run the development server:
+### Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Run Development Server
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) to interact with the Claude Code agent.
 
-## Learn More
+## Configuration
 
-To learn more about Next.js, take a look at the following resources:
+The app is configured with Sentry for monitoring Claude Code agent interactions:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**`sentry.server.config.ts`:**
+```typescript
+import * as Sentry from "@sentry/nextjs";
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Sentry.init({
+  dsn: "your-dsn",
+  integrations: [
+    Sentry.claudeCodeIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    }),
+  ],
+});
+```
 
-## Deploy on Vercel
+**`src/app/api/claude-agent/route.ts`:**
+```typescript
+import * as Sentry from '@sentry/nextjs';
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+const query = Sentry.createInstrumentedClaudeQuery();
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Testing with Sentry SDK PR
+
+This project is currently testing [PR #17844](https://github.com/getsentry/sentry-javascript/pull/17844) which adds Claude Code Agent SDK instrumentation to Sentry.
+
+### Installing PR-Based SDKs
+
+```bash
+# 1. Build the Sentry SDKs from the PR branch
+cd /Users/codydearkland/sentry-javascript/packages/node
+yarn build
+npm pack
+
+cd /Users/codydearkland/sentry-javascript/packages/nextjs
+yarn build:transpile
+npm pack
+
+# 2. Install in this project
+cd /Users/codydearkland/sentryvibe
+pnpm install
+rm -rf .next
+
+# 3. Start dev server
+pnpm dev
+```
+
+**Note:** `package.json` includes `pnpm.overrides` to ensure the local tarballs are used for all dependency resolutions.
+
+## Documentation
+
+- **Sentry PR:** https://github.com/getsentry/sentry-javascript/pull/17844
+- **Archived Docs:** See `docs/archive/` for historical development documentation
