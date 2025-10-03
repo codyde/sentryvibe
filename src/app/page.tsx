@@ -201,12 +201,14 @@ export default function Home() {
                   currentMessage.parts[existingPartIndex] = { type: 'text', text: currentTextPart.text };
                 }
 
+                // Capture the current message value before async state update to prevent race condition
+                const messageToUpdate = currentMessage;
                 setMessages(prev => {
-                  const existing = prev.find(m => m.id === currentMessage!.id);
+                  const existing = prev.find(m => m.id === messageToUpdate.id);
                   if (existing) {
-                    return prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m);
+                    return prev.map(m => m.id === messageToUpdate.id ? { ...messageToUpdate } : m);
                   }
-                  return [...prev, { ...currentMessage! }];
+                  return [...prev, { ...messageToUpdate }];
                 });
               }
             } else if (data.type === 'tool-input-available' && currentMessage) {
@@ -217,13 +219,17 @@ export default function Home() {
                 input: data.input,
                 state: 'input-available',
               });
-              setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+              // Capture the current message value before async state update to prevent race condition
+              const messageToUpdate = currentMessage;
+              setMessages(prev => prev.map(m => m.id === messageToUpdate.id ? { ...messageToUpdate } : m));
             } else if (data.type === 'tool-output-available' && currentMessage) {
               const toolPart = currentMessage.parts.find(p => p.toolCallId === data.toolCallId);
               if (toolPart) {
                 toolPart.output = data.output;
                 toolPart.state = 'output-available';
-                setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+                // Capture the current message value before async state update to prevent race condition
+                const messageToUpdate = currentMessage;
+                setMessages(prev => prev.map(m => m.id === messageToUpdate.id ? { ...messageToUpdate } : m));
               }
             } else if (data.type === 'finish') {
               currentMessage = null;
