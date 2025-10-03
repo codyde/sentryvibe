@@ -57,6 +57,9 @@ export async function GET(
         start(controller) {
           console.log(`📤 SSE stream started for ${id}`);
 
+          // Track if the stream has been closed to avoid race conditions
+          let streamClosed = false;
+
           // Send existing logs
           const existingLogs = getProcessLogs(id);
           console.log(`   Sending ${existingLogs.length} existing log entries`);
@@ -69,15 +72,32 @@ export async function GET(
           // Listen for new logs
           const logHandler = (logData: { timestamp: Date; type: string; data: string }) => {
             console.log(`   📨 New log event emitted`);
+            
+            // Guard against race condition: check if controller is still open
+            // controller.desiredSize is null when the stream is closed
+            if (streamClosed || controller.desiredSize === null) {
+              console.log(`   ⚠️  Skipping log enqueue - stream already closed`);
+              return;
+            }
+            
             const data = `data: ${JSON.stringify({ type: 'log', data: logData.data })}\n\n`;
             controller.enqueue(encoder.encode(data));
           };
 
           const exitHandler = () => {
             console.log(`   ⚠️  Exit event received`);
-            const data = `data: ${JSON.stringify({ type: 'exit' })}\n\n`;
-            controller.enqueue(encoder.encode(data));
-            controller.close();
+            
+            // Mark stream as closed to prevent further enqueueing
+            streamClosed = true;
+            
+            // Only attempt to enqueue exit message if controller is still open
+            if (controller.desiredSize !== null) {
+              const data = `data: ${JSON.stringify({ type: 'exit' })}\n\n`;
+              controller.enqueue(encoder.encode(data));
+              controller.close();
+            } else {
+              console.log(`   ⚠️  Controller already closed, skipping exit message`);
+            }
           };
 
           processInfo.emitter.on('log', logHandler);
@@ -88,6 +108,7 @@ export async function GET(
           // Cleanup on close
           return () => {
             console.log(`   🧹 Cleaning up SSE stream for ${id}`);
+            streamClosed = true;
             processInfo.emitter.off('log', logHandler);
             processInfo.emitter.off('exit', exitHandler);
           };
