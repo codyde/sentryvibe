@@ -75,13 +75,20 @@ export async function GET(
 
           const exitHandler = () => {
             console.log(`   ⚠️  Exit event received`);
-            const data = `data: ${JSON.stringify({ type: 'exit' })}\n\n`;
-            controller.enqueue(encoder.encode(data));
-            controller.close();
+            
+            // Check if controller is already closed before attempting to enqueue
+            try {
+              const data = `data: ${JSON.stringify({ type: 'exit' })}\n\n`;
+              controller.enqueue(encoder.encode(data));
+              controller.close();
+            } catch (error) {
+              // Controller already closed, likely due to stream cleanup
+              console.log(`   ℹ️  Controller already closed, skipping exit notification`);
+            }
           };
 
           processInfo.emitter.on('log', logHandler);
-          processInfo.emitter.once('exit', exitHandler);
+          processInfo.emitter.on('exit', exitHandler);
 
           console.log(`   ✅ Event listeners attached`);
 
