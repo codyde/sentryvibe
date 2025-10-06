@@ -48,6 +48,13 @@ export default function Home() {
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [generationState, setGenerationState] = useState<GenerationState | null>(null); // Separate, protected state!
+  const [activeView, setActiveView] = useState<'build' | 'chat'>(() => {
+    // Load from session storage or default to 'build'
+    if (typeof window !== 'undefined') {
+      return (sessionStorage.getItem('preferredView') as 'build' | 'chat') || 'build';
+    }
+    return 'build';
+  });
   const hasStartedGenerationRef = useRef<Set<string>>(new Set());
   const isGeneratingRef = useRef(false); // Sync flag for immediate checks
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -64,6 +71,34 @@ export default function Home() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Handle tab switching
+  const switchTab = (tab: 'build' | 'chat') => {
+    setActiveView(tab);
+    sessionStorage.setItem('preferredView', tab);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '1') {
+        e.preventDefault();
+        switchTab('build');
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '2') {
+        e.preventDefault();
+        switchTab('chat');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Calculate badge values
+  const buildProgress = generationState ?
+    Math.round((generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100) || 0
+    : 0;
+  const chatMessageCount = messages.length;
 
   const isNearBottom = () => {
     if (!scrollContainerRef.current) return true;
@@ -481,11 +516,17 @@ export default function Home() {
 
       refetch(); // Refresh project list to update status
 
-      // Auto-start server after generation completes
-      setTimeout(() => {
-        console.log('🚀 Auto-starting dev server after generation');
-        startDevServer();
+      // Poll for status updates (server auto-starts on backend)
+      const pollInterval = setInterval(() => {
+        console.log('🔄 Polling for project updates...');
+        refetch();
       }, 2000);
+
+      // Stop polling after 30 seconds
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        console.log('⏹️  Stopped polling');
+      }, 30000);
     } catch (error) {
       console.error('Generation error:', error);
       // Mark generation as failed and SAVE
@@ -537,6 +578,10 @@ export default function Home() {
 
         console.log('✅ Project created:', project.slug);
 
+        // Refresh project list IMMEDIATELY so sidebar updates
+        await refetch();
+        console.log('🔄 Sidebar refreshed with new project');
+
         // Update URL WITHOUT reloading (prevents flash!)
         router.replace(`/?project=${project.slug}`, { scroll: false });
 
@@ -573,7 +618,7 @@ export default function Home() {
         // Start generation stream (don't add user message again)
         await startGenerationStream(project.id, userPrompt);
 
-        // Refresh project list in background
+        // Refresh project list to pick up final state
         refetch();
       } catch (error) {
         console.error('Error creating project:', error);
@@ -598,6 +643,43 @@ export default function Home() {
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/start`, { method: 'POST' });
       if (res.ok) {
+        console.log('✅ Dev server started successfully!');
+
+        // Mark final todo as completed when server starts!
+        setGenerationState(prev => {
+          if (!prev) return null;
+
+          // Find the last todo (final summary)
+          const lastTodoIndex = prev.todos.length - 1;
+          if (lastTodoIndex < 0) return prev;
+
+          const lastTodo = prev.todos[lastTodoIndex];
+          const isFinalSummary = lastTodo.content.toLowerCase().includes('ready');
+
+          // If it's the final summary and in_progress, mark it completed
+          if (isFinalSummary && lastTodo.status === 'in_progress') {
+            const updatedTodos = [...prev.todos];
+            updatedTodos[lastTodoIndex] = {
+              ...lastTodo,
+              status: 'completed',
+            };
+
+            const completed = {
+              ...prev,
+              todos: updatedTodos,
+            };
+
+            console.log('🎉 Marking final todo as completed - server is running!');
+
+            // Save to DB
+            saveGenerationState(prev.projectId, completed);
+
+            return completed;
+          }
+
+          return prev;
+        });
+
         refetch(); // Refresh project data
       }
     } catch (error) {
@@ -757,6 +839,35 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* View Tabs - Only show when we have content */}
+                {(generationState || messages.length > 0) && !isCreatingProject && (
+                  <div className="border-b border-white/10 px-6 py-3 flex items-center gap-2">
+                    <button
+                      onClick={() => switchTab('build')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        activeView === 'build'
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      Build {generationState && `(${buildProgress}%)`}
+                    </button>
+                    <button
+                      onClick={() => switchTab('chat')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        activeView === 'chat'
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      Chat {chatMessageCount > 0 && `(${chatMessageCount})`}
+                    </button>
+                    <div className="ml-auto text-xs text-gray-500">
+                      ⌘1 Build • ⌘2 Chat
+                    </div>
+                  </div>
+                )}
+
                 <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 min-h-0">
                   {/* Beautiful loading OR Generation Progress */}
                   {isCreatingProject && (
@@ -812,10 +923,9 @@ export default function Home() {
                     </motion.div>
                   )}
 
-                  {/* Generation Progress - Show when active */}
-                  {!isCreatingProject && generationState && (
+                  {/* Build View - Show GenerationProgress */}
+                  {!isCreatingProject && activeView === 'build' && generationState && (
                     <div className="mb-6">
-                      {console.log('🎨 Rendering GenerationProgress, todos:', generationState.todos.length, 'isActive:', generationState.isActive)}
                       <GenerationProgress
                         state={generationState}
                         onClose={() => setGenerationState(null)}
@@ -827,18 +937,32 @@ export default function Home() {
                     </div>
                   )}
 
-                  {console.log('💬 Message rendering check - generationState:', !!generationState, 'isCreatingProject:', isCreatingProject, 'messages:', messages.length)}
+                  {/* Build View - No generation state yet */}
+                  {!isCreatingProject && activeView === 'build' && !generationState && (
+                    <div className="flex items-center justify-center min-h-[400px]">
+                      <div className="text-center space-y-3 text-gray-400">
+                        <Sparkles className="w-12 h-12 mx-auto opacity-50" />
+                        <p>No active build to display</p>
+                        <button
+                          onClick={() => switchTab('chat')}
+                          className="text-purple-400 hover:text-purple-300 underline text-sm"
+                        >
+                          Switch to Chat view
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="space-y-6">
-              {/* Hide messages if generation is present */}
-              {!generationState && !isCreatingProject && messages.map((message) => {
-                return (
-                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
-                  <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30'
-                      : 'bg-white/5 border border-white/10 text-white'
-                  }`}>
+                  {/* Chat View - Show all messages */}
+                  {activeView === 'chat' && (
+                    <div className="space-y-6">
+                      {messages.map((message) => (
+                        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
+                          <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
+                            message.role === 'user'
+                              ? 'bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30'
+                              : 'bg-white/5 border border-white/10 text-white'
+                          }`}>
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         // Check if this is a summary message
@@ -942,25 +1066,27 @@ export default function Home() {
 
                       return null;
                     })}
-                  </div>
-                </div>
-                );
-              })}
-              {/* Loading indicator only if generating but no todos yet */}
-              {isGenerating && (!generationState || generationState.todos.length === 0) && (
-                <div className="flex justify-start animate-in fade-in duration-500">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                      <span className="ml-2 text-sm text-gray-400">Initializing...</span>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Loading indicator in chat view */}
+                      {isGenerating && (!generationState || generationState.todos.length === 0) && (
+                        <div className="flex justify-start animate-in fade-in duration-500">
+                          <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                              <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                              <span className="ml-2 text-sm text-gray-400">Initializing...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-              )}
-                    <div ref={messagesEndRef} />
-                  </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Fixed Bottom Input */}

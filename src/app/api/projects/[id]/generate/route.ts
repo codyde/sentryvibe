@@ -5,6 +5,8 @@ import { projects, messages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { getTemplateById, getTemplateSelectionContext } from '@/lib/templates/config';
+import { downloadTemplate, getProjectFileTree } from '@/lib/templates/downloader';
 
 // Create instrumented query function (automatically uses claudeCodeIntegration options)
 const query = Sentry.createInstrumentedClaudeQuery();
@@ -26,7 +28,8 @@ async function writeAgentMessagesToStream(
   agentStream: AsyncGenerator<AgentMessage>,
   writer: UIMessageStreamWriter,
   projectId: string,
-  expectedCwd: string
+  expectedCwd: string,
+  projectName: string
 ) {
   let currentMessageId: string | null = null;
   let messageStarted = false;
@@ -233,11 +236,195 @@ export async function POST(
           // IMPORTANT: Declare these BEFORE using them in template strings
           const projectsDir = join(process.cwd(), 'projects');
           const projectName = project[0].slug;
+          const projectPath = project[0].path;
 
           console.log('🗂️  CWD:', projectsDir);
           console.log('📁 Project name:', projectName);
+          console.log('📂 Project path:', projectPath);
+
+          // Check if this is a NEW project (no files yet) or EXISTING project (follow-up chat)
+          const { existsSync } = await import('fs');
+          const { readdir } = await import('fs/promises');
+
+          let isNewProject = false;
+          let selectedTemplate: any = null;
+          let fileTree = '';
+
+          try {
+            if (existsSync(projectPath)) {
+              const files = await readdir(projectPath);
+              isNewProject = files.length === 0;
+              console.log(`📊 Project exists: ${files.length} files found`);
+            } else {
+              isNewProject = true;
+              console.log(`📊 Project directory doesn't exist - NEW project`);
+            }
+          } catch {
+            isNewProject = true;
+          }
+
+          if (isNewProject) {
+            console.log('🆕 NEW PROJECT - Downloading template...');
+
+            // STEP 1: Send initial setup todos to UI
+            console.log('📝 Creating initial setup todos...');
+            writer.write({
+              type: 'tool-input-available',
+              toolCallId: 'setup-todo-1',
+              toolName: 'TodoWrite',
+              input: {
+                todos: [
+                  { content: 'Select appropriate template', status: 'in_progress', activeForm: 'Selecting template' },
+                  { content: 'Download template from GitHub', status: 'pending', activeForm: 'Downloading template' },
+                ],
+              },
+            });
+
+            // AUTO-SELECT AND DOWNLOAD TEMPLATE
+            console.log('🎯 Auto-selecting template based on prompt...');
+            const { selectTemplateFromPrompt } = await import('@/lib/templates/config');
+            selectedTemplate = await selectTemplateFromPrompt(prompt);
+
+            console.log(`✅ Selected template: ${selectedTemplate.name} (${selectedTemplate.id})`);
+
+            // Update todo: template selected
+            writer.write({
+              type: 'tool-input-available',
+              toolCallId: 'setup-todo-2',
+              toolName: 'TodoWrite',
+              input: {
+                todos: [
+                  { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
+                  { content: `Download template: ${selectedTemplate.repository}`, status: 'in_progress', activeForm: 'Downloading template' },
+                ],
+              },
+            });
+
+            console.log(`   Downloading from: ${selectedTemplate.repository}`);
+
+            // Download template
+            const downloadedPath = await downloadTemplate(selectedTemplate, projectName);
+
+            // Update project metadata
+            await db.update(projects)
+              .set({
+                path: downloadedPath,
+                projectType: selectedTemplate.tech.framework,
+                runCommand: selectedTemplate.setup.devCommand,
+                port: selectedTemplate.setup.defaultPort,
+              })
+              .where(eq(projects.id, id));
+
+            console.log(`✅ Template downloaded to: ${downloadedPath}`);
+
+            // Update todo: template downloaded
+            writer.write({
+              type: 'tool-input-available',
+              toolCallId: 'setup-todo-3',
+              toolName: 'TodoWrite',
+              input: {
+                todos: [
+                  { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
+                  { content: `Downloaded to: projects/${projectName}`, status: 'completed', activeForm: 'Downloading template' },
+                ],
+              },
+            });
+
+            // Get file tree for context
+            fileTree = await getProjectFileTree(downloadedPath);
+          } else {
+            console.log('🔄 EXISTING PROJECT - Skipping template download');
+
+            // For existing projects, just get the file tree
+            fileTree = await getProjectFileTree(projectPath);
+
+            // Try to load template info from project metadata
+            if (project[0].projectType) {
+              const { getTemplateById } = await import('@/lib/templates/config');
+              // Map projectType to template ID
+              const templateIdMap: Record<string, string> = {
+                'vite': 'react-vite',
+                'next': 'nextjs-fullstack',
+                'astro': 'astro-static',
+              };
+              const templateId = templateIdMap[project[0].projectType] || 'react-vite';
+              selectedTemplate = await getTemplateById(templateId);
+            }
+          }
+
+          // Load template selection context (for reference in prompt)
+          const templateContext = await getTemplateSelectionContext();
 
           const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
+
+${isNewProject ? `🎯 NEW PROJECT - TEMPLATE ALREADY DOWNLOADED
+
+✅ **A template has been automatically selected and downloaded for you:**
+
+Template: ${selectedTemplate?.name || 'Unknown'}
+Location: ${projectPath}
+Framework: ${selectedTemplate?.tech?.framework || project[0].projectType || 'Unknown'}
+
+**Project Structure:**
+${fileTree}
+
+${selectedTemplate?.ai?.systemPromptAddition || ''}
+
+**Included Features:**
+${selectedTemplate?.ai?.includedFeatures?.map((f: string) => `  • ${f}`).join('\n') || ''}
+
+**Setup Commands:**
+  Install: ${selectedTemplate?.setup?.installCommand || 'pnpm install'}
+  Dev: ${selectedTemplate?.setup?.devCommand || 'pnpm dev'}
+  Build: ${selectedTemplate?.setup?.buildCommand || 'pnpm build'}
+
+**Your Task:**
+The template is already downloaded and ready. You need to:
+1. Install dependencies
+2. Customize the template to match the user's specific requirements
+3. Add any additional features requested
+
+DO NOT scaffold a new project - the template is already there!
+DO NOT run create-next-app, create-vite, etc. - skip that step!
+START by installing dependencies, THEN customize the existing code.` : `🔄 EXISTING PROJECT - FOLLOW-UP CHAT
+
+This is an EXISTING project that you're modifying.
+
+**Project Location:** ${projectPath}
+**Project Type:** ${project[0].projectType || 'Unknown'}
+
+**Current Project Structure:**
+${fileTree}
+
+**Your Task:**
+The user wants you to make changes to this existing project.
+1. Review what's already there (see structure above)
+2. Make the requested changes
+3. Update or add files as needed
+4. Test if necessary
+
+DO NOT download or scaffold anything - just modify the existing code!`}
+
+🧠 HOLISTIC THINKING - CRITICAL 🧠
+
+BEFORE writing ANY code or creating ANY files, you MUST think comprehensively:
+
+1. Consider the ENTIRE project:
+   - What files will this project need?
+   - How do components depend on each other?
+   - What's the complete dependency tree?
+
+2. Review existing context:
+   - Check what's already in the project
+   - Understand the current architecture
+   - Identify what needs updating vs creating new
+
+3. Plan the full implementation:
+   - Map out all files you'll create
+   - List all dependencies needed upfront
+   - Anticipate how changes affect other parts
+
+This holistic approach is ABSOLUTELY ESSENTIAL. NEVER write code in isolation.
 
 🚨 CRITICAL PATH REQUIREMENTS 🚨
 
@@ -297,9 +484,12 @@ CRITICAL: You MUST use the TodoWrite tool to track your progress throughout the 
      ]
    }
 
-CRITICAL: ALWAYS add a final todo called "Project ready - Review and launch" as the LAST task.
-This final task should be marked as in_progress when you're done with all other work.
-Use this task to summarize what was built and provide next steps.
+CRITICAL: When you're done with all customization work:
+1. Mark your final todo as "completed"
+2. Write a summary of what was built
+3. Tell the user: "Your project is ready! The dev server will start automatically in a few seconds."
+
+The system will automatically start the dev server when you're done - no action needed from you or the user!
 
 This gives users visibility into your progress and creates a better experience!
 
@@ -327,56 +517,201 @@ CRITICAL: When working with TypeScript projects that have verbatimModuleSyntax e
 
 ALWAYS check your imports and use import type for type-only imports!
 
+📄 COMPLETE FILE CONTENTS - NO PLACEHOLDERS 📄
+
+CRITICAL: When writing or updating ANY file, you MUST write the COMPLETE file contents:
+
+✅ CORRECT: Include ALL code from start to finish
+❌ WRONG: // ... rest of the code remains the same
+❌ WRONG: // [previous code here]
+❌ WRONG: /* keeping existing implementation */
+❌ WRONG: <-- leave original code -->
+
+If you need to update a file:
+1. Read the current file contents
+2. Make your changes
+3. Write the ENTIRE updated file with ALL code
+
+NEVER use placeholders, shortcuts, or partial updates.
+EVERY file must be complete and immediately usable.
+
+Example:
+If App.tsx has 50 lines and you change line 10:
+- Write all 50 lines (with your change on line 10)
+- Include imports, all functions, exports - everything
+- NO shortcuts!
+
+💭 BRIEF PLANNING FIRST 💭
+
+Before executing, briefly state your plan (2-4 lines max):
+
+Example:
+User: "Create a todo list app"
+You: "I'll:
+1. Scaffold Vite + React + TypeScript
+2. Create Todo type, TodoList/TodoItem components with state
+3. Add localStorage persistence hook
+4. Style with Tailwind
+
+Starting now..."
+
+Then proceed with implementation. Keep planning concise!
+
 🛠️ CRITICAL WORKFLOW - FOLLOW THIS EXACT SEQUENCE:
 
-When creating a new JavaScript project, you MUST:
+The template has ALREADY been downloaded for you. You can see the structure above.
 
-1. CREATE TODO LIST FIRST:
+When customizing this project, you MUST:
+
+1. CREATE TODO LIST:
    - Use TodoWrite to create a comprehensive task list
-   - Break down all work into specific steps
-   - This is your roadmap for the entire project
+   - Break down customization work into specific steps
+   - Include: installing deps, customizing components, adding features, testing
+   - This is your roadmap for the project
 
-2. ALWAYS use CLI tools to scaffold projects - NEVER manually create project files:
-   - For Next.js: npx create-next-app@latest <project-name>
-   - For Vite + React: npm create vite@latest <project-name> -- --template react-ts
-   - For other frameworks: use their official CLI scaffolding tools
-   - Update todo status after completing
+2. INSTALL DEPENDENCIES:
+   - cd into the project directory (${projectName})
+   - Run the template's install command: ${selectedTemplate.setup.installCommand}
+   - Verify installation completed successfully
 
-3. After completion, test the build by attempting to start the application:
-   - For Next.js projects: Use PORT=3001 to avoid conflicts with the main app (running on 3000)
-   - For Vite projects: Use PORT=5174 to avoid conflicts
-   - Start the dev server in the background using Bash with the appropriate port
-   - Wait 3-5 seconds for server to initialize
-   - Check ONCE using BashOutput to see if server started successfully
-   - Look for "Local:" or "ready" or port number in output
-   - If you see those indicators, the server is running - KILL THE PROCESS IMMEDIATELY
-   - Do NOT repeatedly check BashOutput - one check is sufficient
-   - After verifying, ALWAYS use KillShell to stop the dev server
-   - DO NOT leave the server running - it's only for testing
-   - Update todo status after completing
+📦 DEPENDENCIES-FIRST STRATEGY:
 
-4. CRITICAL: After testing is complete:
-   - DO NOT tell the user to manually start the server
-   - DO NOT start the server yourself via Bash
-   - Tell the user: "Your project is ready! Click the Start button in the preview panel to run it."
-   - The UI will handle proper port allocation and preview
+CRITICAL: When you need dependencies, add them to package.json FIRST:
 
-5. After the user starts the server via the UI, offer to install Sentry:
-   - Ask if the user wants Sentry installed
-   - If yes, consult Sentry documentation for the correct installation method
-   - Follow Sentry's official setup guide for the specific framework
+✅ CORRECT workflow:
+1. Update package.json with ALL dependencies you'll need
+   {
+     "dependencies": {
+       "react-query": "^5.0.0",
+       "zustand": "^4.4.0",
+       "lucide-react": "^0.300.0"
+     }
+   }
+2. Run: cd ${projectName} && npm install
+3. THEN create files that use those dependencies
+
+❌ WRONG workflow:
+1. Create file using react-query
+2. npm install react-query
+3. Create file using zustand
+4. npm install zustand
+(This is inefficient and error-prone!)
+
+Add ALL dependencies upfront, install once, then code.
+
+3. After customization is complete:
+   - Verify your changes work by reviewing the code
+   - Make sure all required dependencies are installed
+   - Mark your final todo as completed
+   - Write a summary of what was built
+   - The system will automatically start the dev server for you
+
+IMPORTANT:
+- DO NOT manually test the dev server with Bash
+- DO NOT run create-next-app, create-vite, or any scaffolding commands
+- DO NOT start/stop servers manually
+- The system handles server management automatically
+
+🎨 DESIGN & UX EXCELLENCE 🎨
+
+Create production-ready, professional applications:
+
+Visual Design:
+- Cohesive color system (primary, secondary, accent + status colors: success, warning, error)
+- Modern typography: 16px+ body text, clear hierarchy, readable fonts
+- Subtle shadows and rounded corners (8-12px) for polished look
+- Smooth animations and transitions (hover, focus, active states)
+
+Content & Features:
+- NEVER create blank or placeholder screens
+- Populate with realistic demo data (5-10 items minimum)
+- Include ALL UI states:
+  * Loading: Skeleton loaders or spinners
+  * Empty: Helpful empty states with clear CTAs
+  * Error: User-friendly error messages with retry options
+  * Success: Confirmation feedback
+
+Responsive Design:
+- Mobile-first approach
+- Test breakpoints: <768px (mobile), 768-1024px (tablet), >1024px (desktop)
+- Fluid grids with CSS Grid/Flexbox
+- Touch-friendly targets on mobile (44px minimum)
+
+Accessibility:
+- Semantic HTML elements
+- ARIA labels for screen readers
+- Keyboard navigation support
+- Minimum 4.5:1 color contrast (WCAG AA)
+
+Example Quality Bar:
+If building a todo list:
+- Include 5-7 sample todos
+- Show add form with validation
+- Empty state: "No todos yet! Add one above"
+- Loading state when fetching
+- Error state with retry button
+- Filter options (all/active/completed)
+- Smooth animations for adding/removing
+
+📁 CODE ORGANIZATION & MODULARITY 📁
+
+Write clean, maintainable code:
+
+File Size:
+- Keep files under 250 lines when possible
+- Extract large components into smaller sub-components
+- Split utilities into separate files
+
+Structure by Feature:
+${projectName}/
+├── src/
+│   ├── components/
+│   │   ├── TodoList/          ← Feature folder
+│   │   │   ├── TodoList.tsx
+│   │   │   ├── TodoItem.tsx
+│   │   │   └── useTodos.ts    ← Custom hook
+│   │   └── Header.tsx
+│   ├── lib/
+│   │   ├── api.ts             ← API functions
+│   │   └── storage.ts         ← Storage utils
+│   ├── types/
+│   │   └── index.ts           ← All types
+│   └── App.tsx
+
+Code Quality:
+- Single Responsibility Principle
+- DRY (Don't Repeat Yourself)
+- Clear naming conventions
+- Proper TypeScript typing
+- Extract reusable logic to hooks/utils
+
+🖼️ IMAGES & ASSETS 🖼️
+
+For demo/prototype applications:
+- Use Pexels stock photos for realistic demos
+- Link to images, NEVER download them
+- Choose domain-relevant images
+
+Example URLs (known valid):
+- Hero images: https://images.pexels.com/photos/1181676/pexels-photo-1181676.jpeg
+- People/avatars: https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg
+- Food: https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg
+- Tech: https://images.pexels.com/photos/546819/pexels-photo-546819.jpeg
+
+For icons: Use lucide-react (install via npm)
 
 IMPORTANT RULES:
-- NEVER check BashOutput more than 2-3 times for the same process
-- ALWAYS kill background processes when done testing
-- If a dev server starts successfully (shows port/ready), IMMEDIATELY kill it and move on
-- Do NOT wait for processes to complete if they are servers (they run indefinitely)
+- DO NOT manually test or start dev servers - the system handles this
+- DO NOT run scaffolding commands (create-vite, create-next-app, etc.) - template is already there
 - ALWAYS keep your todo list updated as you progress
 - Use import type for all type-only imports
+- Write COMPLETE file contents (no placeholders!)
+- Add ALL dependencies to package.json upfront
+- ALWAYS verify each step is complete before moving to the next
+- Track your progress with TodoWrite
+- Think holistically about the entire project
 
-NEVER manually create project files when a CLI tool exists.
-ALWAYS verify each step is complete before moving to the next.
-ALWAYS track your progress with TodoWrite.`;
+The template is pre-downloaded. Your job is to customize it, not create it from scratch.`;
 
           console.log('📄 System prompt created, length:', systemPrompt.length);
 
@@ -397,7 +732,7 @@ ALWAYS track your progress with TodoWrite.`;
 
           console.log('✅ Agent stream created, beginning iteration...');
 
-          await writeAgentMessagesToStream(agentStream, writer, id, projectsDir);
+          await writeAgentMessagesToStream(agentStream, writer, id, projectsDir, projectName);
 
           console.log('✅ Agent stream completed successfully');
 
@@ -409,8 +744,9 @@ ALWAYS track your progress with TodoWrite.`;
           console.log('✅ Project marked as completed');
 
           // Try to detect project metadata (runCommand, projectType, port)
+          // NOTE: This should already be set from template download, but check package.json to confirm
           try {
-            const packageJsonPath = join(project[0].path, 'package.json');
+            const packageJsonPath = join(projectPath, 'package.json');
             const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
 
             let runCommand = 'npm run dev';
@@ -448,6 +784,108 @@ ALWAYS track your progress with TodoWrite.`;
               .where(eq(projects.id, id));
 
             console.log('✅ Detected project metadata:', { projectType, runCommand, port });
+
+            // AUTO-START DEV SERVER AFTER SUCCESSFUL GENERATION
+            if (runCommand) {
+              console.log('🚀 Auto-starting dev server in 3 seconds...');
+
+              // Wait 3 seconds to ensure all file writes are complete
+              await new Promise(resolve => setTimeout(resolve, 3000));
+
+              try {
+                // Import required utilities
+                const { startDevServer } = await import('@/lib/process-manager');
+                const { findAvailablePort, getRunCommandWithPort } = await import('@/lib/port-allocator');
+
+                // Get the latest project data
+                const freshProject = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+
+                if (freshProject[0] && freshProject[0].runCommand) {
+                  const proj = freshProject[0];
+
+                  // Update status to starting
+                  await db.update(projects)
+                    .set({ devServerStatus: 'starting', lastActivityAt: new Date() })
+                    .where(eq(projects.id, id));
+
+                  // Find available port
+                  const availablePort = await findAvailablePort(proj.port || undefined);
+                  console.log(`   Allocated port: ${availablePort}`);
+
+                  // Get command with port
+                  const commandWithPort = getRunCommandWithPort(proj.projectType, proj.runCommand, availablePort);
+                  console.log(`   Command: ${commandWithPort}`);
+
+                  // Start the server
+                  const { pid, emitter } = startDevServer({
+                    projectId: id,
+                    command: commandWithPort,
+                    cwd: proj.path,
+                  });
+
+                  // Wait for port detection
+                  const finalPort = await new Promise<number>((resolve) => {
+                    const timeout = setTimeout(() => {
+                      console.log(`   Using allocated port: ${availablePort}`);
+                      resolve(availablePort);
+                    }, 8000);
+
+                    emitter.once('port', (p: number) => {
+                      clearTimeout(timeout);
+                      console.log(`   Detected port: ${p}`);
+                      resolve(p);
+                    });
+                  });
+
+                  // Update DB with running status
+                  await db.update(projects)
+                    .set({
+                      devServerPid: pid,
+                      devServerPort: finalPort,
+                      devServerStatus: 'running',
+                      lastActivityAt: new Date(),
+                    })
+                    .where(eq(projects.id, id));
+
+                  console.log('✅ Dev server auto-started successfully');
+                  console.log(`   PID: ${pid}, Port: ${finalPort}`);
+
+                  // Handle process exit
+                  emitter.once('exit', async (code: number) => {
+                    console.log(`Dev server for ${id} exited with code ${code}`);
+                    await db.update(projects)
+                      .set({
+                        devServerPid: null,
+                        devServerPort: null,
+                        devServerStatus: code === 0 ? 'stopped' : 'failed',
+                      })
+                      .where(eq(projects.id, id));
+                  });
+
+                  // Handle process errors
+                  emitter.once('error', async (error: Error) => {
+                    console.error(`Dev server error for ${id}:`, error);
+                    await db.update(projects)
+                      .set({
+                        devServerPid: null,
+                        devServerPort: null,
+                        devServerStatus: 'failed',
+                        errorMessage: error.message,
+                      })
+                      .where(eq(projects.id, id));
+                  });
+                }
+              } catch (startError) {
+                console.error('❌ Failed to auto-start dev server:', startError);
+                // Update status to failed
+                await db.update(projects)
+                  .set({
+                    devServerStatus: 'failed',
+                    errorMessage: startError instanceof Error ? startError.message : 'Failed to auto-start',
+                  })
+                  .where(eq(projects.id, id));
+              }
+            }
           } catch (error) {
             console.warn('⚠️  Could not detect project metadata:', error);
           }

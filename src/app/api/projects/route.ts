@@ -29,49 +29,126 @@ export async function POST(req: Request) {
 
     console.log('🤖 Extracting project metadata with Haiku...');
 
-    // Use Haiku to extract metadata
-    const metadataStream = query({
-      prompt: `Given this project request, generate metadata in JSON format:
-"${prompt}"
-
-Choose an appropriate Lucide icon name from this list:
-Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter, Download, Upload, Share, Lock, Key, Bell, Clock, CheckCircle, XCircle, AlertCircle, Info, HelpCircle, Lightbulb, Target, Award, Briefcase, Coffee, Home, Puzzle, Box, Layers, Activity, TrendingUp, BarChart, PieChart, DollarSign, CreditCard, Smartphone, Monitor, Tablet, Cpu, Terminal, Cloud, Server, Wifi, Bluetooth, Camera, Mic
-
-Respond with ONLY valid JSON in this exact format (no markdown, no code blocks):
-{
-  "slug": "kebab-case-project-name",
-  "friendlyName": "Human Readable Project Name",
-  "description": "Brief description of what this project does",
-  "icon": "IconName"
-}`,
-      inputMessages: [],
-      options: {
-        model: 'claude-3-5-haiku-20241022',
-        maxTurns: 1,
-        systemPrompt: 'You are a project metadata generator. Only respond with valid JSON.',
-      },
-    });
-
-    // Parse the response
+    // Try up to 2 times to get valid JSON from Haiku
     let jsonResponse = '';
-    for await (const message of metadataStream) {
-      if (message.type === 'assistant' && message.message?.content) {
-        for (const block of message.message.content) {
-          if (block.type === 'text' && block.text) {
-            jsonResponse += block.text;
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts && (!jsonResponse || jsonResponse.trim().length === 0)) {
+      attempts++;
+      console.log(`   Attempt ${attempts}/${maxAttempts}...`);
+
+      try {
+        // Use Haiku to extract metadata
+        const metadataStream = query({
+          prompt: `User wants to build: "${prompt}"
+
+Generate project metadata as JSON.
+
+Icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter, Download, Upload, Share, Lock, Key, Bell, Clock
+
+Output ONLY this JSON (no text before or after):
+{"slug":"kebab-case-name","friendlyName":"Friendly Name","description":"Brief description","icon":"IconName"}`,
+          inputMessages: [],
+          options: {
+            model: 'claude-3-5-haiku-20241022',
+            maxTurns: 1,
+            systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
+          },
+        });
+
+        // Parse the response with timeout
+        const timeout = setTimeout(() => {
+          console.warn('⚠️  Haiku response timeout after 8 seconds');
+        }, 8000);
+
+        for await (const message of metadataStream) {
+          if (message.type === 'assistant' && message.message?.content) {
+            for (const block of message.message.content) {
+              if (block.type === 'text' && block.text) {
+                jsonResponse += block.text;
+              }
+            }
           }
+        }
+
+        clearTimeout(timeout);
+
+        if (jsonResponse && jsonResponse.trim().length > 0) {
+          console.log(`✅ Got response on attempt ${attempts}`);
+          break;
+        }
+      } catch (error) {
+        console.error(`❌ Attempt ${attempts} failed:`, error);
+        if (attempts === maxAttempts) {
+          console.log('⚠️  All Haiku attempts failed, will use fallback');
         }
       }
     }
 
-    // Extract JSON from potential markdown code blocks
-    const jsonMatch = jsonResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from Haiku response');
+    console.log('📥 Raw Haiku response:', JSON.stringify(jsonResponse));
+    console.log('   Response length:', jsonResponse.length);
+
+    // Extract JSON - handle multiple formats
+    let metadata;
+
+    // Check if response is empty
+    if (!jsonResponse || jsonResponse.trim().length === 0) {
+      console.warn('⚠️  Haiku returned empty response, using fallback');
+      // Skip parsing, go straight to fallback
+    } else {
+      try {
+        // Try 1: Remove markdown code blocks if present
+        let cleanedResponse = jsonResponse.trim();
+        cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
+        cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
+        cleanedResponse = cleanedResponse.trim();
+
+        // Try 2: Find JSON object in the text
+        const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          metadata = JSON.parse(jsonMatch[0]);
+          console.log('📋 Parsed metadata:', metadata);
+        } else {
+          console.warn('⚠️  No JSON object found in Haiku response');
+        }
+      } catch (parseError) {
+        console.error('❌ JSON parsing failed:', parseError);
+        console.error('   Raw response was:', jsonResponse);
+      }
     }
 
-    const metadata = JSON.parse(jsonMatch[0]);
-    console.log('📋 Generated metadata:', metadata);
+    // If metadata is still undefined, use fallback
+    if (!metadata) {
+
+      console.log('🔄 Falling back to simple metadata generation...');
+
+      // Better slug generation
+      const slug = prompt
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
+        .replace(/\s+/g, '-')          // Replace spaces with dashes
+        .replace(/-+/g, '-')            // Replace multiple dashes with single
+        .replace(/^-|-$/g, '')          // Remove leading/trailing dashes
+        .substring(0, 50)               // Limit length
+        .replace(/-$/, '');             // Remove trailing dash if any
+
+      // Better friendly name (capitalize words)
+      const friendlyName = prompt
+        .substring(0, 50)
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+      metadata = {
+        slug: slug || 'project-' + Date.now(),
+        friendlyName: friendlyName || 'New Project',
+        description: prompt.substring(0, 150) || 'A new project',
+        icon: 'Code',
+      };
+
+      console.log('📋 Fallback metadata:', metadata);
+    }
 
     // Check for slug collision
     let finalSlug = metadata.slug;
