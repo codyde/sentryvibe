@@ -1850,10 +1850,10 @@
   resolved "https://registry.npmjs.org/@sentry/core/-/core-10.17.0.tgz"
   integrity sha512-UVIvxSzS0n5QbIDPyFf0WX9I77Of1bcr6a0sCEKfjhJGmGQ8mFWoWgR2gF4wcPw60XUrzbryCr79eOsIHLQ5cw==
 
-"@sentry/nextjs@file:/Users/codydearkland/sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz":
+"@sentry/nextjs@file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz":
   version "10.17.0"
   resolved "file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz"
-  integrity sha512-Z8ay2+PiJxdBgmSI176TKXlnxm+do48qBVZMhxpTlkxAVoAhXKdCzhBgSylrB3hx9jjExo/7v4GvxyDLPP1OsQ==
+  integrity sha512-jXmLzK78CLWFB3qa/ahPvgmwW5gH9dTkURe6vvcHi7TiyKXquMNzFwNnqi5mOSU00ehLyyEP+gy5W8wS3GNa6w==
   dependencies:
     "@opentelemetry/api" "^1.9.0"
     "@opentelemetry/semantic-conventions" "^1.37.0"
@@ -1880,10 +1880,10 @@
     "@sentry/opentelemetry" "10.17.0"
     import-in-the-middle "^1.14.2"
 
-"@sentry/node@10.17.0", "@sentry/node@file:/Users/codydearkland/sentry-javascript/packages/node/sentry-node-10.17.0.tgz":
+"@sentry/node@10.17.0", "@sentry/node@file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz":
   version "10.17.0"
   resolved "file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz"
-  integrity sha512-OHt11e+Wp48KPBcpK0XG4wa2qnI+yYNyV0p8AE7a244uqG5CY0i5srnIGYqVDSLbpIRu80NjZLTrHp2ifqgTDg==
+  integrity sha512-eBdzfz2yVgNr82Se8Reva5Mmo5hZwJufjGumyRYURWg8WjA1g24RaAEKkPZ73gCh5/ZhH2fLF0QRrrXnIyHGoQ==
   dependencies:
     "@opentelemetry/api" "^1.9.0"
     "@opentelemetry/context-async-hooks" "^2.1.0"

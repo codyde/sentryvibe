@@ -114,9 +114,9 @@ export default function ProcessManagerModal({ isOpen, onClose }: ProcessManagerM
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-medium text-white">{proc.projectName}</h3>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            proc.status === 'running' ? 'bg-green-500/20 text-green-300' :
-                            'bg-yellow-500/20 text-yellow-300'
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                            proc.status === 'running' ? 'bg-[#92DD00]/20 text-[#92DD00] border-[#92DD00]/30' :
+                            'bg-[#FFD00E]/20 text-[#FFD00E] border-[#FFD00E]/30'
                           }`}>
                             {proc.status}
                           </span>
@@ -135,7 +135,7 @@ export default function ProcessManagerModal({ isOpen, onClose }: ProcessManagerM
 
                       <button
                         onClick={() => stopProcess(proc.projectId)}
-                        className="flex items-center gap-2 px-3 py-2 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-sm bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
                       >
                         <Square className="w-4 h-4" />
                         Stop

@@ -11,6 +11,7 @@ Sentry.init({
   spotlight: true,
   integrations: [
     Sentry.spotlightIntegration(),
+    Sentry.consoleLoggingIntegration(),
     Sentry.claudeCodeIntegration({
       recordInputs: true,
       recordOutputs: true,

@@ -33,10 +33,17 @@ export async function PATCH(
     const { id } = await params;
     const updates = await req.json();
 
+    console.log('📝 PATCH request for project:', id);
+    console.log('   Updates:', Object.keys(updates));
+    console.log('   Has generationState?', 'generationState' in updates);
+    if (updates.generationState) {
+      console.log('   generationState length:', updates.generationState.length);
+    }
+
     // Validate allowed fields
     const allowedFields = [
       'name', 'description', 'originalPrompt', 'icon', 'status', 'projectType', 'runCommand',
-      'port', 'devServerPid', 'devServerPort', 'devServerStatus',
+      'port', 'devServerPid', 'devServerPort', 'devServerStatus', 'generationState',
       'lastActivityAt', 'errorMessage'
     ];
 
@@ -47,7 +54,10 @@ export async function PATCH(
         return obj;
       }, {} as Record<string, unknown>);
 
+    console.log('   Filtered updates:', Object.keys(filteredUpdates));
+
     if (Object.keys(filteredUpdates).length === 0) {
+      console.log('   ❌ No valid fields!');
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
@@ -57,12 +67,14 @@ export async function PATCH(
       .returning();
 
     if (updated.length === 0) {
+      console.log('   ❌ Project not found');
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    console.log('   ✅ Project updated successfully');
     return NextResponse.json({ project: updated[0] });
   } catch (error) {
-    console.error('Error updating project:', error);
+    console.error('❌ Error updating project:', error);
     return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
   }
 }

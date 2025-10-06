@@ -7,12 +7,20 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles } from 'lucide-react';
 import TabbedPreview from '@/components/TabbedPreview';
 import TerminalOutput from '@/components/TerminalOutput';
 import ProcessManagerModal from '@/components/ProcessManagerModal';
+import ToolCallCard from '@/components/ToolCallCard';
+import SummaryCard from '@/components/SummaryCard';
+import CodeBlock from '@/components/CodeBlock';
+import TodoVibe, { type TodoItem } from '@/components/TodoVibe';
+import GenerationProgress from '@/components/GenerationProgress';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
+import type { GenerationState, ToolCall } from '@/types/generation';
+import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
 
 interface MessagePart {
   type: string;
@@ -28,6 +36,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   parts: MessagePart[];
+  generationState?: GenerationState; // For generation messages
 }
 
 export default function Home() {
@@ -38,7 +47,9 @@ export default function Home() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
+  const [generationState, setGenerationState] = useState<GenerationState | null>(null); // Separate, protected state!
   const hasStartedGenerationRef = useRef<Set<string>>(new Set());
+  const isGeneratingRef = useRef(false); // Sync flag for immediate checks
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
@@ -70,6 +81,13 @@ export default function Home() {
 
   const loadMessages = async (projectId: string) => {
     console.log('📥 Loading messages for project:', projectId);
+
+    // Don't load during active generation (use ref for immediate check!)
+    if (generationState?.isActive || isGeneratingRef.current) {
+      console.log('🛑 BLOCKED - generation in progress');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/projects/${projectId}/messages`);
       const data = await res.json();
@@ -81,7 +99,7 @@ export default function Home() {
           role: msg.role,
           parts: Array.isArray(msg.content) ? msg.content : [],
         }));
-        console.log('   Setting messages:', formattedMessages.length);
+        console.log('   ⚠️⚠️⚠️ SETTING MESSAGES FROM DB (will wipe current):', formattedMessages.length);
         setMessages(formattedMessages);
       }
     } catch (error) {
@@ -94,8 +112,55 @@ export default function Home() {
     if (selectedProjectSlug) {
       const project = projects.find(p => p.slug === selectedProjectSlug);
       if (project) {
-        setCurrentProject(project);
-        loadMessages(project.id);
+        const wasInProgress = currentProject?.status === 'in_progress';
+        const nowCompleted = project.status === 'completed';
+
+        // Only update currentProject if it changed
+        if (!currentProject || currentProject.id !== project.id) {
+          console.log('🔄 Project changed to:', project.slug);
+          console.log('   Has generationState in DB?', !!project.generationState);
+          console.log('   generationState value:', project.generationState);
+          setCurrentProject(project);
+
+          // Load persisted generationState if it exists
+          if (project.generationState) {
+            console.log('🎨🎨🎨 Restoring generationState from DB!');
+            console.log('   Raw value type:', typeof project.generationState);
+            const restored = deserializeGenerationState(project.generationState as string);
+            if (restored) {
+              console.log('   ✅ Deserialized successfully, todos:', restored.todos.length);
+              setGenerationState(restored);
+            } else {
+              console.log('   ❌ Deserialization failed, loading messages');
+              loadMessages(project.id);
+            }
+          } else {
+            console.log('📥 No generationState - loading regular messages');
+            // Load regular messages if no generationState
+            loadMessages(project.id);
+          }
+        } else {
+          // Same project - only refresh if NOT generating
+          console.log('🔄 Same project, checking if we should refresh messages...');
+          console.log('   Has generationState?', !!project.generationState);
+
+          // Restore generationState if project has it
+          if (project.generationState && !generationState) {
+            console.log('🎨🎨🎨 Restoring generationState from DB (same project)!');
+            const restored = deserializeGenerationState(project.generationState as string);
+            if (restored) {
+              setGenerationState(restored);
+            }
+          } else if (!project.generationState) {
+            loadMessages(project.id); // loadMessages will block if needed
+          }
+        }
+
+        // Auto-start server when generation completes
+        if (wasInProgress && nowCompleted && project.runCommand && project.devServerStatus !== 'running') {
+          console.log('🚀 Generation completed, auto-starting dev server...');
+          setTimeout(() => startDevServer(), 1000); // Small delay to let UI settle
+        }
       }
     } else {
       setCurrentProject(null);
@@ -103,42 +168,14 @@ export default function Home() {
       // Clear generation tracking when leaving project
       hasStartedGenerationRef.current.clear();
     }
-  }, [selectedProjectSlug, projects]);
+  }, [selectedProjectSlug, projects]); // Removed isGenerating from deps!
 
-  // Auto-start generation if needed
-  useEffect(() => {
-    if (
-      currentProject &&
-      shouldGenerate &&
-      messages.length === 0 &&
-      !isGenerating &&
-      !hasStartedGenerationRef.current.has(currentProject.id)
-    ) {
-      // Mark this project as having started generation
-      hasStartedGenerationRef.current.add(currentProject.id);
-
-      // Use original prompt from database, fallback to description
-      const promptToUse = currentProject.originalPrompt || currentProject.description;
-
-      // Clean up URL (remove generate flag)
-      router.replace(`/?project=${currentProject.slug}`);
-
-      // Add user message to UI before starting generation
-      if (promptToUse) {
-        const userMessage: Message = {
-          id: `msg-${Date.now()}`,
-          role: 'user',
-          parts: [{ type: 'text', text: promptToUse }],
-        };
-        setMessages([userMessage]);
-
-        // Start generation (don't add message again since we just did)
-        startGeneration(currentProject.id, promptToUse, false);
-      }
-    }
-  }, [currentProject, shouldGenerate, messages.length, isGenerating]);
+  // Disabled: We now handle generation directly in handleSubmit without redirects
+  // This prevents the flash/reload issue when creating new projects
 
   const startGeneration = async (projectId: string, prompt: string, addUserMessage = false) => {
+    // Lock FIRST
+    isGeneratingRef.current = true;
     setIsGenerating(true);
 
     // Only add user message to UI if this is a continuation (not auto-start)
@@ -150,6 +187,30 @@ export default function Home() {
       };
       setMessages(prev => [...prev, userMessage]);
     }
+
+    // Create SEPARATE generation state (not in messages!)
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+      console.log('🎬🎬🎬 Creating generation state for:', project.name);
+      setGenerationState({
+        id: `gen-${Date.now()}`,
+        projectId: project.id,
+        projectName: project.name,
+        todos: [],
+        toolsByTodo: {},
+        textByTodo: {},
+        activeTodoIndex: -1,
+        isActive: true,
+        startTime: new Date(),
+      });
+    } else {
+      console.error('❌ Project not found for ID:', projectId);
+    }
+
+    await startGenerationStream(projectId, prompt);
+  };
+
+  const startGenerationStream = async (projectId: string, prompt: string) => {
 
     try {
       const res = await fetch(`/api/projects/${projectId}/generate`, {
@@ -168,6 +229,7 @@ export default function Home() {
       const decoder = new TextDecoder();
       let currentMessage: Message | null = null;
       let currentTextPart: { id: string; text: string } | null = null;
+      const textBlocksMap = new Map<string, { type: string; text: string }>(); // Track text blocks by ID
 
       while (true) {
         const { done, value } = await reader.read();
@@ -183,24 +245,84 @@ export default function Home() {
             const data = JSON.parse(line.slice(6));
 
             if (data.type === 'start') {
+              // Don't create messages during generation - they're captured in generationState
               currentMessage = {
                 id: data.messageId || `msg-${Date.now()}`,
                 role: 'assistant',
                 parts: [],
               };
             } else if (data.type === 'text-start') {
+              textBlocksMap.set(data.id, { type: 'text', text: '' });
               currentTextPart = { id: data.id, text: '' };
-            } else if (data.type === 'text-delta' && currentTextPart) {
-              currentTextPart.text += data.delta;
+            } else if (data.type === 'text-delta') {
+              const blockId = data.id;
+
+              // Get or create text block
+              let textBlock = textBlocksMap.get(blockId);
+              if (!textBlock) {
+                textBlock = { type: 'text', text: '' };
+                textBlocksMap.set(blockId, textBlock);
+              }
+
+              // Accumulate text
+              textBlock.text += data.delta;
+              currentTextPart = { id: blockId, text: textBlock.text };
+
+              // Also add to generation state if active
+              if (generationState?.isActive) {
+                setGenerationState(prev => {
+                  if (!prev) return null;
+
+                  const activeIndex = prev.activeTodoIndex >= 0 ? prev.activeTodoIndex : 0;
+                  const existing = prev.textByTodo[activeIndex] || [];
+
+                  // Find or create text message for this block
+                  const existingTextIndex = existing.findIndex(t => t.id === blockId);
+                  const updatedTexts = [...existing];
+
+                  if (existingTextIndex >= 0) {
+                    updatedTexts[existingTextIndex] = {
+                      ...updatedTexts[existingTextIndex],
+                      text: textBlock.text,
+                    };
+                  } else {
+                    updatedTexts.push({
+                      id: blockId,
+                      text: textBlock.text,
+                      timestamp: new Date(),
+                    });
+                  }
+
+                  const updated = {
+                    ...prev,
+                    textByTodo: {
+                      ...prev.textByTodo,
+                      [activeIndex]: updatedTexts,
+                    },
+                  };
+
+                  // Debounced save to DB (text updates frequently)
+                  if ((window as any).saveGenStateTimeout) {
+                    clearTimeout((window as any).saveGenStateTimeout);
+                  }
+                  (window as any).saveGenStateTimeout = setTimeout(() => {
+                    console.log('💾 Saving text update (debounced), projectId:', updated.projectId);
+                    saveGenerationState(updated.projectId, updated);
+                  }, 1000);
+
+                  return updated;
+                });
+              }
 
               if (currentMessage) {
-                const existingPartIndex = currentMessage.parts.findIndex(p => p.type === 'text' && p.text?.includes(currentTextPart!.text));
-                if (existingPartIndex === -1) {
-                  currentMessage.parts.push({ type: 'text', text: currentTextPart.text });
-                } else {
-                  currentMessage.parts[existingPartIndex] = { type: 'text', text: currentTextPart.text };
-                }
+                // Rebuild parts array from all text blocks in order
+                const textParts = Array.from(textBlocksMap.values());
 
+                // Replace or add text parts
+                currentMessage.parts = currentMessage.parts.filter(p => !p.type.startsWith('text'));
+                currentMessage.parts.unshift(...textParts);
+
+                // Trigger re-render
                 setMessages(prev => {
                   const existing = prev.find(m => m.id === currentMessage!.id);
                   if (existing) {
@@ -209,25 +331,131 @@ export default function Home() {
                   return [...prev, { ...currentMessage! }];
                 });
               }
-            } else if (data.type === 'tool-input-available' && currentMessage) {
-              currentMessage.parts.push({
-                type: `tool-${data.toolName}`,
-                toolCallId: data.toolCallId,
-                toolName: data.toolName,
-                input: data.input,
-                state: 'input-available',
-              });
-              setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
-            } else if (data.type === 'tool-output-available' && currentMessage) {
-              const toolPart = currentMessage.parts.find(p => p.toolCallId === data.toolCallId);
-              if (toolPart) {
-                toolPart.output = data.output;
-                toolPart.state = 'output-available';
+            } else if (data.type === 'text-end') {
+              console.log('✅ Text block finished:', data.id);
+            } else if (data.type === 'tool-input-available') {
+              // Route TodoWrite to separate generation state
+              if (data.toolName === 'TodoWrite') {
+                const inputData = data.input as { todos?: TodoItem[] };
+                const todos = inputData?.todos || [];
+
+                console.log('📝 TodoWrite - updating generation state');
+                console.log('   Todos count:', todos.length);
+
+                setGenerationState(prev => {
+                  if (!prev) return null;
+
+                  const activeIndex = todos.findIndex(t => t.status === 'in_progress');
+
+                  const updated = {
+                    ...prev,
+                    todos,
+                    activeTodoIndex: activeIndex,
+                  };
+
+                  // Save to DB using projectId from state (always available!)
+                  console.log('💾 Saving TodoWrite update, projectId:', updated.projectId);
+                  saveGenerationState(updated.projectId, updated);
+
+                  return updated;
+                });
+              } else {
+                // Route other tools to generation state (nested under active todo)
+                console.log('🔧 Tool', data.toolName, '- updating generation state');
+
+                setGenerationState(prev => {
+                  if (!prev) return null;
+
+                  const tool: ToolCall = {
+                    id: data.toolCallId,
+                    name: data.toolName,
+                    input: data.input,
+                    state: 'input-available',
+                    startTime: new Date(),
+                  };
+
+                  const activeIndex = prev.activeTodoIndex >= 0 ? prev.activeTodoIndex : 0;
+                  const existing = prev.toolsByTodo[activeIndex] || [];
+
+                  console.log('   ✅ Nesting under todo', activeIndex);
+
+                  const updated = {
+                    ...prev,
+                    toolsByTodo: {
+                      ...prev.toolsByTodo,
+                      [activeIndex]: [...existing, tool],
+                    },
+                  };
+
+                  // Save to DB using projectId from state
+                  console.log('💾 Saving tool addition, projectId:', updated.projectId);
+                  saveGenerationState(updated.projectId, updated);
+
+                  return updated;
+                });
+              }
+
+              // Also add tools to current message for DB persistence
+              if (currentMessage && data.toolName !== 'TodoWrite') {
+                currentMessage.parts.push({
+                  type: `tool-${data.toolName}`,
+                  toolCallId: data.toolCallId,
+                  toolName: data.toolName,
+                  input: data.input,
+                  state: 'input-available',
+                });
                 setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+              }
+            } else if (data.type === 'tool-output-available') {
+              // Update tool in generation state
+              setGenerationState(prev => {
+                if (!prev) return null;
+
+                const newToolsByTodo = { ...prev.toolsByTodo };
+
+                // Find and update the tool
+                for (const todoIndexStr in newToolsByTodo) {
+                  const todoIndex = parseInt(todoIndexStr);
+                  const tools = newToolsByTodo[todoIndex];
+                  const toolIndex = tools.findIndex(t => t.id === data.toolCallId);
+                  if (toolIndex >= 0) {
+                    const updatedTools = [...tools];
+                    updatedTools[toolIndex] = {
+                      ...updatedTools[toolIndex],
+                      output: data.output,
+                      state: 'output-available',
+                      endTime: new Date(),
+                    };
+                    newToolsByTodo[todoIndex] = updatedTools;
+                    break;
+                  }
+                }
+
+                const updated = {
+                  ...prev,
+                  toolsByTodo: newToolsByTodo,
+                };
+
+                // Save to DB (tool completion is a checkpoint)
+                console.log('💾 Saving tool completion, projectId:', updated.projectId);
+                saveGenerationState(updated.projectId, updated);
+
+                return updated;
+              });
+
+              // Also update in message for DB persistence
+              if (currentMessage) {
+                const toolPart = currentMessage.parts.find(p => p.toolCallId === data.toolCallId);
+                if (toolPart) {
+                  toolPart.output = data.output;
+                  toolPart.state = 'output-available';
+                  setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+                }
               }
             } else if (data.type === 'finish') {
               currentMessage = null;
               currentTextPart = null;
+              textBlocksMap.clear(); // Clear for next message
             }
           } catch (e) {
             // Skip malformed JSON
@@ -235,11 +463,52 @@ export default function Home() {
         }
       }
 
+      // Mark generation as complete and SAVE
+      setGenerationState(prev => {
+        if (!prev) return null;
+        const completed = {
+          ...prev,
+          isActive: false,
+          endTime: new Date(),
+        };
+
+        // CRITICAL: Save final state to DB
+        console.log('💾💾💾 Saving FINAL generationState to DB, projectId:', completed.projectId);
+        saveGenerationState(completed.projectId, completed);
+
+        return completed;
+      });
+
       refetch(); // Refresh project list to update status
+
+      // Auto-start server after generation completes
+      setTimeout(() => {
+        console.log('🚀 Auto-starting dev server after generation');
+        startDevServer();
+      }, 2000);
     } catch (error) {
       console.error('Generation error:', error);
+      // Mark generation as failed and SAVE
+      setGenerationState(prev => {
+        if (!prev) return null;
+        const failed = {
+          ...prev,
+          isActive: false,
+          endTime: new Date(),
+        };
+
+        // Save failed state to DB
+        console.log('💾 Saving FAILED generationState to DB, projectId:', failed.projectId);
+        saveGenerationState(failed.projectId, failed);
+
+        return failed;
+      });
     } finally {
       setIsGenerating(false);
+      isGeneratingRef.current = false; // Unlock
+      console.log('🔓 Unlocked generation mode');
+      // Keep generationState visible - don't hide it!
+      // User can manually dismiss with X button
     }
   };
 
@@ -266,13 +535,48 @@ export default function Home() {
         const data = await res.json();
         const project = data.project;
 
-        refetch(); // Refresh project list
+        console.log('✅ Project created:', project.slug);
 
-        // Redirect to new project with generate flag (prompt stored in DB)
-        router.push(`/?project=${project.slug}&generate=true`);
+        // Update URL WITHOUT reloading (prevents flash!)
+        router.replace(`/?project=${project.slug}`, { scroll: false });
+
+        // Set project state directly
+        setCurrentProject(project);
+        setIsCreatingProject(false);
+
+        // LOCK generation mode IMMEDIATELY (before any async state updates)
+        isGeneratingRef.current = true;
+        console.log('🔒 Locked generation mode with ref');
+
+        // Create generationState DIRECTLY with the project we just created
+        console.log('🎬🎬🎬 Creating generation state for:', project.name);
+        setGenerationState({
+          id: `gen-${Date.now()}`,
+          projectId: project.id,
+          projectName: project.name,
+          todos: [],
+          toolsByTodo: {},
+          textByTodo: {},
+          activeTodoIndex: -1,
+          isActive: true,
+          startTime: new Date(),
+        });
+
+        // Add user message
+        const userMessage: Message = {
+          id: `msg-${Date.now()}`,
+          role: 'user',
+          parts: [{ type: 'text', text: userPrompt }],
+        };
+        setMessages([userMessage]);
+
+        // Start generation stream (don't add user message again)
+        await startGenerationStream(project.id, userPrompt);
+
+        // Refresh project list in background
+        refetch();
       } catch (error) {
         console.error('Error creating project:', error);
-      } finally {
         setIsCreatingProject(false);
       }
     } else {
@@ -372,27 +676,8 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* Loading state for project creation */}
-            {isCreatingProject && (
-              <motion.div
-                key="creating"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex-1 flex items-center justify-center p-4"
-              >
-                <div className="text-center space-y-4">
-                  <div className="flex items-center gap-3 justify-center">
-                    <div className="w-3 h-3 bg-white rounded-full animate-bounce"></div>
-                    <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                  </div>
-                  <p className="text-xl font-light">Creating your project...</p>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Three-Panel Layout - Chat on left, Preview/Explorer on right */}
-            {(messages.length > 0 || selectedProjectSlug) && !isCreatingProject && (
+            {/* Three-Panel Layout - Always show when project selected or creating */}
+            {(messages.length > 0 || selectedProjectSlug || isCreatingProject) && (
           <motion.div
             key="chat-layout"
             initial={{ opacity: 0 }}
@@ -412,13 +697,13 @@ export default function Home() {
                 {currentProject && (
                   <div className="border-b border-white/10 p-4">
                     <div className="flex items-center gap-3 mb-2">
-                      {/* Status Indicator Circle */}
+                      {/* Status Indicator Circle - Sentry Colors */}
                       <div className="relative group">
                         <div className={`w-3 h-3 rounded-full ${
-                          currentProject.status === 'pending' ? 'bg-gray-500' :
-                          currentProject.status === 'in_progress' ? 'bg-yellow-500 animate-pulse' :
-                          currentProject.status === 'completed' ? 'bg-green-500' :
-                          'bg-red-500'
+                          currentProject.status === 'pending' ? 'bg-[#7553FF]' : // Sentry Blurple
+                          currentProject.status === 'in_progress' ? 'bg-[#FFD00E] animate-pulse shadow-lg shadow-[#FFD00E]/50' : // Sentry Yellow
+                          currentProject.status === 'completed' ? 'bg-[#92DD00] shadow-lg shadow-[#92DD00]/30' : // Sentry Green
+                          'bg-[#FF45A8]' // Sentry Pink
                         }`} />
                         {/* Tooltip */}
                         <div className="absolute left-0 top-6 hidden group-hover:block z-50">
@@ -441,12 +726,12 @@ export default function Home() {
 
                     {/* Error message and retry button */}
                     {currentProject.status === 'failed' && (
-                      <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      <div className="mt-3 p-3 bg-[#FF45A8]/10 border border-[#FF45A8]/30 rounded-lg">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-red-400 mb-1">Generation Failed</p>
+                            <p className="text-sm font-medium text-[#FF45A8] mb-1">Generation Failed</p>
                             {currentProject.errorMessage && (
-                              <p className="text-xs text-red-300/80">{currentProject.errorMessage}</p>
+                              <p className="text-xs text-[#FF70BC]/80">{currentProject.errorMessage}</p>
                             )}
                           </div>
                           <button
@@ -462,7 +747,7 @@ export default function Home() {
                                 await startGeneration(currentProject.id, promptToRetry);
                               }
                             }}
-                            className="px-3 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded transition-colors"
+                            className="px-3 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
                           >
                             Retry
                           </button>
@@ -473,12 +758,116 @@ export default function Home() {
                 )}
 
                 <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 min-h-0">
+                  {/* Beautiful loading OR Generation Progress */}
+                  {isCreatingProject && (
+                    <motion.div
+                      key="creating-project"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="flex items-center justify-center min-h-[400px]"
+                    >
+                      <div className="text-center space-y-6 max-w-md">
+                        {/* Animated icon */}
+                        <motion.div
+                          animate={{
+                            scale: [1, 1.2, 1],
+                            rotate: [0, 180, 360],
+                          }}
+                          transition={{
+                            duration: 3,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                          className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm border border-purple-500/30"
+                        >
+                          <Sparkles className="w-10 h-10 text-purple-400" />
+                        </motion.div>
+
+                        {/* Loading text */}
+                        <div className="space-y-2">
+                          <h3 className="text-2xl font-semibold text-white">Preparing Your Project</h3>
+                          <p className="text-gray-400">Setting up the perfect environment...</p>
+                        </div>
+
+                        {/* Animated progress dots */}
+                        <div className="flex items-center gap-2 justify-center">
+                          <motion.div
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0 }}
+                            className="w-2 h-2 bg-purple-400 rounded-full"
+                          />
+                          <motion.div
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
+                            className="w-2 h-2 bg-pink-400 rounded-full"
+                          />
+                          <motion.div
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
+                            className="w-2 h-2 bg-purple-400 rounded-full"
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Generation Progress - Show when active */}
+                  {!isCreatingProject && generationState && (
+                    <div className="mb-6">
+                      {console.log('🎨 Rendering GenerationProgress, todos:', generationState.todos.length, 'isActive:', generationState.isActive)}
+                      <GenerationProgress
+                        state={generationState}
+                        onClose={() => setGenerationState(null)}
+                        onViewFiles={() => {
+                          window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                        }}
+                        onStartServer={startDevServer}
+                      />
+                    </div>
+                  )}
+
+                  {console.log('💬 Message rendering check - generationState:', !!generationState, 'isCreatingProject:', isCreatingProject, 'messages:', messages.length)}
+
                   <div className="space-y-6">
-              {messages.map((message) => (
+              {/* Hide messages if generation is present */}
+              {!generationState && !isCreatingProject && messages.map((message) => {
+                return (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
-                  <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${message.role === 'user' ? 'bg-white text-black' : 'bg-white/5 border border-white/10 text-white'}`}>
+                  <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
+                    message.role === 'user'
+                      ? 'bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30'
+                      : 'bg-white/5 border border-white/10 text-white'
+                  }`}>
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
+                        // Check if this is a summary message
+                        const isSummary = part.text && message.role === 'assistant' && (
+                          (part.text.includes('✅') && (
+                            part.text.includes('Created') ||
+                            part.text.includes('Complete') ||
+                            part.text.includes('successfully')
+                          )) ||
+                          (part.text.includes('Project Created') || part.text.includes('successfully created')) ||
+                          (part.text.includes('🎉') && part.text.includes('created'))
+                        );
+
+                        if (isSummary) {
+                          return (
+                            <SummaryCard
+                              key={i}
+                              content={part.text}
+                              onViewFiles={() => {
+                                window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                              }}
+                              onStartServer={currentProject?.runCommand ? startDevServer : undefined}
+                              onStopServer={currentProject?.runCommand ? stopDevServer : undefined}
+                              serverRunning={currentProject?.devServerStatus === 'running'}
+                              serverStarting={currentProject?.devServerStatus === 'starting'}
+                            />
+                          );
+                        }
+
                         return (
                           <div key={i} className="prose prose-invert max-w-none">
                             <ReactMarkdown
@@ -489,7 +878,7 @@ export default function Home() {
                                   const match = /language-(\w+)/.exec(className || '');
                                   const isInline = !match;
                                   return isInline ? (
-                                    <code className="bg-white/10 text-white px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                    <code className="bg-[#181225] text-[#FF45A8] px-2 py-0.5 rounded text-sm font-mono border border-[#FF45A8]/30" {...props}>
                                       {children}
                                     </code>
                                   ) : (
@@ -499,24 +888,24 @@ export default function Home() {
                                   );
                                 },
                                 pre: ({ children }) => (
-                                  <pre className="bg-background text-white p-4 rounded-lg overflow-x-auto border border-white/10">
-                                    {children}
-                                  </pre>
+                                  <CodeBlock>{children}</CodeBlock>
                                 ),
                                 p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
                                 ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-1">{children}</ul>,
                                 ol: ({ children }) => <ol className="list-decimal list-inside mb-4 space-y-1">{children}</ol>,
                                 li: ({ children }) => <li className="ml-2">{children}</li>,
-                                h1: ({ children }) => <h1 className="text-2xl font-semibold mb-4 mt-6 first:mt-0">{children}</h1>,
-                                h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 mt-5 first:mt-0">{children}</h2>,
-                                h3: ({ children }) => <h3 className="text-lg font-semibold mb-2 mt-4 first:mt-0">{children}</h3>,
-                                blockquote: ({ children }) => (
-                                  <blockquote className="border-l-4 border-white/20 pl-4 italic my-4">{children}</blockquote>
-                                ),
+                                h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 mt-6 first:mt-0 text-[#FF45A8]">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 mt-5 first:mt-0 text-[#FFD00E]">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-lg font-medium mb-2 mt-4 first:mt-0 text-[#7553FF]">{children}</h3>,
                                 a: ({ children, href }) => (
-                                  <a href={href} className="text-blue-400 underline hover:text-blue-300 break-all" target="_blank" rel="noopener noreferrer">
+                                  <a href={href} className="text-[#226DFC] underline hover:text-[#3EDCFF] break-all font-medium" target="_blank" rel="noopener noreferrer">
                                     {children}
                                   </a>
+                                ),
+                                blockquote: ({ children }) => (
+                                  <blockquote className="border-l-4 border-[#FF45A8] bg-[#FF45A8]/5 pl-4 py-2 italic my-4 rounded-r">
+                                    {children}
+                                  </blockquote>
                                 ),
                               }}
                             >
@@ -526,44 +915,28 @@ export default function Home() {
                         );
                       }
 
-                      // Handle dynamic tool parts
+                      // Skip TodoWrite - handled by GenerationProgress
+                      if (part.type === 'tool-TodoWrite' || part.toolName === 'TodoWrite') {
+                        return null;
+                      }
+
+                      // Skip other tools during active generation - shown in GenerationProgress
+                      if (generationState?.isActive && part.type.startsWith('tool-')) {
+                        return null;
+                      }
+
+                      // Handle dynamic tool parts with accordion
                       if (part.type.startsWith('tool-')) {
                         const toolName = part.toolName || part.type.replace('tool-', '');
-                        const state = part.state;
 
                         return (
-                          <div key={i} className="mt-2 p-3 bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-500/30">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="text-xs font-mono text-purple-300">🔧 {toolName}</div>
-                              {state === 'input-streaming' && (
-                                <div className="text-xs text-gray-400 animate-pulse">Preparing...</div>
-                              )}
-                              {state === 'input-available' && (
-                                <div className="text-xs text-yellow-400">Running...</div>
-                              )}
-                              {state === 'output-available' && (
-                                <div className="text-xs text-green-400">✓ Complete</div>
-                              )}
-                            </div>
-
-                            {part.input !== undefined && part.input !== null && (
-                              <div className="mb-2">
-                                <div className="text-xs font-mono text-gray-400 mb-1">Input:</div>
-                                <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap">
-                                  {typeof part.input === 'string' ? part.input : JSON.stringify(part.input, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-
-                            {part.output !== undefined && part.output !== null && (
-                              <div>
-                                <div className="text-xs font-mono text-gray-400 mb-1">Output:</div>
-                                <pre className="text-xs text-gray-400 font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
-                                  {typeof part.output === 'string' ? part.output : JSON.stringify(part.output, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
+                          <ToolCallCard
+                            key={i}
+                            toolName={toolName}
+                            input={part.input}
+                            output={part.output}
+                            state={part.state as any}
+                          />
                         );
                       }
 
@@ -571,14 +944,17 @@ export default function Home() {
                     })}
                   </div>
                 </div>
-              ))}
-              {isGenerating && (
+                );
+              })}
+              {/* Loading indicator only if generating but no todos yet */}
+              {isGenerating && (!generationState || generationState.todos.length === 0) && (
                 <div className="flex justify-start animate-in fade-in duration-500">
                   <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                      <span className="ml-2 text-sm text-gray-400">Initializing...</span>
                     </div>
                   </div>
                 </div>

@@ -93,22 +93,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               {/* Control buttons on the left */}
               <button
                 onClick={handleRefresh}
-                className="p-2 rounded-md hover:bg-white/5 transition-all duration-200"
+                className="p-2 rounded-md hover:bg-[#7553FF]/20 transition-all duration-200"
                 title="Refresh"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
               <button
                 onClick={handleOpenInNewTab}
-                className="p-2 rounded-md hover:bg-white/5 transition-all duration-200"
+                className="p-2 rounded-md hover:bg-[#7553FF]/20 transition-all duration-200"
                 title="Open in new tab"
               >
                 <ExternalLink className="w-4 h-4" />
               </button>
 
               {/* URL Display */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/50 border border-white/10 rounded-md">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-[#181225]/80 border border-[#7553FF]/30 rounded-md backdrop-blur-sm">
+                <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50"></div>
                 <span className="text-sm font-mono text-gray-300">{previewUrl}</span>
               </div>
             </>
@@ -124,7 +124,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               {project.devServerStatus === 'running' ? (
                 <button
                   onClick={onStopServer}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-md transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors"
                 >
                   <Square className="w-4 h-4" />
                   Stop
@@ -133,7 +133,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 <button
                   onClick={onStartServer}
                   disabled={project.devServerStatus === 'starting'}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-md transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
                 >
                   <Play className="w-4 h-4" />
                   {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
@@ -164,6 +164,18 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               </div>
             ) : project?.devServerStatus === 'running' ? (
               <p>Waiting for dev server...</p>
+            ) : project?.status === 'completed' && project?.runCommand ? (
+              <div className="text-center space-y-4 max-w-md">
+                <div className="text-6xl">🎉</div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-white">Project Ready!</h3>
+                  <p className="text-gray-400">Click the <span className="text-[#92DD00] font-semibold">Start</span> button above to launch your dev server</p>
+                </div>
+                <div className="flex items-center gap-2 justify-center text-sm text-gray-500">
+                  <Play className="w-4 h-4" />
+                  <span>Port will be automatically allocated</span>
+                </div>
+              </div>
             ) : (
               <p>Start the dev server to see preview</p>
             )}

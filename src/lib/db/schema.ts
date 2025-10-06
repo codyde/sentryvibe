@@ -20,6 +20,7 @@ export const projects = sqliteTable('projects', {
   devServerStatus: text('dev_server_status', {
     enum: ['stopped', 'starting', 'running', 'failed']
   }).default('stopped'),
+  generationState: text('generation_state', { mode: 'json' }), // Persisted GenerationProgress state
   lastActivityAt: integer('last_activity_at', { mode: 'timestamp' })
     .$defaultFn(() => new Date()),
   errorMessage: text('error_message'),

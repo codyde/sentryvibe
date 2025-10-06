@@ -10,7 +10,11 @@ spotlight: true,
   // Add optional integrations for additional features
   integrations: [
     Sentry.spotlightBrowserIntegration(),
-    Sentry.replayIntegration(),
+    Sentry.consoleLoggingIntegration(),
+    Sentry.replayIntegration({
+      maskAllText: false,
+      maskAllInputs: false,
+    }),
   ],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
@@ -21,7 +25,7 @@ spotlight: true,
   // Define how likely Replay events are sampled.
   // This sets the sample rate to be 10%. You may want this to be 100% while
   // in development and sample at a lower rate in production
-  replaysSessionSampleRate: 0.1,
+  replaysSessionSampleRate: 1.0,
 
   // Define how likely Replay events are sampled when an error occurs.
   replaysOnErrorSampleRate: 1.0,

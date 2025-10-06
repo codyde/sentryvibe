@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import PreviewPanel from './PreviewPanel';
 import EditorTab from './EditorTab';
@@ -12,13 +12,33 @@ interface TabbedPreviewProps {
   onStopServer?: () => void;
 }
 
-export default function TabbedPreview({
+const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   selectedProject,
   projectId,
   onStartServer,
   onStopServer,
-}: TabbedPreviewProps) {
+}, ref) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
+
+  // Listen for global events to switch tabs
+  useEffect(() => {
+    const handleSwitchToEditor = () => {
+      console.log('📁 Switching to Editor tab');
+      setActiveTab('editor');
+    };
+    const handleSwitchToPreview = () => {
+      console.log('👁️  Switching to Preview tab');
+      setActiveTab('preview');
+    };
+
+    window.addEventListener('switch-to-editor', handleSwitchToEditor);
+    window.addEventListener('switch-to-preview', handleSwitchToPreview);
+
+    return () => {
+      window.removeEventListener('switch-to-editor', handleSwitchToEditor);
+      window.removeEventListener('switch-to-preview', handleSwitchToPreview);
+    };
+  }, []);
 
   return (
     <motion.div
@@ -65,4 +85,8 @@ export default function TabbedPreview({
       </div>
     </motion.div>
   );
-}
+});
+
+TabbedPreview.displayName = 'TabbedPreview';
+
+export default TabbedPreview;

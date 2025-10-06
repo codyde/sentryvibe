@@ -51,6 +51,7 @@ export default function TerminalOutput({ projectId }: TerminalOutputProps) {
     if (devServerStatus === 'running' && projectId) {
       console.log('🔌 Dev server started, setting up terminal connection...');
       stopStreaming();
+      setLogs([]); // Clear old logs from previous run
 
       // Retry with progressive delays to handle race condition
       const retryTimeouts: NodeJS.Timeout[] = [];
@@ -68,9 +69,10 @@ export default function TerminalOutput({ projectId }: TerminalOutputProps) {
       return () => {
         retryTimeouts.forEach(clearTimeout);
       };
-    } else if (devServerStatus === 'stopped') {
-      console.log('🛑 Dev server stopped, closing stream');
+    } else if (devServerStatus === 'stopped' || devServerStatus === 'failed') {
+      console.log('🛑 Dev server stopped/failed, closing stream and clearing logs');
       stopStreaming();
+      setLogs([]); // Clear terminal when server stops
     }
   }, [devServerStatus, projectId]);
 
@@ -114,15 +116,18 @@ export default function TerminalOutput({ projectId }: TerminalOutputProps) {
       };
 
       eventSource.onerror = (error) => {
-        console.error('❌ EventSource error:', error);
-        console.error('   ReadyState:', eventSource.readyState);
-        console.error('   URL:', eventSource.url);
+        // EventSource errors are normal when server stops - don't spam console
+        const readyState = eventSource.readyState;
 
-        // Only stop if connection fully failed (readyState = 2)
-        if (eventSource.readyState === EventSource.CLOSED) {
+        if (readyState === EventSource.CLOSED) {
+          console.log('ℹ️  Terminal stream closed (server stopped or process ended)');
           stopStreaming();
-          // Fallback: Try to fetch logs via regular API
-          fetchLogsAsFallback();
+        } else if (readyState === EventSource.CONNECTING) {
+          console.log('🔄 Terminal stream reconnecting...');
+        } else {
+          console.error('❌ EventSource error:', error);
+          console.error('   ReadyState:', readyState);
+          stopStreaming();
         }
       };
 
