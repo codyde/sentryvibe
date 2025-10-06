@@ -88,6 +88,21 @@ function SidebarProvider({
     [setOpenProp, open]
   )
 
+  // Auto-expand on hover near left edge (15px trigger zone)
+  React.useEffect(() => {
+    if (isMobile) return // Only for desktop
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // If mouse is within 15px of left edge, open sidebar
+      if (e.clientX <= 15 && !open) {
+        setOpen(true)
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [isMobile, open, setOpen])
+
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
@@ -163,7 +178,9 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile, setOpen } = useSidebar()
+  const closeTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+  const isInteractingRef = React.useRef(false)
 
   if (collapsible === "none") {
     return (
@@ -239,6 +256,48 @@ function Sidebar({
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=right]:border-l",
           className
         )}
+        onMouseEnter={() => {
+          // Clear any pending close timeout when mouse re-enters
+          if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current)
+            closeTimeoutRef.current = null
+          }
+        }}
+        onMouseLeave={() => {
+          // Check if user is interacting (clicking dropdowns, etc.)
+          const hasOpenDropdown = document.querySelector('[data-state="open"][data-radix-popper-content-wrapper]')
+          const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]')
+
+          if (hasOpenDropdown || hasOpenDialog || isInteractingRef.current) {
+            console.log('🔒 Keeping sidebar open - user is interacting')
+            return
+          }
+
+          // Delay closing slightly to allow for clicks
+          if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current)
+          }
+
+          closeTimeoutRef.current = setTimeout(() => {
+            // Double-check for open dropdowns before closing
+            const stillHasDropdown = document.querySelector('[data-state="open"][data-radix-popper-content-wrapper]')
+            if (!isMobile && state === "expanded" && !stillHasDropdown && !isInteractingRef.current) {
+              setOpen(false)
+            }
+          }, 300)
+        }}
+        onClick={() => {
+          // Mark as interacting when clicking inside sidebar
+          isInteractingRef.current = true
+          if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current)
+            closeTimeoutRef.current = null
+          }
+          // Reset interaction flag after 2 seconds
+          setTimeout(() => {
+            isInteractingRef.current = false
+          }, 2000)
+        }}
         {...props}
       >
         <div

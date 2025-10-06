@@ -8,12 +8,14 @@ import { useProjects } from '@/contexts/ProjectContext';
 
 interface TerminalOutputProps {
   projectId?: string | null;
+  onPortDetected?: (port: number) => void;
 }
 
-export default function TerminalOutput({ projectId }: TerminalOutputProps) {
+export default function TerminalOutput({ projectId, onPortDetected }: TerminalOutputProps) {
   const { projects } = useProjects();
   const [logs, setLogs] = useState<string[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [detectedPort, setDetectedPort] = useState<number | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const converter = useRef(new Convert({
@@ -103,9 +105,31 @@ export default function TerminalOutput({ projectId }: TerminalOutputProps) {
           const data = JSON.parse(event.data);
           if (data.type === 'log' && data.data) {
             setLogs((prev) => [...prev, data.data]);
+
+            // Parse port from log output
+            const logText = data.data;
+            if (!detectedPort) {
+              const portMatch =
+                logText.match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{4,5})/i) ||
+                logText.match(/port[:\s]+(\d{4,5})/i) ||
+                logText.match(/Local:.*?:(\d{4,5})/i) ||
+                logText.match(/ready.*?(\d{4,5})/i);
+
+              if (portMatch) {
+                const port = parseInt(portMatch[1], 10);
+                if (port >= 3000 && port <= 65535) {
+                  console.log(`🔍 Port detected from terminal: ${port}`);
+                  setDetectedPort(port);
+                  if (onPortDetected) {
+                    onPortDetected(port);
+                  }
+                }
+              }
+            }
           } else if (data.type === 'exit') {
             setIsStreaming(false);
             setLogs((prev) => [...prev, '\n--- Process exited ---\n']);
+            setDetectedPort(null);
           } else if (data.type === 'no-process') {
             console.log('ℹ️  No process running');
             stopStreaming();

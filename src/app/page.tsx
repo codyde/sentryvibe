@@ -47,6 +47,7 @@ export default function Home() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
+  const [terminalDetectedPort, setTerminalDetectedPort] = useState<number | null>(null);
   const [generationState, setGenerationState] = useState<GenerationState | null>(null); // Separate, protected state!
   const [activeView, setActiveView] = useState<'build' | 'chat'>(() => {
     // Load from session storage or default to 'build'
@@ -93,6 +94,30 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Listen for selection change requests from SelectionMode
+  useEffect(() => {
+    const handleSelectionChange = (e: CustomEvent) => {
+      const { element, prompt } = e.detail;
+      console.log('🎯 Selection change received:', { element, prompt });
+
+      if (!currentProject) {
+        console.warn('⚠️ No current project for element change');
+        return;
+      }
+
+      // Switch to Build tab to show todos
+      switchTab('build');
+
+      // Auto-submit to generation (will create todos)
+      console.log('🚀 Starting generation for element change...');
+      startGeneration(currentProject.id, prompt, true);
+    };
+
+    window.addEventListener('selection-change-requested', handleSelectionChange as EventListener);
+    return () => window.removeEventListener('selection-change-requested', handleSelectionChange as EventListener);
+  }, [currentProject]);
+
 
   // Calculate badge values
   const buildProgress = generationState ?
@@ -701,16 +726,11 @@ export default function Home() {
   };
 
   return (
-    <SidebarProvider defaultOpen={!selectedProjectSlug}>
+    <SidebarProvider defaultOpen={false}>
       <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
       <ProcessManagerModal isOpen={showProcessModal} onClose={() => setShowProcessModal(false)} />
       <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
         <div className="h-screen bg-gradient-to-tr from-[#1D142F] to-[#31145F] text-white flex flex-col overflow-hidden">
-          {/* Sidebar Trigger - Always visible */}
-          <div className="absolute top-4 left-4 z-50">
-            <SidebarTrigger />
-          </div>
-
           {/* Landing Page */}
           <AnimatePresence mode="wait">
             {messages.length === 0 && !selectedProjectSlug && !isCreatingProject && (
@@ -767,12 +787,12 @@ export default function Home() {
             transition={{ duration: 0.5 }}
             className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0 overflow-hidden"
           >
-            {/* Left Panel - Chat */}
+            {/* Left Panel - Chat (1/3 width) */}
             <motion.div
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
-              className="flex-1 flex flex-col min-w-0 min-h-0 max-h-full"
+              className="lg:w-1/3 flex flex-col min-w-0 min-h-0 max-h-full"
             >
               <div className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden">
                 {/* Project Status Header */}
@@ -1117,8 +1137,8 @@ export default function Home() {
               </div>
             </motion.div>
 
-            {/* Right Panel - Split into Tabbed Preview (top) and Terminal (bottom) */}
-            <div className="lg:w-1/2 flex flex-col gap-4 min-w-0">
+            {/* Right Panel - Split into Tabbed Preview (top) and Terminal (bottom) (2/3 width) */}
+            <div className="lg:w-2/3 flex flex-col gap-4 min-w-0">
               {/* Tabbed Preview Panel - Top */}
               <div className="flex-1 min-h-0">
                 <TabbedPreview
@@ -1126,12 +1146,19 @@ export default function Home() {
                   projectId={currentProject?.id}
                   onStartServer={startDevServer}
                   onStopServer={stopDevServer}
+                  terminalPort={terminalDetectedPort}
                 />
               </div>
 
               {/* Terminal Output - Bottom */}
-              <div className="h-80">
-                <TerminalOutput projectId={currentProject?.id} />
+              <div className="h-40">
+                <TerminalOutput
+                  projectId={currentProject?.id}
+                  onPortDetected={(port) => {
+                    console.log(`🔍 Terminal detected port: ${port}`);
+                    setTerminalDetectedPort(port);
+                  }}
+                />
               </div>
             </div>
           </motion.div>

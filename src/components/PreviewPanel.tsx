@@ -1,38 +1,49 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, RefreshCw, Play, Square } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
+import SelectionMode from './SelectionMode';
+import ElementComment from './ElementComment';
+import { toggleSelectionMode } from '@/lib/selection/injector';
+import { useElementEdits } from '@/hooks/useElementEdits';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
   onStartServer?: () => void;
   onStopServer?: () => void;
+  terminalPort?: number | null;
 }
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer }: PreviewPanelProps) {
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, terminalPort }: PreviewPanelProps) {
   const { projects } = useProjects();
   const [key, setKey] = useState(0);
   const [isServerReady, setIsServerReady] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { edits, addEdit, updateEditStatus, removeEdit } = useElementEdits();
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
 
-  // Construct preview URL from project data
-  const previewUrl = project?.devServerPort && isServerReady
-    ? `http://localhost:${project.devServerPort}`
+  // Use terminal-detected port if available, otherwise fall back to DB port
+  const actualPort = terminalPort || project?.devServerPort;
+
+  // Construct preview URL - use proxy for same-origin access (enables selection tool)
+  const previewUrl = actualPort && isServerReady && project?.id
+    ? `/api/projects/${project.id}/proxy?path=/`
     : '';
 
-  // Health check when dev server port changes
+  // Health check when port changes (terminal or DB)
   useEffect(() => {
-    if (project?.devServerPort && project.devServerStatus === 'running') {
-      checkServerHealth(project.devServerPort);
+    if (actualPort && project?.devServerStatus === 'running') {
+      checkServerHealth(actualPort);
     } else {
       setIsServerReady(false);
     }
-  }, [project?.devServerPort, project?.devServerStatus]);
+  }, [actualPort, project?.devServerStatus]);
 
   const checkServerHealth = async (port: number) => {
     const url = `http://localhost:${port}`;
@@ -74,9 +85,84 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   };
 
   const handleOpenInNewTab = () => {
-    if (previewUrl) {
-      window.open(previewUrl, '_blank');
+    // Open the actual dev server URL (use terminal port if available)
+    if (actualPort) {
+      window.open(`http://localhost:${actualPort}`, '_blank');
     }
+  };
+
+  // Toggle selection mode in iframe (script is pre-injected via proxy)
+  useEffect(() => {
+    if (!iframeRef.current || !isServerReady) return;
+
+    // Wait for iframe to load, then toggle mode
+    const iframe = iframeRef.current;
+
+    const handleLoad = () => {
+      console.log('📦 Iframe loaded (via proxy)');
+      // Script is already injected by proxy, just toggle if needed
+      if (isSelectionModeEnabled) {
+        setTimeout(() => {
+          toggleSelectionMode(iframe, true);
+        }, 500);
+      }
+    };
+
+    iframe.addEventListener('load', handleLoad);
+
+    return () => {
+      iframe.removeEventListener('load', handleLoad);
+    };
+  }, [isServerReady, key]);
+
+  // Toggle selection mode when button clicked
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    toggleSelectionMode(iframeRef.current, isSelectionModeEnabled);
+  }, [isSelectionModeEnabled]);
+
+  // Handle element selection - create comment indicator at click position
+  const handleElementSelected = (element: any, prompt: string) => {
+    if (!element.clickPosition) {
+      console.error('❌ No click position!');
+      return;
+    }
+
+    // Use click position directly (no transformation)
+    // ElementComment will handle positioning the circle and comment window
+    const position = {
+      x: element.clickPosition.x,
+      y: element.clickPosition.y + 60, // Offset down 50px
+    };
+
+    console.log('📍 Creating comment:', {
+      rawClick: element.clickPosition,
+      adjusted: position,
+    });
+
+    const editId = addEdit(element, prompt, position);
+    console.log('✅ Created edit:', editId);
+  };
+
+  // Handle comment submission - send to chat as regular generation
+  const handleCommentSubmit = (editId: string, prompt: string) => {
+    console.log('🚀 Submitting element change:', editId, prompt);
+
+    const edit = edits.find(e => e.id === editId);
+    if (!edit) return;
+
+    // Remove the edit (comment window will close)
+    removeEdit(editId);
+
+    // Format prompt with element context
+    const formattedPrompt = `Change the element with selector "${edit.element.selector}" (${edit.element.tagName}): ${prompt}`;
+
+    // Send to regular chat flow - will create todo automatically
+    window.dispatchEvent(new CustomEvent('selection-change-requested', {
+      detail: { element: edit.element, prompt: formattedPrompt },
+    }));
+
+    console.log('✅ Sent to chat system');
   };
 
   return (
@@ -106,11 +192,20 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 <ExternalLink className="w-4 h-4" />
               </button>
 
-              {/* URL Display */}
+              {/* URL Display - Show actual dev server URL from terminal */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-[#181225]/80 border border-[#7553FF]/30 rounded-md backdrop-blur-sm">
                 <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50"></div>
-                <span className="text-sm font-mono text-gray-300">{previewUrl}</span>
+                <span className="text-sm font-mono text-gray-300">
+                  http://localhost:{actualPort}
+                </span>
               </div>
+
+              {/* Selection Mode Toggle */}
+              <SelectionMode
+                isEnabled={isSelectionModeEnabled}
+                onToggle={setIsSelectionModeEnabled}
+                onElementSelected={handleElementSelected}
+              />
             </>
           ) : (
             <h2 className="text-lg font-light">Preview</h2>
@@ -143,14 +238,31 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           )}
         </div>
       </div>
-      <div className="flex-1 bg-gray-800">
+      <div className="flex-1 bg-gray-800 relative">
         {previewUrl ? (
-          <iframe
-            key={key}
-            src={previewUrl}
-            className="w-full h-full border-0"
-            title="Preview"
-          />
+          <>
+            <iframe
+              ref={iframeRef}
+              key={key}
+              src={previewUrl}
+              className="w-full h-full border-0"
+              title="Preview"
+            />
+
+            {/* Floating comment indicators */}
+            <AnimatePresence>
+              {edits.map((edit) => (
+                <ElementComment
+                  key={edit.id}
+                  element={edit.element}
+                  position={edit.position}
+                  status={edit.status}
+                  onSubmit={(prompt) => handleCommentSubmit(edit.id, prompt)}
+                  onClose={() => removeEdit(edit.id)}
+                />
+              ))}
+            </AnimatePresence>
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             {isChecking ? (
