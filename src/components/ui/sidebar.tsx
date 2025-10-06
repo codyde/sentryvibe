@@ -27,7 +27,7 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH = "30rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
@@ -92,10 +92,33 @@ function SidebarProvider({
   React.useEffect(() => {
     if (isMobile) return // Only for desktop
 
+    const enterThreshold = 15
+    const exitThreshold = 40 // Give more space before closing
+
     const handleMouseMove = (e: MouseEvent) => {
-      // If mouse is within 15px of left edge, open sidebar
-      if (e.clientX <= 15 && !open) {
+      // If mouse is within threshold of left edge, open sidebar
+      if (e.clientX <= enterThreshold && !open) {
         setOpen(true)
+        return
+      }
+
+      // Check if there are any open dropdowns or dialogs
+      const hasOpenDropdown = document.querySelector('[data-state="open"][role="menu"]')
+      const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]')
+
+      // Don't close if user is interacting with dropdowns/dialogs
+      if (hasOpenDropdown || hasOpenDialog) {
+        return
+      }
+
+      // Get sidebar element to check bounds
+      const sidebarElement = document.querySelector('[data-slot="sidebar-container"]')
+      if (sidebarElement && open) {
+        const sidebarRect = sidebarElement.getBoundingClientRect()
+        // Close only if mouse is beyond sidebar + exit threshold
+        if (e.clientX > sidebarRect.right + exitThreshold) {
+          setOpen(false)
+        }
       }
     }
 
@@ -179,8 +202,6 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile, setOpen } = useSidebar()
-  const closeTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
-  const isInteractingRef = React.useRef(false)
 
   if (collapsible === "none") {
     return (
@@ -226,7 +247,7 @@ function Sidebar({
     <div
       className="group peer text-sidebar-foreground hidden md:block"
       data-state={state}
-      data-collapsible={state === "collapsed" ? collapsible : ""}
+      data-collapsible={collapsible === "offcanvas" ? collapsible : (state === "collapsed" ? collapsible : "")}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
@@ -235,8 +256,9 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
-          "group-data-[collapsible=offcanvas]:w-0",
+          "relative transition-[width] duration-200 ease-linear",
+          // For offcanvas mode, always keep gap at 0 so sidebar overlays
+          collapsible === "offcanvas" ? "w-0" : "w-(--sidebar-width) bg-transparent",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
             ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
@@ -246,58 +268,16 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-50 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
-            ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-            : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+            ? "group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] group-data-[state=expanded]:left-0"
+            : "group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] group-data-[state=expanded]:right-0",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=right]:border-l",
           className
         )}
-        onMouseEnter={() => {
-          // Clear any pending close timeout when mouse re-enters
-          if (closeTimeoutRef.current) {
-            clearTimeout(closeTimeoutRef.current)
-            closeTimeoutRef.current = null
-          }
-        }}
-        onMouseLeave={() => {
-          // Check if user is interacting (clicking dropdowns, etc.)
-          const hasOpenDropdown = document.querySelector('[data-state="open"][data-radix-popper-content-wrapper]')
-          const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]')
-
-          if (hasOpenDropdown || hasOpenDialog || isInteractingRef.current) {
-            console.log('🔒 Keeping sidebar open - user is interacting')
-            return
-          }
-
-          // Delay closing slightly to allow for clicks
-          if (closeTimeoutRef.current) {
-            clearTimeout(closeTimeoutRef.current)
-          }
-
-          closeTimeoutRef.current = setTimeout(() => {
-            // Double-check for open dropdowns before closing
-            const stillHasDropdown = document.querySelector('[data-state="open"][data-radix-popper-content-wrapper]')
-            if (!isMobile && state === "expanded" && !stillHasDropdown && !isInteractingRef.current) {
-              setOpen(false)
-            }
-          }, 300)
-        }}
-        onClick={() => {
-          // Mark as interacting when clicking inside sidebar
-          isInteractingRef.current = true
-          if (closeTimeoutRef.current) {
-            clearTimeout(closeTimeoutRef.current)
-            closeTimeoutRef.current = null
-          }
-          // Reset interaction flag after 2 seconds
-          setTimeout(() => {
-            isInteractingRef.current = false
-          }, 2000)
-        }}
         {...props}
       >
         <div
