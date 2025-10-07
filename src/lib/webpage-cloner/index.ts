@@ -14,8 +14,9 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
   console.log('🌐 Starting webpage clone:', url);
 
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   });
 
   try {
