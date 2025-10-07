@@ -87,11 +87,7 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
     // Wait a bit for any dynamic content
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Get final HTML
-    console.log('   Extracting HTML...');
-    const html = await page.content();
-
-    // Get page metadata
+    // Get page metadata FIRST
     console.log('   Extracting metadata...');
     const metadata = await page.evaluate(() => {
       const getMetaContent = (name: string) => {
@@ -107,8 +103,9 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
       };
     });
 
-    // Analyze tech stack
+    // Analyze tech stack (get HTML sample for analysis)
     console.log('   Analyzing tech stack...');
+    const htmlSample = await page.content();
     const pageContext = await page.evaluate(() => {
       return {
         React: !!(window as any).React,
@@ -118,7 +115,7 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
       };
     });
 
-    const techStack = analyzeTechStack(html, pageContext);
+    const techStack = analyzeTechStack(htmlSample, pageContext);
     console.log('   Detected:', techStack.detectedLibraries.join(', ') || 'Plain HTML');
 
     // Extract stylesheets
@@ -153,40 +150,62 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
     const sanitizedInlineStyles = sanitizeCSS(inlineStyles);
     combinedCSS += '\n/* Inline Styles */\n' + sanitizedInlineStyles;
 
-    // Get computed styles for ALL elements with ALL properties
-    console.log('   Extracting computed styles (full)...');
-    const computedStyles: ComputedStyleMap = await page.evaluate(() => {
-      const styleMap: ComputedStyleMap = {};
-      const elements = document.querySelectorAll('*'); // ALL elements
+    // Inject computed styles directly into HTML elements
+    console.log('   Injecting computed styles into elements...');
+    await page.evaluate(() => {
+      const elements = document.querySelectorAll('*');
+      let styledCount = 0;
 
-      elements.forEach((el, index) => {
+      elements.forEach((el) => {
+        if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+
         const computed = window.getComputedStyle(el);
+        const styleObj: any = {};
 
-        // Generate unique selector for this element
-        const tagName = el.tagName.toLowerCase();
-        const id = el.id ? `#${el.id}` : '';
-        const className = el.className ? `.${el.className.toString().split(' ')[0]}` : '';
-        const selector = `${tagName}${id}${className}[${index}]`;
+        // Critical properties to keep for accurate rendering
+        const criticalProps = [
+          'display', 'position', 'top', 'left', 'right', 'bottom',
+          'width', 'height', 'maxWidth', 'maxHeight',
+          'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+          'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+          'backgroundColor', 'color',
+          'fontSize', 'fontFamily', 'fontWeight', 'lineHeight', 'textAlign',
+          'border', 'borderRadius', 'boxShadow',
+          'flexDirection', 'alignItems', 'justifyContent', 'gap', 'flex',
+          'gridTemplateColumns', 'gridTemplateRows', 'gridGap',
+          'overflow', 'overflowX', 'overflowY',
+          'zIndex', 'opacity',
+          'transform', 'transition',
+          'backgroundImage', 'backgroundSize',
+        ];
 
-        // Extract ALL computed style properties
-        const styles: { [key: string]: string } = {};
-
-        // Get all CSS properties from computed style
-        for (let i = 0; i < computed.length; i++) {
-          const propName = computed[i];
-          const propValue = computed.getPropertyValue(propName);
-
-          // Convert kebab-case to camelCase for React
-          const camelProp = propName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-          styles[camelProp] = propValue;
+        let hasStyles = false;
+        for (const prop of criticalProps) {
+          const value = computed.getPropertyValue(prop);
+          if (value && value !== 'none' && value !== 'normal' && value !== 'auto' && value !== '0px' && value !== 'rgba(0, 0, 0, 0)') {
+            styleObj[prop] = value;
+            hasStyles = true;
+          }
         }
 
-        styleMap[selector] = styles;
+        // Set the style attribute with computed styles
+        if (hasStyles) {
+          const styleString = Object.entries(styleObj)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join('; ');
+          (el as HTMLElement).setAttribute('style', styleString);
+          styledCount++;
+        }
       });
 
-      console.log(`Extracted computed styles for ${elements.length} elements`);
-      return styleMap;
+      console.log(`Injected styles into ${styledCount} elements`);
     });
+
+    // Now get the HTML with injected styles
+    const html = await page.content();
+
+    // We don't need the computedStyles map anymore since styles are in HTML
+    const computedStyles: ComputedStyleMap = {};
 
     // Collect assets
     const assets: ClonedAsset[] = [];

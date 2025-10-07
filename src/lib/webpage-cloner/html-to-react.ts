@@ -309,16 +309,7 @@ function convertComputedStylesToReactStyle(computedStyle: { [key: string]: strin
   return result;
 }
 
-interface ConversionContext {
-  computedStyles: ComputedStyleMap;
-  elementIndex: number;
-}
-
-function htmlElementToJSX(
-  element: HTMLElement,
-  depth: number = 0,
-  context?: ConversionContext
-): string {
+function htmlElementToJSX(element: HTMLElement, depth: number = 0): string {
   const indent = '  '.repeat(depth);
   const tagName = element.rawTagName?.toLowerCase() || 'div';
 
@@ -327,30 +318,16 @@ function htmlElementToJSX(
     return '';
   }
 
-  // Increment element index for tracking
-  const currentIndex = context ? context.elementIndex++ : 0;
-
   // Convert attributes
   const attributes: string[] = [];
   const attrs = element.attributes || {};
-
-  // Try to find computed styles for this element
-  let computedStyle: { [key: string]: string } | undefined;
-  if (context?.computedStyles) {
-    // Try to find matching computed style by index
-    const id = attrs['id'] ? `#${attrs['id']}` : '';
-    const className = attrs['class'] ? `.${attrs['class'].toString().split(' ')[0]}` : '';
-    const possibleSelector = `${tagName}${id}${className}[${currentIndex}]`;
-
-    computedStyle = context.computedStyles[possibleSelector];
-  }
 
   for (const [name, value] of Object.entries(attrs)) {
     const jsxName = convertAttributeName(name);
 
     if (jsxName === 'style') {
-      // Skip - we'll use computed styles instead
-      continue;
+      // Convert style string to React style object
+      attributes.push(`style={${convertStyleString(value)}}`);
     } else if (jsxName.startsWith('on')) {
       // Remove inline event handlers
       continue;
@@ -359,14 +336,6 @@ function htmlElementToJSX(
     } else {
       const escapedValue = value.replace(/"/g, '&quot;');
       attributes.push(`${jsxName}="${escapedValue}"`);
-    }
-  }
-
-  // Add computed styles as inline style object
-  if (computedStyle && Object.keys(computedStyle).length > 0) {
-    const styleObj = convertComputedStylesToReactStyle(computedStyle);
-    if (styleObj) {
-      attributes.push(`style={${styleObj}}`);
     }
   }
 
@@ -381,7 +350,7 @@ function htmlElementToJSX(
   const children: string[] = [];
   element.childNodes.forEach((child) => {
     if (child instanceof HTMLElement) {
-      const childJSX = htmlElementToJSX(child, depth + 1, context);
+      const childJSX = htmlElementToJSX(child, depth + 1);
       if (childJSX) children.push(childJSX);
     } else if (child instanceof TextNode) {
       const text = child.text.trim();
@@ -404,19 +373,14 @@ export function convertHtmlToReact(clonedData: ClonedWebpage, projectName: strin
   appCss: string;
 } {
   console.log('🔄 Converting HTML to React...');
+  console.log(`   HTML size: ${(clonedData.html.length / 1024).toFixed(0)}KB`);
 
-  // Parse the HTML
+  // Parse the HTML (styles are already injected in the style attributes)
   const root = parse(clonedData.html);
 
-  // Create conversion context with computed styles
-  const context: ConversionContext = {
-    computedStyles: clonedData.computedStyles,
-    elementIndex: 0,
-  };
-
-  // Extract body content with computed styles
+  // Extract body content
   const body = root.querySelector('body');
-  const bodyContent = body ? htmlElementToJSX(body, 0, context) : '<div>No content</div>';
+  const bodyContent = body ? htmlElementToJSX(body, 0) : '<div>No content</div>';
 
   // Remove the outer <body> tags (we just want the content)
   const contentWithoutBody = bodyContent
