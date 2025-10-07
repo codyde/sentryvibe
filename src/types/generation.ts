@@ -20,10 +20,17 @@ export interface TextMessage {
   timestamp: Date;
 }
 
+export type BuildOperationType =
+  | 'initial-build'
+  | 'enhancement'
+  | 'focused-edit'
+  | 'continuation';
+
 export interface GenerationState {
   id: string; // Unique ID for this generation session
   projectId: string;
   projectName: string;
+  operationType?: BuildOperationType; // Type of build operation
   todos: TodoItem[];
   toolsByTodo: Record<number, ToolCall[]>; // Tools nested under each todo index
   textByTodo: Record<number, TextMessage[]>; // Text messages nested under each todo

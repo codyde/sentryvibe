@@ -45,7 +45,14 @@ export const messages = sqliteTable('messages', {
     .notNull(),
 });
 
+export const portAllocations = sqliteTable('port_allocations', {
+  port: integer('port').primaryKey(),
+  framework: text('framework').notNull(),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  reservedAt: integer('reserved_at', { mode: 'timestamp' }),
+});
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type PortAllocation = typeof portAllocations.$inferSelect;

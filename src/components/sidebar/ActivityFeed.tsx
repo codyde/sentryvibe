@@ -10,11 +10,15 @@ interface ActivityFeedProps {
 
 export function ActivityFeed({ projects }: ActivityFeedProps) {
   // Get active projects (building or running)
-  const buildingProjects = projects.filter(p => p.status === 'in_progress')
+  // Include 'pending' projects so they show up immediately after creation
+  const buildingProjects = projects.filter(p => p.status === 'in_progress' || p.status === 'pending')
   const runningServers = projects.filter(p => p.devServerStatus === 'running')
-  const failedProjects = projects.filter(p => p.status === 'failed' || p.devServerStatus === 'failed')
+  const failedProjects = projects.filter(p => p.devServerStatus === 'failed')
 
-  const hasActivity = buildingProjects.length > 0 || runningServers.length > 0 || failedProjects.length > 0
+  const hasActivity =
+    buildingProjects.length > 0 ||
+    runningServers.length > 0 ||
+    failedProjects.length > 0
 
   if (!hasActivity) {
     return (

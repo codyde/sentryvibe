@@ -76,7 +76,7 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
               <span className="text-xs text-gray-400 font-mono truncate">{summary}</span>
             )}
           </div>
-          {(tool.input || tool.output) && (
+          {(tool.input !== undefined || tool.output !== undefined) && (
             <div className="flex-shrink-0 ml-2">
               {isExpanded ? (
                 <ChevronUp className="w-3 h-3" />
@@ -89,7 +89,7 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
 
         {/* Expanded Content */}
         <AnimatePresence>
-          {isExpanded && (tool.input || tool.output) && (
+          {isExpanded && (tool.input !== undefined || tool.output !== undefined) && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -97,7 +97,7 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
               className="border-t border-white/10"
             >
               <div className="px-3 py-2 space-y-2 max-h-40 overflow-y-auto">
-                {tool.input && (
+                {tool.input !== undefined && (
                   <div>
                     <div className="text-xs text-gray-500 mb-1">Input:</div>
                     <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap bg-black/30 rounded p-2">
@@ -105,7 +105,7 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
                     </pre>
                   </div>
                 )}
-                {tool.output && (
+                {tool.output !== undefined && (
                   <div>
                     <div className="text-xs text-gray-500 mb-1">Output:</div>
                     <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap bg-black/30 rounded p-2 max-h-20 overflow-auto">
@@ -123,26 +123,27 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
 }
 
 export default function GenerationProgress({ state, onClose, onViewFiles, onStartServer }: GenerationProgressProps) {
+  // ALWAYS call hooks first (React rules!)
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
+  const [isCardExpanded, setIsCardExpanded] = useState(true);
 
-  const completed = state.todos.filter(t => t.status === 'completed').length;
-  const total = state.todos.length;
+  const completed = state?.todos?.filter(t => t.status === 'completed').length || 0;
+  const total = state?.todos?.length || 0;
   const progress = total > 0 ? (completed / total) * 100 : 0;
+  const isComplete = progress === 100 && !state?.isActive;
 
-  const toggleTodo = (index: number) => {
-    setExpandedTodos(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  };
+  // Auto-collapse card when build completes
+  useEffect(() => {
+    if (isComplete) {
+      console.log('🎉 Build complete, auto-collapsing card');
+      setIsCardExpanded(false);
+    }
+  }, [isComplete]);
 
   // Auto-expand active todo, auto-collapse completed todos
   useEffect(() => {
+    if (!state?.todos) return;
+
     setExpandedTodos(prev => {
       const next = new Set(prev);
 
@@ -160,7 +161,56 @@ export default function GenerationProgress({ state, onClose, onViewFiles, onStar
 
       return next;
     });
-  }, [state.activeTodoIndex, state.todos]);
+  }, [state?.activeTodoIndex, state?.todos]);
+
+  // Validate state AFTER hooks
+  if (!state || !state.todos || !Array.isArray(state.todos)) {
+    console.error('⚠️ Invalid generation state:', state);
+    return (
+      <div className="p-4 border border-red-500/30 rounded-lg bg-red-500/10">
+        <p className="text-red-400 text-sm">Invalid build state. Please try again.</p>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="mt-2 px-3 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 rounded"
+          >
+            Dismiss
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Show initializing state if no todos yet
+  if (total === 0 && state.isActive) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full p-6 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95"
+      >
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+          <div>
+            <h3 className="text-base font-semibold text-white">Initializing Build...</h3>
+            <p className="text-xs text-gray-400">Setting up {state.projectName}</p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  const toggleTodo = (index: number) => {
+    setExpandedTodos(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
 
   return (
     <motion.div
@@ -169,29 +219,58 @@ export default function GenerationProgress({ state, onClose, onViewFiles, onStar
       exit={{ opacity: 0, y: -20 }}
       className="w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95 shadow-2xl backdrop-blur-sm"
     >
-      {/* Header */}
-      <div className="relative border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-4 py-3">
+      {/* Header - Clickable when complete */}
+      <div
+        className={`relative border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-4 py-3 ${
+          isComplete ? 'cursor-pointer hover:bg-purple-500/5 transition-colors' : ''
+        }`}
+        onClick={() => isComplete && setIsCardExpanded(!isCardExpanded)}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400">
-              <Sparkles className="h-4 w-4" />
+              {isComplete ? (
+                <CheckCircle2 className="h-5 w-5 text-green-400" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
             </div>
             <div>
               <h3 className="text-base font-semibold text-white">
-                Building {state.projectName}
+                {isComplete ? '✓ Build Complete!' : `Building ${state.projectName}`}
               </h3>
-              <p className="text-xs text-gray-400">
-                {completed} of {total} complete
-              </p>
+              {isCardExpanded ? (
+                <p className="text-xs text-gray-400">
+                  {completed} of {total} complete
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400">
+                  {total} tasks completed • Click to expand
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <div className="text-xl font-bold text-purple-400">{Math.round(progress)}%</div>
+              <div className={`text-xl font-bold ${isComplete ? 'text-green-400' : 'text-purple-400'}`}>
+                {Math.round(progress)}%
+              </div>
             </div>
+            {isComplete && (
+              <div className="ml-2">
+                {isCardExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            )}
             {!state.isActive && onClose && (
               <button
-                onClick={onClose}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
                 className="p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
                 title="Dismiss"
               >
@@ -212,10 +291,11 @@ export default function GenerationProgress({ state, onClose, onViewFiles, onStar
         </div>
       </div>
 
-      {/* Todo list with nested tools */}
-      <div className="p-3">
-        <AnimatePresence mode="popLayout">
-          {state.todos.map((todo, index) => {
+      {/* Todo list with nested tools - Only show when expanded */}
+      {isCardExpanded && (
+        <div className="p-3">
+          <AnimatePresence mode="popLayout">
+            {state.todos.map((todo, index) => {
             const tools = state.toolsByTodo[index] || [];
             const textMessages = state.textByTodo[index] || [];
             const isExpanded = expandedTodos.has(index);
@@ -351,6 +431,7 @@ export default function GenerationProgress({ state, onClose, onViewFiles, onStar
           })}
         </AnimatePresence>
       </div>
+      )}
 
     </motion.div>
   );

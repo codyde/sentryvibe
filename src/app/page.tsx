@@ -19,8 +19,11 @@ import GenerationProgress from '@/components/GenerationProgress';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
-import type { GenerationState, ToolCall } from '@/types/generation';
+import type { GenerationState, ToolCall, BuildOperationType } from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
+import { detectOperationType, createFreshGenerationState, validateGenerationState } from '@/lib/build-helpers';
+import ElementChangeCard from '@/components/ElementChangeCard';
+import InitializingCard from '@/components/InitializingCard';
 
 interface MessagePart {
   type: string;
@@ -32,11 +35,27 @@ interface MessagePart {
   state?: string;
 }
 
+interface ElementChange {
+  id: string;
+  elementSelector: string;
+  changeRequest: string;
+  elementInfo?: any;
+  status: 'processing' | 'completed' | 'failed';
+  toolCalls: Array<{
+    name: string;
+    input?: any;
+    output?: any;
+    status: 'running' | 'completed' | 'failed';
+  }>;
+  error?: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   parts: MessagePart[];
   generationState?: GenerationState; // For generation messages
+  elementChange?: ElementChange; // For element selector changes
 }
 
 export default function Home() {
@@ -48,13 +67,24 @@ export default function Home() {
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<number | null>(null);
-  const [generationState, setGenerationState] = useState<GenerationState | null>(null); // Separate, protected state!
-  const [activeView, setActiveView] = useState<'build' | 'chat'>(() => {
-    // Load from session storage or default to 'build'
+  const [generationState, setGenerationState] = useState<GenerationState | null>(null);
+
+  // Element changes tracked separately for Build tab
+  const [activeElementChanges, setActiveElementChanges] = useState<ElementChange[]>([]);
+
+  // History tracking
+  const [buildHistory, setBuildHistory] = useState<GenerationState[]>([]);
+  const [elementChangeHistory, setElementChangeHistory] = useState<ElementChange[]>([]);
+
+  // Glow effect for Chat tab
+  const [hasUnreadChatMessages, setHasUnreadChatMessages] = useState(false);
+
+  const [activeView, setActiveView] = useState<'chat' | 'build' | 'history'>(() => {
+    // Default to chat
     if (typeof window !== 'undefined') {
-      return (sessionStorage.getItem('preferredView') as 'build' | 'chat') || 'build';
+      return (sessionStorage.getItem('preferredView') as 'chat' | 'build' | 'history') || 'chat';
     }
-    return 'build';
+    return 'chat';
   });
   const hasStartedGenerationRef = useRef<Set<string>>(new Set());
   const isGeneratingRef = useRef(false); // Sync flag for immediate checks
@@ -66,6 +96,10 @@ export default function Home() {
   const shouldGenerate = searchParams.get('generate') === 'true';
   const { projects, refetch } = useProjects();
 
+  // Use ref to access latest projects without triggering effects
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+
   const isLoading = isCreatingProject || isGenerating;
   const activeProject = selectedProjectSlug || selectedDirectory;
 
@@ -74,9 +108,14 @@ export default function Home() {
   };
 
   // Handle tab switching
-  const switchTab = (tab: 'build' | 'chat') => {
+  const switchTab = (tab: 'chat' | 'build' | 'history') => {
     setActiveView(tab);
     sessionStorage.setItem('preferredView', tab);
+
+    // Clear glow when switching to chat
+    if (tab === 'chat') {
+      setHasUnreadChatMessages(false);
+    }
   };
 
   // Keyboard shortcuts
@@ -84,10 +123,13 @@ export default function Home() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '1') {
         e.preventDefault();
-        switchTab('build');
+        switchTab('chat');
       } else if ((e.metaKey || e.ctrlKey) && e.key === '2') {
         e.preventDefault();
-        switchTab('chat');
+        switchTab('build');
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '3') {
+        e.preventDefault();
+        switchTab('history');
       }
     };
 
@@ -106,18 +148,79 @@ export default function Home() {
         return;
       }
 
-      // Switch to Build tab to show todos
+      // Switch to Build tab to show element change
       switchTab('build');
 
-      // Auto-submit to generation (will create todos)
-      console.log('🚀 Starting generation for element change...');
-      startGeneration(currentProject.id, prompt, true);
+      // Create element change
+      const changeId = `element-change-${Date.now()}`;
+      const newChange: ElementChange = {
+        id: changeId,
+        elementSelector: element?.selector || 'unknown',
+        changeRequest: prompt,
+        elementInfo: {
+          tagName: element?.tagName,
+          className: element?.className,
+          textContent: element?.textContent,
+        },
+        status: 'processing',
+        toolCalls: [],
+      };
+
+      setActiveElementChanges(prev => [...prev, newChange]);
+
+      // Start element change stream
+      startElementChange(currentProject.id, prompt, element, changeId);
     };
 
     window.addEventListener('selection-change-requested', handleSelectionChange as EventListener);
     return () => window.removeEventListener('selection-change-requested', handleSelectionChange as EventListener);
   }, [currentProject]);
 
+
+  // Detect new chat messages for glow effect
+  const previousMessageCountRef = useRef(0);
+  useEffect(() => {
+    // If messages increased and we're NOT on chat tab, trigger glow
+    if (messages.length > previousMessageCountRef.current && activeView !== 'chat') {
+      console.log('✨ New message detected, triggering glow');
+      setHasUnreadChatMessages(true);
+    }
+    previousMessageCountRef.current = messages.length;
+  }, [messages.length, activeView]);
+
+  // Auto-switch to Build when todos first populate
+  const previousTodoCountRef = useRef(0);
+  useEffect(() => {
+    const currentTodoCount = generationState?.todos?.length || 0;
+
+    console.log('👀 Todo count tracker:', {
+      current: currentTodoCount,
+      previous: previousTodoCountRef.current,
+      activeView,
+      shouldSwitch: currentTodoCount > 0 && previousTodoCountRef.current === 0
+    });
+
+    // If we just got our first todo, switch to build tab (regardless of current tab)
+    if (currentTodoCount > 0 && previousTodoCountRef.current === 0) {
+      console.log('📊 First todos arrived! Switching to Build tab');
+      switchTab('build');
+    }
+
+    previousTodoCountRef.current = currentTodoCount;
+  }, [generationState?.todos?.length]);
+
+  // Archive completed builds to history
+  useEffect(() => {
+    if (generationState && !generationState.isActive && generationState.todos && generationState.todos.length > 0) {
+      // Check if this build is already in history
+      const alreadyArchived = buildHistory.some(b => b.id === generationState.id);
+
+      if (!alreadyArchived) {
+        console.log('📚 Archiving completed build to history:', generationState.id);
+        setBuildHistory(prev => [generationState, ...prev]);
+      }
+    }
+  }, [generationState?.isActive, generationState?.id, generationState?.todos?.length]);
 
   // Calculate badge values
   const buildProgress = generationState ?
@@ -139,14 +242,29 @@ export default function Home() {
     }
   }, [messages, isLoading]);
 
+  const lastLoadedProjectRef = useRef<string | null>(null);
+  const lastLoadTimeRef = useRef<number>(0);
+
   const loadMessages = async (projectId: string) => {
     console.log('📥 Loading messages for project:', projectId);
+    console.log('   Generation active?', generationState?.isActive);
+    console.log('   Generating ref?', isGeneratingRef.current);
 
-    // Don't load during active generation (use ref for immediate check!)
-    if (generationState?.isActive || isGeneratingRef.current) {
-      console.log('🛑 BLOCKED - generation in progress');
+    // Only block if ACTIVELY generating right now
+    if (isGeneratingRef.current) {
+      console.log('🛑 BLOCKED - currently generating');
       return;
     }
+
+    // Debounce: Skip if we just loaded messages for this project recently (within 2 seconds)
+    const now = Date.now();
+    if (lastLoadedProjectRef.current === projectId && now - lastLoadTimeRef.current < 2000) {
+      console.log('⏭️  SKIPPED - messages loaded recently');
+      return;
+    }
+
+    lastLoadedProjectRef.current = projectId;
+    lastLoadTimeRef.current = now;
 
     try {
       const res = await fetch(`/api/projects/${projectId}/messages`);
@@ -154,86 +272,371 @@ export default function Home() {
 
       if (data.messages) {
         console.log(`   Found ${data.messages.length} messages in DB`);
-        const formattedMessages: Message[] = data.messages.map((msg: { id: string; role: 'user' | 'assistant'; content: MessagePart[] }) => ({
-          id: msg.id,
-          role: msg.role,
-          parts: Array.isArray(msg.content) ? msg.content : [],
-        }));
-        console.log('   ⚠️⚠️⚠️ SETTING MESSAGES FROM DB (will wipe current):', formattedMessages.length);
-        setMessages(formattedMessages);
+
+        if (data.messages.length === 0) {
+          console.log('   ℹ️  No messages in DB, keeping current messages');
+          return; // Don't wipe existing messages if DB is empty
+        }
+
+        const regularMessages: Message[] = [];
+        const archivedElementChanges: ElementChange[] = [];
+
+        data.messages.forEach((msg: { id: string; role: 'user' | 'assistant'; content: MessagePart[] }) => {
+          const parts = Array.isArray(msg.content) ? msg.content : [];
+
+          // Check if this is an element change message
+          const elementChangePart = parts.find(p => p.type === 'element-change');
+          if (elementChangePart && (elementChangePart as any).elementChange) {
+            // Add to element change history instead of messages
+            archivedElementChanges.push((elementChangePart as any).elementChange);
+          } else {
+            // Regular message
+            regularMessages.push({
+              id: msg.id,
+              role: msg.role,
+              parts,
+            });
+          }
+        });
+
+        console.log('   ✅ Loaded:', regularMessages.length, 'messages,', archivedElementChanges.length, 'element changes');
+        setMessages(regularMessages);
+        setElementChangeHistory(archivedElementChanges);
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
     }
   };
 
-  // Load project data when selected
+  // Initialize project when slug or project data changes (handles data arriving after navigation)
   useEffect(() => {
     if (selectedProjectSlug) {
-      const project = projects.find(p => p.slug === selectedProjectSlug);
-      if (project) {
-        const wasInProgress = currentProject?.status === 'in_progress';
-        const nowCompleted = project.status === 'completed';
+      const project = projectsRef.current.find(p => p.slug === selectedProjectSlug);
+      if (project && (!currentProject || currentProject.id !== project.id)) {
+        console.log('🔄 Project changed to:', project.slug);
+        console.log('   Currently generating?', isGeneratingRef.current);
+        console.log('   Has generationState in DB?', !!project.generationState);
+        setCurrentProject(project);
 
-        // Only update currentProject if it changed
-        if (!currentProject || currentProject.id !== project.id) {
-          console.log('🔄 Project changed to:', project.slug);
-          console.log('   Has generationState in DB?', !!project.generationState);
-          console.log('   generationState value:', project.generationState);
-          setCurrentProject(project);
+        // CRITICAL: Don't touch generationState if we're actively generating!
+        if (isGeneratingRef.current) {
+          console.log('⚠️  Generation in progress - keeping existing generationState');
+          return;
+        }
 
-          // Load persisted generationState if it exists
-          if (project.generationState) {
-            console.log('🎨🎨🎨 Restoring generationState from DB!');
-            console.log('   Raw value type:', typeof project.generationState);
-            const restored = deserializeGenerationState(project.generationState as string);
-            if (restored) {
-              console.log('   ✅ Deserialized successfully, todos:', restored.todos.length);
-              setGenerationState(restored);
-            } else {
-              console.log('   ❌ Deserialization failed, loading messages');
-              loadMessages(project.id);
-            }
-          } else {
-            console.log('📥 No generationState - loading regular messages');
-            // Load regular messages if no generationState
-            loadMessages(project.id);
-          }
-        } else {
-          // Same project - only refresh if NOT generating
-          console.log('🔄 Same project, checking if we should refresh messages...');
-          console.log('   Has generationState?', !!project.generationState);
+        // Load persisted generationState if it exists
+        if (project.generationState) {
+          console.log('🎨 Restoring generationState from DB...');
+          const restored = deserializeGenerationState(project.generationState as string);
 
-          // Restore generationState if project has it
-          if (project.generationState && !generationState) {
-            console.log('🎨🎨🎨 Restoring generationState from DB (same project)!');
-            const restored = deserializeGenerationState(project.generationState as string);
-            if (restored) {
-              setGenerationState(restored);
-            }
-          } else if (!project.generationState) {
-            loadMessages(project.id); // loadMessages will block if needed
+          if (restored && validateGenerationState(restored)) {
+            console.log('   ✅ Valid state, todos:', restored.todos.length);
+            setGenerationState(restored);
           }
         }
 
-        // Auto-start server when generation completes
-        if (wasInProgress && nowCompleted && project.runCommand && project.devServerStatus !== 'running') {
-          console.log('🚀 Generation completed, auto-starting dev server...');
-          setTimeout(() => startDevServer(), 1000); // Small delay to let UI settle
-        }
+        // Load messages
+        console.log('📥 Loading messages from DB...');
+        loadMessages(project.id);
+      } else if (!project) {
+        console.log('⚠️  No project found for slug yet:', selectedProjectSlug, 'Projects loaded:', projectsRef.current.length);
       }
     } else {
+      // Leaving project
+      if (isGeneratingRef.current) {
+        console.log('⚠️  Generation in progress - not clearing state');
+        return;
+      }
+
       setCurrentProject(null);
       setMessages([]);
-      // Clear generation tracking when leaving project
+      setGenerationState(null);
+      setActiveElementChanges([]);
+      setBuildHistory([]);
+      setElementChangeHistory([]);
+      setHasUnreadChatMessages(false);
+      setTerminalDetectedPort(null);
       hasStartedGenerationRef.current.clear();
     }
-  }, [selectedProjectSlug, projects]); // Removed isGenerating from deps!
+  }, [selectedProjectSlug, projects]);
+
+  // Sync currentProject with latest data - immediate for important changes, debounced for rapid updates
+  const lastSyncKeyRef = useRef<string>('');
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!selectedProjectSlug || !currentProject) return;
+
+    const latestProject = projects.find(p => p.id === currentProject.id);
+    if (!latestProject) return;
+
+    // Create comparison key from critical fields
+    const latestKey = `${latestProject.status}-${latestProject.devServerStatus}-${latestProject.devServerPort}`;
+
+    // If data hasn't changed, skip
+    if (lastSyncKeyRef.current === latestKey) return;
+
+    const now = Date.now();
+    const timeSinceLastSync = now - lastSyncTimeRef.current;
+
+    // If it's been more than 500ms since last sync, update immediately (user action)
+    if (timeSinceLastSync > 500) {
+      console.log('🔄 Syncing currentProject immediately (user action or first update)');
+      lastSyncKeyRef.current = latestKey;
+      lastSyncTimeRef.current = now;
+      setCurrentProject(latestProject);
+    } else {
+      // Rapid updates - debounce
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+
+      syncTimeoutRef.current = setTimeout(() => {
+        console.log('🔄 Syncing currentProject after debounce (rapid updates)');
+        lastSyncKeyRef.current = latestKey;
+        lastSyncTimeRef.current = Date.now();
+        setCurrentProject(latestProject);
+      }, 200);
+    }
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [projects, selectedProjectSlug, currentProject?.id]);
+
+  // Auto-start dev server when project status changes to completed
+  const prevProjectStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentStatus = currentProject?.status;
+    const prevStatus = prevProjectStatusRef.current;
+
+    // Trigger auto-start when transitioning from in_progress to completed
+    if (
+      prevStatus === 'in_progress' &&
+      currentStatus === 'completed' &&
+      currentProject?.runCommand &&
+      currentProject?.devServerStatus !== 'running'
+    ) {
+      console.log('🚀 Generation completed, auto-starting dev server...');
+      setTimeout(() => startDevServer(), 1000);
+    }
+
+    prevProjectStatusRef.current = currentStatus || null;
+  }, [currentProject?.status, currentProject?.devServerStatus, currentProject?.runCommand]);
 
   // Disabled: We now handle generation directly in handleSubmit without redirects
   // This prevents the flash/reload issue when creating new projects
 
-  const startGeneration = async (projectId: string, prompt: string, addUserMessage = false) => {
+  const startElementChange = async (
+    projectId: string,
+    prompt: string,
+    element: any,
+    changeId: string
+  ) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationType: 'focused-edit',
+          prompt,
+          context: {
+            elementSelector: element?.selector,
+            elementInfo: {
+              tagName: element?.tagName,
+              className: element?.className,
+              textContent: element?.textContent,
+            },
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Element change failed');
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            // Update element change with tool calls
+            if (data.type === 'tool-input-available') {
+              setActiveElementChanges(prev => prev.map(change => {
+                if (change.id === changeId) {
+                  // Check if tool already exists (prevent duplicates)
+                  const existingToolIndex = change.toolCalls.findIndex(
+                    t => t.name === data.toolName && t.status === 'running'
+                  );
+
+                  if (existingToolIndex >= 0) {
+                    console.log('⚠️ Tool already exists, skipping duplicate:', data.toolName);
+                    return change;
+                  }
+
+                  return {
+                    ...change,
+                    toolCalls: [
+                      ...change.toolCalls,
+                      {
+                        name: data.toolName,
+                        input: data.input,
+                        status: 'running' as const,
+                      },
+                    ],
+                  };
+                }
+                return change;
+              }));
+            } else if (data.type === 'tool-output-available') {
+              setActiveElementChanges(prev => prev.map(change => {
+                if (change.id === changeId) {
+                  // Find the matching running tool and update it
+                  const updatedTools = change.toolCalls.map(tool => {
+                    if (tool.status === 'running' && !tool.output) {
+                      return { ...tool, output: data.output, status: 'completed' as const };
+                    }
+                    return tool;
+                  });
+
+                  return {
+                    ...change,
+                    toolCalls: updatedTools,
+                  };
+                }
+                return change;
+              }));
+            }
+          } catch (e) {
+            // Skip malformed JSON
+          }
+        }
+      }
+
+      // Mark as completed and finalize all tool calls
+      let completedChange: ElementChange | null = null;
+
+      setActiveElementChanges(prev => {
+        const updated = prev.map(change => {
+          if (change.id === changeId) {
+            completedChange = {
+              ...change,
+              status: 'completed' as const,
+              // Mark all tools as completed
+              toolCalls: change.toolCalls.map(tool => ({
+                ...tool,
+                status: tool.status === 'running' ? ('completed' as const) : tool.status,
+              })),
+            };
+            return completedChange;
+          }
+          return change;
+        });
+        return updated;
+      });
+
+      // Wait a bit to let user see the completion
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Archive to history and remove from active
+      if (completedChange) {
+        setElementChangeHistory(prev => [completedChange!, ...prev]);
+        setActiveElementChanges(prev => prev.filter(c => c.id !== changeId));
+
+        // Save to database
+        console.log('💾 Saving element change to database...');
+        const saveRes = await fetch(`/api/projects/${projectId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: 'assistant',
+            content: [
+              {
+                type: 'element-change',
+                elementChange: completedChange,
+              },
+            ],
+          }),
+        });
+
+        if (saveRes.ok) {
+          console.log('✅ Element change saved successfully');
+        } else {
+          console.error('❌ Failed to save element change:', await saveRes.text());
+        }
+
+        // Switch back to Chat after completion
+        switchTab('chat');
+      }
+
+    } catch (error) {
+      console.error('Element change error:', error);
+
+      // Mark as failed
+      setActiveElementChanges(prev => prev.map(change => {
+        if (change.id === changeId) {
+          return {
+            ...change,
+            status: 'failed' as const,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+        return change;
+      }));
+
+      // Archive failed change to history after a delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setActiveElementChanges(prev => {
+        const failedChange = prev.find(c => c.id === changeId);
+        if (failedChange) {
+          setElementChangeHistory(prevHistory => [failedChange, ...prevHistory]);
+
+          // Save to database
+          fetch(`/api/projects/${projectId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: [{
+                type: 'element-change',
+                elementChange: failedChange,
+              }],
+            }),
+          });
+        }
+        return prev.filter(c => c.id !== changeId);
+      });
+    }
+  };
+
+  const startGeneration = async (
+    projectId: string,
+    prompt: string,
+    options: {
+      addUserMessage?: boolean;
+      isElementChange?: boolean;
+      isRetry?: boolean;
+    } = {}
+  ) => {
+    const { addUserMessage = false, isElementChange = false, isRetry = false } = options;
+
     // Lock FIRST
     isGeneratingRef.current = true;
     setIsGenerating(true);
@@ -248,35 +651,50 @@ export default function Home() {
       setMessages(prev => [...prev, userMessage]);
     }
 
-    // Create SEPARATE generation state (not in messages!)
+    // Find project and detect operation type
     const project = projects.find(p => p.id === projectId);
-    if (project) {
-      console.log('🎬🎬🎬 Creating generation state for:', project.name);
-      setGenerationState({
-        id: `gen-${Date.now()}`,
-        projectId: project.id,
-        projectName: project.name,
-        todos: [],
-        toolsByTodo: {},
-        textByTodo: {},
-        activeTodoIndex: -1,
-        isActive: true,
-        startTime: new Date(),
-      });
-    } else {
+    if (!project) {
       console.error('❌ Project not found for ID:', projectId);
+      setIsGenerating(false);
+      isGeneratingRef.current = false;
+      return;
     }
 
-    await startGenerationStream(projectId, prompt);
+    // Detect operation type
+    const operationType = detectOperationType({ project, isElementChange, isRetry });
+    console.log('🎬 Starting build:', { projectName: project.name, operationType });
+
+    // Create FRESH generation state for this build
+    const freshState = createFreshGenerationState({
+      projectId: project.id,
+      projectName: project.name,
+      operationType,
+    });
+
+    console.log('✅ Created fresh generationState:', freshState.id);
+    setGenerationState(freshState);
+
+    await startGenerationStream(projectId, prompt, operationType, isElementChange);
   };
 
-  const startGenerationStream = async (projectId: string, prompt: string) => {
-
+  const startGenerationStream = async (
+    projectId: string,
+    prompt: string,
+    operationType: BuildOperationType,
+    isElementChange: boolean = false
+  ) => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/generate`, {
+      const res = await fetch(`/api/projects/${projectId}/build`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          operationType,
+          prompt,
+          context: isElementChange ? {
+            elementSelector: 'unknown', // Will be enhanced later
+            elementInfo: {},
+          } : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -401,9 +819,14 @@ export default function Home() {
 
                 console.log('📝 TodoWrite - updating generation state');
                 console.log('   Todos count:', todos.length);
+                console.log('   Current generationState exists?', !!generationState);
+                console.log('   Current todos in state:', generationState?.todos?.length);
 
                 setGenerationState(prev => {
-                  if (!prev) return null;
+                  if (!prev) {
+                    console.error('❌ Cannot update todos - generationState is null!');
+                    return null;
+                  }
 
                   const activeIndex = todos.findIndex(t => t.status === 'in_progress');
 
@@ -412,6 +835,8 @@ export default function Home() {
                     todos,
                     activeTodoIndex: activeIndex,
                   };
+
+                  console.log('✅ Updated generationState with', todos.length, 'todos');
 
                   // Save to DB using projectId from state (always available!)
                   console.log('💾 Saving TodoWrite update, projectId:', updated.projectId);
@@ -512,6 +937,48 @@ export default function Home() {
                   setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
                 }
               }
+            } else if (data.type === 'data-reasoning') {
+              // Handle reasoning messages - add as text to active todo
+              const message = (data.data as any)?.message || data.message;
+              console.log('💭 Reasoning:', message);
+
+              if (message) {
+                setGenerationState(prev => {
+                  if (!prev) return null;
+
+                  const activeIndex = prev.activeTodoIndex >= 0 ? prev.activeTodoIndex : 0;
+                  const existing = prev.textByTodo[activeIndex] || [];
+
+                  const updated = {
+                    ...prev,
+                    textByTodo: {
+                      ...prev.textByTodo,
+                      [activeIndex]: [
+                        ...existing,
+                        {
+                          id: `reasoning-${Date.now()}`,
+                          text: message,
+                          timestamp: new Date(),
+                        },
+                      ],
+                    },
+                  };
+
+                  return updated;
+                });
+              }
+            } else if (data.type === 'data-metadata-extracted') {
+              const metadata = (data.data as any)?.metadata;
+              console.log('📋 Metadata extracted:', metadata);
+              // Could show this in UI if desired
+            } else if (data.type === 'data-template-selected') {
+              const template = (data.data as any)?.template;
+              console.log('🎯 Template selected:', template?.name);
+              // Could show this in UI if desired
+            } else if (data.type === 'data-template-downloaded') {
+              const path = (data.data as any)?.path;
+              console.log('📦 Template downloaded to:', path);
+              // Could show this in UI if desired
             } else if (data.type === 'finish') {
               currentMessage = null;
               currentTextPart = null;
@@ -539,19 +1006,9 @@ export default function Home() {
         return completed;
       });
 
-      refetch(); // Refresh project list to update status
-
-      // Poll for status updates (server auto-starts on backend)
-      const pollInterval = setInterval(() => {
-        console.log('🔄 Polling for project updates...');
-        refetch();
-      }, 2000);
-
-      // Stop polling after 30 seconds
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        console.log('⏹️  Stopped polling');
-      }, 30000);
+      // Refresh once to get final status
+      // Don't poll - sync effect handles updates, and window focus has cooldown refetch
+      setTimeout(() => refetch(), 1000);
     } catch (error) {
       console.error('Generation error:', error);
       // Mark generation as failed and SAVE
@@ -603,34 +1060,43 @@ export default function Home() {
 
         console.log('✅ Project created:', project.slug);
 
+        // LOCK generation mode FIRST (before anything else!)
+        isGeneratingRef.current = true;
+        console.log('🔒 Locked generation mode with ref');
+
+        // Create FRESH generationState BEFORE URL changes
+        console.log('🎬 Creating generation state for initial build:', project.name);
+        const freshState = createFreshGenerationState({
+          projectId: project.id,
+          projectName: project.name,
+          operationType: 'initial-build',
+        });
+
+        console.log('✅ Fresh state created:', {
+          id: freshState.id,
+          todosLength: freshState.todos.length,
+          isActive: freshState.isActive
+        });
+
+        setGenerationState(freshState);
+        console.log('✅ GenerationState set in React');
+
+        // Switch to Build tab
+        console.log('🎯 Switching to Build tab for new project');
+        switchTab('build');
+
+        // Set project state
+        setCurrentProject(project);
+        setIsCreatingProject(false);
+
         // Refresh project list IMMEDIATELY so sidebar updates
         await refetch();
         console.log('🔄 Sidebar refreshed with new project');
 
         // Update URL WITHOUT reloading (prevents flash!)
+        // This triggers useEffect, but isGeneratingRef is already locked
         router.replace(`/?project=${project.slug}`, { scroll: false });
-
-        // Set project state directly
-        setCurrentProject(project);
-        setIsCreatingProject(false);
-
-        // LOCK generation mode IMMEDIATELY (before any async state updates)
-        isGeneratingRef.current = true;
-        console.log('🔒 Locked generation mode with ref');
-
-        // Create generationState DIRECTLY with the project we just created
-        console.log('🎬🎬🎬 Creating generation state for:', project.name);
-        setGenerationState({
-          id: `gen-${Date.now()}`,
-          projectId: project.id,
-          projectName: project.name,
-          todos: [],
-          toolsByTodo: {},
-          textByTodo: {},
-          activeTodoIndex: -1,
-          isActive: true,
-          startTime: new Date(),
-        });
+        console.log('🔄 URL updated');
 
         // Add user message
         const userMessage: Message = {
@@ -641,7 +1107,8 @@ export default function Home() {
         setMessages([userMessage]);
 
         // Start generation stream (don't add user message again)
-        await startGenerationStream(project.id, userPrompt);
+        console.log('🚀 Starting generation stream...');
+        await startGenerationStream(project.id, userPrompt, 'initial-build', false);
 
         // Refresh project list to pick up final state
         refetch();
@@ -651,7 +1118,7 @@ export default function Home() {
       }
     } else {
       // Continue existing conversation - add user message to UI
-      await startGeneration(currentProject.id, userPrompt, true);
+      await startGeneration(currentProject.id, userPrompt, { addUserMessage: true });
     }
   };
 
@@ -666,9 +1133,20 @@ export default function Home() {
     if (!currentProject) return;
 
     try {
+      setTerminalDetectedPort(null);
       const res = await fetch(`/api/projects/${currentProject.id}/start`, { method: 'POST' });
       if (res.ok) {
         console.log('✅ Dev server started successfully!');
+
+        const data = await res.json();
+
+        // Update currentProject directly with new status
+        setCurrentProject(prev => prev ? {
+          ...prev,
+          devServerStatus: 'starting',
+          devServerPid: data.pid,
+          devServerPort: data.port,
+        } : null);
 
         // Mark final todo as completed when server starts!
         setGenerationState(prev => {
@@ -705,7 +1183,8 @@ export default function Home() {
           return prev;
         });
 
-        refetch(); // Refresh project data
+        // Refresh project list so shared context updates (terminal + preview rely on it)
+        refetch();
       }
     } catch (error) {
       console.error('Failed to start dev server:', error);
@@ -718,7 +1197,17 @@ export default function Home() {
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/stop`, { method: 'POST' });
       if (res.ok) {
-        refetch(); // Refresh project data
+        // Update currentProject directly
+        setCurrentProject(prev => prev ? {
+          ...prev,
+          devServerStatus: 'stopped',
+          devServerPid: null,
+          devServerPort: null,
+        } : null);
+        setTerminalDetectedPort(null);
+
+        // Refresh project list so UI reflects stopped status
+        refetch();
       }
     } catch (error) {
       console.error('Failed to stop dev server:', error);
@@ -846,7 +1335,7 @@ export default function Home() {
                                   body: JSON.stringify({ status: 'pending', errorMessage: null }),
                                 });
                                 refetch();
-                                await startGeneration(currentProject.id, promptToRetry);
+                                await startGeneration(currentProject.id, promptToRetry, { isRetry: true });
                               }
                             }}
                             className="px-3 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
@@ -860,30 +1349,61 @@ export default function Home() {
                 )}
 
                 {/* View Tabs - Only show when we have content */}
-                {(generationState || messages.length > 0) && !isCreatingProject && (
+                {(generationState || messages.length > 0 || buildHistory.length > 0) && !isCreatingProject && (
                   <div className="border-b border-white/10 px-6 py-3 flex items-center gap-2">
-                    <button
-                      onClick={() => switchTab('build')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        activeView === 'build'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      Build {generationState && `(${buildProgress}%)`}
-                    </button>
+                    {/* Chat Tab */}
                     <button
                       onClick={() => switchTab('chat')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                         activeView === 'chat'
                           ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                           : 'text-gray-400 hover:text-white hover:bg-white/5'
                       }`}
                     >
+                      {hasUnreadChatMessages && activeView !== 'chat' && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full animate-pulse shadow-lg shadow-purple-500/50" />
+                      )}
                       Chat {chatMessageCount > 0 && `(${chatMessageCount})`}
                     </button>
+
+                    {/* Build Tab - Show badge based on state */}
+                    <button
+                      onClick={() => switchTab('build')}
+                      className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        activeView === 'build'
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {/* Activity indicator dot - top right corner */}
+                      {generationState?.isActive && activeView !== 'build' && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse shadow-lg shadow-yellow-400/50" />
+                      )}
+                      Build {
+                        generationState?.isActive ? (
+                          buildProgress > 0 && `(${buildProgress}%)`
+                        ) : buildProgress === 100 ? (
+                          <span className="text-green-400">✓</span>
+                        ) : null
+                      }
+                    </button>
+
+                    {/* History Tab */}
+                    {(buildHistory.length > 0 || elementChangeHistory.length > 0) && (
+                      <button
+                        onClick={() => switchTab('history')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          activeView === 'history'
+                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        History ({buildHistory.length + elementChangeHistory.length})
+                      </button>
+                    )}
+
                     <div className="ml-auto text-xs text-gray-500">
-                      ⌘1 Build • ⌘2 Chat
+                      ⌘1 Chat • ⌘2 Build • ⌘3 History
                     </div>
                   </div>
                 )}
@@ -943,47 +1463,94 @@ export default function Home() {
                     </motion.div>
                   )}
 
-                  {/* Build View - Show GenerationProgress */}
-                  {!isCreatingProject && activeView === 'build' && generationState && (
-                    <div className="mb-6">
-                      <GenerationProgress
-                        state={generationState}
-                        onClose={() => setGenerationState(null)}
-                        onViewFiles={() => {
-                          window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                        }}
-                        onStartServer={startDevServer}
-                      />
+                  {/* Build View */}
+                  {!isCreatingProject && activeView === 'build' && (
+                    <div className="space-y-6">
+                      {/* Debug info */}
+                      {console.log('🔍 Build View Render:', {
+                        hasGenerationState: !!generationState,
+                        todosLength: generationState?.todos?.length,
+                        isActive: generationState?.isActive,
+                        activeView,
+                      })}
+
+                      {/* Active Build */}
+                      {generationState ? (
+                        <div>
+                          {generationState.todos && generationState.todos.length > 0 ? (
+                            <GenerationProgress
+                              state={generationState}
+                              onClose={() => setGenerationState(null)}
+                              onViewFiles={() => {
+                                window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                              }}
+                              onStartServer={startDevServer}
+                            />
+                          ) : generationState.isActive ? (
+                            <InitializingCard projectName={generationState.projectName} />
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {/* Active Element Changes */}
+                      {activeElementChanges.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                            <span>Element Changes</span>
+                            <span className="text-xs text-gray-600">({activeElementChanges.length})</span>
+                          </h3>
+                          <div className="space-y-3">
+                            {activeElementChanges.map(change => (
+                              <ElementChangeCard
+                                key={change.id}
+                                elementSelector={change.elementSelector}
+                                changeRequest={change.changeRequest}
+                                elementInfo={change.elementInfo}
+                                status={change.status}
+                                toolCalls={change.toolCalls}
+                                error={change.error}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Empty state */}
+                      {!generationState && activeElementChanges.length === 0 && (
+                        <div className="flex items-center justify-center min-h-[400px]">
+                          <div className="text-center space-y-3 text-gray-400">
+                            <Sparkles className="w-12 h-12 mx-auto opacity-50" />
+                            <p>No active build to display</p>
+                            <button
+                              onClick={() => switchTab('chat')}
+                              className="text-purple-400 hover:text-purple-300 underline text-sm"
+                            >
+                              Switch to Chat view
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Build View - No generation state yet */}
-                  {!isCreatingProject && activeView === 'build' && !generationState && (
-                    <div className="flex items-center justify-center min-h-[400px]">
-                      <div className="text-center space-y-3 text-gray-400">
-                        <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                        <p>No active build to display</p>
-                        <button
-                          onClick={() => switchTab('chat')}
-                          className="text-purple-400 hover:text-purple-300 underline text-sm"
-                        >
-                          Switch to Chat view
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Chat View - Show all messages */}
+                  {/* Chat View - Show all messages (excluding element changes) */}
                   {activeView === 'chat' && (
                     <div className="space-y-6">
-                      {messages.map((message) => (
-                        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
-                          <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
-                            message.role === 'user'
-                              ? 'bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30'
-                              : 'bg-white/5 border border-white/10 text-white'
-                          }`}>
-                    {message.parts.map((part, i) => {
+                      {messages.map((message) => {
+                        // Skip element change messages (they're in Build tab now)
+                        if (message.elementChange) {
+                          return null;
+                        }
+
+                        // Regular message rendering
+                        return (
+                          <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
+                            <div className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
+                              message.role === 'user'
+                                ? 'bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30'
+                                : 'bg-white/5 border border-white/10 text-white'
+                            }`}>
+                      {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         // Check if this is a summary message
                         const isSummary = part.text && message.role === 'assistant' && (
@@ -996,7 +1563,7 @@ export default function Home() {
                           (part.text.includes('🎉') && part.text.includes('created'))
                         );
 
-                        if (isSummary) {
+                        if (isSummary && part.text) {
                           return (
                             <SummaryCard
                               key={i}
@@ -1087,8 +1654,9 @@ export default function Home() {
                       return null;
                     })}
                           </div>
-                        </div>
-                      ))}
+                          </div>
+                        );
+                      })}
 
                       {/* Loading indicator in chat view */}
                       {isGenerating && (!generationState || generationState.todos.length === 0) && (
@@ -1100,6 +1668,76 @@ export default function Home() {
                               <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                               <span className="ml-2 text-sm text-gray-400">Initializing...</span>
                             </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* History View */}
+                  {activeView === 'history' && (
+                    <div className="space-y-6">
+                      <h2 className="text-2xl font-bold text-white mb-4">Build History</h2>
+
+                      {/* Completed Builds */}
+                      {buildHistory.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Completed Builds ({buildHistory.length})</h3>
+                          <div className="space-y-4">
+                            {buildHistory.map((build, idx) => (
+                              <motion.div
+                                key={build.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                                className="border border-gray-700 rounded-lg overflow-hidden"
+                              >
+                                <GenerationProgress
+                                  state={build}
+                                  onViewFiles={() => {
+                                    window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                  }}
+                                  onStartServer={startDevServer}
+                                />
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Element Change History */}
+                      {elementChangeHistory.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Element Changes ({elementChangeHistory.length})</h3>
+                          <div className="space-y-3">
+                            {elementChangeHistory.map((change, idx) => (
+                              <motion.div
+                                key={change.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                              >
+                                <ElementChangeCard
+                                  elementSelector={change.elementSelector}
+                                  changeRequest={change.changeRequest}
+                                  elementInfo={change.elementInfo}
+                                  status={change.status}
+                                  toolCalls={change.toolCalls}
+                                  error={change.error}
+                                />
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Empty state */}
+                      {buildHistory.length === 0 && elementChangeHistory.length === 0 && (
+                        <div className="flex items-center justify-center min-h-[400px]">
+                          <div className="text-center space-y-3 text-gray-400">
+                            <div className="text-4xl mb-4">📚</div>
+                            <p>No build history yet</p>
+                            <p className="text-xs">Completed builds and element changes will appear here</p>
                           </div>
                         </div>
                       )}
@@ -1155,8 +1793,10 @@ export default function Home() {
                 <TerminalOutput
                   projectId={currentProject?.id}
                   onPortDetected={(port) => {
-                    console.log(`🔍 Terminal detected port: ${port}`);
+                    console.log('🔍 Terminal detected port update:', port);
                     setTerminalDetectedPort(port);
+                    // Port is detected and stored in process-manager on server-side
+                    // No need to update DB from client - creates infinite loops
                   }}
                 />
               </div>

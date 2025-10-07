@@ -26,6 +26,7 @@ export interface StartDevServerOptions {
   projectId: string;
   command: string;
   cwd: string;
+  env?: Record<string, string>;
 }
 
 export interface DevServerLog {
@@ -64,6 +65,7 @@ export function startDevServer(options: StartDevServerOptions): {
       // Ensure CI mode is off (prevents auto-exit)
       CI: 'false',
       NODE_ENV: 'development',
+      ...(options.env || {}),
     },
   });
 
@@ -105,19 +107,28 @@ export function startDevServer(options: StartDevServerOptions): {
 
     // Try to detect port with multiple patterns
     if (!detectedPort) {
-      const portMatch =
-        text.match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{4,5})/i) ||  // URL format
-        text.match(/port[:\s]+(\d{4,5})/i) ||                              // "port: 3001" or "port 3001"
-        text.match(/Local:.*?:(\d{4,5})/i) ||                              // Next.js format
-        text.match(/ready.*?(\d{4,5})/i);                                   // Vite format
+      // Skip lines mentioning ports that are "in use" or "busy" (e.g., Vite's "Port 5173 is in use, trying another one...")
+      if (text.match(/in use|busy|unavailable|already/i)) {
+        console.log(`   ⏭️  Skipping "in use" port message: ${text.trim()}`);
+      } else {
+        const portMatch =
+          text.match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{4,5})/i) ||        // URL with port
+          text.match(/Local:.*?:(\d{4,5})/i) ||                                    // Vite/Next: "Local: http://localhost:5173/"
+          text.match(/ready.*?:(\d{4,5})/i) ||                                     // "ready on http://localhost:3000"
+          text.match(/http:\/\/.*?:(\d{4,5})/i) ||                                 // Any HTTP URL
+          text.match(/https:\/\/.*?:(\d{4,5})/i) ||                                // Any HTTPS URL
+          text.match(/Network:.*?:(\d{4,5})/i) ||                                  // Vite Network URL
+          text.match(/started server on.*?:(\d{4,5})/i) ||                         // Next.js format
+          text.match(/listening on.*?:(\d{4,5})/i);                                // Generic "listening on"
 
-      if (portMatch) {
-        const port = parseInt(portMatch[1], 10);
-        // Validate it's a reasonable port number
-        if (port >= 3000 && port <= 65535) {
-          detectedPort = port;
-          console.log(`   Port detected: ${detectedPort}`);
-          emitter.emit('port', detectedPort);
+        if (portMatch) {
+          const port = parseInt(portMatch[1], 10);
+          // Validate it's a reasonable port number
+          if (port >= 3000 && port <= 65535) {
+            detectedPort = port;
+            console.log(`   Port detected: ${detectedPort}`);
+            emitter.emit('port', detectedPort);
+          }
         }
       }
     }
@@ -153,7 +164,7 @@ export function startDevServer(options: StartDevServerOptions): {
       console.error(`   ⚠️  EXIT CODE 0: Process exited cleanly - check if it received exit signal`);
     }
 
-    emitter.emit('exit', code);
+    emitter.emit('exit', { code, signal });
     runningProcesses.delete(projectId);
     console.log(`   Removed from Map. Map size now: ${runningProcesses.size}`);
   });

@@ -20,6 +20,24 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) to interact with the Claude Code agent.
 
+### Database Setup & Migrations
+
+This project uses Drizzle ORM with SQLite. Migrations live in the `drizzle/` directory and can be applied with `drizzle-kit`.
+
+```bash
+# Apply migrations to the default database defined in drizzle.config.ts
+npx drizzle-kit push --config drizzle.config.ts
+
+# Apply migrations to a different database file
+DATABASE_URL=sentryvibe.db npx drizzle-kit push --config drizzle.config.ts
+
+# Apply migrations manually with sqlite3 (optional)
+sqlite3 sqlite.db ".read drizzle/0003_port_pool.sql"
+sqlite3 sentryvibe.db ".read drizzle/0003_port_pool.sql"
+```
+
+> **Tip:** If you maintain multiple SQLite files (e.g., `sqlite.db`, `sentryvibe.db`), run the command once per database so every file receives the latest schema changes including the port allocation table.
+
 ## Configuration
 
 The app is configured with Sentry for monitoring Claude Code agent interactions:

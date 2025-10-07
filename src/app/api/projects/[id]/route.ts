@@ -3,6 +3,7 @@ import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { rm } from 'fs/promises';
+import { releasePortForProject } from '@/lib/port-allocator';
 
 // GET /api/projects/:id - Get single project
 export async function GET(
@@ -104,6 +105,8 @@ export async function DELETE(
         console.warn('Failed to kill process:', error);
       }
     }
+
+    await releasePortForProject(id);
 
     // Delete from database (cascade will delete messages)
     await db.delete(projects).where(eq(projects.id, id));

@@ -74,8 +74,20 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Refetch when window regains focus (catches external changes like terminal commands)
   useEffect(() => {
+    let lastFetchTime = 0;
+    const FETCH_COOLDOWN = 10000; // 10 seconds cooldown (increased from 5s)
+
     const handleFocus = () => {
+      const now = Date.now();
+      const timeSinceLastFetch = now - lastFetchTime;
+
+      if (timeSinceLastFetch < FETCH_COOLDOWN) {
+        console.log(`⏭️  Skipping focus refetch (cooldown: ${Math.round((FETCH_COOLDOWN - timeSinceLastFetch) / 1000)}s remaining)`);
+        return;
+      }
+
       console.log('🔄 Window focused, refreshing project data...');
+      lastFetchTime = now;
       fetchData();
     };
 

@@ -57,27 +57,49 @@ export async function GET(
         start(controller) {
           console.log(`📤 SSE stream started for ${id}`);
 
+          let isClosed = false;
+
           // Send existing logs
           const existingLogs = getProcessLogs(id);
           console.log(`   Sending ${existingLogs.length} existing log entries`);
 
           existingLogs.forEach(log => {
-            const data = `data: ${JSON.stringify({ type: 'log', data: log })}\n\n`;
-            controller.enqueue(encoder.encode(data));
+            if (!isClosed) {
+              const data = `data: ${JSON.stringify({ type: 'log', data: log })}\n\n`;
+              controller.enqueue(encoder.encode(data));
+            }
           });
 
           // Listen for new logs
           const logHandler = (logData: { timestamp: Date; type: string; data: string }) => {
-            console.log(`   📨 New log event emitted`);
-            const data = `data: ${JSON.stringify({ type: 'log', data: logData.data })}\n\n`;
-            controller.enqueue(encoder.encode(data));
+            if (isClosed) {
+              console.log(`   ⚠️  Skipping log event - controller closed`);
+              return;
+            }
+
+            try {
+              console.log(`   📨 New log event emitted`);
+              const data = `data: ${JSON.stringify({ type: 'log', data: logData.data })}\n\n`;
+              controller.enqueue(encoder.encode(data));
+            } catch (error) {
+              console.error(`   ❌ Failed to enqueue log:`, error);
+              isClosed = true;
+            }
           };
 
-          const exitHandler = () => {
-            console.log(`   ⚠️  Exit event received`);
-            const data = `data: ${JSON.stringify({ type: 'exit' })}\n\n`;
-            controller.enqueue(encoder.encode(data));
-            controller.close();
+          const exitHandler = (payload?: { code?: number | null; signal?: NodeJS.Signals | null }) => {
+            if (isClosed) return;
+
+            try {
+              console.log(`   ⚠️  Exit event received`);
+              const data = `data: ${JSON.stringify({ type: 'exit', payload })}\n\n`;
+              controller.enqueue(encoder.encode(data));
+              controller.close();
+              isClosed = true;
+            } catch (error) {
+              console.error(`   ❌ Failed to close controller:`, error);
+              isClosed = true;
+            }
           };
 
           processInfo.emitter.on('log', logHandler);
@@ -88,6 +110,7 @@ export async function GET(
           // Cleanup on close
           return () => {
             console.log(`   🧹 Cleaning up SSE stream for ${id}`);
+            isClosed = true;
             processInfo.emitter.off('log', logHandler);
             processInfo.emitter.off('exit', exitHandler);
           };

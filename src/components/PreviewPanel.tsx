@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, RefreshCw, Play, Square } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -23,7 +23,9 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const [isChecking, setIsChecking] = useState(false);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { edits, addEdit, updateEditStatus, removeEdit } = useElementEdits();
+  const { edits, addEdit, removeEdit } = useElementEdits();
+  const isCheckingRef = useRef(false);
+  const lastReadyPortRef = useRef<number | null>(null);
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
@@ -36,49 +38,97 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     ? `/api/projects/${project.id}/proxy?path=/`
     : '';
 
-  // Health check when port changes (terminal or DB)
-  useEffect(() => {
-    if (actualPort && project?.devServerStatus === 'running') {
-      checkServerHealth(actualPort);
-    } else {
-      setIsServerReady(false);
-    }
-  }, [actualPort, project?.devServerStatus]);
-
-  const checkServerHealth = async (port: number) => {
+  const checkServerHealth = useCallback(async (port: number): Promise<boolean> => {
     const url = `http://localhost:${port}`;
-    setIsChecking(true);
-    setIsServerReady(false);
 
     console.log(`🏥 Health checking ${url}...`);
 
-    // Retry up to 10 times with 500ms delay
-    for (let i = 0; i < 10; i++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-        const res = await fetch(url, {
-          signal: controller.signal,
-          mode: 'no-cors', // Ignore CORS for health check
-        });
+      await fetch(url, {
+        signal: controller.signal,
+        mode: 'no-cors', // Ignore CORS for health check
+      });
 
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
+      console.log(`✅ Server is ready at ${url}`);
+      return true;
+    } catch (error) {
+      console.log(`   Health check failed for ${url}, will retry...`);
+      return false;
+    }
+  }, []);
 
-        // If we get here, server responded (even 404 is ok, means server is up)
-        console.log(`✅ Server is ready at ${url}`);
-        setIsServerReady(true);
-        setIsChecking(false);
-        return;
-      } catch (error) {
-        console.log(`   Attempt ${i + 1}/10 failed, retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+  // Health check when port changes (terminal or DB)
+  useEffect(() => {
+    if (!actualPort || project?.devServerStatus !== 'running') {
+      lastReadyPortRef.current = null;
+      isCheckingRef.current = false;
+      setIsServerReady(false);
+      setIsChecking(false);
+      return;
     }
 
-    console.error(`❌ Server health check failed after 10 attempts`);
-    setIsChecking(false);
-  };
+    if (lastReadyPortRef.current && lastReadyPortRef.current !== actualPort) {
+      lastReadyPortRef.current = null;
+    }
+
+    if (lastReadyPortRef.current === actualPort) {
+      if (!isServerReady) {
+        setIsServerReady(true);
+        setIsChecking(false);
+      }
+      return;
+    }
+
+    if (isCheckingRef.current) {
+      console.log('⏳ Health check already in progress, skipping duplicate');
+      return;
+    }
+
+    let cancelled = false;
+    isCheckingRef.current = true;
+    setIsChecking(true);
+    setIsServerReady(false);
+
+    const runHealthCheck = async () => {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        if (cancelled) return;
+
+        const isReady = await checkServerHealth(actualPort);
+        if (cancelled) return;
+
+        if (isReady) {
+          lastReadyPortRef.current = actualPort;
+          setIsServerReady(true);
+          setIsChecking(false);
+          return;
+        }
+
+        if (cancelled) return;
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (cancelled) return;
+      }
+
+      if (!cancelled) {
+        console.error('❌ Server health check failed after multiple attempts');
+        setIsChecking(false);
+      }
+    };
+
+    runHealthCheck().finally(() => {
+      if (!cancelled) {
+        isCheckingRef.current = false;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      isCheckingRef.current = false;
+    };
+  }, [actualPort, project?.devServerStatus, checkServerHealth]);
 
   const handleRefresh = () => {
     setKey(prev => prev + 1);
@@ -91,29 +141,21 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     }
   };
 
-  // Toggle selection mode in iframe (script is pre-injected via proxy)
+  // Auto-sync inspector state when iframe loads or script announces ready
   useEffect(() => {
-    if (!iframeRef.current || !isServerReady) return;
-
-    // Wait for iframe to load, then toggle mode
-    const iframe = iframeRef.current;
-
-    const handleLoad = () => {
-      console.log('📦 Iframe loaded (via proxy)');
-      // Script is already injected by proxy, just toggle if needed
-      if (isSelectionModeEnabled) {
-        setTimeout(() => {
-          toggleSelectionMode(iframe, true);
-        }, 500);
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data.type === 'sentryvibe:ready') {
+        console.log('📦 Iframe script ready, syncing inspector state:', isSelectionModeEnabled);
+        // Iframe loaded and script ready, sync current state
+        if (iframeRef.current) {
+          toggleSelectionMode(iframeRef.current, isSelectionModeEnabled);
+        }
       }
     };
 
-    iframe.addEventListener('load', handleLoad);
-
-    return () => {
-      iframe.removeEventListener('load', handleLoad);
-    };
-  }, [isServerReady, key]);
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isSelectionModeEnabled]);
 
   // Toggle selection mode when button clicked
   useEffect(() => {
@@ -245,7 +287,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               ref={iframeRef}
               key={key}
               src={previewUrl}
+              sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin"
+              allow="geolocation; camera; microphone; fullscreen; clipboard-write; clipboard-read; cross-origin-isolated"
               className="w-full h-full border-0"
+              style={{
+                colorScheme: 'normal',
+                isolation: 'isolate',
+              }}
               title="Preview"
             />
 

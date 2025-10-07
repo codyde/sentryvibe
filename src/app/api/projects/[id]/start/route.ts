@@ -3,7 +3,13 @@ import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { startDevServer } from '@/lib/process-manager';
-import { findAvailablePort, getRunCommandWithPort } from '@/lib/port-allocator';
+import {
+  reservePortForProject,
+  releasePortForProject,
+  updatePortReservationForProject,
+  buildEnvForFramework,
+  getRunCommand,
+} from '@/lib/port-allocator';
 
 // POST /api/projects/:id/start - Start dev server
 export async function POST(
@@ -38,28 +44,36 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Update status to starting
-    await db.update(projects)
-      .set({
-        devServerStatus: 'starting',
-        lastActivityAt: new Date(),
-      })
-      .where(eq(projects.id, id));
-
     try {
-      // Find an available port
-      const availablePort = await findAvailablePort(proj.port || undefined);
-      console.log(`🔍 Allocated port ${availablePort} for ${proj.name}`);
+      const { port: reservedPort, framework } = await reservePortForProject({
+        projectId: id,
+        projectType: proj.projectType,
+        runCommand: proj.runCommand,
+        preferredPort: proj.port || undefined,
+      });
 
-      // Get port-specific command
-      const commandWithPort = getRunCommandWithPort(proj.projectType, proj.runCommand, availablePort);
-      console.log(`📝 Run command: ${commandWithPort}`);
+      console.log(`🔍 Reserved port ${reservedPort} for ${proj.name} (${framework})`);
+
+      // Update status to starting and clear any previous errors
+      await db.update(projects)
+        .set({
+          devServerStatus: 'starting',
+          devServerPort: reservedPort,
+          errorMessage: null,
+          lastActivityAt: new Date(),
+        })
+        .where(eq(projects.id, id));
+
+      const command = getRunCommand(proj.runCommand);
+      console.log(`📝 Run command: ${command}`);
+      const env = buildEnvForFramework(framework, reservedPort);
 
       // Start the dev server
       const { pid, port, emitter } = startDevServer({
         projectId: id,
-        command: commandWithPort,
+        command,
         cwd: proj.path,
+        env,
       });
 
       // Listen for port detection with allocated port as fallback
@@ -67,7 +81,7 @@ export async function POST(
       const portPromise = new Promise<number>((resolve) => {
         // If no port detected after 8s, use the allocated port
         const timeout = setTimeout(() => {
-          const fallbackPort = detectedPort || availablePort;
+          const fallbackPort = detectedPort || reservedPort;
           console.log(`⏱️  Port detection timeout, using allocated port: ${fallbackPort}`);
           resolve(fallbackPort);
         }, 8000); // 8s timeout (increased for slower starts)
@@ -84,26 +98,33 @@ export async function POST(
       const finalPort = await portPromise;
       console.log(`📍 Final port for ${proj.name}: ${finalPort}`);
 
+      if (finalPort !== reservedPort) {
+        await updatePortReservationForProject(id, finalPort);
+      }
+
       // Update DB with running status
       await db.update(projects)
         .set({
           devServerPid: pid,
           devServerPort: finalPort,
+          port: finalPort,
           devServerStatus: 'running',
           lastActivityAt: new Date(),
         })
         .where(eq(projects.id, id));
 
       // Handle process exit
-      emitter.once('exit', async (code: number) => {
-        console.log(`Dev server for ${id} exited with code ${code}`);
+      emitter.once('exit', async ({ code, signal }: { code: number | null; signal: NodeJS.Signals | null }) => {
+        console.log(`Dev server for ${id} exited with code ${code}, signal ${signal}`);
+        const cleanShutdown = code === 0 || signal === 'SIGTERM' || signal === 'SIGINT';
         await db.update(projects)
           .set({
             devServerPid: null,
             devServerPort: null,
-            devServerStatus: code === 0 ? 'stopped' : 'failed',
+            devServerStatus: cleanShutdown ? 'stopped' : 'failed',
           })
           .where(eq(projects.id, id));
+        await releasePortForProject(id);
       });
 
       // Handle process errors
@@ -117,6 +138,7 @@ export async function POST(
             errorMessage: error.message,
           })
           .where(eq(projects.id, id));
+        await releasePortForProject(id);
       });
 
       return NextResponse.json({
@@ -130,9 +152,12 @@ export async function POST(
       await db.update(projects)
         .set({
           devServerStatus: 'failed',
+          devServerPort: null,
           errorMessage: error instanceof Error ? error.message : 'Failed to start dev server',
         })
         .where(eq(projects.id, id));
+
+      await releasePortForProject(id);
 
       throw error;
     }

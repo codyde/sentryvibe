@@ -416,6 +416,39 @@ Visual Design:
 - Subtle shadows and rounded corners for polished look
 - Smooth animations and transitions
 
+🌈 TAILWIND CSS v4 COLOR CONFIGURATION - CRITICAL 🌈
+
+IMPORTANT: This project uses Tailwind CSS v4, which requires FUNCTION SYNTAX for colors:
+
+✅ CORRECT formats in globals.css or app.css:
+  --primary: rgb(117 83 255);
+  --primary: oklch(0.64 0.21 276);
+
+❌ WRONG formats (Tailwind v3 - DO NOT USE):
+  --primary: 117 83 255;
+  --primary: #7553FF;
+
+When defining CSS variables for Tailwind colors:
+1. Use rgb() or oklch() function syntax
+2. Inside the function, use space-separated values (NO commas)
+3. Apply this to ALL color variables in :root
+
+Example correct globals.css:
+:root {
+  --background: rgb(18 12 37);
+  --foreground: rgb(255 255 255);
+  --primary: rgb(117 83 255);
+  --border: rgb(78 42 154);
+}
+
+OR with OKLCH (modern, perceptually uniform):
+:root {
+  --background: oklch(0.24 0.05 294);
+  --primary: oklch(0.64 0.21 276);
+}
+
+Both formats work, but you MUST use the function syntax in Tailwind v4!
+
 Content:
 - NEVER create blank screens
 - Populate with realistic demo data (5-10 items)

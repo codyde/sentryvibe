@@ -44,7 +44,7 @@ export function SmartProjectGroups({
   )
 
   const recentProjects = projects
-    .filter(p => p.status === 'completed' && p.devServerStatus !== 'running' && p.status !== 'in_progress')
+    .filter(p => p.status === 'completed' && p.devServerStatus !== 'running')
     .sort((a, b) => {
       const dateA = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0
       const dateB = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0
@@ -52,8 +52,12 @@ export function SmartProjectGroups({
     })
     .slice(0, 5) // Top 5 recent
 
+  const projectIdsInSections = new Set(
+    [...activeProjects, ...recentProjects].map(p => p.id)
+  )
+
   const allProjects = projects.filter(
-    p => !activeProjects.includes(p) && !recentProjects.includes(p)
+    p => !projectIdsInSections.has(p.id)
   )
 
   const sections = [

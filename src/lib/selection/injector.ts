@@ -5,14 +5,180 @@
 
 export const SELECTION_SCRIPT = `
 (function() {
-  console.log('🎯 SentryVibe selection script loaded');
+  console.log('🎯 SentryVibe selection script loaded (dormant)');
   console.log('   window.parent exists:', !!window.parent);
   console.log('   window.parent.postMessage exists:', typeof window.parent.postMessage);
 
-  // Selection state
-  window.__SENTRYVIBE_SELECTION_ENABLED = false;
+  // Selection state - DORMANT by default
+  let isInspectorActive = false;
+  let inspectorStyle = null;
   let highlightedElement = null;
   let highlightOverlay = null;
+  let mouseHandler = null;
+  let clickHandler = null;
+
+  function getProxyPrefix() {
+    try {
+      var parts = window.location.pathname.split('/').filter(Boolean);
+      var projectsIndex = parts.indexOf('projects');
+      if (projectsIndex === -1) {
+        return null;
+      }
+
+      var projectId = parts[projectsIndex + 1];
+      if (!projectId) {
+        return null;
+      }
+
+      return '/api/projects/' + projectId + '/proxy?path=';
+    } catch (error) {
+      console.warn('⚠️ [SentryVibe CSS] Unable to derive proxy prefix:', error);
+      return null;
+    }
+  }
+
+  var proxyPrefix = getProxyPrefix();
+
+  function rewriteStylesheetHref(link) {
+    if (!proxyPrefix || !link) {
+      return false;
+    }
+
+    var href = link.getAttribute('href');
+    if (!href) {
+      return false;
+    }
+
+    var trimmed = href.trim();
+
+    if (
+      trimmed.indexOf('proxy?path=') !== -1 ||
+      trimmed.indexOf('http://') === 0 ||
+      trimmed.indexOf('https://') === 0 ||
+      trimmed.indexOf('//') === 0 ||
+      trimmed.indexOf('data:') === 0
+    ) {
+      return false;
+    }
+
+    if (trimmed.charAt(0) === '/') {
+      var proxiedHref = proxyPrefix + encodeURIComponent(trimmed);
+      if (link.getAttribute('href') !== proxiedHref) {
+        link.setAttribute('href', proxiedHref);
+        console.log('🎨 [SentryVibe CSS] rewrote stylesheet href to proxy:', proxiedHref);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Debug helper: track when stylesheets are added/loaded inside the iframe
+  function monitorStylesheets() {
+    const loggedLinks = new WeakSet();
+    const loggedStyles = new WeakSet();
+
+    const logLink = (link, phase) => {
+      if (!link) return;
+      const href = link.getAttribute('href') || '(no href)';
+      console.log('🎨 [SentryVibe CSS]', phase + ' stylesheet:', href);
+    };
+
+    const logStyle = (style, phase) => {
+      if (!style) return;
+      const sample = (style.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 140);
+      console.log('🎨 [SentryVibe CSS]', phase + ' inline style', sample);
+    };
+
+    const attachLinkListeners = (link, phase) => {
+      if (!link || loggedLinks.has(link)) return;
+      loggedLinks.add(link);
+      const rewritten = rewriteStylesheetHref(link);
+      const phaseLabel = rewritten ? phase + ' (rewritten)' : phase;
+      logLink(link, phaseLabel);
+
+      link.addEventListener(
+        'load',
+        () => {
+          rewriteStylesheetHref(link);
+          logLink(link, 'loaded');
+        },
+        { once: true }
+      );
+
+      link.addEventListener(
+        'error',
+        () => {
+          rewriteStylesheetHref(link);
+          logLink(link, 'error loading');
+        },
+        { once: true }
+      );
+    };
+
+    const recordStyleElement = (style, phase) => {
+      if (!style || loggedStyles.has(style)) return;
+      loggedStyles.add(style);
+      logStyle(style, phase);
+    };
+
+    // Observe new link/style nodes appended to the document
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (!(node instanceof HTMLElement)) return;
+
+          if (node.tagName === 'LINK' && (node.getAttribute('rel') || '').includes('stylesheet')) {
+            attachLinkListeners(node, 'added');
+          }
+
+          if (node.tagName === 'STYLE') {
+            recordStyleElement(node, 'added');
+          }
+        });
+      });
+    });
+
+    try {
+      const head = document.head || document.documentElement;
+      if (head) {
+        observer.observe(head, { childList: true, subtree: true });
+      }
+    } catch (e) {
+      console.warn('⚠️ [SentryVibe CSS] Failed to observe stylesheet mutations:', e);
+    }
+
+    // Log existing stylesheet/link elements when script runs
+    document
+      .querySelectorAll('link[rel~="stylesheet"], style')
+      .forEach((node) => {
+        if (node.tagName === 'LINK') {
+          attachLinkListeners(node, 'existing');
+        } else if (node.tagName === 'STYLE') {
+          recordStyleElement(node, 'existing');
+        }
+      });
+
+    // Capture late load events (when link is in DOM before listener added)
+    document.addEventListener(
+      'load',
+      (event) => {
+        const target = event.target;
+        if (
+          target instanceof HTMLLinkElement &&
+          (target.getAttribute('rel') || '').includes('stylesheet')
+        ) {
+          attachLinkListeners(target, 'load event');
+        }
+      },
+      true
+    );
+  }
+
+  monitorStylesheets();
 
   // Create highlight overlay
   function createHighlightOverlay() {
@@ -44,7 +210,7 @@ export const SELECTION_SCRIPT = `
 
   // Highlight element on hover
   function highlightElement(element) {
-    if (!element || !window.__SENTRYVIBE_SELECTION_ENABLED) {
+    if (!element || !isInspectorActive) {
       removeHighlightOverlay();
       return;
     }
@@ -179,7 +345,7 @@ export const SELECTION_SCRIPT = `
 
   // Mouse move handler (hover preview)
   function handleMouseMove(e) {
-    if (!window.__SENTRYVIBE_SELECTION_ENABLED) return;
+    if (!isInspectorActive) return;
 
     const element = e.target;
     if (element && element !== highlightedElement) {
@@ -189,9 +355,9 @@ export const SELECTION_SCRIPT = `
 
   // Click handler (select element)
   function handleClick(e) {
-    console.log('🖱️ Click detected, selection mode:', window.__SENTRYVIBE_SELECTION_ENABLED);
+    console.log('🖱️ Click detected, selection mode:', isInspectorActive);
 
-    if (!window.__SENTRYVIBE_SELECTION_ENABLED) return;
+    if (!isInspectorActive) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -212,35 +378,80 @@ export const SELECTION_SCRIPT = `
     console.log('✅ Message sent to parent');
 
     // Disable selection mode after selection
-    window.__SENTRYVIBE_SELECTION_ENABLED = false;
-    updateCursor();
-    removeHighlightOverlay();
+    setInspectorActive(false);
   }
 
-  // Update cursor based on mode
-  function updateCursor() {
-    document.body.style.cursor = window.__SENTRYVIBE_SELECTION_ENABLED ? 'crosshair' : '';
+  // Activate/deactivate inspector (DORMANT PATTERN)
+  function setInspectorActive(active) {
+    isInspectorActive = active;
+
+    if (active) {
+      // Add inspector styles ONLY when activated
+      if (!inspectorStyle) {
+        inspectorStyle = document.createElement('style');
+        inspectorStyle.textContent = \`
+          .inspector-active * {
+            cursor: crosshair !important;
+          }
+          .inspector-highlight {
+            outline: 2px solid #7553FF !important;
+            outline-offset: -2px !important;
+            background-color: rgba(117, 83, 255, 0.1) !important;
+          }
+        \`;
+        document.head.appendChild(inspectorStyle);
+      }
+
+      document.body.classList.add('inspector-active');
+
+      // Add event listeners ONLY when activated
+      if (!mouseHandler) {
+        mouseHandler = handleMouseMove;
+        clickHandler = handleClick;
+        document.addEventListener('mousemove', mouseHandler, true);
+        document.addEventListener('click', clickHandler, true);
+        console.log('✅ Inspector event listeners attached');
+      }
+    } else {
+      document.body.classList.remove('inspector-active');
+
+      // Remove highlight
+      if (highlightedElement) {
+        highlightedElement = null;
+      }
+      removeHighlightOverlay();
+
+      // Remove event listeners when deactivated
+      if (mouseHandler) {
+        document.removeEventListener('mousemove', mouseHandler, true);
+        document.removeEventListener('click', clickHandler, true);
+        mouseHandler = null;
+        clickHandler = null;
+        console.log('🧹 Inspector event listeners removed');
+      }
+
+      // Remove styles
+      if (inspectorStyle) {
+        inspectorStyle.remove();
+        inspectorStyle = null;
+      }
+    }
+
+    console.log('🎯 Selection mode:', isInspectorActive ? 'ENABLED' : 'DISABLED');
   }
 
-  // Listen for mode toggle from parent
+  // Listen for activation/deactivation from parent
   window.addEventListener('message', (e) => {
     if (e.data.type === 'sentryvibe:toggle-selection-mode') {
-      window.__SENTRYVIBE_SELECTION_ENABLED = e.data.enabled;
-      updateCursor();
-
-      console.log('🎯 Selection mode:', window.__SENTRYVIBE_SELECTION_ENABLED ? 'ENABLED' : 'DISABLED');
-
-      if (!e.data.enabled) {
-        removeHighlightOverlay();
-      }
+      setInspectorActive(e.data.enabled);
     }
   });
 
-  // Add event listeners
-  document.addEventListener('mousemove', handleMouseMove, true);
-  document.addEventListener('click', handleClick, true);
+  // NO event listeners added here - script is DORMANT until activated
+  console.log('✅ Selection script ready (dormant, waiting for activation)');
 
-  console.log('✅ Selection handlers attached');
+  // Announce ready to parent
+  window.parent.postMessage({ type: 'sentryvibe:ready' }, '*');
 })();
 `;
 

@@ -7,6 +7,13 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { getTemplateById, getTemplateSelectionContext } from '@/lib/templates/config';
 import { downloadTemplate, getProjectFileTree } from '@/lib/templates/downloader';
+import {
+  reservePortForProject,
+  releasePortForProject,
+  updatePortReservationForProject,
+  buildEnvForFramework,
+  getRunCommand,
+} from '@/lib/port-allocator';
 
 // Create instrumented query function (automatically uses claudeCodeIntegration options)
 const query = Sentry.createInstrumentedClaudeQuery();
@@ -622,6 +629,39 @@ Visual Design:
 - Subtle shadows and rounded corners (8-12px) for polished look
 - Smooth animations and transitions (hover, focus, active states)
 
+🌈 TAILWIND CSS v4 COLOR CONFIGURATION - CRITICAL 🌈
+
+IMPORTANT: This project uses Tailwind CSS v4, which requires FUNCTION SYNTAX for colors:
+
+✅ CORRECT formats in globals.css or app.css:
+  --primary: rgb(117 83 255);
+  --primary: oklch(0.64 0.21 276);
+
+❌ WRONG formats (Tailwind v3 - DO NOT USE):
+  --primary: 117 83 255;
+  --primary: #7553FF;
+
+When defining CSS variables for Tailwind colors:
+1. Use rgb() or oklch() function syntax
+2. Inside the function, use space-separated values (NO commas)
+3. Apply this to ALL color variables in :root
+
+Example correct globals.css:
+:root {
+  --background: rgb(18 12 37);
+  --foreground: rgb(255 255 255);
+  --primary: rgb(117 83 255);
+  --border: rgb(78 42 154);
+}
+
+OR with OKLCH (modern, perceptually uniform):
+:root {
+  --background: oklch(0.24 0.05 294);
+  --primary: oklch(0.64 0.21 276);
+}
+
+Both formats work, but you MUST use the function syntax in Tailwind v4!
+
 Content & Features:
 - NEVER create blank or placeholder screens
 - Populate with realistic demo data (5-10 items minimum)
@@ -795,39 +835,44 @@ The template is pre-downloaded. Your job is to customize it, not create it from 
               try {
                 // Import required utilities
                 const { startDevServer } = await import('@/lib/process-manager');
-                const { findAvailablePort, getRunCommandWithPort } = await import('@/lib/port-allocator');
-
                 // Get the latest project data
                 const freshProject = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
                 if (freshProject[0] && freshProject[0].runCommand) {
                   const proj = freshProject[0];
 
-                  // Update status to starting
-                  await db.update(projects)
-                    .set({ devServerStatus: 'starting', lastActivityAt: new Date() })
-                    .where(eq(projects.id, id));
-
-                  // Find available port
-                  const availablePort = await findAvailablePort(proj.port || undefined);
-                  console.log(`   Allocated port: ${availablePort}`);
-
-                  // Get command with port
-                  const commandWithPort = getRunCommandWithPort(proj.projectType, proj.runCommand, availablePort);
-                  console.log(`   Command: ${commandWithPort}`);
-
-                  // Start the server
-                  const { pid, emitter } = startDevServer({
+                  const { port: reservedPort, framework } = await reservePortForProject({
                     projectId: id,
-                    command: commandWithPort,
-                    cwd: proj.path,
+                    projectType: proj.projectType,
+                    runCommand: proj.runCommand,
+                    preferredPort: proj.port || undefined,
                   });
 
-                  // Wait for port detection
+                  await db.update(projects)
+                    .set({
+                      devServerStatus: 'starting',
+                      devServerPort: reservedPort,
+                      lastActivityAt: new Date(),
+                    })
+                    .where(eq(projects.id, id));
+
+                  console.log(`   Reserved port: ${reservedPort}`);
+
+                  const command = getRunCommand(proj.runCommand || 'npm run dev');
+                  const env = buildEnvForFramework(framework, reservedPort);
+                  console.log(`   Command: ${command}`);
+
+                  const { pid, emitter } = startDevServer({
+                    projectId: id,
+                    command,
+                    cwd: proj.path,
+                    env,
+                  });
+
                   const finalPort = await new Promise<number>((resolve) => {
                     const timeout = setTimeout(() => {
-                      console.log(`   Using allocated port: ${availablePort}`);
-                      resolve(availablePort);
+                      console.log(`   Using reserved port: ${reservedPort}`);
+                      resolve(reservedPort);
                     }, 8000);
 
                     emitter.once('port', (p: number) => {
@@ -837,11 +882,15 @@ The template is pre-downloaded. Your job is to customize it, not create it from 
                     });
                   });
 
-                  // Update DB with running status
+                  if (finalPort !== reservedPort) {
+                    await updatePortReservationForProject(id, finalPort);
+                  }
+
                   await db.update(projects)
                     .set({
                       devServerPid: pid,
                       devServerPort: finalPort,
+                      port: finalPort,
                       devServerStatus: 'running',
                       lastActivityAt: new Date(),
                     })
@@ -850,16 +899,16 @@ The template is pre-downloaded. Your job is to customize it, not create it from 
                   console.log('✅ Dev server auto-started successfully');
                   console.log(`   PID: ${pid}, Port: ${finalPort}`);
 
-                  // Handle process exit
-                  emitter.once('exit', async (code: number) => {
+                  emitter.once('exit', async ({ code, signal }: { code: number | null; signal: NodeJS.Signals | null }) => {
                     console.log(`Dev server for ${id} exited with code ${code}`);
                     await db.update(projects)
                       .set({
                         devServerPid: null,
                         devServerPort: null,
-                        devServerStatus: code === 0 ? 'stopped' : 'failed',
+                        devServerStatus: code === 0 || signal === 'SIGTERM' || signal === 'SIGINT' ? 'stopped' : 'failed',
                       })
                       .where(eq(projects.id, id));
+                    await releasePortForProject(id);
                   });
 
                   // Handle process errors

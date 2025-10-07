@@ -3,6 +3,7 @@ import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { stopDevServer } from '@/lib/process-manager';
+import { releasePortForProject } from '@/lib/port-allocator';
 
 // POST /api/projects/:id/stop - Stop dev server
 export async function POST(
@@ -44,15 +45,18 @@ export async function POST(
       }
     }
 
-    // Update DB
+    // Update DB and clear any error state
     await db.update(projects)
       .set({
         devServerPid: null,
         devServerPort: null,
         devServerStatus: 'stopped',
+        errorMessage: null, // Clear error when manually stopping
         lastActivityAt: new Date(),
       })
       .where(eq(projects.id, id));
+
+    await releasePortForProject(id);
 
     return NextResponse.json({
       message: 'Dev server stopped',
