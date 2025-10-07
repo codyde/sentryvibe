@@ -14,6 +14,14 @@ import {
   buildEnvForFramework,
   getRunCommand,
 } from '@/lib/port-allocator';
+import {
+  cloneWebpage,
+  detectUrlInPrompt,
+  isValidUrl,
+  mapTechStackToTemplate,
+  convertHtmlToReact,
+  type ClonedWebpage
+} from '@/lib/webpage-cloner';
 
 // Create instrumented query function (automatically uses claudeCodeIntegration options)
 const query = Sentry.createInstrumentedClaudeQuery();
@@ -256,6 +264,7 @@ export async function POST(
           let isNewProject = false;
           let selectedTemplate: any = null;
           let fileTree = '';
+          let clonedWebpage: ClonedWebpage | null = null;
 
           try {
             if (existsSync(projectPath)) {
@@ -270,27 +279,119 @@ export async function POST(
             isNewProject = true;
           }
 
-          if (isNewProject) {
-            console.log('🆕 NEW PROJECT - Downloading template...');
+          // 🌐 WEBPAGE CLONING: Detect if prompt contains a URL
+          const detectedUrl = detectUrlInPrompt(prompt);
+          const isCloneRequest = detectedUrl && isValidUrl(detectedUrl);
 
-            // STEP 1: Send initial setup todos to UI
-            console.log('📝 Creating initial setup todos...');
+          if (isCloneRequest && isNewProject) {
+            console.log('🌐 WEBPAGE CLONING MODE DETECTED');
+            console.log(`   URL: ${detectedUrl}`);
+
+            // Update UI with cloning status
             writer.write({
               type: 'tool-input-available',
-              toolCallId: 'setup-todo-1',
+              toolCallId: 'clone-todo-1',
               toolName: 'TodoWrite',
               input: {
                 todos: [
-                  { content: 'Select appropriate template', status: 'in_progress', activeForm: 'Selecting template' },
-                  { content: 'Download template from GitHub', status: 'pending', activeForm: 'Downloading template' },
+                  { content: `Clone webpage: ${detectedUrl}`, status: 'in_progress', activeForm: 'Cloning webpage' },
+                  { content: 'Analyze tech stack', status: 'pending', activeForm: 'Analyzing tech stack' },
+                  { content: 'Select template', status: 'pending', activeForm: 'Selecting template' },
+                  { content: 'Download template', status: 'pending', activeForm: 'Downloading template' },
+                  { content: 'Seed template with cloned content', status: 'pending', activeForm: 'Seeding template' },
                 ],
               },
             });
 
-            // AUTO-SELECT AND DOWNLOAD TEMPLATE
-            console.log('🎯 Auto-selecting template based on prompt...');
-            const { selectTemplateFromPrompt } = await import('@/lib/templates/config');
-            selectedTemplate = await selectTemplateFromPrompt(prompt);
+            try {
+              // Clone the webpage
+              clonedWebpage = await cloneWebpage({
+                url: detectedUrl,
+                waitForNetworkIdle: true,
+                captureAssets: true,
+                timeout: 30000,
+              });
+
+              console.log('✅ Webpage cloned successfully');
+              console.log(`   Tech: ${clonedWebpage.techStack.detectedLibraries.join(', ')}`);
+
+              // Update UI: cloning complete
+              writer.write({
+                type: 'tool-input-available',
+                toolCallId: 'clone-todo-2',
+                toolName: 'TodoWrite',
+                input: {
+                  todos: [
+                    { content: `Cloned: ${clonedWebpage.metadata.title || detectedUrl}`, status: 'completed', activeForm: 'Cloning webpage' },
+                    { content: `Tech: ${clonedWebpage.techStack.detectedLibraries.join(', ') || 'Plain HTML'}`, status: 'in_progress', activeForm: 'Analyzing tech stack' },
+                    { content: 'Select template', status: 'pending', activeForm: 'Selecting template' },
+                    { content: 'Download template', status: 'pending', activeForm: 'Downloading template' },
+                    { content: 'Seed template with cloned content', status: 'pending', activeForm: 'Seeding template' },
+                  ],
+                },
+              });
+
+            } catch (cloneError) {
+              console.error('❌ Failed to clone webpage:', cloneError);
+
+              writer.write({
+                type: 'error',
+                errorText: `Failed to clone webpage: ${cloneError instanceof Error ? cloneError.message : 'Unknown error'}`,
+              });
+
+              // Fall back to normal project creation
+              clonedWebpage = null;
+            }
+          }
+
+          if (isNewProject) {
+            console.log('🆕 NEW PROJECT - Downloading template...');
+
+            // STEP 1: Send initial setup todos to UI (skip if already sent during cloning)
+            if (!isCloneRequest) {
+              console.log('📝 Creating initial setup todos...');
+              writer.write({
+                type: 'tool-input-available',
+                toolCallId: 'setup-todo-1',
+                toolName: 'TodoWrite',
+                input: {
+                  todos: [
+                    { content: 'Select appropriate template', status: 'in_progress', activeForm: 'Selecting template' },
+                    { content: 'Download template from GitHub', status: 'pending', activeForm: 'Downloading template' },
+                  ],
+                },
+              });
+            }
+
+            // AUTO-SELECT TEMPLATE
+            console.log('🎯 Auto-selecting template...');
+
+            if (clonedWebpage) {
+              // Use tech stack analyzer to select template
+              const templateId = mapTechStackToTemplate(clonedWebpage.techStack);
+              selectedTemplate = await getTemplateById(templateId);
+              console.log(`✅ Selected template based on cloned tech stack: ${selectedTemplate.name} (${selectedTemplate.id})`);
+
+              // Update UI
+              writer.write({
+                type: 'tool-input-available',
+                toolCallId: 'clone-todo-3',
+                toolName: 'TodoWrite',
+                input: {
+                  todos: [
+                    { content: `Cloned: ${clonedWebpage.metadata.title || detectedUrl}`, status: 'completed', activeForm: 'Cloning webpage' },
+                    { content: `Tech: ${clonedWebpage.techStack.detectedLibraries.join(', ') || 'Plain HTML'}`, status: 'completed', activeForm: 'Analyzing tech stack' },
+                    { content: `Selected: ${selectedTemplate.name}`, status: 'in_progress', activeForm: 'Selecting template' },
+                    { content: 'Download template', status: 'pending', activeForm: 'Downloading template' },
+                    { content: 'Seed template with cloned content', status: 'pending', activeForm: 'Seeding template' },
+                  ],
+                },
+              });
+            } else {
+              // Normal template selection based on prompt
+              const { selectTemplateFromPrompt } = await import('@/lib/templates/config');
+              selectedTemplate = await selectTemplateFromPrompt(prompt);
+            }
 
             console.log(`✅ Selected template: ${selectedTemplate.name} (${selectedTemplate.id})`);
 
@@ -324,18 +425,78 @@ export async function POST(
 
             console.log(`✅ Template downloaded to: ${downloadedPath}`);
 
-            // Update todo: template downloaded
-            writer.write({
-              type: 'tool-input-available',
-              toolCallId: 'setup-todo-3',
-              toolName: 'TodoWrite',
-              input: {
-                todos: [
-                  { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
-                  { content: `Downloaded to: projects/${projectName}`, status: 'completed', activeForm: 'Downloading template' },
-                ],
-              },
-            });
+            // 🌐 SEED TEMPLATE WITH CLONED CONTENT
+            if (clonedWebpage) {
+              console.log('🌱 Seeding template with cloned content...');
+
+              // Update UI
+              writer.write({
+                type: 'tool-input-available',
+                toolCallId: 'clone-todo-4',
+                toolName: 'TodoWrite',
+                input: {
+                  todos: [
+                    { content: `Cloned: ${clonedWebpage.metadata.title || detectedUrl}`, status: 'completed', activeForm: 'Cloning webpage' },
+                    { content: `Tech: ${clonedWebpage.techStack.detectedLibraries.join(', ') || 'Plain HTML'}`, status: 'completed', activeForm: 'Analyzing tech stack' },
+                    { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
+                    { content: `Downloaded to: projects/${projectName}`, status: 'completed', activeForm: 'Downloading template' },
+                    { content: 'Converting HTML to React...', status: 'in_progress', activeForm: 'Seeding template' },
+                  ],
+                },
+              });
+
+              try {
+                const { writeFile } = await import('fs/promises');
+
+                // Convert HTML to React
+                const { appTsx, appCss } = convertHtmlToReact(clonedWebpage, projectName);
+
+                // Write App.tsx
+                const appTsxPath = join(downloadedPath, 'src', 'App.tsx');
+                await writeFile(appTsxPath, appTsx, 'utf-8');
+                console.log('   ✅ Written App.tsx with cloned content');
+
+                // Write App.css
+                const appCssPath = join(downloadedPath, 'src', 'App.css');
+                await writeFile(appCssPath, appCss, 'utf-8');
+                console.log('   ✅ Written App.css with cloned styles');
+
+                console.log('✅ Template seeded successfully');
+
+                // Update UI
+                writer.write({
+                  type: 'tool-input-available',
+                  toolCallId: 'clone-todo-5',
+                  toolName: 'TodoWrite',
+                  input: {
+                    todos: [
+                      { content: `Cloned: ${clonedWebpage.metadata.title || detectedUrl}`, status: 'completed', activeForm: 'Cloning webpage' },
+                      { content: `Tech: ${clonedWebpage.techStack.detectedLibraries.join(', ') || 'Plain HTML'}`, status: 'completed', activeForm: 'Analyzing tech stack' },
+                      { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
+                      { content: `Downloaded to: projects/${projectName}`, status: 'completed', activeForm: 'Downloading template' },
+                      { content: 'Seeded with cloned content', status: 'completed', activeForm: 'Seeding template' },
+                    ],
+                  },
+                });
+
+              } catch (seedError) {
+                console.error('❌ Failed to seed template:', seedError);
+                // Continue anyway - Claude can still work with the template
+              }
+            } else {
+              // Normal flow - update todo
+              writer.write({
+                type: 'tool-input-available',
+                toolCallId: 'setup-todo-3',
+                toolName: 'TodoWrite',
+                input: {
+                  todos: [
+                    { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
+                    { content: `Downloaded to: projects/${projectName}`, status: 'completed', activeForm: 'Downloading template' },
+                  ],
+                },
+              });
+            }
 
             // Get file tree for context
             fileTree = await getProjectFileTree(downloadedPath);
@@ -364,13 +525,46 @@ export async function POST(
 
           const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
-${isNewProject ? `🎯 NEW PROJECT - TEMPLATE ALREADY DOWNLOADED
+${isNewProject ? `🎯 NEW PROJECT - TEMPLATE ALREADY DOWNLOADED${clonedWebpage ? ' + WEBPAGE CLONED' : ''}
 
 ✅ **A template has been automatically selected and downloaded for you:**
 
 Template: ${selectedTemplate?.name || 'Unknown'}
 Location: ${projectPath}
 Framework: ${selectedTemplate?.tech?.framework || project[0].projectType || 'Unknown'}
+
+${clonedWebpage ? `
+🌐 **WEBPAGE CLONING MODE**
+
+A webpage has been cloned and converted to React:
+- Original URL: ${clonedWebpage.originalUrl}
+- Page Title: ${clonedWebpage.metadata.title}
+- Detected Tech: ${clonedWebpage.techStack.detectedLibraries.join(', ') || 'Plain HTML'}
+- Framework Selected: ${selectedTemplate?.name}
+
+**Cloned Content:**
+The webpage's HTML has been converted to React components and placed in:
+- src/App.tsx (main component with cloned HTML structure)
+- src/App.css (all extracted styles from the original page)
+
+**Your Task:**
+The template has been seeded with the cloned webpage content. You need to:
+1. Install dependencies
+2. Review the cloned HTML/CSS in App.tsx and App.css
+3. Refine and improve the code structure
+4. Break large components into smaller, reusable ones
+5. Fix any conversion issues (event handlers, dynamic content, etc.)
+6. Apply any customizations the user requested
+7. Ensure all styles are working correctly
+
+IMPORTANT:
+- The cloned content is already in src/App.tsx - do NOT overwrite it unless improving it
+- The HTML has been converted to JSX (className, style objects, etc.)
+- Review the code and refactor it into clean, maintainable React components
+- Some dynamic functionality may need to be reimplemented in React
+- Focus on making the cloned page functional and editable
+
+` : ''}
 
 **Project Structure:**
 ${fileTree}
@@ -388,12 +582,12 @@ ${selectedTemplate?.ai?.includedFeatures?.map((f: string) => `  • ${f}`).join(
 **Your Task:**
 The template is already downloaded and ready. You need to:
 1. Install dependencies
-2. Customize the template to match the user's specific requirements
+2. ${clonedWebpage ? 'Review and refine the cloned webpage code' : 'Customize the template to match the user\'s specific requirements'}
 3. Add any additional features requested
 
 DO NOT scaffold a new project - the template is already there!
 DO NOT run create-next-app, create-vite, etc. - skip that step!
-START by installing dependencies, THEN customize the existing code.` : `🔄 EXISTING PROJECT - FOLLOW-UP CHAT
+START by installing dependencies, THEN ${clonedWebpage ? 'refine the cloned content' : 'customize the existing code'}.` : `🔄 EXISTING PROJECT - FOLLOW-UP CHAT
 
 This is an EXISTING project that you're modifying.
 
