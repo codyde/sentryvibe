@@ -15,20 +15,42 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
 
   const browser = await puppeteer.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+      '--window-size=1920,1080',
+    ],
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    protocolTimeout: 60000, // Increase protocol timeout
   });
 
   try {
     const page = await browser.newPage();
+
+    // Set user agent to avoid bot detection
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+
     await page.setViewport(viewport);
 
     // Navigate to the page
     console.log('   Navigating to URL...');
-    await page.goto(url, {
-      waitUntil: waitForNetworkIdle ? 'networkidle2' : 'load',
-      timeout,
-    });
+    try {
+      await page.goto(url, {
+        waitUntil: waitForNetworkIdle ? 'networkidle2' : 'load',
+        timeout,
+      });
+    } catch (navError) {
+      console.warn('⚠️  Navigation warning:', navError instanceof Error ? navError.message : 'Unknown');
+      // Try with less strict wait condition
+      console.log('   Retrying with domcontentloaded...');
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout,
+      });
+    }
 
     // Wait a bit for any dynamic content
     await page.waitForTimeout(2000);
@@ -183,8 +205,12 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
       originalUrl: url,
     };
   } catch (error) {
-    await browser.close();
     console.error('❌ Error cloning webpage:', error);
+    try {
+      await browser.close();
+    } catch (closeError) {
+      console.warn('⚠️  Error closing browser:', closeError);
+    }
     throw new Error(`Failed to clone webpage: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
