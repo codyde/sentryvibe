@@ -2,6 +2,38 @@ import puppeteer from 'puppeteer';
 import type { ClonedWebpage, ClonedAsset, CloneOptions, ComputedStyleMap } from './types';
 import { analyzeTechStack } from './tech-analyzer';
 
+/**
+ * Sanitize CSS to remove JavaScript code that might have been injected
+ */
+function sanitizeCSS(css: string): string {
+  // Remove JavaScript patterns that shouldn't be in CSS
+  const jsPatterns = [
+    /\(\)\s*=>\s*/g,                    // Arrow functions: () =>
+    /function\s*\(/g,                    // Function declarations
+    /void\s+0/g,                         // void 0
+    /!==\s*null/g,                       // Strict comparisons
+    /!==\s*void/g,                       // void comparisons
+    /\.includes\(/g,                     // Method calls
+    /&&[^&]/g,                           // Logical AND (but not CSS &&)
+    /\|\|[^|]/g,                         // Logical OR
+    /emotion_react/g,                    // Emotion CSS-in-JS
+    /styled_components/g,                // styled-components
+  ];
+
+  let sanitized = css;
+
+  // Remove lines that contain JavaScript code
+  sanitized = sanitized.split('\n')
+    .filter(line => {
+      // Skip lines that look like JavaScript
+      const looksLikeJS = jsPatterns.some(pattern => pattern.test(line));
+      return !looksLikeJS;
+    })
+    .join('\n');
+
+  return sanitized;
+}
+
 export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage> {
   const {
     url,
@@ -103,7 +135,8 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
         const response = await page.goto(href);
         if (response) {
           const css = await response.text();
-          combinedCSS += `\n/* ${href} */\n${css}\n`;
+          const sanitizedCSS = sanitizeCSS(css);
+          combinedCSS += `\n/* ${href} */\n${sanitizedCSS}\n`;
         }
       } catch (error) {
         console.warn(`   Failed to fetch stylesheet: ${href}`);
@@ -116,7 +149,9 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
       return styles.map((s) => s.textContent || '').join('\n');
     });
 
-    combinedCSS += '\n/* Inline Styles */\n' + inlineStyles;
+    // Sanitize inline styles to remove JavaScript code
+    const sanitizedInlineStyles = sanitizeCSS(inlineStyles);
+    combinedCSS += '\n/* Inline Styles */\n' + sanitizedInlineStyles;
 
     // Get computed styles for key elements (sample to keep data manageable)
     console.log('   Extracting computed styles...');
