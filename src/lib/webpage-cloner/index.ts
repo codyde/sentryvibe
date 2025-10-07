@@ -153,34 +153,38 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
     const sanitizedInlineStyles = sanitizeCSS(inlineStyles);
     combinedCSS += '\n/* Inline Styles */\n' + sanitizedInlineStyles;
 
-    // Get computed styles for key elements (sample to keep data manageable)
-    console.log('   Extracting computed styles...');
+    // Get computed styles for ALL elements with ALL properties
+    console.log('   Extracting computed styles (full)...');
     const computedStyles: ComputedStyleMap = await page.evaluate(() => {
       const styleMap: ComputedStyleMap = {};
-      const elements = document.querySelectorAll('body, header, main, footer, nav, section, div, h1, h2, h3, p, a, button');
+      const elements = document.querySelectorAll('*'); // ALL elements
 
       elements.forEach((el, index) => {
-        if (index > 50) return; // Limit to first 50 elements to keep data manageable
-
         const computed = window.getComputedStyle(el);
-        const selector = `${el.tagName.toLowerCase()}${el.className ? '.' + el.className.split(' ')[0] : ''}[${index}]`;
 
-        // Only capture key layout/visual properties
-        styleMap[selector] = {
-          display: computed.display,
-          position: computed.position,
-          width: computed.width,
-          height: computed.height,
-          margin: computed.margin,
-          padding: computed.padding,
-          backgroundColor: computed.backgroundColor,
-          color: computed.color,
-          fontSize: computed.fontSize,
-          fontFamily: computed.fontFamily,
-          fontWeight: computed.fontWeight,
-        };
+        // Generate unique selector for this element
+        const tagName = el.tagName.toLowerCase();
+        const id = el.id ? `#${el.id}` : '';
+        const className = el.className ? `.${el.className.toString().split(' ')[0]}` : '';
+        const selector = `${tagName}${id}${className}[${index}]`;
+
+        // Extract ALL computed style properties
+        const styles: { [key: string]: string } = {};
+
+        // Get all CSS properties from computed style
+        for (let i = 0; i < computed.length; i++) {
+          const propName = computed[i];
+          const propValue = computed.getPropertyValue(propName);
+
+          // Convert kebab-case to camelCase for React
+          const camelProp = propName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+          styles[camelProp] = propValue;
+        }
+
+        styleMap[selector] = styles;
       });
 
+      console.log(`Extracted computed styles for ${elements.length} elements`);
       return styleMap;
     });
 

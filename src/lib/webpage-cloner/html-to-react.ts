@@ -1,5 +1,5 @@
 import { parse, HTMLElement, TextNode } from 'node-html-parser';
-import type { ClonedWebpage } from './types';
+import type { ClonedWebpage, ComputedStyleMap } from './types';
 
 const SELF_CLOSING_TAGS = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
@@ -64,7 +64,45 @@ function sanitizeText(text: string): string {
     .replace(/\}/g, '&#125;');
 }
 
-function htmlElementToJSX(element: HTMLElement, depth: number = 0): string {
+function convertComputedStylesToReactStyle(computedStyle: { [key: string]: string }): string | null {
+  const styleEntries: string[] = [];
+
+  for (const [prop, value] of Object.entries(computedStyle)) {
+    if (!value || value === 'none' || value === 'normal' || value === 'auto') {
+      continue; // Skip default values
+    }
+
+    // Format value for React style object
+    let formattedValue: string;
+
+    // Handle numeric values (add quotes for non-numbers)
+    if (/^-?\d+(\.\d+)?(px|em|rem|%|vh|vw|pt)?$/.test(value)) {
+      formattedValue = `'${value}'`;
+    } else {
+      // Escape quotes in value
+      formattedValue = `'${value.replace(/'/g, "\\'")}'`;
+    }
+
+    styleEntries.push(`${prop}: ${formattedValue}`);
+  }
+
+  if (styleEntries.length === 0) {
+    return null;
+  }
+
+  return `{ ${styleEntries.join(', ')} }`;
+}
+
+interface ConversionContext {
+  computedStyles: ComputedStyleMap;
+  elementIndex: number;
+}
+
+function htmlElementToJSX(
+  element: HTMLElement,
+  depth: number = 0,
+  context?: ConversionContext
+): string {
   const indent = '  '.repeat(depth);
   const tagName = element.rawTagName?.toLowerCase() || 'div';
 
@@ -73,15 +111,30 @@ function htmlElementToJSX(element: HTMLElement, depth: number = 0): string {
     return '';
   }
 
+  // Increment element index for tracking
+  const currentIndex = context ? context.elementIndex++ : 0;
+
   // Convert attributes
   const attributes: string[] = [];
   const attrs = element.attributes || {};
+
+  // Try to find computed styles for this element
+  let computedStyle: { [key: string]: string } | undefined;
+  if (context?.computedStyles) {
+    // Try to find matching computed style by index
+    const id = attrs['id'] ? `#${attrs['id']}` : '';
+    const className = attrs['class'] ? `.${attrs['class'].toString().split(' ')[0]}` : '';
+    const possibleSelector = `${tagName}${id}${className}[${currentIndex}]`;
+
+    computedStyle = context.computedStyles[possibleSelector];
+  }
 
   for (const [name, value] of Object.entries(attrs)) {
     const jsxName = convertAttributeName(name);
 
     if (jsxName === 'style') {
-      attributes.push(`style={${convertStyleString(value)}}`);
+      // Skip - we'll use computed styles instead
+      continue;
     } else if (jsxName.startsWith('on')) {
       // Remove inline event handlers
       continue;
@@ -90,6 +143,14 @@ function htmlElementToJSX(element: HTMLElement, depth: number = 0): string {
     } else {
       const escapedValue = value.replace(/"/g, '&quot;');
       attributes.push(`${jsxName}="${escapedValue}"`);
+    }
+  }
+
+  // Add computed styles as inline style object
+  if (computedStyle && Object.keys(computedStyle).length > 0) {
+    const styleObj = convertComputedStylesToReactStyle(computedStyle);
+    if (styleObj) {
+      attributes.push(`style={${styleObj}}`);
     }
   }
 
@@ -104,7 +165,7 @@ function htmlElementToJSX(element: HTMLElement, depth: number = 0): string {
   const children: string[] = [];
   element.childNodes.forEach((child) => {
     if (child instanceof HTMLElement) {
-      const childJSX = htmlElementToJSX(child, depth + 1);
+      const childJSX = htmlElementToJSX(child, depth + 1, context);
       if (childJSX) children.push(childJSX);
     } else if (child instanceof TextNode) {
       const text = child.text.trim();
@@ -131,9 +192,15 @@ export function convertHtmlToReact(clonedData: ClonedWebpage, projectName: strin
   // Parse the HTML
   const root = parse(clonedData.html);
 
-  // Extract body content
+  // Create conversion context with computed styles
+  const context: ConversionContext = {
+    computedStyles: clonedData.computedStyles,
+    elementIndex: 0,
+  };
+
+  // Extract body content with computed styles
   const body = root.querySelector('body');
-  const bodyContent = body ? htmlElementToJSX(body, 0) : '<div>No content</div>';
+  const bodyContent = body ? htmlElementToJSX(body, 0, context) : '<div>No content</div>';
 
   // Remove the outer <body> tags (we just want the content)
   const contentWithoutBody = bodyContent
@@ -152,18 +219,26 @@ ${contentWithoutBody.split('\n').map(line => '      ' + line).join('\n')}
 }
 `;
 
-  // Create App.css with cloned styles
+  // Create minimal App.css (styles are inlined)
   const appCss = `/* Cloned from: ${clonedData.originalUrl} */
+/* All styles are inlined on elements for pixel-perfect accuracy */
 
-/* Reset */
+/* Minimal Reset */
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-/* Cloned Styles */
-${clonedData.css}
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-/* Additional computed styles */
 .cloned-page {
   min-height: 100vh;
 }
