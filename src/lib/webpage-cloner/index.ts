@@ -213,3 +213,4 @@ export function detectUrlInPrompt(prompt: string): string | null {
 
 export * from './types';
 export * from './tech-analyzer';
+export * from './html-to-react';
