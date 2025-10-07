@@ -53,7 +53,7 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
     }
 
     // Wait a bit for any dynamic content
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Get final HTML
     console.log('   Extracting HTML...');
