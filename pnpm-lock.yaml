@@ -5,8 +5,8 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@sentry/node': file:/Users/codydearkland/sentry-javascript/packages/node/sentry-node-10.17.0.tgz
-  '@sentry/nextjs': file:/Users/codydearkland/sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
+  '@sentry/node': file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+  '@sentry/nextjs': file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
 
 importers:
 
@@ -52,10 +52,10 @@ importers:
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@sentry/nextjs':
-        specifier: file:/Users/codydearkland/sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
+        specifier: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
         version: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.0(esbuild@0.25.10))
       '@sentry/node':
-        specifier: file:/Users/codydearkland/sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+        specifier: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
         version: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
       ai:
         specifier: ^5.0.57
@@ -1730,7 +1730,7 @@ packages:
     engines: {node: '>=18'}
 
   '@sentry/nextjs@file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz':
-    resolution: {integrity: sha512-LY3TwASjF+yX7I+kiB0VsyXVQfXd0EH9AJpL7mmdMuNNe3CpXgx0zy9pYJRh90iDb5n6eiWFeh1D7+utoHZV+w==, tarball: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz}
+    resolution: {integrity: sha512-Qwx0ZKd70fDZFAHj44JCEzb4zecd/cCWfiH88Dv6unKVtbo0y27YB5HXt/2GGwCTgtCdvXI+HJTugBWraLTI3w==, tarball: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -1749,7 +1749,7 @@ packages:
       '@opentelemetry/semantic-conventions': ^1.37.0
 
   '@sentry/node@file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz':
-    resolution: {integrity: sha512-GWZRe/n0SVqt9u+8QeOYLqvfk3I8RHYhu43yOKWEM19bHViMln26yvbSwpVPNbqLCAlykfiL6JqPL7Wl6sUhBw==, tarball: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz}
+    resolution: {integrity: sha512-LmQDPaxemoJexpMXUsinyqZm+1YzoioxoPaUlppFdLBaPVtPImHlT+3Yq5QWeu/p2/sVFsEwHwGZbncte0iAMA==, tarball: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
 

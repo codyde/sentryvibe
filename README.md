@@ -12,6 +12,17 @@ A Next.js application featuring Claude Code AI agent integration with Sentry mon
 pnpm install
 ```
 
+### Setup Database
+
+After installing dependencies or removing `node_modules` and re-installing, you need to build the native bindings for better-sqlite3 and create the database:
+
+```bash
+# Build better-sqlite3 native bindings
+cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3
+npm run build-release
+cd ../../../../..
+```
+
 ### Run Development Server
 
 ```bash
@@ -20,13 +31,12 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) to interact with the Claude Code agent.
 
-### Database Setup & Migrations
+### Migrations
 
 This project uses Drizzle ORM with SQLite. Migrations live in the `drizzle/` directory and can be applied with `drizzle-kit`.
 
 ```bash
-# Apply migrations to the default database defined in drizzle.config.ts
-npx drizzle-kit push --config drizzle.config.ts
+pnpm db:push
 
 # Apply migrations to a different database file
 DATABASE_URL=sentryvibe.db npx drizzle-kit push --config drizzle.config.ts
@@ -43,6 +53,7 @@ sqlite3 sentryvibe.db ".read drizzle/0003_port_pool.sql"
 The app is configured with Sentry for monitoring Claude Code agent interactions:
 
 **`sentry.server.config.ts`:**
+
 ```typescript
 import * as Sentry from "@sentry/nextjs";
 
@@ -58,8 +69,9 @@ Sentry.init({
 ```
 
 **`src/app/api/claude-agent/route.ts`:**
+
 ```typescript
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from "@sentry/nextjs";
 
 const query = Sentry.createInstrumentedClaudeQuery();
 ```
@@ -89,18 +101,24 @@ This project is currently testing [PR #17844](https://github.com/getsentry/sentr
 
 #### Step 2: Build and Install SDKs
 
+Depending on where you put your projects, the following commands assume the projects are at the same level and are at `/Users/youruser`.
+
 ```bash
 # 1. Build the Sentry SDKs from the PR branch
 cd /Users/youruser/sentry-javascript/packages/node
 yarn build
 npm pack
 
+cd /Users/youruser/sentry-javascript
+yarn install # make sure this succeeds before other commands
+yarn build:tarballs # Should generate tarballs for all packages but if it doesn't work, bellow are the 2 we need
+
 cd /Users/youruser/sentry-javascript/packages/nextjs
 yarn build:transpile
 npm pack
 
 # 2. Install in this project (clean install recommended)
-cd /Users/codydearkland/sentryvibe
+cd /Users/youruser/sentryvibe
 rm -rf node_modules pnpm-lock.yaml
 pnpm install
 rm -rf .next
