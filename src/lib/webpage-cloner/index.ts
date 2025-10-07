@@ -87,7 +87,11 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
     // Wait a bit for any dynamic content
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Get page metadata FIRST
+    // Get final HTML (keep it clean - no style injection)
+    console.log('   Extracting HTML...');
+    const html = await page.content();
+
+    // Get page metadata
     console.log('   Extracting metadata...');
     const metadata = await page.evaluate(() => {
       const getMetaContent = (name: string) => {
@@ -103,9 +107,8 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
       };
     });
 
-    // Analyze tech stack (get HTML sample for analysis)
+    // Analyze tech stack
     console.log('   Analyzing tech stack...');
-    const htmlSample = await page.content();
     const pageContext = await page.evaluate(() => {
       return {
         React: !!(window as any).React,
@@ -115,7 +118,7 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
       };
     });
 
-    const techStack = analyzeTechStack(htmlSample, pageContext);
+    const techStack = analyzeTechStack(html, pageContext);
     console.log('   Detected:', techStack.detectedLibraries.join(', ') || 'Plain HTML');
 
     // Extract stylesheets
@@ -150,61 +153,7 @@ export async function cloneWebpage(options: CloneOptions): Promise<ClonedWebpage
     const sanitizedInlineStyles = sanitizeCSS(inlineStyles);
     combinedCSS += '\n/* Inline Styles */\n' + sanitizedInlineStyles;
 
-    // Inject computed styles directly into HTML elements
-    console.log('   Injecting computed styles into elements...');
-    await page.evaluate(() => {
-      const elements = document.querySelectorAll('*');
-      let styledCount = 0;
-
-      elements.forEach((el) => {
-        if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
-
-        const computed = window.getComputedStyle(el);
-        const styleObj: any = {};
-
-        // Critical properties to keep for accurate rendering
-        const criticalProps = [
-          'display', 'position', 'top', 'left', 'right', 'bottom',
-          'width', 'height', 'maxWidth', 'maxHeight',
-          'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
-          'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-          'backgroundColor', 'color',
-          'fontSize', 'fontFamily', 'fontWeight', 'lineHeight', 'textAlign',
-          'border', 'borderRadius', 'boxShadow',
-          'flexDirection', 'alignItems', 'justifyContent', 'gap', 'flex',
-          'gridTemplateColumns', 'gridTemplateRows', 'gridGap',
-          'overflow', 'overflowX', 'overflowY',
-          'zIndex', 'opacity',
-          'transform', 'transition',
-          'backgroundImage', 'backgroundSize',
-        ];
-
-        let hasStyles = false;
-        for (const prop of criticalProps) {
-          const value = computed.getPropertyValue(prop);
-          if (value && value !== 'none' && value !== 'normal' && value !== 'auto' && value !== '0px' && value !== 'rgba(0, 0, 0, 0)') {
-            styleObj[prop] = value;
-            hasStyles = true;
-          }
-        }
-
-        // Set the style attribute with computed styles
-        if (hasStyles) {
-          const styleString = Object.entries(styleObj)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join('; ');
-          (el as HTMLElement).setAttribute('style', styleString);
-          styledCount++;
-        }
-      });
-
-      console.log(`Injected styles into ${styledCount} elements`);
-    });
-
-    // Now get the HTML with injected styles
-    const html = await page.content();
-
-    // We don't need the computedStyles map anymore since styles are in HTML
+    // No computed styles - we're keeping original CSS
     const computedStyles: ComputedStyleMap = {};
 
     // Collect assets
