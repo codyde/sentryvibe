@@ -55,7 +55,7 @@ function convertStyleString(styleString: string): string {
     .filter(Boolean)
     .join(', ');
 
-  return `{{ ${styles} }}`;
+  return `{ ${styles} }`;
 }
 
 function sanitizeText(text: string): string {
