@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { OnMount } from '@monaco-editor/react';
 import { Folder, File, ChevronRight, ChevronDown, FileText } from 'lucide-react';
 
 interface FileNode {
@@ -21,7 +21,32 @@ export default function EditorTab({ projectId }: EditorTabProps) {
   const [fileContent, setFileContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    // Disable ALL TypeScript/JavaScript validation and diagnostics
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: true,
+      noSuggestionDiagnostics: true,
+    });
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: true,
+      noSuggestionDiagnostics: true,
+    });
+
+    // Define custom theme with purple background
+    monaco.editor.defineTheme('sentry-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+        'editor.background': '#181225',
+      },
+    });
+    monaco.editor.setTheme('sentry-dark');
+  };
 
   // Fetch file tree
   useEffect(() => {
@@ -29,6 +54,7 @@ export default function EditorTab({ projectId }: EditorTabProps) {
       fetchFileTree();
     }
   }, [projectId]);
+
 
   const fetchFileTree = async () => {
     if (!projectId) return;
@@ -95,7 +121,6 @@ export default function EditorTab({ projectId }: EditorTabProps) {
 
     saveTimeoutRef.current = setTimeout(() => {
       saveFileContent(selectedFile, value);
-      console.log('💾 Auto-saved:', selectedFile);
     }, 2000);
   };
 
@@ -113,9 +138,9 @@ export default function EditorTab({ projectId }: EditorTabProps) {
     const ext = filename.split('.').pop()?.toLowerCase();
     const langMap: Record<string, string> = {
       ts: 'typescript',
-      tsx: 'typescript',
+      tsx: 'typescriptreact',
       js: 'javascript',
-      jsx: 'javascript',
+      jsx: 'javascriptreact',
       json: 'json',
       css: 'css',
       scss: 'scss',
@@ -198,7 +223,7 @@ export default function EditorTab({ projectId }: EditorTabProps) {
       </div>
 
       {/* Editor */}
-      <div className="flex-1 flex flex-col bg-gray-900">
+      <div className="flex-1 flex flex-col bg-[#181225]">
         {selectedFile ? (
           <>
             {/* File Path Header */}
@@ -213,11 +238,14 @@ export default function EditorTab({ projectId }: EditorTabProps) {
             {/* Monaco Editor */}
             <div className="flex-1">
               <Editor
+                key={selectedFile}
                 height="100%"
                 language={getLanguage(selectedFile)}
                 value={fileContent}
                 onChange={handleEditorChange}
-                theme="vs-dark"
+                onMount={handleEditorMount}
+                theme="sentry-dark"
+                defaultLanguage="typescript"
                 options={{
                   fontSize: 14,
                   fontFamily: 'Monaco, Menlo, "Courier New", monospace',
