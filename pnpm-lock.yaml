@@ -84,6 +84,9 @@ importers:
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.1.0)
+      monaco-jsx-syntax-highlight:
+        specifier: ^1.2.2
+        version: 1.2.2
       next:
         specifier: 15.5.4
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -3583,6 +3586,9 @@ packages:
 
   monaco-editor@0.53.0:
     resolution: {integrity: sha512-0WNThgC6CMWNXXBxTbaYYcunj08iB5rnx4/G56UOPeL9UVIUGGHA1GR0EWIh9Ebabj7NpCRawQ5b0hfN1jQmYQ==}
+
+  monaco-jsx-syntax-highlight@1.2.2:
+    resolution: {integrity: sha512-V1JkspFJKIaRX5C2D3UuWjIz2xgWI+7slf+gMFgz8yIr0LSTl3AhD8Gk/7gvbMqp6pKOynIhWJEaluwwUtLz7w==}
 
   motion-dom@12.23.21:
     resolution: {integrity: sha512-5xDXx/AbhrfgsQmSE7YESMn4Dpo6x5/DTZ4Iyy4xqDvVHWvFVoV+V2Ri2S/ksx+D40wrZ7gPYiMWshkdoqNgNQ==}
@@ -8074,6 +8080,8 @@ snapshots:
   monaco-editor@0.53.0:
     dependencies:
       '@types/trusted-types': 1.0.6
+
+  monaco-jsx-syntax-highlight@1.2.2: {}
 
   motion-dom@12.23.21:
     dependencies:

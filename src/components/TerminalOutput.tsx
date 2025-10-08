@@ -72,7 +72,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
   const rafIdRef = useRef<number | null>(null);
   const converter = useRef(new Convert({
     fg: '#d4d4d4',
-    bg: '#1e1e1e',
+    bg: '#181225',
     newline: true,
     escapeXML: true,
   }));
@@ -412,7 +412,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
       </div>
 
       {/* Terminal Content */}
-      <div className="flex-1 overflow-y-auto p-4 bg-[#1e1e1e] font-mono text-sm">
+      <div className="flex-1 overflow-y-auto p-4 bg-[#181225] font-mono text-sm">
         {/* Debug info */}
         <div className="text-xs text-gray-600 mb-2">
           ProjectID: {projectId || 'none'} | Streaming: {isStreaming ? 'yes' : 'no'} | Logs: {logs.length}
