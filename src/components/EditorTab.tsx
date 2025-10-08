@@ -238,9 +238,8 @@ export default function EditorTab({ projectId }: EditorTabProps) {
             {/* Monaco Editor */}
             <div className="flex-1">
               <Editor
-                key={selectedFile}
                 height="100%"
-                language={getLanguage(selectedFile)}
+                path={selectedFile}
                 value={fileContent}
                 onChange={handleEditorChange}
                 onMount={handleEditorMount}
