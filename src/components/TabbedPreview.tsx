@@ -24,11 +24,6 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
 }, ref) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
 
-  // Debug: Log isBuildActive prop changes
-  useEffect(() => {
-    console.log('🎬 TabbedPreview: isBuildActive =', isBuildActive);
-  }, [isBuildActive]);
-
   // Listen for global events to switch tabs
   useEffect(() => {
     const handleSwitchToEditor = () => {

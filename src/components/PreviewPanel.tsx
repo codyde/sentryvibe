@@ -29,11 +29,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const isCheckingRef = useRef(false);
   const lastReadyPortRef = useRef<number | null>(null);
 
-  // Debug: Log isBuildActive prop changes
-  useEffect(() => {
-    console.log('🎥 PreviewPanel: isBuildActive =', isBuildActive);
-  }, [isBuildActive]);
-
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
 
