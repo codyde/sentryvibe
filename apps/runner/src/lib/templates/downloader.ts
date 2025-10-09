@@ -5,11 +5,15 @@ import type { Template } from './config';
 import { join } from 'path';
 import { getWorkspaceRoot } from '../workspace';
 
-// Fix PATH for spawned processes (Claude Code environment issue)
+// Fix PATH for spawned processes (Claude Code/tsx environment issue)
 const spawnEnv = {
   ...process.env,
-  PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+  PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin',
 };
+
+// Find git binary location
+const GIT_PATH = '/opt/homebrew/bin/git'; // macOS Homebrew default
+const NPX_PATH = process.env.NVM_BIN ? `${process.env.NVM_BIN}/npx` : 'npx';
 
 /**
  * Download template from GitHub using degit
@@ -112,7 +116,7 @@ export async function downloadTemplateWithGit(
   console.log(`   Running: git clone --depth 1 --branch ${template.branch} "${repoUrl}" "${targetPath}"`);
 
   try {
-    const result = spawnSync('git', ['clone', '--depth', '1', '--branch', template.branch, repoUrl, targetPath], {
+    const result = spawnSync(GIT_PATH, ['clone', '--depth', '1', '--branch', template.branch, repoUrl, targetPath], {
       cwd: getWorkspaceRoot(),
       encoding: 'utf-8',
       stdio: 'pipe',
