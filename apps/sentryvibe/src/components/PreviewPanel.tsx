@@ -33,10 +33,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Use terminal-detected port if available, otherwise fall back to DB port
   const actualPort = terminalPort || project?.devServerPort;
 
-  // Construct preview URL - use proxy for same-origin access (enables selection tool)
-  const previewUrl = actualPort && isServerReady && project?.id
-    ? `/api/projects/${project.id}/proxy?path=/`
-    : '';
+  // Construct preview URL - prefer tunnel URL if available, otherwise use proxy
+  const previewUrl = project?.tunnelUrl && project?.devServerStatus === 'running'
+    ? project.tunnelUrl
+    : (actualPort && isServerReady && project?.id
+      ? `/api/projects/${project.id}/proxy?path=/`
+      : '');
 
   const checkServerHealth = useCallback(async (port: number): Promise<boolean> => {
     const url = `http://localhost:${port}`;
@@ -135,8 +137,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   };
 
   const handleOpenInNewTab = () => {
-    // Open the actual dev server URL (use terminal port if available)
-    if (actualPort) {
+    // Open tunnel URL if available, otherwise localhost
+    if (project?.tunnelUrl) {
+      window.open(project.tunnelUrl, '_blank');
+    } else if (actualPort) {
       window.open(`http://localhost:${actualPort}`, '_blank');
     }
   };
@@ -234,11 +238,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 <ExternalLink className="w-4 h-4" />
               </button>
 
-              {/* URL Display - Show actual dev server URL from terminal */}
+              {/* URL Display - Show tunnel URL if available, otherwise local URL */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-[#181225]/80 border border-[#7553FF]/30 rounded-md backdrop-blur-sm">
                 <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50"></div>
                 <span className="text-sm font-mono text-gray-300">
-                  http://localhost:{actualPort}
+                  {project?.tunnelUrl || `http://localhost:${actualPort}`}
                 </span>
               </div>
 

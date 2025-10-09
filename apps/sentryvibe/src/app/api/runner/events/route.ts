@@ -60,6 +60,7 @@ export async function POST(request: Request) {
             devServerStatus: 'running',
             devServerPort: event.port,
             port: event.port,
+            tunnelUrl: event.tunnelUrl || null,
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
             devServerStatus: cleanShutdown ? 'stopped' : 'failed',
             devServerPid: null,
             devServerPort: null,
+            tunnelUrl: null,
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));

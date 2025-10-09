@@ -15,6 +15,7 @@ export const projects = pgTable('projects', {
   devServerPid: integer('dev_server_pid'),
   devServerPort: integer('dev_server_port'),
   devServerStatus: text('dev_server_status').default('stopped'),
+  tunnelUrl: text('tunnel_url'),
   generationState: text('generation_state'),
   lastActivityAt: timestamp('last_activity_at').defaultNow(),
   errorMessage: text('error_message'),

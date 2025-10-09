@@ -1,8 +1,4 @@
 {
   "/api/runner/events/route": "app/api/runner/events/route.js",
-  "/api/projects/route": "app/api/projects/route.js",
-  "/api/files/route": "app/api/files/route.js",
-  "/api/runner/status/route": "app/api/runner/status/route.js",
-  "/api/projects/[id]/messages/route": "app/api/projects/[id]/messages/route.js",
   "/page": "app/page.js"
 }
