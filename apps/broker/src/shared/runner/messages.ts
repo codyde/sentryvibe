@@ -94,6 +94,7 @@ export interface LogChunkEvent extends BaseEvent {
 export interface PortDetectedEvent extends BaseEvent {
   type: 'port-detected';
   port: number;
+  tunnelUrl?: string;
   framework: string;
 }
 

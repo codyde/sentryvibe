@@ -14,6 +14,7 @@ import { startDevServer, stopDevServer } from './lib/process-manager';
 import { getWorkspaceRoot } from './lib/workspace';
 import { transformAgentMessageToSSE, resetTransformerState, setExpectedCwd } from './lib/message-transformer';
 import { orchestrateBuild } from './lib/build-orchestrator';
+import { tunnelManager } from './lib/tunnel/manager';
 
 const log = (...args: unknown[]) => {
   console.log('[runner]', ...args);
@@ -116,16 +117,36 @@ async function handleCommand(command: RunnerCommand) {
           });
         });
 
-        devProcess.emitter.on('port', (port: number) => {
-          sendEvent({
-            type: 'port-detected',
-            ...buildEventBase(command.projectId, command.id),
-            port,
-            framework: framework ?? 'unknown',
-          });
+        devProcess.emitter.on('port', async (port: number) => {
+          try {
+            // Automatically create tunnel for this port
+            console.log(`🔗 Creating tunnel for port ${port}...`);
+            const tunnelUrl = await tunnelManager.createTunnel(port);
+
+            sendEvent({
+              type: 'port-detected',
+              ...buildEventBase(command.projectId, command.id),
+              port,
+              tunnelUrl,
+              framework: framework ?? 'unknown',
+            });
+          } catch (error) {
+            console.error('Failed to create tunnel:', error);
+            // Still send port-detected without tunnel URL
+            sendEvent({
+              type: 'port-detected',
+              ...buildEventBase(command.projectId, command.id),
+              port,
+              framework: framework ?? 'unknown',
+            });
+          }
         });
 
-        devProcess.emitter.on('exit', ({ code, signal }) => {
+        devProcess.emitter.on('exit', async ({ code, signal }) => {
+          // Cleanup tunnel when dev server exits
+          const port = preferredPort || 3000; // Use the port from the dev process
+          await tunnelManager.closeTunnel(port);
+
           sendEvent({
             type: 'process-exited',
             ...buildEventBase(command.projectId, command.id),
@@ -414,9 +435,24 @@ function connect() {
   });
 }
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   log('shutting down');
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+  // Cleanup all tunnels
+  await tunnelManager.closeAll();
+
+  socket?.close();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  log('shutting down (SIGTERM)');
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+  // Cleanup all tunnels
+  await tunnelManager.closeAll();
+
   socket?.close();
   process.exit(0);
 });
