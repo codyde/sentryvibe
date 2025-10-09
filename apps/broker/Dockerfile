@@ -2,17 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+# Copy package files for broker
+COPY apps/broker/package.json apps/broker/package-lock.json ./
 
 # Install dependencies
 RUN npm ci --omit=dev
 
 # Copy TypeScript config
-COPY tsconfig.json ./
+COPY apps/broker/tsconfig.json ./
 
 # Copy source code
-COPY src ./src
+COPY apps/broker/src ./src
 
 # Install typescript as dev dependency for build
 RUN npm install --save-dev typescript
