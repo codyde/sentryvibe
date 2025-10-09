@@ -168,7 +168,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   }, [isSelectionModeEnabled]);
 
   // Handle element selection - create comment indicator at click position
-  const handleElementSelected = (element: any, prompt: string) => {
+  const handleElementSelected = useCallback((element: any, prompt: string) => {
     if (!element.clickPosition) {
       console.error('❌ No click position!');
       return;
@@ -188,10 +188,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
     const editId = addEdit(element, prompt, position);
     console.log('✅ Created edit:', editId);
-  };
+  }, [addEdit]);
 
   // Handle comment submission - send to chat as regular generation
-  const handleCommentSubmit = (editId: string, prompt: string) => {
+  const handleCommentSubmit = useCallback((editId: string, prompt: string) => {
     console.log('🚀 Submitting element change:', editId, prompt);
 
     const edit = edits.find(e => e.id === editId);
@@ -209,7 +209,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     }));
 
     console.log('✅ Sent to chat system');
-  };
+  }, [edits, removeEdit]);
 
   return (
     <motion.div

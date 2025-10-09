@@ -69,10 +69,13 @@ export async function POST(request: Request) {
         break;
       }
       case 'process-exited': {
-        const cleanShutdown = event.exitCode === 0 || event.signal === 'SIGTERM' || event.signal === 'SIGINT';
+        // If process was killed by signal, it's a clean stop (even with non-zero exit code)
+        const wasKilled = event.signal === 'SIGTERM' || event.signal === 'SIGINT' || event.signal === 'SIGKILL';
+        const cleanExit = event.exitCode === 0;
+
         await db.update(projects)
           .set({
-            devServerStatus: cleanShutdown ? 'stopped' : 'failed',
+            devServerStatus: (wasKilled || cleanExit) ? 'stopped' : 'failed',
             devServerPid: null,
             devServerPort: null,
             tunnelUrl: null,

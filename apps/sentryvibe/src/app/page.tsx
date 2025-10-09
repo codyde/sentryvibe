@@ -82,9 +82,13 @@ function HomeContent() {
   // Element changes tracked separately for Build tab
   const [activeElementChanges, setActiveElementChanges] = useState<ElementChange[]>([]);
 
-  // History tracking
-  const [buildHistory, setBuildHistory] = useState<GenerationState[]>([]);
-  const [elementChangeHistory, setElementChangeHistory] = useState<ElementChange[]>([]);
+  // History tracking - per project to preserve when switching
+  const [buildHistoryByProject, setBuildHistoryByProject] = useState<Map<string, GenerationState[]>>(new Map());
+  const [elementChangeHistoryByProject, setElementChangeHistoryByProject] = useState<Map<string, ElementChange[]>>(new Map());
+
+  // Current project's history (derived from maps)
+  const buildHistory = currentProject ? (buildHistoryByProject.get(currentProject.id) || []) : [];
+  const elementChangeHistory = currentProject ? (elementChangeHistoryByProject.get(currentProject.id) || []) : [];
 
   // Glow effect for Chat tab
   const [hasUnreadChatMessages, setHasUnreadChatMessages] = useState(false);
@@ -237,18 +241,22 @@ function HomeContent() {
     previousTodoCountRef.current = currentTodoCount;
   }, [generationState?.todos?.length]);
 
-  // Archive completed builds to history
+  // Archive completed builds to history (per project)
   useEffect(() => {
-    if (generationState && !generationState.isActive && generationState.todos && generationState.todos.length > 0) {
-      // Check if this build is already in history
-      const alreadyArchived = buildHistory.some(b => b.id === generationState.id);
+    if (generationState && !generationState.isActive && generationState.todos && generationState.todos.length > 0 && currentProject) {
+      const projectHistory = buildHistoryByProject.get(currentProject.id) || [];
+      const alreadyArchived = projectHistory.some(b => b.id === generationState.id);
 
       if (!alreadyArchived) {
         console.log('📚 Archiving completed build to history:', generationState.id);
-        setBuildHistory(prev => [generationState, ...prev]);
+        setBuildHistoryByProject(prev => {
+          const newMap = new Map(prev);
+          newMap.set(currentProject.id, [generationState, ...projectHistory]);
+          return newMap;
+        });
       }
     }
-  }, [generationState?.isActive, generationState?.id, generationState?.todos?.length, buildHistory]);
+  }, [generationState?.isActive, generationState?.id, generationState?.todos?.length, currentProject?.id, buildHistoryByProject]);
 
   // Calculate badge values
   const buildProgress = generationState ?
@@ -329,7 +337,15 @@ function HomeContent() {
 
         console.log('   ✅ Loaded:', regularMessages.length, 'messages,', archivedElementChanges.length, 'element changes');
         setMessages(regularMessages);
-        setElementChangeHistory(archivedElementChanges);
+
+        // Store element changes in per-project map
+        if (archivedElementChanges.length > 0) {
+          setElementChangeHistoryByProject(prev => {
+            const newMap = new Map(prev);
+            newMap.set(projectId, archivedElementChanges);
+            return newMap;
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -380,8 +396,7 @@ function HomeContent() {
       setMessages([]);
       updateGenerationState(null);
       setActiveElementChanges([]);
-      setBuildHistory([]);
-      setElementChangeHistory([]);
+      // Don't clear history - it's now per-project and preserved
       setHasUnreadChatMessages(false);
       setTerminalDetectedPort(null);
       hasStartedGenerationRef.current.clear();
@@ -591,9 +606,14 @@ function HomeContent() {
       // Wait a bit to let user see the completion
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Archive to history and remove from active
+      // Archive to history (per project) and remove from active
       if (completedChange) {
-        setElementChangeHistory(prev => [completedChange!, ...prev]);
+        setElementChangeHistoryByProject(prev => {
+          const newMap = new Map(prev);
+          const projectHistory = newMap.get(projectId) || [];
+          newMap.set(projectId, [completedChange!, ...projectHistory]);
+          return newMap;
+        });
         setActiveElementChanges(prev => prev.filter(c => c.id !== changeId));
 
         // Save to database
@@ -643,7 +663,12 @@ function HomeContent() {
       setActiveElementChanges(prev => {
         const failedChange = prev.find(c => c.id === changeId);
         if (failedChange) {
-          setElementChangeHistory(prevHistory => [failedChange, ...prevHistory]);
+          setElementChangeHistoryByProject(prevMap => {
+            const newMap = new Map(prevMap);
+            const projectHistory = newMap.get(projectId) || [];
+            newMap.set(projectId, [failedChange, ...projectHistory]);
+            return newMap;
+          });
 
           // Save to database
           fetch(`/api/projects/${projectId}/messages`, {

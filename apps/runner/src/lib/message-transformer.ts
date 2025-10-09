@@ -42,22 +42,18 @@ function detectPathViolations(toolName: string, input: any, expectedCwd?: string
   const pathToCheck = input?.command || input?.file_path || input?.path || '';
 
   if (typeof pathToCheck === 'string') {
-    // Check for absolute paths with /Users/ or /home/
-    if (pathToCheck.includes('/Users/') || pathToCheck.includes('/home/')) {
-      console.error('🚨 PATH VIOLATION DETECTED:');
-      console.error(`   Tool: ${toolName}`);
-      console.error(`   Input: ${pathToCheck}`);
-      if (expectedCwd) {
-        console.error(`   Expected CWD: ${expectedCwd}`);
-      }
-
-      // Check if it's using wrong username
-      if (pathToCheck.includes('/Users/') && !pathToCheck.includes(process.env.USER || '')) {
-        console.error('   ⚠️  WARNING: Using different username in path!');
+    // Only warn if absolute path is OUTSIDE the expected project directory
+    if (expectedCwd && pathToCheck.startsWith('/')) {
+      // Allow absolute paths within the project directory
+      if (!pathToCheck.startsWith(expectedCwd)) {
+        console.warn('⚠️  Path outside project directory:');
+        console.warn(`   Tool: ${toolName}`);
+        console.warn(`   Path: ${pathToCheck}`);
+        console.warn(`   Expected CWD: ${expectedCwd}`);
       }
     }
 
-    // Check for Desktop paths (common hallucination pattern)
+    // Always warn about Desktop paths (hallucination indicator)
     if (pathToCheck.includes('/Desktop/')) {
       console.error('🚨 DESKTOP PATH DETECTED - Likely hallucinated:', pathToCheck);
     }
