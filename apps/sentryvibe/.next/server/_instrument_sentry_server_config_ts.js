@@ -1,0 +1,25 @@
+"use strict";
+/*
+ * ATTENTION: An "eval-source-map" devtool has been used.
+ * This devtool is neither made for production nor for readable output files.
+ * It uses "eval()" calls to create a separate source file with attached SourceMaps in the browser devtools.
+ * If you are trying to read the output file, select a different devtool (https://webpack.js.org/configuration/devtool/)
+ * or disable the default devtool with "devtool: false".
+ * If you are looking for production-ready output files, see mode: "production" (https://webpack.js.org/configuration/mode/).
+ */
+exports.id = "_instrument_sentry_server_config_ts";
+exports.ids = ["_instrument_sentry_server_config_ts"];
+exports.modules = {
+
+/***/ "(instrument)/./sentry.server.config.ts":
+/*!*********************************!*\
+  !*** ./sentry.server.config.ts ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+eval("__webpack_require__.r(__webpack_exports__);\n/* harmony import */ var _sentry_nextjs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @sentry/nextjs */ \"(instrument)/../../node_modules/.pnpm/@sentry+nextjs@file+apps+sentryvibe+vendor+sentry-nextjs-10.17.0.tgz_@opentelemetry+context-a_b6kikyy2wwnqfivki42o4vmzhq/node_modules/@sentry/nextjs/build/cjs/index.server.js\");\n/* harmony import */ var _sentry_nextjs__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_sentry_nextjs__WEBPACK_IMPORTED_MODULE_0__);\n// This file configures the initialization of Sentry on the server.\n// The config you add here will be used whenever the server handles a request.\n// https://docs.sentry.io/platforms/javascript/guides/nextjs/\n\n_sentry_nextjs__WEBPACK_IMPORTED_MODULE_0__.init({\n    dsn: \"https://b2d14d69bd0b4eb23548c0e522ef99b5@o4508130833793024.ingest.us.sentry.io/4510105426853888\",\n    tracesSampleRate: 1,\n    spotlight: true,\n    integrations: [\n        _sentry_nextjs__WEBPACK_IMPORTED_MODULE_0__.spotlightIntegration(),\n        _sentry_nextjs__WEBPACK_IMPORTED_MODULE_0__.consoleLoggingIntegration(),\n        _sentry_nextjs__WEBPACK_IMPORTED_MODULE_0__.claudeCodeIntegration({\n            recordInputs: true,\n            recordOutputs: true\n        })\n    ],\n    // Enable logs to be sent to Sentry\n    enableLogs: true,\n    // Setting this option to true will print useful information to the console while you're setting up Sentry.\n    debug: false,\n    // Enable sending PII to capture prompts and responses\n    sendDefaultPii: true\n});\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKGluc3RydW1lbnQpLy4vc2VudHJ5LnNlcnZlci5jb25maWcudHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEsbUVBQW1FO0FBQ25FLDhFQUE4RTtBQUM5RSw2REFBNkQ7QUFFcEI7QUFFekNBLGdEQUFXLENBQUM7SUFDVkUsS0FBSztJQUVMQyxrQkFBa0I7SUFDbEJDLFdBQVc7SUFDWEMsY0FBYztRQUNaTCxnRUFBMkI7UUFDM0JBLHFFQUFnQztRQUNoQ0EsaUVBQTRCLENBQUM7WUFDM0JTLGNBQWM7WUFDZEMsZUFBZTtRQUNqQjtLQUNEO0lBRUQsbUNBQW1DO0lBQ25DQyxZQUFZO0lBRVosMkdBQTJHO0lBQzNHQyxPQUFPO0lBRVAsc0RBQXNEO0lBQ3REQyxnQkFBZ0I7QUFDbEIiLCJzb3VyY2VzIjpbIi9Vc2Vycy9jb2R5ZGVhcmtsYW5kL3NlbnRyeXZpYmUvYXBwcy9zZW50cnl2aWJlL3NlbnRyeS5zZXJ2ZXIuY29uZmlnLnRzIl0sInNvdXJjZXNDb250ZW50IjpbIi8vIFRoaXMgZmlsZSBjb25maWd1cmVzIHRoZSBpbml0aWFsaXphdGlvbiBvZiBTZW50cnkgb24gdGhlIHNlcnZlci5cbi8vIFRoZSBjb25maWcgeW91IGFkZCBoZXJlIHdpbGwgYmUgdXNlZCB3aGVuZXZlciB0aGUgc2VydmVyIGhhbmRsZXMgYSByZXF1ZXN0LlxuLy8gaHR0cHM6Ly9kb2NzLnNlbnRyeS5pby9wbGF0Zm9ybXMvamF2YXNjcmlwdC9ndWlkZXMvbmV4dGpzL1xuXG5pbXBvcnQgKiBhcyBTZW50cnkgZnJvbSBcIkBzZW50cnkvbmV4dGpzXCI7XG5cblNlbnRyeS5pbml0KHtcbiAgZHNuOiBcImh0dHBzOi8vYjJkMTRkNjliZDBiNGViMjM1NDhjMGU1MjJlZjk5YjVAbzQ1MDgxMzA4MzM3OTMwMjQuaW5nZXN0LnVzLnNlbnRyeS5pby80NTEwMTA1NDI2ODUzODg4XCIsXG5cbiAgdHJhY2VzU2FtcGxlUmF0ZTogMSxcbiAgc3BvdGxpZ2h0OiB0cnVlLFxuICBpbnRlZ3JhdGlvbnM6IFtcbiAgICBTZW50cnkuc3BvdGxpZ2h0SW50ZWdyYXRpb24oKSxcbiAgICBTZW50cnkuY29uc29sZUxvZ2dpbmdJbnRlZ3JhdGlvbigpLFxuICAgIFNlbnRyeS5jbGF1ZGVDb2RlSW50ZWdyYXRpb24oe1xuICAgICAgcmVjb3JkSW5wdXRzOiB0cnVlLFxuICAgICAgcmVjb3JkT3V0cHV0czogdHJ1ZSxcbiAgICB9KSxcbiAgXSxcblxuICAvLyBFbmFibGUgbG9ncyB0byBiZSBzZW50IHRvIFNlbnRyeVxuICBlbmFibGVMb2dzOiB0cnVlLFxuXG4gIC8vIFNldHRpbmcgdGhpcyBvcHRpb24gdG8gdHJ1ZSB3aWxsIHByaW50IHVzZWZ1bCBpbmZvcm1hdGlvbiB0byB0aGUgY29uc29sZSB3aGlsZSB5b3UncmUgc2V0dGluZyB1cCBTZW50cnkuXG4gIGRlYnVnOiBmYWxzZSxcblxuICAvLyBFbmFibGUgc2VuZGluZyBQSUkgdG8gY2FwdHVyZSBwcm9tcHRzIGFuZCByZXNwb25zZXNcbiAgc2VuZERlZmF1bHRQaWk6IHRydWUsXG59KTtcbiJdLCJuYW1lcyI6WyJTZW50cnkiLCJpbml0IiwiZHNuIiwidHJhY2VzU2FtcGxlUmF0ZSIsInNwb3RsaWdodCIsImludGVncmF0aW9ucyIsInNwb3RsaWdodEludGVncmF0aW9uIiwiY29uc29sZUxvZ2dpbmdJbnRlZ3JhdGlvbiIsImNsYXVkZUNvZGVJbnRlZ3JhdGlvbiIsInJlY29yZElucHV0cyIsInJlY29yZE91dHB1dHMiLCJlbmFibGVMb2dzIiwiZGVidWciLCJzZW5kRGVmYXVsdFBpaSJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///(instrument)/./sentry.server.config.ts\n");
+
+/***/ })
+
+};
+;

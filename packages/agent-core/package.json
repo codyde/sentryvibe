@@ -1,0 +1,17 @@
+{
+  "name": "@sentryvibe/agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "ai": "^5.0.57",
+    "ai-sdk-provider-claude-code": "^1.1.4",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.44.5",
+    "pg": "^8.13.1"
+  }
+}

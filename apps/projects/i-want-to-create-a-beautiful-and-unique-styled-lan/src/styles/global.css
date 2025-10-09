@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  /* Sentry Dark Mode Colors - Enhanced */
+  --background: rgb(8 8 16); /* Deeper black #080810 */
+  --foreground: rgb(255 255 255);
+  --card: rgb(18 18 28); /* Rich Black */
+  --card-foreground: rgb(255 255 255);
+  --popover: rgb(24 18 37);
+  --popover-foreground: rgb(255 255 255);
+  --primary: rgb(117 83 255); /* Blurple #7553FF */
+  --primary-foreground: rgb(255 255 255);
+  --secondary: rgb(78 42 154); /* Dk Blurple #4E2A9A */
+  --secondary-foreground: rgb(255 255 255);
+  --muted: rgb(54 22 107); /* Dk Violet #36166B */
+  --muted-foreground: rgb(158 134 255); /* Lt Blurple #9E86FF */
+  --accent: rgb(167 55 180); /* Dk Purple #A737B4 */
+  --accent-foreground: rgb(255 255 255);
+  --destructive: rgb(255 69 168); /* Dk Pink #FF45A8 */
+  --border: rgb(78 42 154 / 0.3); /* Dk Blurple with transparency */
+  --input: rgb(78 42 154);
+  --ring: rgb(117 83 255); /* Blurple */
+  --glow: rgb(117 83 255 / 0.5); /* Blurple glow */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* Custom animations and effects */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(117, 83, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(117, 83, 255, 0.6);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Gradient text effect */
+.gradient-text {
+  background: linear-gradient(135deg, rgb(117 83 255), rgb(255 69 168), rgb(167 55 180));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Grid background effect */
+.grid-background {
+  background-image:
+    linear-gradient(rgba(117, 83, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(117, 83, 255, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Blur effect cards */
+.glass-card {
+  background: rgba(18, 18, 28, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(117, 83, 255, 0.2);
+}
