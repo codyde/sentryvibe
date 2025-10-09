@@ -12,6 +12,8 @@
     "ai-sdk-provider-claude-code": "^1.1.4",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.5",
-    "pg": "^8.13.1"
+    "lucide-react": "^0.544.0",
+    "pg": "^8.13.1",
+    "tailwind-merge": "^3.3.1"
   }
 }
