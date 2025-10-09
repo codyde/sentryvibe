@@ -353,18 +353,18 @@ The dev server will be started automatically by the system once you're done.
 
 🌐 VITE CONFIGURATION - CRITICAL FOR REMOTE PREVIEW 🌐
 
-If this is a Vite project, you MUST configure vite.config.ts/js for Cloudflare Tunnel access:
+If this is a Vite project, you MUST configure vite.config.ts/js to allow Cloudflare Tunnel domains:
 
 \`\`\`typescript
 export default defineConfig({
   server: {
-    host: '0.0.0.0',  // Allow external connections
-    hmr: { clientPort: 443 }  // HTTPS port for HMR through tunnel
+    allowedHosts: ['.trycloudflare.com']  // Allow Cloudflare tunnel domains
   }
 })
 \`\`\`
 
 This is REQUIRED for the preview to work remotely via Cloudflare tunnels.
+Add this configuration to vite.config.ts or vite.config.js.
 
 🔧 TYPESCRIPT TYPE IMPORTS 🔧
 
