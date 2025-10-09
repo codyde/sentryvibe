@@ -1785,6 +1785,7 @@ export default function Home() {
                   onStartServer={startDevServer}
                   onStopServer={stopDevServer}
                   terminalPort={terminalDetectedPort}
+                  isBuildActive={isCreatingProject || generationState?.isActive || false}
                 />
               </div>
 

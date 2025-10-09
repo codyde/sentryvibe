@@ -11,6 +11,7 @@ interface TabbedPreviewProps {
   onStartServer?: () => void;
   onStopServer?: () => void;
   terminalPort?: number | null;
+  isBuildActive?: boolean;
 }
 
 const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
@@ -19,8 +20,14 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   onStartServer,
   onStopServer,
   terminalPort,
+  isBuildActive,
 }, ref) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
+
+  // Debug: Log isBuildActive prop changes
+  useEffect(() => {
+    console.log('🎬 TabbedPreview: isBuildActive =', isBuildActive);
+  }, [isBuildActive]);
 
   // Listen for global events to switch tabs
   useEffect(() => {
@@ -81,6 +88,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
             onStartServer={onStartServer}
             onStopServer={onStopServer}
             terminalPort={terminalPort}
+            isBuildActive={isBuildActive}
           />
         ) : (
           <EditorTab projectId={projectId} />

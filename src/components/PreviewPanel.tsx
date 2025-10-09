@@ -8,15 +8,17 @@ import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
+import AsciiLoadingAnimation from './AsciiLoadingAnimation';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
   onStartServer?: () => void;
   onStopServer?: () => void;
   terminalPort?: number | null;
+  isBuildActive?: boolean;
 }
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, terminalPort }: PreviewPanelProps) {
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, terminalPort, isBuildActive }: PreviewPanelProps) {
   const { projects } = useProjects();
   const [key, setKey] = useState(0);
   const [isServerReady, setIsServerReady] = useState(false);
@@ -26,6 +28,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const { edits, addEdit, removeEdit } = useElementEdits();
   const isCheckingRef = useRef(false);
   const lastReadyPortRef = useRef<number | null>(null);
+
+  // Debug: Log isBuildActive prop changes
+  useEffect(() => {
+    console.log('🎥 PreviewPanel: isBuildActive =', isBuildActive);
+  }, [isBuildActive]);
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
@@ -313,7 +320,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            {isChecking ? (
+            {isBuildActive ? (
+              <div className="text-center flex items-center justify-center">
+                <div className="max-w-[400px]">
+                  <AsciiLoadingAnimation />
+                </div>
+              </div>
+            ) : isChecking ? (
               <div className="text-center space-y-3">
                 <div className="flex items-center gap-2 justify-center">
                   <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
