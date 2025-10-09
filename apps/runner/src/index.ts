@@ -1,7 +1,7 @@
 import "./instrument";
 import * as Sentry from "@sentry/node";
 import { config as loadEnv } from "dotenv";
-import { resolve } from "path";
+import { resolve, join } from "path";
 
 loadEnv({ path: resolve(__dirname, "../.env") });
 // loadEnv({ path: resolve(__dirname, '../.env.local'), override: true });
