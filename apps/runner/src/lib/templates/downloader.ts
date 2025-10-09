@@ -1,19 +1,9 @@
-import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, rm } from 'fs/promises';
 import type { Template } from './config';
 import { join } from 'path';
 import { getWorkspaceRoot } from '../workspace';
-
-// Fix PATH for spawned processes (Claude Code/tsx environment issue)
-const spawnEnv = {
-  ...process.env,
-  PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin',
-};
-
-// Find git binary location
-const GIT_PATH = '/opt/homebrew/bin/git'; // macOS Homebrew default
-const NPX_PATH = process.env.NVM_BIN ? `${process.env.NVM_BIN}/npx` : 'npx';
+import { simpleGit } from 'simple-git';
 
 /**
  * Download template from GitHub using degit
@@ -41,31 +31,48 @@ export async function downloadTemplate(
     ? `${template.repository}#${template.branch}`
     : template.repository;
 
+  // Use simple-git directly (no spawn issues)
+  return await downloadTemplateWithGit(template, projectName);
+}
+
+/**
+ * Alternative: Use git clone (fallback if degit unavailable)
+ */
+export async function downloadTemplateWithGit(
+  template: Template,
+  projectName: string
+): Promise<string> {
+  const targetPath = join(getWorkspaceRoot(), projectName);
+
+  console.log(`📥 Cloning template with simple-git: ${template.name}`);
+
+  // Parse GitHub URL
+  // "github:username/repo" → "https://github.com/username/repo.git"
+  const repoUrl = template.repository.replace('github:', 'https://github.com/') + '.git';
+
+  console.log(`   Repository: ${repoUrl}`);
+  console.log(`   Branch: ${template.branch}`);
+  console.log(`   Target: ${targetPath}`);
+
   try {
-    // Use npx degit (no install needed)
-    console.log(`   Running: npx degit ${repoUrl} "${targetPath}"`);
+    const git = simpleGit();
 
-    const result = spawnSync('npx', ['degit', repoUrl, targetPath], {
-      cwd: getWorkspaceRoot(),
-      encoding: 'utf-8',
-      stdio: 'pipe',
-      shell: false,
-      env: spawnEnv,
-    });
+    // Clone with depth 1 (shallow clone)
+    await git.clone(repoUrl, targetPath, [
+      '--depth', '1',
+      '--branch', template.branch,
+      '--single-branch'
+    ]);
 
-    if (result.error) {
-      throw result.error;
+    console.log(`✅ Template cloned successfully`);
+
+    // Remove .git directory (we don't need version history)
+    try {
+      await rm(join(targetPath, '.git'), { recursive: true, force: true });
+      console.log(`   Cleaned .git directory`);
+    } catch (error) {
+      console.warn(`   Failed to remove .git:`, error);
     }
-
-    if (result.status !== 0) {
-      throw new Error(`degit failed with exit code ${result.status}: ${result.stderr}`);
-    }
-
-    if (result.stdout) {
-      console.log(`   ${result.stdout}`);
-    }
-
-    console.log(`✅ Template downloaded successfully`);
 
     // Create .npmrc to isolate from monorepo workspace
     await createNpmrc(targetPath);
@@ -83,74 +90,6 @@ export async function downloadTemplate(
     if (existsSync(serverPkgPath)) {
       await updatePackageName(join(targetPath, 'server'), `${projectName}-server`);
     }
-
-    return targetPath;
-
-  } catch (error) {
-    console.error(`❌ Failed to download template:`, error);
-
-    // Fallback to git clone if degit fails
-    console.log(`⚠️  Falling back to git clone...`);
-    return await downloadTemplateWithGit(template, projectName);
-  }
-}
-
-/**
- * Alternative: Use git clone (fallback if degit unavailable)
- */
-export async function downloadTemplateWithGit(
-  template: Template,
-  projectName: string
-): Promise<string> {
-  const targetPath = join(getWorkspaceRoot(), projectName);
-
-  console.log(`📥 Cloning template with git: ${template.name}`);
-
-  // Parse GitHub URL
-  // "github:username/repo" → "https://github.com/username/repo.git"
-  const repoUrl = template.repository.replace('github:', 'https://github.com/') + '.git';
-
-  // Shallow clone (depth 1, no history)
-  const command = `git clone --depth 1 --branch ${template.branch} "${repoUrl}" "${targetPath}"`;
-
-  console.log(`   Running: git clone --depth 1 --branch ${template.branch} "${repoUrl}" "${targetPath}"`);
-
-  try {
-    const result = spawnSync(GIT_PATH, ['clone', '--depth', '1', '--branch', template.branch, repoUrl, targetPath], {
-      cwd: getWorkspaceRoot(),
-      encoding: 'utf-8',
-      stdio: 'pipe',
-      shell: false,
-      env: spawnEnv,
-    });
-
-    if (result.error) {
-      throw result.error;
-    }
-
-    if (result.status !== 0) {
-      throw new Error(`git clone failed with exit code ${result.status}: ${result.stderr}`);
-    }
-
-    if (result.stdout) console.log(`   ${result.stdout}`);
-    if (result.stderr && !result.stderr.includes('Cloning')) console.log(`   ${result.stderr}`);
-
-    // Remove .git directory (we don't need version history)
-    try {
-      spawnSync('rm', ['-rf', join(targetPath, '.git')], {
-        cwd: getWorkspaceRoot(),
-        stdio: 'ignore',
-        shell: false,
-        env: spawnEnv,
-      });
-      console.log(`   Cleaned .git directory`);
-    } catch {
-      // Ignore errors cleaning .git
-    }
-
-    console.log(`✅ Template cloned successfully`);
-
-    await updatePackageName(targetPath, projectName);
 
     return targetPath;
 

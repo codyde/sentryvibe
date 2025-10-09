@@ -13,6 +13,7 @@
     "@sentry/nextjs": "file:../sentryvibe/vendor/sentry-nextjs-10.17.0.tgz",
     "@sentry/node": "file:../sentryvibe/vendor/sentry-node-10.17.0.tgz",
     "dotenv": "^16.4.5",
+    "simple-git": "^3.28.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
