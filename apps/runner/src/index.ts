@@ -73,6 +73,9 @@ Sentry.startSpan(
     let heartbeatTimer: NodeJS.Timeout | null = null;
     let loggedFirstChunk = false;
 
+    // Track detected ports per project for proper tunnel cleanup
+    const detectedPortsByProject = new Map<string, number>();
+
     function assertNever(value: never): never {
       throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
     }
@@ -146,6 +149,10 @@ Sentry.startSpan(
 
             devProcess.emitter.on("port", async (port: number) => {
               try {
+                // Store detected port for this project
+                detectedPortsByProject.set(command.projectId, port);
+                console.log(`📍 Detected port ${port} for project ${command.projectId}`);
+
                 // Automatically create tunnel for this port
                 console.log(`🔗 Creating tunnel for port ${port}...`);
                 const tunnelUrl = await tunnelManager.createTunnel(port);
@@ -170,8 +177,18 @@ Sentry.startSpan(
             });
 
             devProcess.emitter.on("exit", async ({ code, signal }) => {
-              // Cleanup tunnel and release port
-              await tunnelManager.closeTunnel(allocatedPort);
+              // Use detected port for tunnel cleanup (frameworks might ignore PORT env var)
+              const detectedPort = detectedPortsByProject.get(command.projectId);
+              if (detectedPort) {
+                console.log(`🔗 Closing tunnel for detected port ${detectedPort}`);
+                await tunnelManager.closeTunnel(detectedPort);
+                detectedPortsByProject.delete(command.projectId);
+              } else {
+                console.log(`🔗 Closing tunnel for allocated port ${allocatedPort} (no port detected)`);
+                await tunnelManager.closeTunnel(allocatedPort);
+              }
+
+              // Release allocated port from pool
               releasePort(allocatedPort);
 
               sendEvent({

@@ -69,9 +69,10 @@ export async function POST(request: Request) {
         break;
       }
       case 'process-exited': {
-        // If process was killed by signal, it's a clean stop (even with non-zero exit code)
+        // Exit code 143 = 128 + 15 = SIGTERM, 130 = 128 + 2 = SIGINT, 137 = 128 + 9 = SIGKILL
+        const signalExitCodes = [130, 137, 143];
         const wasKilled = event.signal === 'SIGTERM' || event.signal === 'SIGINT' || event.signal === 'SIGKILL';
-        const cleanExit = event.exitCode === 0;
+        const cleanExit = event.exitCode === 0 || signalExitCodes.includes(event.exitCode || -1);
 
         await db.update(projects)
           .set({

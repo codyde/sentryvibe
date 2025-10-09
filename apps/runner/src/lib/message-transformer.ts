@@ -42,14 +42,19 @@ function detectPathViolations(toolName: string, input: any, expectedCwd?: string
   const pathToCheck = input?.command || input?.file_path || input?.path || '';
 
   if (typeof pathToCheck === 'string') {
-    // Only warn if absolute path is OUTSIDE the expected project directory
+    // Only warn if absolute path is OUTSIDE the workspace entirely
     if (expectedCwd && pathToCheck.startsWith('/')) {
-      // Allow absolute paths within the project directory
-      if (!pathToCheck.startsWith(expectedCwd)) {
-        console.warn('⚠️  Path outside project directory:');
+      // Get workspace root (parent of project directory)
+      const workspaceRoot = expectedCwd.split('/').slice(0, -1).join('/');
+
+      // Allow paths within workspace (project or parent workspace directory)
+      const isWithinWorkspace = pathToCheck.startsWith(expectedCwd) || pathToCheck.startsWith(workspaceRoot);
+
+      if (!isWithinWorkspace) {
+        console.warn('⚠️  Path outside workspace:');
         console.warn(`   Tool: ${toolName}`);
         console.warn(`   Path: ${pathToCheck}`);
-        console.warn(`   Expected CWD: ${expectedCwd}`);
+        console.warn(`   Workspace: ${workspaceRoot}`);
       }
     }
 
