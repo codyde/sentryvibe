@@ -8,6 +8,9 @@ import { getWorkspaceRoot } from '../workspace';
 
 const execAsync = promisify(exec);
 
+// Explicitly set shell to avoid ENOENT errors
+const execOptions = { shell: '/bin/zsh' };
+
 /**
  * Download template from GitHub using degit
  * degit is faster than git clone (no history, just files)
@@ -41,6 +44,7 @@ export async function downloadTemplate(
     console.log(`   Running: ${command}`);
     const { stdout, stderr } = await execAsync(command, {
       cwd: getWorkspaceRoot(),
+      ...execOptions,
     });
 
     if (stderr && !stderr.includes('degit') && !stderr.includes('cloned')) {
@@ -104,6 +108,7 @@ export async function downloadTemplateWithGit(
   try {
     const { stdout, stderr } = await execAsync(command, {
       cwd: getWorkspaceRoot(),
+      ...execOptions,
     });
 
     if (stdout) console.log(`   ${stdout}`);
@@ -111,7 +116,7 @@ export async function downloadTemplateWithGit(
 
     // Remove .git directory (we don't need version history)
     try {
-      await execAsync(`rm -rf "${join(targetPath, '.git')}"`);
+      await execAsync(`rm -rf "${join(targetPath, '.git')}"`, execOptions);
       console.log(`   Cleaned .git directory`);
     } catch {
       // Ignore errors cleaning .git
