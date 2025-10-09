@@ -1353,19 +1353,23 @@ function HomeContent() {
         });
 
         // Poll for port detection (runner sends port-detected event asynchronously)
+        let pollCount = 0;
+        const maxPolls = 30;
+
         const pollInterval = setInterval(async () => {
+          pollCount++;
           await refetch();
 
-          // Stop polling once port is detected
-          const updated = projects.find(p => p.id === currentProject.id);
+          // Use projectsRef to avoid stale closure
+          const updated = projectsRef.current.find(p => p.id === currentProject.id);
           if (updated?.devServerStatus === 'running' && updated?.devServerPort) {
             console.log('✅ Port detected, stopping poll');
             clearInterval(pollInterval);
+          } else if (pollCount >= maxPolls) {
+            console.log('⏱️ Poll timeout reached, stopping');
+            clearInterval(pollInterval);
           }
         }, 1000); // Poll every second
-
-        // Stop polling after 30 seconds regardless
-        setTimeout(() => clearInterval(pollInterval), 30000);
       }
     } catch (error) {
       console.error('Failed to start dev server:', error);
