@@ -5,13 +5,14 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy workspace root files
-COPY pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY package.json ./
+# Copy workspace root files from parent directories
+COPY ../../pnpm-workspace.yaml ../../pnpm-lock.yaml ../../package.json ./
 
-# Copy all workspace packages
-COPY packages ./packages
-COPY apps/sentryvibe ./apps/sentryvibe
+# Copy agent-core package (workspace dependency)
+COPY ../../packages/agent-core ./packages/agent-core
+
+# Copy sentryvibe app
+COPY . ./apps/sentryvibe
 
 # Install dependencies for entire workspace
 RUN pnpm install --frozen-lockfile
