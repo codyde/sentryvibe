@@ -3,10 +3,10 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm ci --omit=dev
+# Install dependencies (use npm install instead of ci for Railway compatibility)
+RUN npm install --production=false
 
 # Copy TypeScript config
 COPY tsconfig.json ./
@@ -14,14 +14,11 @@ COPY tsconfig.json ./
 # Copy source code
 COPY src ./src
 
-# Install typescript for build
-RUN npm install --save-dev typescript
-
 # Build TypeScript
 RUN npm run build
 
 # Remove dev dependencies after build
-RUN npm prune --omit=dev
+RUN npm prune --production
 
 # Expose port
 EXPOSE 4000

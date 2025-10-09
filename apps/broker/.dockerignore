@@ -2,6 +2,5 @@ node_modules
 dist
 *.log
 .env
-.env.local
 .env*.local
 npm-debug.log*
