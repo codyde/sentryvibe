@@ -1327,8 +1327,20 @@ function HomeContent() {
           return completed;
         });
 
-        // Refresh project list so shared context updates (terminal + preview rely on it)
-        refetch();
+        // Poll for port detection (runner sends port-detected event asynchronously)
+        const pollInterval = setInterval(async () => {
+          await refetch();
+
+          // Stop polling once port is detected
+          const updated = projects.find(p => p.id === currentProject.id);
+          if (updated?.devServerStatus === 'running' && updated?.devServerPort) {
+            console.log('✅ Port detected, stopping poll');
+            clearInterval(pollInterval);
+          }
+        }, 1000); // Poll every second
+
+        // Stop polling after 30 seconds regardless
+        setTimeout(() => clearInterval(pollInterval), 30000);
       }
     } catch (error) {
       console.error('Failed to start dev server:', error);
