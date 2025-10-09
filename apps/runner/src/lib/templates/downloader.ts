@@ -1,9 +1,15 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
 import type { Template } from './config';
 import { join } from 'path';
 import { getWorkspaceRoot } from '../workspace';
+
+// Fix PATH for spawned processes (Claude Code environment issue)
+const spawnEnv = {
+  ...process.env,
+  PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+};
 
 /**
  * Download template from GitHub using degit
@@ -33,17 +39,26 @@ export async function downloadTemplate(
 
   try {
     // Use npx degit (no install needed)
-    const command = `npx degit ${repoUrl} "${targetPath}"`;
+    console.log(`   Running: npx degit ${repoUrl} "${targetPath}"`);
 
-    console.log(`   Running: ${command}`);
-    const output = execSync(command, {
+    const result = spawnSync('npx', ['degit', repoUrl, targetPath], {
       cwd: getWorkspaceRoot(),
       encoding: 'utf-8',
       stdio: 'pipe',
+      shell: false,
+      env: spawnEnv,
     });
 
-    if (output) {
-      console.log(`   ${output}`);
+    if (result.error) {
+      throw result.error;
+    }
+
+    if (result.status !== 0) {
+      throw new Error(`degit failed with exit code ${result.status}: ${result.stderr}`);
+    }
+
+    if (result.stdout) {
+      console.log(`   ${result.stdout}`);
     }
 
     console.log(`✅ Template downloaded successfully`);
@@ -94,22 +109,35 @@ export async function downloadTemplateWithGit(
   // Shallow clone (depth 1, no history)
   const command = `git clone --depth 1 --branch ${template.branch} "${repoUrl}" "${targetPath}"`;
 
-  console.log(`   Running: ${command}`);
+  console.log(`   Running: git clone --depth 1 --branch ${template.branch} "${repoUrl}" "${targetPath}"`);
 
   try {
-    const output = execSync(command, {
+    const result = spawnSync('git', ['clone', '--depth', '1', '--branch', template.branch, repoUrl, targetPath], {
       cwd: getWorkspaceRoot(),
       encoding: 'utf-8',
       stdio: 'pipe',
+      shell: false,
+      env: spawnEnv,
     });
 
-    if (output) console.log(`   ${output}`);
+    if (result.error) {
+      throw result.error;
+    }
+
+    if (result.status !== 0) {
+      throw new Error(`git clone failed with exit code ${result.status}: ${result.stderr}`);
+    }
+
+    if (result.stdout) console.log(`   ${result.stdout}`);
+    if (result.stderr && !result.stderr.includes('Cloning')) console.log(`   ${result.stderr}`);
 
     // Remove .git directory (we don't need version history)
     try {
-      execSync(`rm -rf "${join(targetPath, '.git')}"`, {
+      spawnSync('rm', ['-rf', join(targetPath, '.git')], {
         cwd: getWorkspaceRoot(),
         stdio: 'ignore',
+        shell: false,
+        env: spawnEnv,
       });
       console.log(`   Cleaned .git directory`);
     } catch {
