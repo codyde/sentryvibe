@@ -1,15 +1,9 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
 import type { Template } from './config';
 import { join } from 'path';
 import { getWorkspaceRoot } from '../workspace';
-
-const execAsync = promisify(exec);
-
-// Explicitly set shell to avoid ENOENT errors
-const execOptions = { shell: '/bin/zsh' };
 
 /**
  * Download template from GitHub using degit
@@ -42,17 +36,14 @@ export async function downloadTemplate(
     const command = `npx degit ${repoUrl} "${targetPath}"`;
 
     console.log(`   Running: ${command}`);
-    const { stdout, stderr } = await execAsync(command, {
+    const output = execSync(command, {
       cwd: getWorkspaceRoot(),
-      ...execOptions,
+      encoding: 'utf-8',
+      stdio: 'pipe',
     });
 
-    if (stderr && !stderr.includes('degit') && !stderr.includes('cloned')) {
-      console.warn(`   Warning: ${stderr}`);
-    }
-
-    if (stdout) {
-      console.log(`   ${stdout}`);
+    if (output) {
+      console.log(`   ${output}`);
     }
 
     console.log(`✅ Template downloaded successfully`);
@@ -106,17 +97,20 @@ export async function downloadTemplateWithGit(
   console.log(`   Running: ${command}`);
 
   try {
-    const { stdout, stderr } = await execAsync(command, {
+    const output = execSync(command, {
       cwd: getWorkspaceRoot(),
-      ...execOptions,
+      encoding: 'utf-8',
+      stdio: 'pipe',
     });
 
-    if (stdout) console.log(`   ${stdout}`);
-    if (stderr && !stderr.includes('Cloning')) console.log(`   ${stderr}`);
+    if (output) console.log(`   ${output}`);
 
     // Remove .git directory (we don't need version history)
     try {
-      await execAsync(`rm -rf "${join(targetPath, '.git')}"`, execOptions);
+      execSync(`rm -rf "${join(targetPath, '.git')}"`, {
+        cwd: getWorkspaceRoot(),
+        stdio: 'ignore',
+      });
       console.log(`   Cleaned .git directory`);
     } catch {
       // Ignore errors cleaning .git
