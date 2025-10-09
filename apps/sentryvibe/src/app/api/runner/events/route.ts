@@ -101,61 +101,11 @@ export async function POST(request: Request) {
         break;
       }
       case 'build-completed': {
-        // Get project details to find actual path
-        const project = await db.select().from(projects).where(eq(projects.id, event.projectId)).limit(1);
-
-        if (project.length === 0) {
-          console.warn('Project not found for build-completed event:', event.projectId);
-          break;
-        }
-
-        const projectPath = project[0].path;
-        if (!projectPath) {
-          console.warn('Project has no path set:', event.projectId);
-          break;
-        }
-
-        let runCommand = null;
-        try {
-          const { readFileSync } = await import('fs');
-          const packageJsonPath = `${projectPath}/package.json`;
-          const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-          // Detect run command from scripts
-          // Always use 'dev' script if available (port controlled via env vars)
-          if (packageJson.scripts?.dev) {
-            // Determine which package manager to use
-            const { existsSync } = await import('fs');
-            if (existsSync(`${projectPath}/pnpm-lock.yaml`)) {
-              runCommand = 'pnpm dev';
-            } else if (existsSync(`${projectPath}/yarn.lock`)) {
-              runCommand = 'yarn dev';
-            } else if (existsSync(`${projectPath}/package-lock.json`)) {
-              runCommand = 'npm run dev';
-            } else {
-              // Default to npm if no lock file
-              runCommand = 'npm run dev';
-            }
-          } else if (packageJson.scripts?.start) {
-            // Fallback to start if no dev script
-            const { existsSync } = await import('fs');
-            if (existsSync(`${projectPath}/pnpm-lock.yaml`)) {
-              runCommand = 'pnpm start';
-            } else if (existsSync(`${projectPath}/yarn.lock`)) {
-              runCommand = 'yarn start';
-            } else {
-              runCommand = 'npm run start';
-            }
-          }
-        } catch (error) {
-          console.error('Failed to detect run command:', error);
-        }
-
-        // Mark project as completed and save run command
+        // Mark project as completed
+        // Note: runCommand should already be set by project-metadata event
         await db.update(projects)
           .set({
             status: 'completed',
-            runCommand,
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));

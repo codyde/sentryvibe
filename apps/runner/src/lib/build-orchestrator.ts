@@ -61,7 +61,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   }
 
   // Handle NEW projects - download template
-  if (isNewProject) {
+  const SKIP_TEMPLATES = process.env.SKIP_TEMPLATES === 'true';
+
+  if (isNewProject && !SKIP_TEMPLATES) {
     console.log('[orchestrator] NEW PROJECT - Downloading template...');
 
     // Send initial setup todos
