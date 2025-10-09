@@ -4,7 +4,7 @@ import { config as loadEnv } from 'dotenv';
 import { resolve } from 'path';
 
 loadEnv({ path: resolve(__dirname, '../.env') });
-loadEnv({ path: resolve(__dirname, '../.env.local'), override: true });
+// loadEnv({ path: resolve(__dirname, '../.env.local'), override: true });
 import WebSocket from 'ws';
 import os from 'os';
 import { randomUUID } from 'crypto';
