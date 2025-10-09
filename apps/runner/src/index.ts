@@ -19,6 +19,7 @@ import {
 } from "./lib/message-transformer";
 import { orchestrateBuild } from "./lib/build-orchestrator";
 import { tunnelManager } from "./lib/tunnel/manager";
+import { allocatePort, releasePort } from "./lib/port-allocator";
 
 Sentry.startSpan(
   {
@@ -115,10 +116,13 @@ Sentry.startSpan(
               framework,
             } = command.payload;
 
+            // Allocate port locally (avoid reserved ports like 6000)
+            const allocatedPort = allocatePort();
+
             const envVars = {
               ...process.env,
               ...env,
-              ...(preferredPort ? { PORT: String(preferredPort) } : {}),
+              PORT: String(allocatedPort),
             };
 
             const startTime = Date.now();
@@ -166,9 +170,9 @@ Sentry.startSpan(
             });
 
             devProcess.emitter.on("exit", async ({ code, signal }) => {
-              // Cleanup tunnel when dev server exits
-              const port = preferredPort || 3000; // Use the port from the dev process
-              await tunnelManager.closeTunnel(port);
+              // Cleanup tunnel and release port
+              await tunnelManager.closeTunnel(allocatedPort);
+              releasePort(allocatedPort);
 
               sendEvent({
                 type: "process-exited",
