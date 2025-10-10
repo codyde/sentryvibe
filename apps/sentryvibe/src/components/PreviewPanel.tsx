@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, RefreshCw, Play, Square, Copy, Check, Monitor, Smartphone, Tablet } from 'lucide-react';
+import { ExternalLink, RefreshCw, Play, Square, Copy, Check, Monitor, Smartphone, Tablet, Cloud, Rocket } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
 import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
@@ -29,6 +29,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
+  const [healthCheckFailed, setHealthCheckFailed] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
   const isCheckingRef = useRef(false);
@@ -113,6 +114,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           lastReadyPortRef.current = actualPort;
           setIsServerReady(true);
           setIsChecking(false);
+          setHealthCheckFailed(false);
           return;
         }
 
@@ -124,6 +126,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       if (!cancelled) {
         console.error('❌ Server health check failed after multiple attempts');
         setIsChecking(false);
+        setHealthCheckFailed(true);
       }
     };
 
@@ -362,7 +365,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   {project.tunnelUrl ? (
                     <button
                       onClick={onStopTunnel}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FFD00E]/20 hover:bg-[#FFD00E]/30 text-[#FFD00E] border border-[#FFD00E]/30 rounded-md transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 rounded-md transition-colors"
                       title="Stop Cloudflare tunnel"
                     >
                       <Square className="w-3.5 h-3.5" />
@@ -371,10 +374,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   ) : (
                     <button
                       onClick={onStartTunnel}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#7553FF]/20 hover:bg-[#7553FF]/30 text-[#7553FF] border border-[#7553FF]/30 rounded-md transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-md transition-colors"
                       title="Start Cloudflare tunnel for public access"
                     >
-                      <Play className="w-3.5 h-3.5" />
+                      <Cloud className="w-3.5 h-3.5" />
                       Start Tunnel
                     </button>
                   )}
@@ -466,11 +469,39 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 </div>
                 <p>Waiting for server to be ready...</p>
               </div>
+            ) : healthCheckFailed && project?.devServerStatus === 'running' && !project?.tunnelUrl ? (
+              <div className="text-center space-y-4 max-w-md px-6">
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center">
+                    <Cloud className="w-8 h-8 text-orange-400" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-white">Localhost Unreachable</h3>
+                  <p className="text-gray-400 text-sm">
+                    The dev server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> but couldn't be reached from the browser.
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Try starting a Cloudflare tunnel for remote access:
+                  </p>
+                </div>
+                <button
+                  onClick={onStartTunnel}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto"
+                >
+                  <Cloud className="w-5 h-5" />
+                  Start Cloudflare Tunnel
+                </button>
+              </div>
             ) : project?.devServerStatus === 'running' ? (
               <p>Waiting for dev server...</p>
             ) : project?.status === 'completed' && project?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">
-                <div className="text-6xl">🎉</div>
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <Rocket className="w-8 h-8 text-green-400" />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <h3 className="text-xl font-semibold text-white">Project Ready!</h3>
                   <p className="text-gray-400">Click the <span className="text-[#92DD00] font-semibold">Start</span> button above to launch your dev server</p>
