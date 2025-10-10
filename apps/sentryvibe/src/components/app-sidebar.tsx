@@ -175,14 +175,6 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-
-          {/* Keyboard shortcuts hint */}
-          <div className="px-2 py-2 text-[10px] text-gray-600 space-y-1">
-            <div className="flex items-center gap-2">
-              <Command className="w-3 h-3" />
-              <span>⌘K Quick search</span>
-            </div>
-          </div>
         </SidebarFooter>
 
         <SidebarRail />
