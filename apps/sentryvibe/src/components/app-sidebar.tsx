@@ -167,14 +167,13 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
           {/* Runner Selector */}
           <RunnerSelector />
 
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={onOpenProcessModal} className="w-full">
-                <Settings className="w-4 h-4" />
-                <span>Dev Servers</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <button
+            onClick={onOpenProcessModal}
+            className="w-full flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 text-white border border-purple-500/30 hover:border-purple-500/40 rounded-lg transition-all shadow-sm"
+          >
+            <Monitor className="w-4 h-4 text-purple-400" />
+            <span className="font-medium">System Monitor</span>
+          </button>
         </SidebarFooter>
 
         <SidebarRail />

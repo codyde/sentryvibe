@@ -29,9 +29,10 @@ export async function GET() {
         projectSlug: project.slug,
         pid: project.devServerPid || null,
         port: project.devServerPort || null,
-        startTime: inMemoryInfo?.startTime || project.lastActivityAt || new Date(),
+        tunnelUrl: project.tunnelUrl || null,
         status: project.devServerStatus,
         inMemory: !!inMemoryInfo, // Flag to show if process is tracked in memory
+        runnerId: process.env.RUNNER_DEFAULT_ID ?? 'default', // TODO: Store per-project runner assignment
       };
     });
 
