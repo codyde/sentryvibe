@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Activity, Settings, Command } from "lucide-react"
+import { Activity, Settings, Command, Monitor } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { ActivityFeed } from "@/components/sidebar/ActivityFeed"
 import { SmartProjectGroups } from "@/components/sidebar/SmartProjectGroups"
