@@ -2,6 +2,8 @@ export type RunnerCommandType =
   | 'start-build'
   | 'start-dev-server'
   | 'stop-dev-server'
+  | 'start-tunnel'
+  | 'stop-tunnel'
   | 'fetch-logs'
   | 'runner-health-check';
 
@@ -9,6 +11,8 @@ export type RunnerEventType =
   | 'ack'
   | 'log-chunk'
   | 'port-detected'
+  | 'tunnel-created'
+  | 'tunnel-closed'
   | 'process-exited'
   | 'build-progress'
   | 'build-completed'
@@ -53,6 +57,20 @@ export interface StopDevServerCommand extends BaseCommand {
   type: 'stop-dev-server';
 }
 
+export interface StartTunnelCommand extends BaseCommand {
+  type: 'start-tunnel';
+  payload: {
+    port: number;
+  };
+}
+
+export interface StopTunnelCommand extends BaseCommand {
+  type: 'stop-tunnel';
+  payload: {
+    port: number;
+  };
+}
+
 export interface FetchLogsCommand extends BaseCommand {
   type: 'fetch-logs';
   payload: {
@@ -69,6 +87,8 @@ export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
   | StopDevServerCommand
+  | StartTunnelCommand
+  | StopTunnelCommand
   | FetchLogsCommand
   | RunnerHealthCheckCommand;
 
@@ -166,10 +186,23 @@ export interface ProjectMetadataEvent extends BaseEvent {
   };
 }
 
+export interface TunnelCreatedEvent extends BaseEvent {
+  type: 'tunnel-created';
+  port: number;
+  tunnelUrl: string;
+}
+
+export interface TunnelClosedEvent extends BaseEvent {
+  type: 'tunnel-closed';
+  port: number;
+}
+
 export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
   | PortDetectedEvent
+  | TunnelCreatedEvent
+  | TunnelClosedEvent
   | ProcessExitedEvent
   | BuildProgressEvent
   | BuildCompletedEvent
@@ -185,6 +218,8 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'start-build',
   'start-dev-server',
   'stop-dev-server',
+  'start-tunnel',
+  'stop-tunnel',
   'fetch-logs',
   'runner-health-check',
 ];

@@ -68,6 +68,24 @@ export async function POST(request: Request) {
         await updatePortReservationForProject(event.projectId, event.port);
         break;
       }
+      case 'tunnel-created': {
+        await db.update(projects)
+          .set({
+            tunnelUrl: event.tunnelUrl,
+            lastActivityAt: new Date(),
+          })
+          .where(eq(projects.id, event.projectId));
+        break;
+      }
+      case 'tunnel-closed': {
+        await db.update(projects)
+          .set({
+            tunnelUrl: null,
+            lastActivityAt: new Date(),
+          })
+          .where(eq(projects.id, event.projectId));
+        break;
+      }
       case 'process-exited': {
         // Exit code 143 = 128 + 15 = SIGTERM, 130 = 128 + 2 = SIGINT, 137 = 128 + 9 = SIGKILL
         const signalExitCodes = [130, 137, 143];

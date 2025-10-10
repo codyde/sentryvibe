@@ -10,6 +10,8 @@ interface TabbedPreviewProps {
   projectId?: string | null;
   onStartServer?: () => void;
   onStopServer?: () => void;
+  onStartTunnel?: () => void;
+  onStopTunnel?: () => void;
   terminalPort?: number | null;
 }
 
@@ -18,6 +20,8 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   projectId,
   onStartServer,
   onStopServer,
+  onStartTunnel,
+  onStopTunnel,
   terminalPort,
 }, ref) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
@@ -80,6 +84,8 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
             selectedProject={selectedProject}
             onStartServer={onStartServer}
             onStopServer={onStopServer}
+            onStartTunnel={onStartTunnel}
+            onStopTunnel={onStopTunnel}
             terminalPort={terminalPort}
           />
         ) : (

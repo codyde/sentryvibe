@@ -1399,6 +1399,41 @@ function HomeContent() {
     }
   };
 
+  const startTunnel = async () => {
+    if (!currentProject) return;
+
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/start-tunnel`, { method: 'POST' });
+      if (res.ok) {
+        console.log('✅ Tunnel start requested');
+        // Refresh to get tunnel URL
+        setTimeout(() => refetch(), 2000);
+      }
+    } catch (error) {
+      console.error('Failed to start tunnel:', error);
+    }
+  };
+
+  const stopTunnel = async () => {
+    if (!currentProject) return;
+
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/stop-tunnel`, { method: 'POST' });
+      if (res.ok) {
+        console.log('✅ Tunnel stop requested');
+        // Update currentProject to clear tunnel URL
+        setCurrentProject(prev => prev ? {
+          ...prev,
+          tunnelUrl: null,
+        } : null);
+        // Refresh to confirm
+        setTimeout(() => refetch(), 500);
+      }
+    } catch (error) {
+      console.error('Failed to stop tunnel:', error);
+    }
+  };
+
   return (
     <SidebarProvider defaultOpen={false}>
       <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
@@ -1974,12 +2009,14 @@ function HomeContent() {
                   projectId={currentProject?.id}
                   onStartServer={startDevServer}
                   onStopServer={stopDevServer}
+                  onStartTunnel={startTunnel}
+                  onStopTunnel={stopTunnel}
                   terminalPort={terminalDetectedPort}
                 />
               </div>
 
               {/* Terminal Output - Bottom */}
-              <div className="h-40">
+              <div className="h-80">
                 <TerminalOutput
                   projectId={currentProject?.id}
                   onPortDetected={(port) => {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, RefreshCw, Play, Square } from 'lucide-react';
+import { ExternalLink, RefreshCw, Play, Square, Copy, Check, Monitor, Smartphone, Tablet } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
 import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
@@ -13,15 +13,22 @@ interface PreviewPanelProps {
   selectedProject?: string | null;
   onStartServer?: () => void;
   onStopServer?: () => void;
+  onStartTunnel?: () => void;
+  onStopTunnel?: () => void;
   terminalPort?: number | null;
 }
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, terminalPort }: PreviewPanelProps) {
+type DevicePreset = 'desktop' | 'tablet' | 'mobile';
+
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort }: PreviewPanelProps) {
   const { projects } = useProjects();
   const [key, setKey] = useState(0);
   const [isServerReady, setIsServerReady] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
   const isCheckingRef = useRef(false);
@@ -33,11 +40,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Use terminal-detected port if available, otherwise fall back to DB port
   const actualPort = terminalPort || project?.devServerPort;
 
-  // Construct preview URL - prefer tunnel URL if available, otherwise use proxy
+  // Construct preview URL - prefer tunnel URL if available, otherwise use localhost directly (bypass proxy)
   const previewUrl = project?.tunnelUrl && project?.devServerStatus === 'running'
     ? project.tunnelUrl
-    : (actualPort && isServerReady && project?.id
-      ? `/api/projects/${project.id}/proxy?path=/`
+    : (actualPort && isServerReady
+      ? `http://localhost:${actualPort}`
       : '');
 
   const checkServerHealth = useCallback(async (port: number): Promise<boolean> => {
@@ -133,8 +140,37 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   }, [actualPort, project?.devServerStatus, checkServerHealth]);
 
   const handleRefresh = () => {
+    setIsRefreshing(true);
     setKey(prev => prev + 1);
+    // Reset after iframe loads
+    setTimeout(() => setIsRefreshing(false), 1000);
   };
+
+  const handleCopyUrl = async () => {
+    const url = project?.tunnelUrl || `http://localhost:${actualPort}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy URL:', err);
+    }
+  };
+
+  // Device preset dimensions
+  const getDeviceDimensions = () => {
+    switch (devicePreset) {
+      case 'mobile':
+        return { width: '375px', height: '100%' }; // iPhone size
+      case 'tablet':
+        return { width: '768px', height: '100%' }; // iPad size
+      case 'desktop':
+      default:
+        return { width: '100%', height: '100%' };
+    }
+  };
+
+  const dimensions = getDeviceDimensions();
 
   const handleOpenInNewTab = () => {
     // Open tunnel URL if available, otherwise localhost
@@ -216,90 +252,200 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       initial={{ opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5, delay: 0.1 }}
-      className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
+      className="h-full flex flex-col bg-[#1e1e1e] border border-[#3e3e3e] rounded-xl shadow-2xl overflow-hidden"
     >
-      <div className="border-b border-white/10 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-1">
-          {previewUrl ? (
-            <>
-              {/* Control buttons on the left */}
-              <button
-                onClick={handleRefresh}
-                className="p-2 rounded-md hover:bg-[#7553FF]/20 transition-all duration-200"
-                title="Refresh"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleOpenInNewTab}
-                className="p-2 rounded-md hover:bg-[#7553FF]/20 transition-all duration-200"
-                title="Open in new tab"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
+      {/* Browser-like chrome bar */}
+      <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
+        {/* Browser dots */}
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-[#ff5f56] hover:bg-[#ff5f56]/80 transition-colors cursor-pointer"></div>
+          <div className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:bg-[#ffbd2e]/80 transition-colors cursor-pointer"></div>
+          <div className="w-3 h-3 rounded-full bg-[#27c93f] hover:bg-[#27c93f]/80 transition-colors cursor-pointer"></div>
+        </div>
 
-              {/* URL Display - Show tunnel URL if available, otherwise local URL */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-[#181225]/80 border border-[#7553FF]/30 rounded-md backdrop-blur-sm">
-                <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50"></div>
-                <span className="text-sm font-mono text-gray-300">
-                  {project?.tunnelUrl || `http://localhost:${actualPort}`}
-                </span>
-              </div>
-
+        {previewUrl ? (
+          <>
+            {/* Left controls */}
+            <div className="flex items-center gap-1 ml-2">
               {/* Selection Mode Toggle */}
               <SelectionMode
                 isEnabled={isSelectionModeEnabled}
                 onToggle={setIsSelectionModeEnabled}
                 onElementSelected={handleElementSelected}
               />
-            </>
-          ) : (
-            <h2 className="text-lg font-light">Preview</h2>
-          )}
-        </div>
 
-        {/* Dev Server Controls - Right side */}
-        <div className="flex items-center gap-2">
-          {project?.runCommand && (
-            <>
-              {project.devServerStatus === 'running' ? (
+              {/* Refresh button */}
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="p-1.5 rounded-md hover:bg-white/10 transition-all duration-200 disabled:opacity-50"
+                title="Refresh"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {/* URL bar - Center */}
+            <div className="flex-1 flex items-center gap-2 mx-3">
+              <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors">
+                <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 flex-shrink-0"></div>
+                <span className="text-xs font-mono text-gray-300 truncate">
+                  {project?.tunnelUrl || `http://localhost:${actualPort}`}
+                </span>
                 <button
-                  onClick={onStopServer}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors"
+                  onClick={handleCopyUrl}
+                  className="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                  title="Copy URL"
                 >
-                  <Square className="w-4 h-4" />
-                  Stop
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-green-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  )}
                 </button>
-              ) : (
+              </div>
+
+              {/* Device presets */}
+              <div className="flex items-center gap-1 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md p-1">
                 <button
-                  onClick={onStartServer}
-                  disabled={project.devServerStatus === 'starting'}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
+                  onClick={() => setDevicePreset('desktop')}
+                  className={`p-1.5 rounded transition-all ${
+                    devicePreset === 'desktop'
+                      ? 'bg-[#7553FF]/20 text-[#7553FF]'
+                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Desktop view"
                 >
-                  <Play className="w-4 h-4" />
-                  {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
+                  <Monitor className="w-4 h-4" />
                 </button>
+                <button
+                  onClick={() => setDevicePreset('tablet')}
+                  className={`p-1.5 rounded transition-all ${
+                    devicePreset === 'tablet'
+                      ? 'bg-[#7553FF]/20 text-[#7553FF]'
+                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Tablet view (768px)"
+                >
+                  <Tablet className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setDevicePreset('mobile')}
+                  className={`p-1.5 rounded transition-all ${
+                    devicePreset === 'mobile'
+                      ? 'bg-[#7553FF]/20 text-[#7553FF]'
+                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Mobile view (375px)"
+                >
+                  <Smartphone className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Open in new tab */}
+              <button
+                onClick={handleOpenInNewTab}
+                className="p-1.5 rounded-md hover:bg-white/10 transition-all duration-200"
+                title="Open in new tab"
+              >
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Right controls - Server/Tunnel buttons */}
+            <div className="flex items-center gap-2">
+              {project?.runCommand && (
+                <>
+                  {project.devServerStatus === 'running' ? (
+                    <>
+                      {/* Tunnel Controls */}
+                      {project.tunnelUrl ? (
+                        <button
+                          onClick={onStopTunnel}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FFD00E]/20 hover:bg-[#FFD00E]/30 text-[#FFD00E] border border-[#FFD00E]/30 rounded-md transition-colors"
+                          title="Stop Cloudflare tunnel"
+                        >
+                          <Square className="w-3.5 h-3.5" />
+                          Stop Tunnel
+                        </button>
+                      ) : (
+                        <button
+                          onClick={onStartTunnel}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#7553FF]/20 hover:bg-[#7553FF]/30 text-[#7553FF] border border-[#7553FF]/30 rounded-md transition-colors"
+                          title="Start Cloudflare tunnel for public access"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          Start Tunnel
+                        </button>
+                      )}
+                      {/* Stop Server Button */}
+                      <button
+                        onClick={onStopServer}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                        Stop
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={onStartServer}
+                      disabled={project.devServerStatus === 'starting'}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
+                    </button>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 text-center">
+            <span className="text-sm text-gray-500">No preview available</span>
+          </div>
+        )}
       </div>
-      <div className="flex-1 bg-gray-800 relative">
+      <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl ? (
           <>
-            <iframe
-              ref={iframeRef}
-              key={key}
-              src={previewUrl}
-              sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin"
-              allow="geolocation; camera; microphone; fullscreen; clipboard-write; clipboard-read; cross-origin-isolated"
-              className="w-full h-full border-0"
+            {/* Loading indicator overlay */}
+            {isRefreshing && (
+              <div className="absolute inset-0 bg-[#1e1e1e]/80 backdrop-blur-sm flex items-center justify-center z-10">
+                <div className="flex flex-col items-center gap-3">
+                  <RefreshCw className="w-8 h-8 text-[#7553FF] animate-spin" />
+                  <p className="text-sm text-gray-400">Refreshing preview...</p>
+                </div>
+              </div>
+            )}
+
+            <div
+              className="bg-white transition-all duration-300 ease-out"
               style={{
-                colorScheme: 'normal',
-                isolation: 'isolate',
+                width: dimensions.width,
+                height: dimensions.height,
+                maxWidth: '100%',
+                boxShadow: devicePreset !== 'desktop' ? '0 0 40px rgba(0,0,0,0.3)' : 'none',
+                margin: devicePreset !== 'desktop' ? '20px auto' : '0',
               }}
-              title="Preview"
-            />
+            >
+              <iframe
+                ref={iframeRef}
+                key={key}
+                src={previewUrl}
+                sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin"
+                allow="geolocation; camera; microphone; fullscreen; clipboard-write; clipboard-read; cross-origin-isolated"
+                className="w-full h-full border-0"
+                style={{
+                  colorScheme: 'normal',
+                  isolation: 'isolate',
+                }}
+                title="Preview"
+                onLoad={() => setIsRefreshing(false)}
+              />
+
+            </div>
 
             {/* Floating comment indicators */}
             <AnimatePresence>

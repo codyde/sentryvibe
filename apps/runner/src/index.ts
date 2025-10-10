@@ -20,6 +20,7 @@ import {
 import { orchestrateBuild } from "./lib/build-orchestrator";
 import { tunnelManager } from "./lib/tunnel/manager";
 import { allocatePort, releasePort } from "./lib/port-allocator";
+import { waitForPort } from "./lib/port-checker";
 
 Sentry.startSpan(
   {
@@ -40,7 +41,6 @@ Sentry.startSpan(
     const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
     const HEARTBEAT_INTERVAL_MS = 15_000;
 
-    // Create the build query function that will be called with (prompt, workingDirectory, systemPrompt)
     const buildQuery = (...args: unknown[]) => {
       return Sentry.startSpan(
         {
@@ -72,6 +72,8 @@ Sentry.startSpan(
     let socket: WebSocket | null = null;
     let heartbeatTimer: NodeJS.Timeout | null = null;
     let loggedFirstChunk = false;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
 
     // Track detected ports per project for proper tunnel cleanup
     const detectedPortsByProject = new Map<string, number>();
@@ -82,9 +84,14 @@ Sentry.startSpan(
 
     function sendEvent(event: RunnerEvent) {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.warn(`[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`);
         return;
       }
-      socket.send(JSON.stringify(event));
+      try {
+        socket.send(JSON.stringify(event));
+      } catch (error) {
+        console.error(`[runner] Failed to send event ${event.type}:`, error);
+      }
     }
 
     function buildEventBase(projectId?: string, commandId?: string) {
@@ -148,32 +155,18 @@ Sentry.startSpan(
             });
 
             devProcess.emitter.on("port", async (port: number) => {
-              try {
-                // Store detected port for this project
-                detectedPortsByProject.set(command.projectId, port);
-                console.log(`📍 Detected port ${port} for project ${command.projectId}`);
+              // Store detected port for this project
+              detectedPortsByProject.set(command.projectId, port);
+              console.log(`📍 Detected port ${port} for project ${command.projectId}`);
 
-                // Automatically create tunnel for this port
-                console.log(`🔗 Creating tunnel for port ${port}...`);
-                const tunnelUrl = await tunnelManager.createTunnel(port);
-
-                sendEvent({
-                  type: "port-detected",
-                  ...buildEventBase(command.projectId, command.id),
-                  port,
-                  tunnelUrl,
-                  framework: framework ?? "unknown",
-                });
-              } catch (error) {
-                console.error("Failed to create tunnel:", error);
-                // Still send port-detected without tunnel URL
-                sendEvent({
-                  type: "port-detected",
-                  ...buildEventBase(command.projectId, command.id),
-                  port,
-                  framework: framework ?? "unknown",
-                });
-              }
+              // Send port-detected event immediately without tunnel
+              // Tunnel creation is now manual via start-tunnel command
+              sendEvent({
+                type: "port-detected",
+                ...buildEventBase(command.projectId, command.id),
+                port,
+                framework: framework ?? "unknown",
+              });
             });
 
             devProcess.emitter.on("exit", async ({ code, signal }) => {
@@ -232,6 +225,76 @@ Sentry.startSpan(
               type: "error",
               ...buildEventBase(command.projectId, command.id),
               error: "No running dev server found for project",
+            });
+          }
+          break;
+        }
+        case "start-tunnel": {
+          try {
+            const { port } = command.payload;
+            console.log(`🔗 Starting tunnel for port ${port}...`);
+
+            // Wait for the port to be ready before creating tunnel
+            console.log(`⏳ Waiting for port ${port} to be ready...`);
+            const isReady = await waitForPort(port, 15, 1000); // 15 retries, 1s apart = max 15s
+
+            if (!isReady) {
+              throw new Error(`Port ${port} is not ready or not accessible`);
+            }
+
+            // Additional wait to ensure server is stable
+            console.log(`⏳ Waiting 3 seconds for server to stabilize...`);
+            for (let i = 1; i <= 3; i++) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              console.log(`⏳ ${i} second${i > 1 ? 's' : ''} elapsed...`);
+            }
+
+            // Create tunnel
+            const tunnelUrl = await tunnelManager.createTunnel(port);
+            console.log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
+
+            sendEvent({
+              type: "tunnel-created",
+              ...buildEventBase(command.projectId, command.id),
+              port,
+              tunnelUrl,
+            });
+          } catch (error) {
+            console.error("Failed to create tunnel:", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to create tunnel",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          }
+          break;
+        }
+        case "stop-tunnel": {
+          try {
+            const { port } = command.payload;
+            console.log(`🔗 Stopping tunnel for port ${port}...`);
+            await tunnelManager.closeTunnel(port);
+            console.log(`✅ Tunnel closed for port ${port}`);
+
+            sendEvent({
+              type: "tunnel-closed",
+              ...buildEventBase(command.projectId, command.id),
+              port,
+            });
+          } catch (error) {
+            console.error("Failed to close tunnel:", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to close tunnel",
+              stack: error instanceof Error ? error.stack : undefined,
             });
           }
           break;
@@ -504,6 +567,7 @@ Sentry.startSpan(
       });
 
       socket.on("open", () => {
+        reconnectAttempts = 0; // Reset on successful connection
         log("connected to broker", url.toString());
         publishStatus();
         scheduleHeartbeat();
@@ -525,12 +589,21 @@ Sentry.startSpan(
       });
 
       socket.on("close", (code: number) => {
-        log("connection closed", code);
+        log(`connection closed with code ${code}`);
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer);
           heartbeatTimer = null;
         }
-        setTimeout(connect, 2000);
+
+        // Exponential backoff with max delay
+        reconnectAttempts++;
+        const delay = Math.min(
+          1000 * Math.pow(2, reconnectAttempts - 1), // 1s, 2s, 4s, 8s, 16s...
+          MAX_RECONNECT_DELAY
+        );
+
+        log(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+        setTimeout(connect, delay);
       });
 
       socket.on("error", (error: Error) => {
