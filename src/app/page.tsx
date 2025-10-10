@@ -86,6 +86,10 @@ export default function Home() {
     }
     return 'chat';
   });
+
+  // TabbedPreview tab state (Preview vs Editor)
+  const [activePreviewTab, setActivePreviewTab] = useState<'preview' | 'editor'>('preview');
+
   const hasStartedGenerationRef = useRef<Set<string>>(new Set());
   const isGeneratingRef = useRef(false); // Sync flag for immediate checks
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1785,6 +1789,8 @@ export default function Home() {
                   onStartServer={startDevServer}
                   onStopServer={stopDevServer}
                   terminalPort={terminalDetectedPort}
+                  activeTab={activePreviewTab}
+                  onTabChange={setActivePreviewTab}
                 />
               </div>
 

@@ -11,6 +11,8 @@ interface TabbedPreviewProps {
   onStartServer?: () => void;
   onStopServer?: () => void;
   terminalPort?: number | null;
+  activeTab?: 'preview' | 'editor';
+  onTabChange?: (tab: 'preview' | 'editor') => void;
 }
 
 const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
@@ -19,8 +21,14 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   onStartServer,
   onStopServer,
   terminalPort,
+  activeTab: externalActiveTab,
+  onTabChange: externalOnTabChange,
 }, ref) => {
-  const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
+  const [internalActiveTab, setInternalActiveTab] = useState<'preview' | 'editor'>('preview');
+
+  // Use external state if provided, otherwise use internal state
+  const activeTab = externalActiveTab !== undefined ? externalActiveTab : internalActiveTab;
+  const setActiveTab = externalOnTabChange || setInternalActiveTab;
 
   // Listen for global events to switch tabs
   useEffect(() => {
