@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage, type UIMessageStreamWriter } from 'ai';
 import type { MessageParam, ContentBlockParam } from '@anthropic-ai/sdk/resources';
+import { join } from 'path';
 
 // Create instrumented query function (automatically uses claudeCodeIntegration options)
 const query = Sentry.createInstrumentedClaudeQuery();
@@ -217,7 +218,7 @@ export async function POST(req: Request) {
       async execute({ writer }) {
         console.log('🎯 Creating instrumented Claude Code query...');
 
-        const projectsDir = '/Users/codydearkland/sentryvibe/projects';
+        const projectsDir = process.env.PROJECTS_DIR || join(process.cwd(), 'projects');
 
         const systemPrompt = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
@@ -494,7 +495,7 @@ ALWAYS track your progress with TodoWrite.`;
           inputMessages: inputMessages,
           options: {
             model: 'claude-sonnet-4-5',
-            cwd: '/Users/codydearkland/sentryvibe/projects',
+            cwd: projectsDir,
             permissionMode: 'bypassPermissions',
             maxTurns: 100,
             systemPrompt: systemPrompt,
