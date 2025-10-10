@@ -75,8 +75,8 @@ Sentry.startSpan(
     let reconnectAttempts = 0;
     const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
 
-    // Track detected ports per project for proper tunnel cleanup
-    const detectedPortsByProject = new Map<string, number>();
+    // Track verified listening ports per project (single source of truth)
+    const verifiedPortsByProject = new Map<string, number>();
 
     function assertNever(value: never): never {
       throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
@@ -126,13 +126,17 @@ Sentry.startSpan(
               framework,
             } = command.payload;
 
-            // Allocate port locally (avoid reserved ports like 6000)
-            const allocatedPort = allocatePort();
+            // Allocate port locally (await since it's now async)
+            const allocatedPort = await allocatePort();
 
+            // Build environment with framework-specific port variables
             const envVars = {
               ...process.env,
               ...env,
               PORT: String(allocatedPort),
+              // Framework-specific port variables
+              VITE_PORT: String(allocatedPort),
+              ASTRO_PORT: String(allocatedPort),
             };
 
             const startTime = Date.now();
@@ -155,9 +159,9 @@ Sentry.startSpan(
             });
 
             devProcess.emitter.on("port", async (port: number) => {
-              // Store detected port for this project
-              detectedPortsByProject.set(command.projectId, port);
-              console.log(`📍 Detected port ${port} for project ${command.projectId}`);
+              // Store VERIFIED listening port for this project (single source of truth)
+              verifiedPortsByProject.set(command.projectId, port);
+              console.log(`✅ Verified listening port ${port} for project ${command.projectId}`);
 
               // Send port-detected event immediately without tunnel
               // Tunnel creation is now manual via start-tunnel command
@@ -170,15 +174,12 @@ Sentry.startSpan(
             });
 
             devProcess.emitter.on("exit", async ({ code, signal }) => {
-              // Use detected port for tunnel cleanup (frameworks might ignore PORT env var)
-              const detectedPort = detectedPortsByProject.get(command.projectId);
-              if (detectedPort) {
-                console.log(`🔗 Closing tunnel for detected port ${detectedPort}`);
-                await tunnelManager.closeTunnel(detectedPort);
-                detectedPortsByProject.delete(command.projectId);
-              } else {
-                console.log(`🔗 Closing tunnel for allocated port ${allocatedPort} (no port detected)`);
-                await tunnelManager.closeTunnel(allocatedPort);
+              // Use verified port for cleanup (single source of truth)
+              const verifiedPort = verifiedPortsByProject.get(command.projectId);
+              if (verifiedPort) {
+                console.log(`🔗 Closing tunnel for verified port ${verifiedPort}`);
+                await tunnelManager.closeTunnel(verifiedPort);
+                verifiedPortsByProject.delete(command.projectId);
               }
 
               // Release allocated port from pool
@@ -240,13 +241,6 @@ Sentry.startSpan(
 
             if (!isReady) {
               throw new Error(`Port ${port} is not ready or not accessible`);
-            }
-
-            // Additional wait to ensure server is stable
-            console.log(`⏳ Waiting 3 seconds for server to stabilize...`);
-            for (let i = 1; i <= 3; i++) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              console.log(`⏳ ${i} second${i > 1 ? 's' : ''} elapsed...`);
             }
 
             // Create tunnel

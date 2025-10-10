@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
+import { isPortReady } from './port-checker';
 
 interface DevServerOptions {
   projectId: string;
@@ -36,7 +37,8 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     const error = new Error(`Working directory does not exist: ${cwd}`);
     console.error(`[process-manager]`, error.message);
     emitter.emit('error', error);
-    return { process: childProcess as any, emitter };
+    // Return a dummy process since we can't spawn
+    return { process: null as any, emitter };
   }
 
   // Use shell to execute the full command (handles complex args better)
@@ -56,17 +58,39 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   activeProcesses.set(projectId, devProcess);
 
+  // Track if we've already emitted a port for this process
+  let portEmitted = false;
+  let portVerificationInProgress = false;
+
   // Handle stdout
   childProcess.stdout?.on('data', (data: Buffer) => {
     const text = data.toString();
     emitter.emit('log', { type: 'stdout', data: text });
 
-    // Try to detect port
-    const portMatch = text.match(/(?:localhost:|port[:\s]+|:)(\d{4,5})/i);
-    if (portMatch) {
-      const port = parseInt(portMatch[1], 10);
-      if (port >= 3000 && port <= 65535) {
-        emitter.emit('port', port);
+    // Try to detect port (only emit once per project)
+    if (!portEmitted && !portVerificationInProgress) {
+      const portMatch = text.match(/(?:localhost:|port[:\s]+|:)(\d{4,5})/i);
+      if (portMatch) {
+        const port = parseInt(portMatch[1], 10);
+        if (port >= 3000 && port <= 65535) {
+          portVerificationInProgress = true;
+
+          // Verify port is actually listening before emitting
+          console.log(`[process-manager] Detected potential port ${port}, verifying...`);
+
+          // Give the server a moment to fully bind
+          setTimeout(async () => {
+            const ready = await isPortReady(port, 'localhost', 2000);
+            if (ready && !portEmitted) {
+              portEmitted = true;
+              console.log(`[process-manager] ✅ Verified port ${port} is listening`);
+              emitter.emit('port', port);
+            } else if (!ready) {
+              console.log(`[process-manager] ⚠️  Port ${port} not ready, will retry on next output`);
+              portVerificationInProgress = false;
+            }
+          }, 500);
+        }
       }
     }
   });
