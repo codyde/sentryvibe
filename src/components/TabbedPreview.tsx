@@ -42,6 +42,22 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
     };
   }, []);
 
+  // Keyboard shortcuts for Preview/Editor tabs
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '4') {
+        e.preventDefault();
+        setActiveTab('preview');
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '5') {
+        e.preventDefault();
+        setActiveTab('editor');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 50 }}
@@ -50,7 +66,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
       className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
     >
       {/* Tabs Header */}
-      <div className="border-b border-white/10 flex">
+      <div className="border-b border-white/10 flex items-center">
         <button
           onClick={() => setActiveTab('preview')}
           className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
@@ -71,6 +87,10 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
         >
           Editor
         </button>
+        
+        <div className="ml-auto pr-4 text-xs text-gray-500">
+          ⌘4 Preview • ⌘5 Editor
+        </div>
       </div>
 
       {/* Tab Content */}
