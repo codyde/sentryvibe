@@ -83,12 +83,12 @@ export default function SelectionMode({ isEnabled, onToggle, onElementSelected }
       size="sm"
       className={`gap-2 transition-all ${
         isEnabled
-          ? 'bg-[#FF45A8]/30 text-white border-[#FF45A8]/50 hover:bg-[#FF45A8]/40 shadow-lg shadow-[#FF45A8]/20'
-          : 'bg-[#FF45A8]/20 text-[#FF45A8] border-[#FF45A8]/40 hover:bg-[#FF45A8]/30'
+          ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 hover:bg-purple-500/30'
+          : 'bg-white/5 border-white/10 hover:bg-white/10'
       }`}
     >
       <MousePointer2 className="w-4 h-4" />
-      {isEnabled ? 'Click an element...' : 'Edit Element'}
+      {isEnabled ? 'Click an element...' : 'Select Element'}
     </Button>
   );
 }

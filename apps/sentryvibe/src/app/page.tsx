@@ -2016,7 +2016,7 @@ function HomeContent() {
               </div>
 
               {/* Terminal Output - Bottom */}
-              <div className="h-80">
+              <div className="h-60">
                 <TerminalOutput
                   projectId={currentProject?.id}
                   onPortDetected={(port) => {

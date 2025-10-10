@@ -256,17 +256,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     >
       {/* Browser-like chrome bar */}
       <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
-        {/* Browser dots */}
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#ff5f56] hover:bg-[#ff5f56]/80 transition-colors cursor-pointer"></div>
-          <div className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:bg-[#ffbd2e]/80 transition-colors cursor-pointer"></div>
-          <div className="w-3 h-3 rounded-full bg-[#27c93f] hover:bg-[#27c93f]/80 transition-colors cursor-pointer"></div>
-        </div>
-
         {previewUrl ? (
           <>
             {/* Left controls */}
-            <div className="flex items-center gap-1 ml-2">
+            <div className="flex items-center gap-1">
               {/* Selection Mode Toggle */}
               <SelectionMode
                 isEnabled={isSelectionModeEnabled}
@@ -352,60 +345,61 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               </button>
             </div>
 
-            {/* Right controls - Server/Tunnel buttons */}
-            <div className="flex items-center gap-2">
-              {project?.runCommand && (
-                <>
-                  {project.devServerStatus === 'running' ? (
-                    <>
-                      {/* Tunnel Controls */}
-                      {project.tunnelUrl ? (
-                        <button
-                          onClick={onStopTunnel}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FFD00E]/20 hover:bg-[#FFD00E]/30 text-[#FFD00E] border border-[#FFD00E]/30 rounded-md transition-colors"
-                          title="Stop Cloudflare tunnel"
-                        >
-                          <Square className="w-3.5 h-3.5" />
-                          Stop Tunnel
-                        </button>
-                      ) : (
-                        <button
-                          onClick={onStartTunnel}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#7553FF]/20 hover:bg-[#7553FF]/30 text-[#7553FF] border border-[#7553FF]/30 rounded-md transition-colors"
-                          title="Start Cloudflare tunnel for public access"
-                        >
-                          <Play className="w-3.5 h-3.5" />
-                          Start Tunnel
-                        </button>
-                      )}
-                      {/* Stop Server Button */}
-                      <button
-                        onClick={onStopServer}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors"
-                      >
-                        <Square className="w-3.5 h-3.5" />
-                        Stop
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={onStartServer}
-                      disabled={project.devServerStatus === 'starting'}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                      {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
           </>
         ) : (
           <div className="flex-1 text-center">
             <span className="text-sm text-gray-500">No preview available</span>
           </div>
         )}
+
+        {/* Right controls - Server/Tunnel buttons - Always visible */}
+        <div className="flex items-center gap-2 ml-auto">
+          {project?.runCommand && (
+            <>
+              {project.devServerStatus === 'running' ? (
+                <>
+                  {/* Tunnel Controls */}
+                  {project.tunnelUrl ? (
+                    <button
+                      onClick={onStopTunnel}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FFD00E]/20 hover:bg-[#FFD00E]/30 text-[#FFD00E] border border-[#FFD00E]/30 rounded-md transition-colors"
+                      title="Stop Cloudflare tunnel"
+                    >
+                      <Square className="w-3.5 h-3.5" />
+                      Stop Tunnel
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onStartTunnel}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#7553FF]/20 hover:bg-[#7553FF]/30 text-[#7553FF] border border-[#7553FF]/30 rounded-md transition-colors"
+                      title="Start Cloudflare tunnel for public access"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      Start Tunnel
+                    </button>
+                  )}
+                  {/* Stop Server Button */}
+                  <button
+                    onClick={onStopServer}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors"
+                  >
+                    <Square className="w-3.5 h-3.5" />
+                    Stop
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={onStartServer}
+                  disabled={project.devServerStatus === 'starting'}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl ? (
