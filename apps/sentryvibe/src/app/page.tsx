@@ -19,6 +19,7 @@ import GenerationProgress from '@/components/GenerationProgress';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
+import { useRunner } from '@/contexts/RunnerContext';
 import type { GenerationState, ToolCall, BuildOperationType } from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
 import { detectOperationType, createFreshGenerationState, validateGenerationState } from '@/lib/build-helpers';
@@ -109,6 +110,7 @@ function HomeContent() {
   const selectedProjectSlug = searchParams.get('project');
   const shouldGenerate = searchParams.get('generate') === 'true';
   const { projects, refetch, runnerOnline } = useProjects();
+  const { selectedRunnerId } = useRunner();
 
   useEffect(() => {
     generationStateRef.current = generationState;
@@ -1303,7 +1305,11 @@ function HomeContent() {
 
     try {
       setTerminalDetectedPort(null);
-      const res = await fetch(`/api/projects/${currentProject.id}/start`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${currentProject.id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runnerId: selectedRunnerId }),
+      });
       if (res.ok) {
         console.log('✅ Dev server started successfully!');
 
@@ -1380,7 +1386,11 @@ function HomeContent() {
     if (!currentProject) return;
 
     try {
-      const res = await fetch(`/api/projects/${currentProject.id}/stop`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${currentProject.id}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runnerId: selectedRunnerId }),
+      });
       if (res.ok) {
         // Update currentProject directly
         setCurrentProject(prev => prev ? {
@@ -1403,7 +1413,11 @@ function HomeContent() {
     if (!currentProject) return;
 
     try {
-      const res = await fetch(`/api/projects/${currentProject.id}/start-tunnel`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${currentProject.id}/start-tunnel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runnerId: selectedRunnerId }),
+      });
       if (res.ok) {
         console.log('✅ Tunnel start requested');
         // Refresh to get tunnel URL
@@ -1418,7 +1432,11 @@ function HomeContent() {
     if (!currentProject) return;
 
     try {
-      const res = await fetch(`/api/projects/${currentProject.id}/stop-tunnel`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${currentProject.id}/stop-tunnel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runnerId: selectedRunnerId }),
+      });
       if (res.ok) {
         console.log('✅ Tunnel stop requested');
         // Update currentProject to clear tunnel URL

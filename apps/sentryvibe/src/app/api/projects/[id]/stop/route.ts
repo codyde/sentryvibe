@@ -13,6 +13,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
 
     // Get project from DB
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
@@ -35,7 +37,7 @@ export async function POST(
       timestamp: new Date().toISOString(),
     };
 
-    await sendCommandToRunner(process.env.RUNNER_DEFAULT_ID ?? 'default', command);
+    await sendCommandToRunner(runnerId, command);
 
     return NextResponse.json({
       message: 'Dev server stop requested',

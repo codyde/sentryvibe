@@ -13,6 +13,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
 
     // Get project from DB
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
@@ -48,7 +50,7 @@ export async function POST(
       },
     };
 
-    await sendCommandToRunner(process.env.RUNNER_DEFAULT_ID ?? 'default', runnerCommand);
+    await sendCommandToRunner(runnerId, runnerCommand);
 
     return NextResponse.json({
       message: 'Tunnel start requested',

@@ -7,6 +7,7 @@ import { ActivityFeed } from "@/components/sidebar/ActivityFeed"
 import { SmartProjectGroups } from "@/components/sidebar/SmartProjectGroups"
 import RenameProjectModal from "@/components/RenameProjectModal"
 import DeleteProjectModal from "@/components/DeleteProjectModal"
+import RunnerSelector from "@/components/RunnerSelector"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Sidebar,
@@ -162,7 +163,10 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
         </SidebarContent>
 
         {/* Footer */}
-        <SidebarFooter className="border-t border-white/10 p-3 space-y-2">
+        <SidebarFooter className="border-t border-white/10 p-3 space-y-3">
+          {/* Runner Selector */}
+          <RunnerSelector />
+
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton onClick={onOpenProcessModal} className="w-full">
