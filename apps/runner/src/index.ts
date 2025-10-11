@@ -106,18 +106,21 @@ Sentry.startSpan(
 
         // Log event details for specific types
         if (event.type === 'build-stream') {
-          // Don't log full stream data, just first 100 chars
-          const preview = event.data?.substring(0, 100) || '';
-          console.log(`[runner]   Stream preview: ${preview}${event.data && event.data.length > 100 ? '...' : ''}`);
+          // Log first 500 chars for better visibility
+          const preview = event.data?.substring(0, 500) || '';
+          console.log(`[runner]   Stream preview: ${preview}${event.data && event.data.length > 500 ? '...' : ''}`);
         } else if (event.type === 'error') {
           console.log(`[runner]   Error: ${event.error}`);
+          if (event.stack) {
+            console.log(`[runner]   Stack: ${event.stack.substring(0, 1000)}`);
+          }
         } else if (event.type === 'port-detected') {
           console.log(`[runner]   Port: ${event.port}`);
         } else if (event.type === 'tunnel-created') {
           console.log(`[runner]   Tunnel: ${event.tunnelUrl} -> localhost:${event.port}`);
         } else {
-          // For other events, log first 200 chars of JSON
-          console.log(`[runner]   Data: ${eventJson.substring(0, 200)}${eventJson.length > 200 ? '...' : ''}`);
+          // For other events, log first 1000 chars of JSON for better visibility
+          console.log(`[runner]   Data: ${eventJson.substring(0, 1000)}${eventJson.length > 1000 ? '...' : ''}`);
         }
 
         socket.send(eventJson);
@@ -644,7 +647,7 @@ Sentry.startSpan(
               if (!loggedFirstChunk) {
                 console.log(
                   "[runner] first build chunk sample:",
-                  JSON.stringify(agentMessage).slice(0, 200)
+                  JSON.stringify(agentMessage).slice(0, 1000)
                 );
                 loggedFirstChunk = true;
               }
