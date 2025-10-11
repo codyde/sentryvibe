@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { rm } from 'fs/promises';
 import { releasePortForProject } from '@/lib/port-allocator';
+import { sendCommandToRunner } from '@/lib/runner/broker-state';
+import { randomUUID } from 'crypto';
 
 // GET /api/projects/:id - Get single project
 export async function GET(
@@ -111,14 +112,32 @@ export async function DELETE(
     // Delete from database (cascade will delete messages)
     await db.delete(projects).where(eq(projects.id, id));
 
-    // Optionally delete filesystem
-    if (deleteFiles && project[0].path) {
+    // Optionally delete filesystem - delegate to runner
+    if (deleteFiles && project[0].slug) {
       try {
-        await rm(project[0].path, { recursive: true, force: true });
-        console.log(`🗑️  Deleted project files: ${project[0].path}`);
+        const runnerId = process.env.RUNNER_DEFAULT_ID ?? 'default';
+
+        console.log(`🗑️  Sending delete-project-files command to runner: ${runnerId}`);
+        console.log(`   Project slug: ${project[0].slug}`);
+
+        // Send command to runner - it will delete files from its workspace
+        await sendCommandToRunner(runnerId, {
+          id: randomUUID(),
+          type: 'delete-project-files',
+          projectId: id,
+          timestamp: new Date().toISOString(),
+          payload: {
+            slug: project[0].slug,
+          },
+        });
+
+        console.log(`✅ Delete command sent to runner successfully`);
       } catch (error) {
-        console.warn('Failed to delete project files:', error);
+        console.warn('⚠️  Failed to send delete command to runner:', error);
+        // Don't fail the request - project is already deleted from DB
       }
+    } else if (deleteFiles) {
+      console.warn('⚠️  Cannot delete files: project slug not found');
     }
 
     return NextResponse.json({ success: true });

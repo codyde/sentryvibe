@@ -3,14 +3,12 @@ import * as Sentry from '@sentry/nextjs';
 import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { join } from 'path';
-import { getWorkspaceRoot } from '@/lib/workspace';
 
-const WORKSPACE_ROOT = getWorkspaceRoot();
-
+// Note: This route uses Haiku for metadata extraction only (no filesystem access)
+// cwd is set to process.cwd() since we don't need workspace access here
 const query = Sentry.createInstrumentedClaudeQuery({
   default: {
-    cwd: WORKSPACE_ROOT,
+    cwd: process.cwd(),
   },
 });
 
@@ -167,10 +165,7 @@ Output ONLY this JSON (no text before or after):
       console.log(`⚠️  Slug collision detected, using: ${finalSlug}`);
     }
 
-    // Create project path
-    const projectPath = join(getWorkspaceRoot(), finalSlug);
-
-    // Insert into database
+    // Insert into database (path is calculated from slug, not stored)
     const newProject = await db.insert(projects).values({
       name: metadata.friendlyName,
       slug: finalSlug,
@@ -178,7 +173,7 @@ Output ONLY this JSON (no text before or after):
       originalPrompt: prompt, // Store the original user prompt
       icon: metadata.icon || 'Folder',
       status: 'pending',
-      path: projectPath,
+      // path is deprecated - calculated from slug when needed
     }).returning();
 
     console.log('✅ Project created:', newProject[0].id);

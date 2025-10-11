@@ -9,7 +9,7 @@ export const projects = pgTable('projects', {
   icon: text('icon').default('Folder'),
   status: text('status').notNull().default('pending'),
   projectType: text('project_type'),
-  path: text('path').notNull(),
+  path: text('path'), // Nullable - deprecated, path should be calculated from slug
   runCommand: text('run_command'),
   port: integer('port'),
   devServerPid: integer('dev_server_pid'),

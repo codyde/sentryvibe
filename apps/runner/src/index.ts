@@ -21,6 +21,7 @@ import { orchestrateBuild } from "./lib/build-orchestrator";
 import { tunnelManager } from "./lib/tunnel/manager";
 import { allocatePort, releasePort } from "./lib/port-allocator";
 import { waitForPort } from "./lib/port-checker";
+import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler";
 
 Sentry.startSpan(
   {
@@ -55,9 +56,18 @@ Sentry.startSpan(
             options: {
               model: "claude-sonnet-4-5",
               cwd: workingDir as string,
-              permissionMode: "bypassPermissions",
+
+              // 🔒 SECURITY: Changed from "bypassPermissions" to "default" for proper permission checking
+              permissionMode: "default",
+
               maxTurns: 100,
               systemPrompt: systemPrompt as string,
+
+              // 🔒 SECURITY: Explicitly allow only the project directory
+              additionalDirectories: [workingDir as string],
+
+              // 🔒 SECURITY: Add custom permission handler to restrict Claude to project directory
+              canUseTool: createProjectScopedPermissionHandler(workingDir as string),
             },
           });
         }
@@ -88,9 +98,32 @@ Sentry.startSpan(
         return;
       }
       try {
-        socket.send(JSON.stringify(event));
+        // Log event transmission with size info
+        const eventJson = JSON.stringify(event);
+        const eventSize = new TextEncoder().encode(eventJson).length;
+
+        console.log(`[runner] 📤 Sending event: ${event.type} (${eventSize} bytes) projectId: ${event.projectId || 'N/A'}`);
+
+        // Log event details for specific types
+        if (event.type === 'build-stream') {
+          // Don't log full stream data, just first 100 chars
+          const preview = event.data?.substring(0, 100) || '';
+          console.log(`[runner]   Stream preview: ${preview}${event.data && event.data.length > 100 ? '...' : ''}`);
+        } else if (event.type === 'error') {
+          console.log(`[runner]   Error: ${event.error}`);
+        } else if (event.type === 'port-detected') {
+          console.log(`[runner]   Port: ${event.port}`);
+        } else if (event.type === 'tunnel-created') {
+          console.log(`[runner]   Tunnel: ${event.tunnelUrl} -> localhost:${event.port}`);
+        } else {
+          // For other events, log first 200 chars of JSON
+          console.log(`[runner]   Data: ${eventJson.substring(0, 200)}${eventJson.length > 200 ? '...' : ''}`);
+        }
+
+        socket.send(eventJson);
+        console.log(`[runner] ✅ Event sent successfully`);
       } catch (error) {
-        console.error(`[runner] Failed to send event ${event.type}:`, error);
+        console.error(`[runner] ❌ Failed to send event ${event.type}:`, error);
       }
     }
 
@@ -103,7 +136,21 @@ Sentry.startSpan(
     }
 
     async function handleCommand(command: RunnerCommand) {
-      log("command received", command.type, { projectId: command.projectId });
+      console.log(`[runner] 📥 Received command: ${command.type} for project: ${command.projectId}`);
+      console.log(`[runner]   Command ID: ${command.id}`);
+      console.log(`[runner]   Timestamp: ${command.timestamp}`);
+
+      // Log command-specific details
+      if (command.type === 'start-build') {
+        console.log(`[runner]   Build operation: ${command.payload.operationType}`);
+        console.log(`[runner]   Project slug: ${command.payload.projectSlug}`);
+        console.log(`[runner]   Prompt length: ${command.payload.prompt?.length || 0} chars`);
+      } else if (command.type === 'start-dev-server') {
+        console.log(`[runner]   Working directory: ${command.payload.workingDirectory}`);
+        console.log(`[runner]   Run command: ${command.payload.runCommand}`);
+      } else if (command.type === 'start-tunnel' || command.type === 'stop-tunnel') {
+        console.log(`[runner]   Port: ${command.payload.port}`);
+      }
 
       sendEvent({
         type: "ack",
@@ -302,6 +349,171 @@ Sentry.startSpan(
           });
           break;
         }
+        case "delete-project-files": {
+          try {
+            const { slug } = command.payload;
+            const projectPath = join(WORKSPACE_ROOT, slug);
+
+            console.log(`[runner] 🗑️  Deleting project files for slug: ${slug}`);
+            console.log(`[runner]   Path: ${projectPath}`);
+
+            const { rm } = await import('fs/promises');
+            await rm(projectPath, { recursive: true, force: true });
+
+            console.log(`[runner] ✅ Successfully deleted project files: ${projectPath}`);
+
+            sendEvent({
+              type: "files-deleted",
+              ...buildEventBase(command.projectId, command.id),
+              slug,
+            });
+          } catch (error) {
+            console.error("[runner] ❌ Failed to delete project files:", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to delete project files",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          }
+          break;
+        }
+        case "read-file": {
+          try {
+            const { slug, filePath } = command.payload;
+            const projectPath = join(WORKSPACE_ROOT, slug);
+            const fullPath = join(projectPath, filePath);
+
+            console.log(`[runner] 📖 Reading file: ${filePath} from project: ${slug}`);
+
+            // Security: Ensure path is within project directory
+            if (!fullPath.startsWith(projectPath)) {
+              throw new Error('Invalid file path - outside project directory');
+            }
+
+            const { readFile, stat } = await import('fs/promises');
+            const stats = await stat(fullPath);
+            const content = await readFile(fullPath, 'utf-8');
+
+            console.log(`[runner] ✅ File read successfully (${stats.size} bytes)`);
+
+            sendEvent({
+              type: "file-content",
+              ...buildEventBase(command.projectId, command.id),
+              slug,
+              filePath,
+              content,
+              size: stats.size,
+            });
+          } catch (error) {
+            console.error("[runner] ❌ Failed to read file:", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to read file",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          }
+          break;
+        }
+        case "write-file": {
+          try {
+            const { slug, filePath, content } = command.payload;
+            const projectPath = join(WORKSPACE_ROOT, slug);
+            const fullPath = join(projectPath, filePath);
+
+            console.log(`[runner] 💾 Writing file: ${filePath} to project: ${slug}`);
+
+            // Security: Ensure path is within project directory
+            if (!fullPath.startsWith(projectPath)) {
+              throw new Error('Invalid file path - outside project directory');
+            }
+
+            const { writeFile } = await import('fs/promises');
+            await writeFile(fullPath, content, 'utf-8');
+
+            console.log(`[runner] ✅ File written successfully (${content.length} bytes)`);
+
+            sendEvent({
+              type: "file-written",
+              ...buildEventBase(command.projectId, command.id),
+              slug,
+              filePath,
+            });
+          } catch (error) {
+            console.error("[runner] ❌ Failed to write file:", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to write file",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          }
+          break;
+        }
+        case "list-files": {
+          try {
+            const { slug, path: subPath } = command.payload;
+            const projectPath = join(WORKSPACE_ROOT, slug);
+            const targetPath = subPath ? join(projectPath, subPath) : projectPath;
+
+            console.log(`[runner] 📁 Listing files for project: ${slug}`);
+            console.log(`[runner]   Path: ${targetPath}`);
+
+            // Security: Ensure path is within project directory
+            if (!targetPath.startsWith(projectPath)) {
+              throw new Error('Invalid path - outside project directory');
+            }
+
+            const { readdir, stat } = await import('fs/promises');
+            const entries = await readdir(targetPath);
+
+            const files = await Promise.all(
+              entries.map(async (name) => {
+                const entryPath = join(targetPath, name);
+                const relativePath = subPath ? join(subPath, name) : name;
+                const stats = await stat(entryPath);
+
+                return {
+                  name,
+                  type: stats.isDirectory() ? 'directory' as const : 'file' as const,
+                  path: relativePath,
+                  size: stats.isFile() ? stats.size : undefined,
+                };
+              })
+            );
+
+            console.log(`[runner] ✅ Found ${files.length} entries`);
+
+            sendEvent({
+              type: "file-list",
+              ...buildEventBase(command.projectId, command.id),
+              slug,
+              files,
+            });
+          } catch (error) {
+            console.error("[runner] ❌ Failed to list files:", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to list files",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          }
+          break;
+        }
         case "start-build": {
           try {
             loggedFirstChunk = false;
@@ -359,6 +571,11 @@ Sentry.startSpan(
               });
             }
 
+            console.log(`[build] 🚀 Starting build stream for project: ${command.projectId}`);
+            console.log(`[build]   Directory: ${projectDirectory}`);
+            console.log(`[build]   Is new project: ${orchestration.isNewProject}`);
+            console.log(`[build]   Template: ${orchestration.template?.name || 'none'}`);
+
             const stream = await createBuildStream({
               projectId: command.projectId,
               prompt: orchestration.fullPrompt,
@@ -368,6 +585,8 @@ Sentry.startSpan(
               workingDirectory: projectDirectory,
               systemPrompt: orchestration.systemPrompt,
             });
+
+            console.log(`[build] 📡 Build stream created, starting to process chunks...`);
 
             const reader = stream.getReader();
             const decoder = new TextDecoder();
@@ -499,6 +718,9 @@ Sentry.startSpan(
             } catch (error) {
               console.warn('Failed to detect runCommand:', error);
             }
+
+            console.log(`[build] ✅ Build completed successfully for project: ${command.projectId}`);
+            console.log(`[build]   Total chunks processed: (stream ended)`);
 
             sendEvent({
               type: "build-completed",

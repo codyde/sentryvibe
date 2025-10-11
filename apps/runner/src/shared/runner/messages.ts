@@ -5,7 +5,11 @@ export type RunnerCommandType =
   | 'start-tunnel'
   | 'stop-tunnel'
   | 'fetch-logs'
-  | 'runner-health-check';
+  | 'runner-health-check'
+  | 'delete-project-files'
+  | 'read-file'
+  | 'write-file'
+  | 'list-files';
 
 export type RunnerEventType =
   | 'ack'
@@ -20,6 +24,10 @@ export type RunnerEventType =
   | 'runner-status'
   | 'build-stream'
   | 'project-metadata'
+  | 'files-deleted'
+  | 'file-content'
+  | 'file-written'
+  | 'file-list'
   | 'error';
 
 export interface BaseCommand {
@@ -83,6 +91,38 @@ export interface RunnerHealthCheckCommand extends BaseCommand {
   type: 'runner-health-check';
 }
 
+export interface DeleteProjectFilesCommand extends BaseCommand {
+  type: 'delete-project-files';
+  payload: {
+    slug: string;
+  };
+}
+
+export interface ReadFileCommand extends BaseCommand {
+  type: 'read-file';
+  payload: {
+    slug: string;
+    filePath: string;
+  };
+}
+
+export interface WriteFileCommand extends BaseCommand {
+  type: 'write-file';
+  payload: {
+    slug: string;
+    filePath: string;
+    content: string;
+  };
+}
+
+export interface ListFilesCommand extends BaseCommand {
+  type: 'list-files';
+  payload: {
+    slug: string;
+    path?: string; // Optional subdirectory path within project
+  };
+}
+
 export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
@@ -90,7 +130,11 @@ export type RunnerCommand =
   | StartTunnelCommand
   | StopTunnelCommand
   | FetchLogsCommand
-  | RunnerHealthCheckCommand;
+  | RunnerHealthCheckCommand
+  | DeleteProjectFilesCommand
+  | ReadFileCommand
+  | WriteFileCommand
+  | ListFilesCommand;
 
 export interface BaseEvent {
   type: RunnerEventType;
@@ -197,6 +241,36 @@ export interface TunnelClosedEvent extends BaseEvent {
   port: number;
 }
 
+export interface FilesDeletedEvent extends BaseEvent {
+  type: 'files-deleted';
+  slug: string;
+}
+
+export interface FileContentEvent extends BaseEvent {
+  type: 'file-content';
+  slug: string;
+  filePath: string;
+  content: string;
+  size: number;
+}
+
+export interface FileWrittenEvent extends BaseEvent {
+  type: 'file-written';
+  slug: string;
+  filePath: string;
+}
+
+export interface FileListEvent extends BaseEvent {
+  type: 'file-list';
+  slug: string;
+  files: Array<{
+    name: string;
+    type: 'file' | 'directory';
+    path: string;
+    size?: number;
+  }>;
+}
+
 export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
@@ -210,6 +284,10 @@ export type RunnerEvent =
   | RunnerStatusEvent
   | BuildStreamEvent
   | ProjectMetadataEvent
+  | FilesDeletedEvent
+  | FileContentEvent
+  | FileWrittenEvent
+  | FileListEvent
   | ErrorEvent;
 
 export type RunnerMessage = RunnerCommand | RunnerEvent;
@@ -222,6 +300,10 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'stop-tunnel',
   'fetch-logs',
   'runner-health-check',
+  'delete-project-files',
+  'read-file',
+  'write-file',
+  'list-files',
 ];
 
 export const isRunnerCommand = (message: RunnerMessage): message is RunnerCommand =>
