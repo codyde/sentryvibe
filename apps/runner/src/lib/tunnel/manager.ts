@@ -55,11 +55,29 @@ export class TunnelManager extends EventEmitter {
    */
   private async _createTunnelAttempt(port: number): Promise<string> {
     return new Promise((resolve, reject) => {
+      console.log(`[tunnel] Creating tunnel for port ${port}...`);
+
+      // Direct binary execution with unbuffered streams
       const proc = spawn(this.cloudflaredPath!, [
         'tunnel',
         '--url', `http://localhost:${port}`,
         '--no-autoupdate',
-      ]);
+      ], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      // Set streams to unbuffered mode immediately for responsive output
+      if (proc.stdout) {
+        proc.stdout.setEncoding('utf8');
+        proc.stdout.resume();
+      }
+      if (proc.stderr) {
+        proc.stderr.setEncoding('utf8');
+        proc.stderr.resume();
+      }
+
+      console.log(`[tunnel] Cloudflared spawned with PID: ${proc.pid}`);
 
       let resolved = false;
       const timeout = setTimeout(() => {
@@ -92,12 +110,12 @@ export class TunnelManager extends EventEmitter {
       proc.stderr.on('data', (data: Buffer) => {
         const output = data.toString();
 
-        // Check for errors
-        if (output.toLowerCase().includes('error')) {
-          console.error('cloudflared error:', output);
+        // Log errors only (cloudflared uses stderr for all output)
+        if (output.toLowerCase().includes('error') || output.toLowerCase().includes('fatal')) {
+          console.error(`[cloudflared:${port}] ${output.trim()}`);
         }
 
-        // Also check stderr for tunnel URL (cloudflared sometimes outputs there)
+        // Check stderr for tunnel URL (cloudflared outputs URL to stderr)
         const match = output.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
         if (match && !resolved) {
           resolved = true;
@@ -111,8 +129,8 @@ export class TunnelManager extends EventEmitter {
         }
       });
 
-      proc.on('exit', (code) => {
-        console.log(`Tunnel exited for port ${port} with code ${code}`);
+      proc.on('exit', (code, signal) => {
+        console.log(`Tunnel exited for port ${port} with code ${code} signal ${signal}`);
         this.tunnels.delete(port);
         this.emit('tunnel-closed', port);
       });

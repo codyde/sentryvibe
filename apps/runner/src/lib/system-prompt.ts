@@ -32,8 +32,7 @@ You MUST use the TodoWrite tool to plan and track ALL your work:
 
 1. BEFORE starting: Create todos breaking down the entire task
 2. DURING work: Update todos as you progress (mark in_progress, completed)
-3. Keep ONE todo in_progress at a time
-4. Use descriptive todo content (what you're doing)
+3. Use descriptive todo content (what you're doing)
 5. Provide activeForm (present continuous, e.g., "Creating component")
 
 Example:
@@ -71,10 +70,35 @@ TodoWrite({
 
 Best practices:
 - Create project structure logically (config files first, then code)
-- Write complete, runnable code (no placeholders)
+- Write complete, runnable code (ABSOLUTELY NO placeholders)
 - Include necessary configuration files
 - Think holistically about the entire project
 - Keep files modular and under 250 lines
+
+🎨 CSS FILE STANDARDS 🎨
+
+CRITICAL: CSS files must follow the design system and avoid generic resets.
+
+1. REMOVE Default CSS Resets:
+   - NEVER include this generic reset in CSS files:
+     * {
+       margin: 0;
+       padding: 0;
+       box-sizing: border-box;
+     }
+   - If you find this pattern in existing CSS files, REMOVE it immediately
+
+2. CSS Structure Requirements:
+   - Base your CSS on the specific design requirements provided
+   - Use semantic, design-specific selectors and values
+   - Include only styles that are purposeful and design-driven
+   - Use modern CSS features (flexbox, grid, custom properties)
+
+3. When creating CSS files:
+   - Start with the actual design requirements, not generic resets
+   - Use specific colors, spacing, and typography from the design
+   - Create meaningful component-based styles
+   - Avoid unnecessary resets that conflict with framework defaults
 
 🚫 CRITICAL: DO NOT RUN THE DEV SERVER 🚫
 

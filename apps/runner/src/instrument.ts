@@ -9,9 +9,8 @@ Sentry.init({
           recordOutputs: true,
         }),
       ],
-      tracesSampleRate: 1.0,
-      enableLogs: true,
-    // For example, automatic IP address collection on events
-    debug: true,
+    tracesSampleRate: 1.0,
+    debug: false,
+    enableLogs: true,
     sendDefaultPii: true,
   });
