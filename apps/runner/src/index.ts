@@ -360,8 +360,13 @@ Sentry.startSpan(
             console.log(`[runner] 🗑️  Deleting project files for slug: ${slug}`);
             console.log(`[runner]   Path: ${projectPath}`);
 
-            const { rm } = await import('fs/promises');
-            await rm(projectPath, { recursive: true, force: true });
+            // Use rm -rf via shell for more reliable deletion of complex directories
+            // This handles nested node_modules, .vite caches, etc. better than fs.rm
+            const { execFile } = await import('child_process');
+            const { promisify } = await import('util');
+            const execFileAsync = promisify(execFile);
+
+            await execFileAsync('rm', ['-rf', projectPath]);
 
             console.log(`[runner] ✅ Successfully deleted project files: ${projectPath}`);
 
