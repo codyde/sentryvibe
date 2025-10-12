@@ -360,15 +360,56 @@ Sentry.startSpan(
             console.log(`[runner] 🗑️  Deleting project files for slug: ${slug}`);
             console.log(`[runner]   Path: ${projectPath}`);
 
-            // Use rm -rf via shell for more reliable deletion of complex directories
-            // This handles nested node_modules, .vite caches, etc. better than fs.rm
-            const { execFile } = await import('child_process');
+            // First, stop any running dev server for this project to release file locks
+            const wasStopped = stopDevServer(command.projectId);
+            if (wasStopped) {
+              console.log(`[runner]   Stopped dev server before deletion`);
+              // Wait a bit for processes to fully exit and release file locks
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            // Use multiple strategies for robust deletion
+            const { spawn } = await import('child_process');
             const { promisify } = await import('util');
-            const execFileAsync = promisify(execFile);
 
-            await execFileAsync('rm', ['-rf', projectPath]);
+            // Strategy 1: Try using /bin/rm -rf with full path to rm binary
+            try {
+              await new Promise<void>((resolve, reject) => {
+                const proc = spawn('/bin/rm', ['-rf', projectPath], {
+                  stdio: 'pipe'
+                });
 
-            console.log(`[runner] ✅ Successfully deleted project files: ${projectPath}`);
+                let stderr = '';
+                proc.stderr?.on('data', (data) => {
+                  stderr += data.toString();
+                });
+
+                proc.on('exit', (code) => {
+                  if (code === 0) {
+                    resolve();
+                  } else {
+                    reject(new Error(`rm exited with code ${code}: ${stderr}`));
+                  }
+                });
+
+                proc.on('error', reject);
+              });
+
+              console.log(`[runner] ✅ Successfully deleted project files: ${projectPath}`);
+            } catch (rmError) {
+              console.warn(`[runner] ⚠️  rm -rf failed, trying fs.rm with maxRetries...`);
+
+              // Strategy 2: Fall back to fs.rm with maxRetries option
+              const { rm } = await import('fs/promises');
+              await rm(projectPath, {
+                recursive: true,
+                force: true,
+                maxRetries: 3,
+                retryDelay: 500
+              });
+
+              console.log(`[runner] ✅ Successfully deleted project files with fs.rm`);
+            }
 
             sendEvent({
               type: "files-deleted",
