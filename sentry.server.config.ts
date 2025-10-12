@@ -11,7 +11,8 @@ Sentry.init({
   spotlight: true,
   integrations: [
     Sentry.spotlightIntegration(),
-    Sentry.consoleLoggingIntegration(),
+    // Removed consoleLoggingIntegration() to prevent EPIPE errors when stdout is closed
+    // The console wrapping interferes with Node.js's default graceful EPIPE handling
     Sentry.claudeCodeIntegration({
       recordInputs: true,
       recordOutputs: true,
