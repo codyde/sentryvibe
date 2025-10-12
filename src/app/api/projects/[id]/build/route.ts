@@ -268,6 +268,9 @@ async function writeAgentMessagesToStream(
           errorMessage: typeof message.error === 'string' ? message.error : JSON.stringify(message.error),
         })
         .where(eq(projects.id, projectId));
+      
+      messageStarted = false;  // Prevent cleanup attempts on closed stream
+      return;  // Exit immediately - stream is closed
     }
   }
 
