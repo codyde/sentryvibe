@@ -16,4 +16,25 @@ Sentry.init({
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
+
+  // Filter out EPIPE errors that occur when the Spotlight integration's connection is closed
+  // during server startup. These are benign errors caused by Spotlight's stream redirection
+  // and don't represent actual application issues.
+  beforeSend(event, hint) {
+    const error = hint.originalException;
+    
+    // Filter out EPIPE errors from write operations
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "EPIPE" &&
+      "syscall" in error &&
+      error.syscall === "write"
+    ) {
+      return null; // Don't send this event to Sentry
+    }
+    
+    return event;
+  },
 });
