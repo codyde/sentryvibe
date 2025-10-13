@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
-import { isPortReady } from './port-checker';
+import { isPortReady } from './port-checker.js';
 
 interface DevServerOptions {
   projectId: string;

@@ -6,9 +6,9 @@
 import { existsSync } from 'fs';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
-import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config';
-import { downloadTemplate, getProjectFileTree } from './templates/downloader';
-import { getWorkspaceRoot } from './workspace';
+import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config.js';
+import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
+import { getWorkspaceRoot } from './workspace.js';
 
 export interface BuildContext {
   projectId: string;

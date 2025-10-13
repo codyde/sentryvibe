@@ -1,40 +1,44 @@
-import "./instrument";
+import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { config as loadEnv } from "dotenv";
-import { resolve, join } from "path";
+import { resolve, join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+// ESM compatibility - get __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // loadEnv({ path: resolve(__dirname, "../.env") });
 loadEnv({ path: resolve(__dirname, '../.env.local'), override: true });
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
-import type { RunnerCommand, RunnerEvent } from "./shared/runner/messages";
-import { createBuildStream } from "./lib/build/engine";
-import { startDevServer, stopDevServer } from "./lib/process-manager";
-import { getWorkspaceRoot } from "./lib/workspace";
+import type { RunnerCommand, RunnerEvent } from "./shared/runner/messages.js";
+import { createBuildStream } from "./lib/build/engine.js";
+import { startDevServer, stopDevServer } from "./lib/process-manager.js";
+import { getWorkspaceRoot } from "./lib/workspace.js";
 import {
   transformAgentMessageToSSE,
   resetTransformerState,
   setExpectedCwd,
-} from "./lib/message-transformer";
-import { orchestrateBuild } from "./lib/build-orchestrator";
-import { tunnelManager } from "./lib/tunnel/manager";
-import { allocatePort, releasePort } from "./lib/port-allocator";
-import { waitForPort } from "./lib/port-checker";
-import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler";
+} from "./lib/message-transformer.js";
+import { orchestrateBuild } from "./lib/build-orchestrator.js";
+import { tunnelManager } from "./lib/tunnel/manager.js";
+import { allocatePort, releasePort } from "./lib/port-allocator.js";
+import { waitForPort } from "./lib/port-checker.js";
+import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
+
+export interface RunnerOptions {
+  brokerUrl?: string;
+  sharedSecret?: string;
+  runnerId?: string;
+  workspace?: string;
+  heartbeatInterval?: number;
+}
 
 const log = (...args: unknown[]) => {
   console.log("[runner]", ...args);
 };
-
-const WORKSPACE_ROOT = getWorkspaceRoot();
-log("workspace root:", WORKSPACE_ROOT);
-
-const RUNNER_ID = process.env.RUNNER_ID ?? os.hostname();
-const BROKER_URL =
-  process.env.RUNNER_BROKER_URL ?? "ws://localhost:4000/socket";
-const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
-const HEARTBEAT_INTERVAL_MS = 15_000;
 
 // Create instrumented query - let SDK handle all span creation
 const sentryQuery = Sentry.createInstrumentedClaudeQuery();
@@ -62,71 +66,83 @@ const buildQuery = (...args: unknown[]) => {
   });
 };
 
-if (!SHARED_SECRET) {
-  console.error("RUNNER_SHARED_SECRET is required");
-  process.exit(1);
-}
+/**
+ * Start the runner with the given options
+ */
+export function startRunner(options: RunnerOptions = {}) {
+  const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
+  log("workspace root:", WORKSPACE_ROOT);
 
-let socket: WebSocket | null = null;
-let heartbeatTimer: NodeJS.Timeout | null = null;
-let loggedFirstChunk = false;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
+  const RUNNER_ID = options.runnerId || process.env.RUNNER_ID || os.hostname();
+  const BROKER_URL = options.brokerUrl || process.env.RUNNER_BROKER_URL || "ws://localhost:4000/socket";
+  const SHARED_SECRET = options.sharedSecret || process.env.RUNNER_SHARED_SECRET;
+  const HEARTBEAT_INTERVAL_MS = options.heartbeatInterval || 15_000;
 
-// Track verified listening ports per project (single source of truth)
-const verifiedPortsByProject = new Map<string, number>();
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
-}
-
-function sendEvent(event: RunnerEvent) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    console.warn(`[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`);
-    return;
+  if (!SHARED_SECRET) {
+    console.error("RUNNER_SHARED_SECRET is required");
+    throw new Error("RUNNER_SHARED_SECRET is required");
   }
-  try {
-    // Log event transmission with size info
-    const eventJson = JSON.stringify(event);
-    const eventSize = new TextEncoder().encode(eventJson).length;
 
-    console.log(`[runner] 📤 Sending event: ${event.type} (${eventSize} bytes) projectId: ${event.projectId || 'N/A'}`);
+  let socket: WebSocket | null = null;
+  let heartbeatTimer: NodeJS.Timeout | null = null;
+  let loggedFirstChunk = false;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
 
-    // Log event details for specific types
-    if (event.type === 'build-stream') {
-      // Log first 500 chars for better visibility
-      const preview = event.data?.substring(0, 500) || '';
-      console.log(`[runner]   Stream preview: ${preview}${event.data && event.data.length > 500 ? '...' : ''}`);
-    } else if (event.type === 'error') {
-      console.log(`[runner]   Error: ${event.error}`);
-      if (event.stack) {
-        console.log(`[runner]   Stack: ${event.stack.substring(0, 1000)}`);
-      }
-    } else if (event.type === 'port-detected') {
-      console.log(`[runner]   Port: ${event.port}`);
-    } else if (event.type === 'tunnel-created') {
-      console.log(`[runner]   Tunnel: ${event.tunnelUrl} -> localhost:${event.port}`);
-    } else {
-      // For other events, log first 1000 chars of JSON for better visibility
-      console.log(`[runner]   Data: ${eventJson.substring(0, 1000)}${eventJson.length > 1000 ? '...' : ''}`);
+  // Track verified listening ports per project (single source of truth)
+  const verifiedPortsByProject = new Map<string, number>();
+
+  function assertNever(value: never): never {
+    throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
+  }
+
+  function sendEvent(event: RunnerEvent) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.warn(`[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`);
+      return;
     }
+    try {
+      // Log event transmission with size info
+      const eventJson = JSON.stringify(event);
+      const eventSize = new TextEncoder().encode(eventJson).length;
 
-    socket.send(eventJson);
-    console.log(`[runner] ✅ Event sent successfully`);
-  } catch (error) {
-    console.error(`[runner] ❌ Failed to send event ${event.type}:`, error);
+      console.log(`[runner] 📤 Sending event: ${event.type} (${eventSize} bytes) projectId: ${event.projectId || 'N/A'}`);
+
+      // Log event details for specific types
+      if (event.type === 'build-stream') {
+        // Log first 500 chars for better visibility
+        const preview = event.data?.substring(0, 500) || '';
+        console.log(`[runner]   Stream preview: ${preview}${event.data && event.data.length > 500 ? '...' : ''}`);
+      } else if (event.type === 'error') {
+        console.log(`[runner]   Error: ${event.error}`);
+        if (event.stack) {
+          console.log(`[runner]   Stack: ${event.stack.substring(0, 1000)}`);
+        }
+      } else if (event.type === 'port-detected') {
+        console.log(`[runner]   Port: ${event.port}`);
+      } else if (event.type === 'tunnel-created') {
+        console.log(`[runner]   Tunnel: ${event.tunnelUrl} -> localhost:${event.port}`);
+      } else {
+        // For other events, log first 1000 chars of JSON for better visibility
+        console.log(`[runner]   Data: ${eventJson.substring(0, 1000)}${eventJson.length > 1000 ? '...' : ''}`);
+      }
+
+      socket.send(eventJson);
+      console.log(`[runner] ✅ Event sent successfully`);
+    } catch (error) {
+      console.error(`[runner] ❌ Failed to send event ${event.type}:`, error);
+    }
   }
-}
 
-function buildEventBase(projectId?: string, commandId?: string) {
-  return {
-    projectId,
-    commandId,
-    timestamp: new Date().toISOString(),
-  } as const;
-}
+  function buildEventBase(projectId?: string, commandId?: string) {
+    return {
+      projectId,
+      commandId,
+      timestamp: new Date().toISOString(),
+    } as const;
+  }
 
-async function handleCommand(command: RunnerCommand) {
+  async function handleCommand(command: RunnerCommand) {
   console.log(`[runner] 📥 Received command: ${command.type} for project: ${command.projectId}`);
   console.log(`[runner]   Command ID: ${command.id}`);
   console.log(`[runner]   Timestamp: ${command.timestamp}`);
@@ -781,115 +797,122 @@ async function handleCommand(command: RunnerCommand) {
   }
 }
 
-function publishStatus(projectId?: string, commandId?: string) {
-  const uptimeSeconds = Math.round(process.uptime());
-  const load = os.loadavg?.()[0];
+  function publishStatus(projectId?: string, commandId?: string) {
+    const uptimeSeconds = Math.round(process.uptime());
+    const load = os.loadavg?.()[0];
 
-  sendEvent({
-    type: "runner-status",
-    ...buildEventBase(projectId, commandId),
-    payload: {
-      status: "online",
-      version: "prototype",
-      hostname: os.hostname(),
-      platform: os.platform(),
-      uptimeSeconds,
-      load,
-    },
-  });
-}
-
-function scheduleHeartbeat() {
-  if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
+    sendEvent({
+      type: "runner-status",
+      ...buildEventBase(projectId, commandId),
+      payload: {
+        status: "online",
+        version: "prototype",
+        hostname: os.hostname(),
+        platform: os.platform(),
+        uptimeSeconds,
+        load,
+      },
+    });
   }
-  heartbeatTimer = setInterval(
-    () => publishStatus(),
-    HEARTBEAT_INTERVAL_MS
-  );
-}
 
-function connect() {
-  const url = new URL(BROKER_URL);
-  url.searchParams.set("runnerId", RUNNER_ID);
-
-  socket = new WebSocket(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${SHARED_SECRET}`,
-    },
-  });
-
-  socket.on("open", () => {
-    reconnectAttempts = 0; // Reset on successful connection
-    log("connected to broker", url.toString());
-    publishStatus();
-    scheduleHeartbeat();
-  });
-
-  socket.on("message", (data: WebSocket.RawData) => {
-    try {
-      const command = JSON.parse(String(data)) as RunnerCommand;
-      handleCommand(command);
-    } catch (error) {
-      console.error("Failed to parse command", error);
-      sendEvent({
-        type: "error",
-        ...buildEventBase(undefined, randomUUID()),
-        error: "Failed to parse command payload",
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-    }
-  });
-
-  socket.on("close", (code: number) => {
-    log(`connection closed with code ${code}`);
+  function scheduleHeartbeat() {
     if (heartbeatTimer) {
       clearInterval(heartbeatTimer);
-      heartbeatTimer = null;
     }
-
-    // Exponential backoff with max delay
-    reconnectAttempts++;
-    const delay = Math.min(
-      1000 * Math.pow(2, reconnectAttempts - 1), // 1s, 2s, 4s, 8s, 16s...
-      MAX_RECONNECT_DELAY
+    heartbeatTimer = setInterval(
+      () => publishStatus(),
+      HEARTBEAT_INTERVAL_MS
     );
+  }
 
-    log(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
-    setTimeout(connect, delay);
+  function connect() {
+    const url = new URL(BROKER_URL);
+    url.searchParams.set("runnerId", RUNNER_ID);
+
+    socket = new WebSocket(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${SHARED_SECRET}`,
+      },
+    });
+
+    socket.on("open", () => {
+      reconnectAttempts = 0; // Reset on successful connection
+      log("connected to broker", url.toString());
+      publishStatus();
+      scheduleHeartbeat();
+    });
+
+    socket.on("message", (data: WebSocket.RawData) => {
+      try {
+        const command = JSON.parse(String(data)) as RunnerCommand;
+        handleCommand(command);
+      } catch (error) {
+        console.error("Failed to parse command", error);
+        sendEvent({
+          type: "error",
+          ...buildEventBase(undefined, randomUUID()),
+          error: "Failed to parse command payload",
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    });
+
+    socket.on("close", (code: number) => {
+      log(`connection closed with code ${code}`);
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+
+      // Exponential backoff with max delay
+      reconnectAttempts++;
+      const delay = Math.min(
+        1000 * Math.pow(2, reconnectAttempts - 1), // 1s, 2s, 4s, 8s, 16s...
+        MAX_RECONNECT_DELAY
+      );
+
+      log(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+      setTimeout(connect, delay);
+    });
+
+    socket.on("error", (error: Error) => {
+      console.error("socket error", error);
+    });
+  }
+
+  process.on("SIGINT", async () => {
+    log("shutting down");
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+    // Cleanup all tunnels
+    await tunnelManager.closeAll();
+
+    // Flush Sentry events before exiting
+    await Sentry.flush(2000);
+
+    socket?.close();
+    process.exit(0);
   });
 
-  socket.on("error", (error: Error) => {
-    console.error("socket error", error);
+  process.on("SIGTERM", async () => {
+    log("shutting down (SIGTERM)");
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+    // Cleanup all tunnels
+    await tunnelManager.closeAll();
+
+    // Flush Sentry events before exiting
+    await Sentry.flush(2000);
+
+    socket?.close();
+    process.exit(0);
   });
+
+  connect();
 }
 
-process.on("SIGINT", async () => {
-  log("shutting down");
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-
-  // Cleanup all tunnels
-  await tunnelManager.closeAll();
-
-  // Flush Sentry events before exiting
-  await Sentry.flush(2000);
-
-  socket?.close();
-  process.exit(0);
-});
-
-process.on("SIGTERM", async () => {
-  log("shutting down (SIGTERM)");
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-
-  // Cleanup all tunnels
-  await tunnelManager.closeAll();
-
-  // Flush Sentry events before exiting
-  await Sentry.flush(2000);
-
-  socket?.close();
-  process.exit(0);
-});
-
-connect();
+// If running this file directly, start the runner
+// ESM equivalent of: if (require.main === module)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  startRunner();
+}

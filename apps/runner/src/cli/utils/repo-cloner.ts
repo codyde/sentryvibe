@@ -1,0 +1,126 @@
+import { simpleGit } from 'simple-git';
+import { existsSync } from 'fs';
+import { mkdir } from 'fs/promises';
+import { join } from 'path';
+import { logger } from './logger.js';
+import { spinner } from './spinner.js';
+
+const DEFAULT_REPO_URL = 'https://github.com/codyde/sentryvibe.git';
+const DEFAULT_CLONE_PATH = join(process.cwd(), 'sentryvibe'); // Current directory + /sentryvibe
+
+export interface CloneOptions {
+  repoUrl?: string;
+  targetPath?: string;
+  branch?: string;
+}
+
+/**
+ * Clone the SentryVibe repository
+ */
+export async function cloneRepository(options: CloneOptions = {}): Promise<string> {
+  const repoUrl = options.repoUrl || DEFAULT_REPO_URL;
+  const targetPath = options.targetPath || DEFAULT_CLONE_PATH;
+  const branch = options.branch || 'main';
+
+  logger.info(`Repository: ${repoUrl}`);
+  logger.info(`Target: ${targetPath}`);
+  logger.info(`Branch: ${branch}`);
+  logger.log('');
+
+  // Check if target already exists
+  if (existsSync(targetPath)) {
+    logger.warn(`Directory already exists: ${targetPath}`);
+    throw new Error('Target directory already exists. Please choose a different location or remove the existing directory.');
+  }
+
+  // Create parent directory if needed
+  const parentPath = join(targetPath, '..');
+  if (!existsSync(parentPath)) {
+    await mkdir(parentPath, { recursive: true });
+  }
+
+  spinner.start('Cloning repository...');
+
+  try {
+    const git = simpleGit();
+
+    await git.clone(repoUrl, targetPath, [
+      '--branch', branch,
+      '--single-branch',
+      '--depth', '1', // Shallow clone for faster download
+    ]);
+
+    spinner.succeed('Repository cloned successfully');
+    return targetPath;
+  } catch (error) {
+    spinner.fail('Failed to clone repository');
+    logger.error(error instanceof Error ? error.message : 'Unknown error');
+    throw error;
+  }
+}
+
+/**
+ * Install dependencies in the cloned repository
+ */
+export async function installDependencies(repoPath: string): Promise<void> {
+  const { spawn } = await import('child_process');
+  const { promisify } = await import('util');
+
+  spinner.start('Installing dependencies (this may take a few minutes)...');
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('pnpm', ['install'], {
+      cwd: repoPath,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
+    });
+
+    let hasError = false;
+
+    proc.stderr?.on('data', (data) => {
+      const text = data.toString();
+      // Only show actual errors, not warnings
+      if (text.includes('ERR!') || text.includes('ERROR')) {
+        hasError = true;
+        logger.error(text.trim());
+      }
+    });
+
+    proc.on('exit', (code) => {
+      if (code === 0 && !hasError) {
+        spinner.succeed('Dependencies installed');
+        resolve();
+      } else {
+        spinner.fail('Failed to install dependencies');
+        reject(new Error(`pnpm install exited with code ${code}`));
+      }
+    });
+
+    proc.on('error', (error) => {
+      spinner.fail('Failed to install dependencies');
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Check if pnpm is installed
+ */
+export async function isPnpmInstalled(): Promise<boolean> {
+  const { spawn } = await import('child_process');
+
+  return new Promise((resolve) => {
+    const proc = spawn('pnpm', ['--version'], {
+      stdio: 'ignore',
+      shell: true,
+    });
+
+    proc.on('exit', (code) => {
+      resolve(code === 0);
+    });
+
+    proc.on('error', () => {
+      resolve(false);
+    });
+  });
+}

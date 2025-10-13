@@ -596,6 +596,7 @@ function HomeContent() {
         body: JSON.stringify({
           operationType: 'focused-edit',
           prompt,
+          runnerId: selectedRunnerId,
           context: {
             elementSelector: element?.selector,
             elementInfo: {
@@ -864,6 +865,7 @@ function HomeContent() {
           operationType,
           prompt,
           buildId: existingBuildId,
+          runnerId: selectedRunnerId,
           context: isElementChange ? {
             elementSelector: 'unknown', // Will be enhanced later
             elementInfo: {},

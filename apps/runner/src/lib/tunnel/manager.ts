@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { ensureCloudflared } from './auto-install';
+import { ensureCloudflared } from './auto-install.js';
 
 interface TunnelInfo {
   url: string;

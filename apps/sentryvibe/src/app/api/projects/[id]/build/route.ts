@@ -45,7 +45,7 @@ export async function POST(
     }
 
     commandId = randomUUID();
-    const runnerId = process.env.RUNNER_DEFAULT_ID ?? 'default';
+    const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
     const encoder = new TextEncoder();
 
     // Track messages for DB persistence
