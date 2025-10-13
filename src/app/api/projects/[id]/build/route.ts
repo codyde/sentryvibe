@@ -177,12 +177,12 @@ async function writeAgentMessagesToStream(
         }
 
         if (messageStarted && currentMessageId) {
-          writer.write({ type: 'finish' });
+          await writer.write({ type: 'finish' });
         }
 
         currentMessageId = assistantMessageId ?? null;
         messageStarted = true;
-        writer.write({
+        await writer.write({
           type: 'start',
           messageId: assistantMessageId,
         });
@@ -192,9 +192,9 @@ async function writeAgentMessagesToStream(
         for (const block of content) {
           if (block.type === 'text' && block.text) {
             const textBlockId = `${assistantMessageId}-text-${Date.now()}`;
-            writer.write({ type: 'text-start', id: textBlockId });
-            writer.write({ type: 'text-delta', id: textBlockId, delta: block.text });
-            writer.write({ type: 'text-end', id: textBlockId });
+            await writer.write({ type: 'text-start', id: textBlockId });
+            await writer.write({ type: 'text-delta', id: textBlockId, delta: block.text });
+            await writer.write({ type: 'text-end', id: textBlockId });
             currentMessageParts.push({ type: 'text', text: block.text });
           } else if (block.type === 'tool_use' && block.id && block.name) {
             // Path violation detection
@@ -207,7 +207,7 @@ async function writeAgentMessagesToStream(
               }
             }
 
-            writer.write({
+            await writer.write({
               type: 'tool-input-available',
               toolCallId: block.id,
               toolName: block.name,
@@ -228,7 +228,7 @@ async function writeAgentMessagesToStream(
       if (Array.isArray(content)) {
         for (const block of content) {
           if (block.type === 'tool_result' && block.tool_use_id) {
-            writer.write({
+            await writer.write({
               type: 'tool-output-available',
               toolCallId: block.tool_use_id,
               output: block.content,
@@ -252,12 +252,12 @@ async function writeAgentMessagesToStream(
       }
 
       if (messageStarted && currentMessageId) {
-        writer.write({ type: 'finish' });
+        await writer.write({ type: 'finish' });
         messageStarted = false;
       }
     } else if (message.type === 'error') {
       console.error('❌ Agent Error:', message.error);
-      writer.write({
+      await writer.write({
         type: 'error',
         errorText: typeof message.error === 'string' ? message.error : JSON.stringify(message.error),
       });
@@ -272,7 +272,7 @@ async function writeAgentMessagesToStream(
   }
 
   if (messageStarted && currentMessageId) {
-    writer.write({ type: 'finish' });
+    await writer.write({ type: 'finish' });
   }
 }
 
@@ -358,13 +358,13 @@ export async function POST(
               console.log('🆕 INITIAL BUILD - Starting pre-build phase...');
 
               // Send pre-build start event
-              writer.write({
+              await writer.write({
                 type: 'data-reasoning' as any,
                 data: { message: 'Analyzing your request and preparing build environment...' },
               });
 
               // STEP 1: Extract metadata (including template selection)
-              writer.write({
+              await writer.write({
                 type: 'tool-input-available',
                 toolCallId: 'pre-build-1',
                 toolName: 'TodoWrite',
@@ -380,12 +380,12 @@ export async function POST(
 
               const metadata = await extractProjectMetadata(prompt);
 
-              writer.write({
+              await writer.write({
                 type: 'data-metadata-extracted' as any,
                 data: { metadata },
               });
 
-              writer.write({
+              await writer.write({
                 type: 'data-reasoning' as any,
                 data: { message: `Creating "${metadata.friendlyName}" using ${metadata.template} template...` },
               });
@@ -398,13 +398,13 @@ export async function POST(
                 throw new Error(`Template ${metadata.template} not found`);
               }
 
-              writer.write({
+              await writer.write({
                 type: 'data-template-selected' as any,
                 data: { template: selectedTemplate },
               });
 
               // Update todo: analysis complete, downloading
-              writer.write({
+              await writer.write({
                 type: 'tool-input-available',
                 toolCallId: 'pre-build-2',
                 toolName: 'TodoWrite',
@@ -418,7 +418,7 @@ export async function POST(
                 },
               });
 
-              writer.write({
+              await writer.write({
                 type: 'data-reasoning' as any,
                 data: { message: `Downloading template from GitHub: ${selectedTemplate.repository}...` },
               });
@@ -435,13 +435,13 @@ export async function POST(
                 })
                 .where(eq(projects.id, id));
 
-              writer.write({
+              await writer.write({
                 type: 'data-template-downloaded' as any,
                 data: { path: downloadedPath },
               });
 
               // Update todo: download complete
-              writer.write({
+              await writer.write({
                 type: 'tool-input-available',
                 toolCallId: 'pre-build-3',
                 toolName: 'TodoWrite',
