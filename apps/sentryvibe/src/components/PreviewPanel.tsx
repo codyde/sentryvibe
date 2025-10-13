@@ -16,11 +16,15 @@ interface PreviewPanelProps {
   onStartTunnel?: () => void;
   onStopTunnel?: () => void;
   terminalPort?: number | null;
+  isStartingServer?: boolean;
+  isStoppingServer?: boolean;
+  isStartingTunnel?: boolean;
+  isStoppingTunnel?: boolean;
 }
 
 type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort }: PreviewPanelProps) {
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel }: PreviewPanelProps) {
   const { projects } = useProjects();
   const [key, setKey] = useState(0);
   const [isServerReady, setIsServerReady] = useState(false);
@@ -365,39 +369,42 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   {project.tunnelUrl ? (
                     <button
                       onClick={onStopTunnel}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 rounded-md transition-colors"
+                      disabled={isStoppingTunnel}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Stop Cloudflare tunnel"
                     >
-                      <Square className="w-3.5 h-3.5" />
-                      Stop Tunnel
+                      <Square className={`w-3.5 h-3.5 ${isStoppingTunnel ? 'animate-pulse' : ''}`} />
+                      {isStoppingTunnel ? 'Stopping...' : 'Stop Tunnel'}
                     </button>
                   ) : (
                     <button
                       onClick={onStartTunnel}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-md transition-colors"
+                      disabled={isStartingTunnel}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Start Cloudflare tunnel for public access"
                     >
-                      <Cloud className="w-3.5 h-3.5" />
-                      Start Tunnel
+                      <Cloud className={`w-3.5 h-3.5 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
+                      {isStartingTunnel ? 'Starting...' : 'Start Tunnel'}
                     </button>
                   )}
                   {/* Stop Server Button */}
                   <button
                     onClick={onStopServer}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors"
+                    disabled={isStoppingServer}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Square className="w-3.5 h-3.5" />
-                    Stop
+                    <Square className={`w-3.5 h-3.5 ${isStoppingServer ? 'animate-pulse' : ''}`} />
+                    {isStoppingServer ? 'Stopping...' : 'Stop'}
                   </button>
                 </>
               ) : (
                 <button
                   onClick={onStartServer}
-                  disabled={project.devServerStatus === 'starting'}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
+                  disabled={project.devServerStatus === 'starting' || isStartingServer}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Play className="w-3.5 h-3.5" />
-                  {project.devServerStatus === 'starting' ? 'Starting...' : 'Start'}
+                  <Play className={`w-3.5 h-3.5 ${isStartingServer ? 'animate-pulse' : ''}`} />
+                  {project.devServerStatus === 'starting' || isStartingServer ? 'Starting...' : 'Start'}
                 </button>
               )}
             </>
@@ -487,10 +494,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 </div>
                 <button
                   onClick={onStartTunnel}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto"
+                  disabled={isStartingTunnel}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Cloud className="w-5 h-5" />
-                  Start Cloudflare Tunnel
+                  <Cloud className={`w-5 h-5 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
+                  {isStartingTunnel ? 'Starting Tunnel...' : 'Start Cloudflare Tunnel'}
                 </button>
               </div>
             ) : project?.devServerStatus === 'running' ? (

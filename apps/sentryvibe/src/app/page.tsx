@@ -69,13 +69,19 @@ function HomeContent() {
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<number | null>(null);
   const [generationState, setGenerationState] = useState<GenerationState | null>(null);
+  const [isStartingServer, setIsStartingServer] = useState(false);
+  const [isStoppingServer, setIsStoppingServer] = useState(false);
+  const [isStartingTunnel, setIsStartingTunnel] = useState(false);
+  const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
+  const [generationRevision, setGenerationRevision] = useState(0);
   const updateGenerationState = useCallback((updater: ((prev: GenerationState | null) => GenerationState | null) | GenerationState | null) => {
     setGenerationState(prev => {
       const next = typeof updater === 'function'
         ? (updater as (prev: GenerationState | null) => GenerationState | null)(prev)
         : updater;
       generationStateRef.current = next;
+      setGenerationRevision(rev => rev + 1);
       return next;
     });
   }, []);
@@ -94,13 +100,12 @@ function HomeContent() {
   // Glow effect for Chat tab
   const [hasUnreadChatMessages, setHasUnreadChatMessages] = useState(false);
 
-  const [activeView, setActiveView] = useState<'chat' | 'build' | 'history'>(() => {
-    // Default to chat
-    if (typeof window !== 'undefined') {
-      return (sessionStorage.getItem('preferredView') as 'chat' | 'build' | 'history') || 'chat';
-    }
-    return 'chat';
-  });
+  // Track if component has mounted to avoid hydration errors
+  const [isMounted, setIsMounted] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
+
+  // Don't read sessionStorage during SSR - prevents hydration mismatch
+  const [activeView, setActiveView] = useState<'chat' | 'build'>('chat');
   const hasStartedGenerationRef = useRef<Set<string>>(new Set());
   const isGeneratingRef = useRef(false); // Sync flag for immediate checks
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -111,6 +116,15 @@ function HomeContent() {
   const shouldGenerate = searchParams.get('generate') === 'true';
   const { projects, refetch, runnerOnline } = useProjects();
   const { selectedRunnerId } = useRunner();
+
+  // Restore view preference from sessionStorage after mount (avoids hydration error)
+  useEffect(() => {
+    setIsMounted(true);
+    const stored = sessionStorage.getItem('preferredView') as 'chat' | 'build' | null;
+    if (stored) {
+      setActiveView(stored);
+    }
+  }, []);
 
   useEffect(() => {
     generationStateRef.current = generationState;
@@ -142,7 +156,7 @@ function HomeContent() {
   };
 
   // Handle tab switching
-  const switchTab = (tab: 'chat' | 'build' | 'history') => {
+  const switchTab = (tab: 'chat' | 'build') => {
     setActiveView(tab);
     sessionStorage.setItem('preferredView', tab);
 
@@ -161,9 +175,6 @@ function HomeContent() {
       } else if ((e.metaKey || e.ctrlKey) && e.key === '2') {
         e.preventDefault();
         switchTab('build');
-      } else if ((e.metaKey || e.ctrlKey) && e.key === '3') {
-        e.preventDefault();
-        switchTab('history');
       }
     };
 
@@ -278,7 +289,7 @@ function HomeContent() {
     if (isLoading || isNearBottom()) {
       scrollToBottom();
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, generationRevision]);
 
   const lastLoadedProjectRef = useRef<string | null>(null);
   const lastLoadTimeRef = useRef<number>(0);
@@ -303,6 +314,7 @@ function HomeContent() {
 
     lastLoadedProjectRef.current = projectId;
     lastLoadTimeRef.current = now;
+    setIsLoadingProject(true);
 
     try {
       const res = await fetch(`/api/projects/${projectId}/messages`);
@@ -340,7 +352,6 @@ function HomeContent() {
         console.log('   ✅ Loaded:', regularMessages.length, 'messages,', archivedElementChanges.length, 'element changes');
         setMessages(regularMessages);
 
-        // Store element changes in per-project map
         if (archivedElementChanges.length > 0) {
           setElementChangeHistoryByProject(prev => {
             const newMap = new Map(prev);
@@ -348,9 +359,106 @@ function HomeContent() {
             return newMap;
           });
         }
+
+        if (Array.isArray(data.sessions)) {
+          const hydratedSessions: GenerationState[] = [];
+
+          data.sessions.forEach((entry: any) => {
+            const session = entry.session;
+            const raw = entry.hydratedState;
+
+            const rebuild = (): GenerationState | null => {
+              if (!raw) return null;
+
+              try {
+                const toolsByTodo: Record<number, ToolCall[]> = {};
+                if (raw.toolsByTodo) {
+                  Object.entries(raw.toolsByTodo as Record<string, any[]>).forEach(([key, tools]) => {
+                    const todoIndex = parseInt(key, 10);
+                    toolsByTodo[todoIndex] = (tools || []).map(tool => ({
+                      ...tool,
+                      startTime: tool.startTime ? new Date(tool.startTime) : new Date(),
+                      endTime: tool.endTime ? new Date(tool.endTime) : undefined,
+                    }));
+                  });
+                }
+
+                const textByTodo: Record<number, GenerationState['textByTodo'][number]> = {};
+                if (raw.textByTodo) {
+                  Object.entries(raw.textByTodo as Record<string, any[]>).forEach(([key, notes]) => {
+                    const todoIndex = parseInt(key, 10);
+                    textByTodo[todoIndex] = (notes || []).map(note => ({
+                      ...note,
+                      timestamp: note.timestamp ? new Date(note.timestamp) : new Date(),
+                    }));
+                  });
+                }
+
+                const todos: TodoItem[] = Array.isArray(raw.todos)
+                  ? raw.todos.map((todo: any) => ({
+                    content: todo.content,
+                    status: todo.status,
+                    activeForm: todo.activeForm ?? todo.content,
+                  }))
+                  : [];
+
+                return {
+                  id: raw.id ?? session?.buildId ?? `build-${session?.id ?? Date.now()}`,
+                  projectId: raw.projectId ?? session?.projectId ?? projectId,
+                  projectName: raw.projectName ?? session?.projectName ?? currentProject?.name ?? 'Untitled Project',
+                  operationType: raw.operationType ?? session?.operationType ?? 'continuation',
+                  todos,
+                  toolsByTodo,
+                  textByTodo,
+                  activeTodoIndex: typeof raw.activeTodoIndex === 'number' ? raw.activeTodoIndex : -1,
+                  isActive: raw.isActive ?? session?.status === 'active',
+                  startTime: raw.startTime ? new Date(raw.startTime) : (session?.startedAt ? new Date(session.startedAt) : new Date()),
+                  endTime: raw.endTime ? new Date(raw.endTime) : (session?.endedAt ? new Date(session.endedAt) : undefined),
+                };
+              } catch (err) {
+                console.warn('Failed to rebuild generation state from session', err);
+                return null;
+              }
+            };
+
+            const parsed = rebuild();
+            if (parsed) {
+              hydratedSessions.push(parsed);
+            }
+          });
+
+          if (hydratedSessions.length > 0) {
+            setBuildHistoryByProject(prev => {
+              const newMap = new Map(prev);
+              newMap.set(
+                projectId,
+                hydratedSessions.filter(state => !state.isActive).sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+              );
+              return newMap;
+            });
+
+            if (!isGeneratingRef.current) {
+              const activeSession = hydratedSessions.find(state => state.isActive);
+              if (activeSession) {
+                console.log('   🔄 Restoring active session from DB');
+                updateGenerationState(activeSession);
+              } else if (hydratedSessions.length > 0) {
+                const latestCompleted = [...hydratedSessions]
+                  .filter(state => !state.isActive)
+                  .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0];
+                if (latestCompleted) {
+                  console.log('   📚 Restoring most recent completed session for context');
+                  updateGenerationState({ ...latestCompleted, isActive: false });
+                }
+              }
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
+    } finally {
+      setIsLoadingProject(false);
     }
   };
 
@@ -747,6 +855,7 @@ function HomeContent() {
     operationType: BuildOperationType,
     isElementChange: boolean = false
   ) => {
+    const existingBuildId = generationStateRef.current?.id;
     try {
       const res = await fetch(`/api/projects/${projectId}/build`, {
         method: 'POST',
@@ -754,6 +863,7 @@ function HomeContent() {
         body: JSON.stringify({
           operationType,
           prompt,
+          buildId: existingBuildId,
           context: isElementChange ? {
             elementSelector: 'unknown', // Will be enhanced later
             elementInfo: {},
@@ -949,7 +1059,8 @@ function HomeContent() {
             }
 
             // Also add tools to current message for DB persistence
-            if (currentMessage && data.toolName !== 'TodoWrite') {
+            if (currentMessage && currentMessage.id && data.toolName !== 'TodoWrite') {
+              const messageId = currentMessage.id; // Capture to avoid race condition
               currentMessage.parts.push({
                 type: `tool-${data.toolName}`,
                 toolCallId: data.toolCallId,
@@ -957,7 +1068,8 @@ function HomeContent() {
                 input: data.input,
                 state: 'input-available',
               });
-              setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+              const updatedMessage = { ...currentMessage };
+              setMessages(prev => prev.map(m => m.id === messageId ? updatedMessage : m));
             }
           } else if (data.type === 'tool-output-available') {
             // Update tool in generation state
@@ -998,12 +1110,14 @@ function HomeContent() {
             });
 
             // Also update in message for DB persistence
-            if (currentMessage) {
+            if (currentMessage && currentMessage.id) {
+              const messageId = currentMessage.id; // Capture to avoid race condition
               const toolPart = currentMessage.parts.find(p => p.toolCallId === data.toolCallId);
               if (toolPart) {
                 toolPart.output = data.output;
                 toolPart.state = 'output-available';
-                setMessages(prev => prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m));
+                const updatedMessage = { ...currentMessage };
+                setMessages(prev => prev.map(m => m.id === messageId ? updatedMessage : m));
               }
             }
           } else if (data.type === 'data-reasoning' || data.type === 'reasoning') {
@@ -1301,8 +1415,9 @@ function HomeContent() {
   };
 
   const startDevServer = async () => {
-    if (!currentProject) return;
+    if (!currentProject || isStartingServer) return;
 
+    setIsStartingServer(true);
     try {
       setTerminalDetectedPort(null);
       const res = await fetch(`/api/projects/${currentProject.id}/start`, {
@@ -1379,12 +1494,16 @@ function HomeContent() {
       }
     } catch (error) {
       console.error('Failed to start dev server:', error);
+    } finally {
+      // Clear loading state after a delay
+      setTimeout(() => setIsStartingServer(false), 2000);
     }
   };
 
   const stopDevServer = async () => {
-    if (!currentProject) return;
+    if (!currentProject || isStoppingServer) return;
 
+    setIsStoppingServer(true);
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/stop`, {
         method: 'POST',
@@ -1406,12 +1525,15 @@ function HomeContent() {
       }
     } catch (error) {
       console.error('Failed to stop dev server:', error);
+    } finally {
+      setTimeout(() => setIsStoppingServer(false), 1000);
     }
   };
 
   const startTunnel = async () => {
-    if (!currentProject) return;
+    if (!currentProject || isStartingTunnel) return;
 
+    setIsStartingTunnel(true);
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/start-tunnel`, {
         method: 'POST',
@@ -1420,17 +1542,37 @@ function HomeContent() {
       });
       if (res.ok) {
         console.log('✅ Tunnel start requested');
-        // Refresh to get tunnel URL
-        setTimeout(() => refetch(), 2000);
+
+        // Poll for tunnel URL to appear
+        let pollCount = 0;
+        const maxPolls = 15;
+
+        const pollInterval = setInterval(async () => {
+          pollCount++;
+          await refetch();
+
+          const updated = projectsRef.current.find(p => p.id === currentProject.id);
+          if (updated?.tunnelUrl) {
+            console.log('✅ Tunnel URL detected:', updated.tunnelUrl);
+            clearInterval(pollInterval);
+            setIsStartingTunnel(false);
+          } else if (pollCount >= maxPolls) {
+            console.log('⏱️ Tunnel poll timeout reached');
+            clearInterval(pollInterval);
+            setIsStartingTunnel(false);
+          }
+        }, 1000);
       }
     } catch (error) {
       console.error('Failed to start tunnel:', error);
+      setIsStartingTunnel(false);
     }
   };
 
   const stopTunnel = async () => {
-    if (!currentProject) return;
+    if (!currentProject || isStoppingTunnel) return;
 
+    setIsStoppingTunnel(true);
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/stop-tunnel`, {
         method: 'POST',
@@ -1445,10 +1587,12 @@ function HomeContent() {
           tunnelUrl: null,
         } : null);
         // Refresh to confirm
-        setTimeout(() => refetch(), 500);
+        await refetch();
       }
     } catch (error) {
       console.error('Failed to stop tunnel:', error);
+    } finally {
+      setTimeout(() => setIsStoppingTunnel(false), 1000);
     }
   };
 
@@ -1510,13 +1654,28 @@ function HomeContent() {
               </motion.div>
             )}
 
-            {/* Three-Panel Layout - Always show when project selected or creating */}
-            {(messages.length > 0 || selectedProjectSlug || isCreatingProject) && (
+            {/* Loading State - Show until mounted and project data loaded */}
+            {(messages.length > 0 || selectedProjectSlug || isCreatingProject) && (!isMounted || (selectedProjectSlug && isLoadingProject)) && (
+              <motion.div
+                key="initial-loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex-1 flex items-center justify-center"
+              >
+                <div className="text-center space-y-4">
+                  <Sparkles className="w-12 h-12 mx-auto text-purple-400 animate-pulse" />
+                  <p className="text-gray-400">Loading workspace...</p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Three-Panel Layout - Show after mounted and data loaded */}
+            {(messages.length > 0 || selectedProjectSlug || isCreatingProject) && isMounted && !(selectedProjectSlug && isLoadingProject) && (
           <motion.div
             key="chat-layout"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.3 }}
             className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0 overflow-hidden"
           >
             {/* Left Panel - Chat (1/3 width) */}
@@ -1631,22 +1790,8 @@ function HomeContent() {
                       }
                     </button>
 
-                    {/* History Tab */}
-                    {(buildHistory.length > 0 || elementChangeHistory.length > 0) && (
-                      <button
-                        onClick={() => switchTab('history')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          activeView === 'history'
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        History ({buildHistory.length + elementChangeHistory.length})
-                      </button>
-                    )}
-
                     <div className="ml-auto text-xs text-gray-500">
-                      ⌘1 Chat • ⌘2 Build • ⌘3 History
+                      ⌘1 Chat • ⌘2 Build
                     </div>
                   </div>
                 )}
@@ -1706,7 +1851,7 @@ function HomeContent() {
                     </motion.div>
                   )}
 
-                  {/* Build View */}
+                  {/* Build View - Shows active build + history */}
                   {!isCreatingProject && activeView === 'build' && (
                     <div className="space-y-6">
                       {/* Debug info */}
@@ -1714,11 +1859,12 @@ function HomeContent() {
                         hasGenerationState: !!generationState,
                         todosLength: generationState?.todos?.length,
                         isActive: generationState?.isActive,
+                        historyLength: buildHistory.length,
                         activeView,
                       })}
 
-                      {/* Active Build */}
-                      {generationState ? (
+                      {/* Active Build - Always show if active */}
+                      {generationState?.isActive && (
                         <div>
                           {generationState.todos && generationState.todos.length > 0 ? (
                             <GenerationProgress
@@ -1729,11 +1875,11 @@ function HomeContent() {
                               }}
                               onStartServer={startDevServer}
                             />
-                          ) : generationState.isActive ? (
+                          ) : (
                             <InitializingCard projectName={generationState.projectName} />
-                          ) : null}
+                          )}
                         </div>
-                      ) : null}
+                      )}
 
                       {/* Active Element Changes */}
                       {activeElementChanges.length > 0 && (
@@ -1758,12 +1904,68 @@ function HomeContent() {
                         </div>
                       )}
 
+                      {/* Completed Build (most recent) - Collapsed by default */}
+                      {!generationState?.isActive && generationState && generationState.todos && generationState.todos.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
+                          <GenerationProgress
+                            state={generationState}
+                            defaultCollapsed={true}
+                            onClose={() => updateGenerationState(null)}
+                            onViewFiles={() => {
+                              window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                            }}
+                            onStartServer={startDevServer}
+                          />
+                        </div>
+                      )}
+
+                      {/* Build History - Collapsed by default */}
+                      {buildHistory.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Previous Builds ({buildHistory.length})</h3>
+                          <div className="space-y-4">
+                            {buildHistory.map((build, idx) => (
+                              <GenerationProgress
+                                key={build.id}
+                                state={build}
+                                defaultCollapsed={true}
+                                onViewFiles={() => {
+                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                }}
+                                onStartServer={startDevServer}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Element Change History */}
+                      {elementChangeHistory.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Element Changes ({elementChangeHistory.length})</h3>
+                          <div className="space-y-3">
+                            {elementChangeHistory.map((change, idx) => (
+                              <ElementChangeCard
+                                key={change.id}
+                                elementSelector={change.elementSelector}
+                                changeRequest={change.changeRequest}
+                                elementInfo={change.elementInfo}
+                                status={change.status}
+                                toolCalls={change.toolCalls}
+                                error={change.error}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Empty state */}
-                      {!generationState && activeElementChanges.length === 0 && (
+                      {!generationState && activeElementChanges.length === 0 && buildHistory.length === 0 && elementChangeHistory.length === 0 && (
                         <div className="flex items-center justify-center min-h-[400px]">
                           <div className="text-center space-y-3 text-gray-400">
                             <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                            <p>No active build to display</p>
+                            <p>No builds to display</p>
                             <button
                               onClick={() => switchTab('chat')}
                               className="text-purple-400 hover:text-purple-300 underline text-sm"
@@ -1782,6 +1984,17 @@ function HomeContent() {
                       {messages.map((message) => {
                         // Skip element change messages (they're in Build tab now)
                         if (message.elementChange) {
+                          return null;
+                        }
+
+                        // Skip messages with no visible content (only tools during active generation)
+                        const hasVisibleContent = message.parts.some(part => {
+                          if (part.type === 'text' && part.text) return true;
+                          if (part.type.startsWith('tool-') && part.toolName !== 'TodoWrite' && !generationStateRef.current?.isActive) return true;
+                          return false;
+                        });
+
+                        if (!hasVisibleContent) {
                           return null;
                         }
 
@@ -1902,7 +2115,7 @@ function HomeContent() {
                       })}
 
                       {/* Loading indicator in chat view */}
-                      {isGenerating && (!generationState || generationState.todos.length === 0) && (
+                      {isGenerating && (!generationState || generationState.todos.length === 0 || generationState.isActive) && (
                         <div className="flex justify-start animate-in fade-in duration-500">
                           <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                             <div className="flex items-center gap-2">
@@ -1911,76 +2124,6 @@ function HomeContent() {
                               <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                               <span className="ml-2 text-sm text-gray-400">Initializing...</span>
                             </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* History View */}
-                  {activeView === 'history' && (
-                    <div className="space-y-6">
-                      <h2 className="text-2xl font-bold text-white mb-4">Build History</h2>
-
-                      {/* Completed Builds */}
-                      {buildHistory.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Completed Builds ({buildHistory.length})</h3>
-                          <div className="space-y-4">
-                            {buildHistory.map((build, idx) => (
-                              <motion.div
-                                key={build.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                className="border border-gray-700 rounded-lg overflow-hidden"
-                              >
-                                <GenerationProgress
-                                  state={build}
-                                  onViewFiles={() => {
-                                    window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                  }}
-                                  onStartServer={startDevServer}
-                                />
-                              </motion.div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Element Change History */}
-                      {elementChangeHistory.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Element Changes ({elementChangeHistory.length})</h3>
-                          <div className="space-y-3">
-                            {elementChangeHistory.map((change, idx) => (
-                              <motion.div
-                                key={change.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                              >
-                                <ElementChangeCard
-                                  elementSelector={change.elementSelector}
-                                  changeRequest={change.changeRequest}
-                                  elementInfo={change.elementInfo}
-                                  status={change.status}
-                                  toolCalls={change.toolCalls}
-                                  error={change.error}
-                                />
-                              </motion.div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Empty state */}
-                      {buildHistory.length === 0 && elementChangeHistory.length === 0 && (
-                        <div className="flex items-center justify-center min-h-[400px]">
-                          <div className="text-center space-y-3 text-gray-400">
-                            <div className="text-4xl mb-4">📚</div>
-                            <p>No build history yet</p>
-                            <p className="text-xs">Completed builds and element changes will appear here</p>
                           </div>
                         </div>
                       )}
@@ -2030,6 +2173,10 @@ function HomeContent() {
                   onStartTunnel={startTunnel}
                   onStopTunnel={stopTunnel}
                   terminalPort={terminalDetectedPort}
+                  isStartingServer={isStartingServer}
+                  isStoppingServer={isStoppingServer}
+                  isStartingTunnel={isStartingTunnel}
+                  isStoppingTunnel={isStoppingTunnel}
                 />
               </div>
 

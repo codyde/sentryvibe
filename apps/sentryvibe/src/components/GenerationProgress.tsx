@@ -9,6 +9,7 @@ import type { GenerationState, ToolCall } from '@/types/generation';
 
 interface GenerationProgressProps {
   state: GenerationState;
+  defaultCollapsed?: boolean;
   onClose?: () => void;
   onViewFiles?: () => void;
   onStartServer?: () => void;
@@ -122,23 +123,23 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
   );
 }
 
-export default function GenerationProgress({ state, onClose, onViewFiles, onStartServer }: GenerationProgressProps) {
+export default function GenerationProgress({ state, defaultCollapsed = false, onClose, onViewFiles, onStartServer }: GenerationProgressProps) {
   // ALWAYS call hooks first (React rules!)
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
-  const [isCardExpanded, setIsCardExpanded] = useState(true);
+  const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
 
   const completed = state?.todos?.filter(t => t.status === 'completed').length || 0;
   const total = state?.todos?.length || 0;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
 
-  // Auto-collapse card when build completes
+  // Auto-collapse card when build completes (only if not defaultCollapsed)
   useEffect(() => {
-    if (isComplete) {
+    if (isComplete && !defaultCollapsed) {
       console.log('🎉 Build complete, auto-collapsing card');
       setIsCardExpanded(false);
     }
-  }, [isComplete]);
+  }, [isComplete, defaultCollapsed]);
 
   // Auto-expand active todo, auto-collapse completed todos
   useEffect(() => {

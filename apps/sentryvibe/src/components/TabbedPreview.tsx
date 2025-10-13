@@ -13,6 +13,10 @@ interface TabbedPreviewProps {
   onStartTunnel?: () => void;
   onStopTunnel?: () => void;
   terminalPort?: number | null;
+  isStartingServer?: boolean;
+  isStoppingServer?: boolean;
+  isStartingTunnel?: boolean;
+  isStoppingTunnel?: boolean;
 }
 
 const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
@@ -23,6 +27,10 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   onStartTunnel,
   onStopTunnel,
   terminalPort,
+  isStartingServer,
+  isStoppingServer,
+  isStartingTunnel,
+  isStoppingTunnel,
 }, ref) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
 
@@ -87,6 +95,10 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             terminalPort={terminalPort}
+            isStartingServer={isStartingServer}
+            isStoppingServer={isStoppingServer}
+            isStartingTunnel={isStartingTunnel}
+            isStoppingTunnel={isStoppingTunnel}
           />
         ) : (
           <EditorTab projectId={projectId} />
