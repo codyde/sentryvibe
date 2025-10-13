@@ -1,5 +1,10 @@
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Get the directory where this module is located
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export interface Template {
   id: string;
@@ -48,11 +53,12 @@ export async function loadTemplateConfig(): Promise<TemplateConfig> {
     return cachedConfig;
   }
 
-  const configPath = join(process.cwd(), 'templates.json');
+  // templates.json is in apps/runner/ directory (2 levels up from lib/templates/)
+  const configPath = join(__dirname, '../../templates.json');
   const content = await readFile(configPath, 'utf-8');
   cachedConfig = JSON.parse(content) as TemplateConfig;
 
-  console.log(`✅ Loaded ${cachedConfig.templates.length} templates from config`);
+  console.log(`✅ Loaded ${cachedConfig.templates.length} templates from ${configPath}`);
   return cachedConfig;
 }
 
