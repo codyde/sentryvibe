@@ -53,8 +53,10 @@ export async function loadTemplateConfig(): Promise<TemplateConfig> {
     return cachedConfig;
   }
 
-  // templates.json is in apps/runner/ directory (2 levels up from lib/templates/)
-  const configPath = join(__dirname, '../../templates.json');
+  // templates.json is in apps/runner/ directory
+  // In compiled code: dist/lib/templates/config.js -> need to go up to dist/../templates.json
+  // Which is: dist/lib/templates -> ../../.. -> apps/runner, then templates.json
+  const configPath = join(__dirname, '../../../templates.json');
   const content = await readFile(configPath, 'utf-8');
   cachedConfig = JSON.parse(content) as TemplateConfig;
 
