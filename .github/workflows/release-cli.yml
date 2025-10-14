@@ -30,19 +30,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install vendor Sentry packages in runner
-        run: |
-          cd apps/runner
-          # Install vendor packages so they're in node_modules for bundling
-          npm install --no-save ./vendor/sentry-node-10.17.0.tgz ./vendor/sentry-nextjs-10.17.0.tgz
-
       - name: Build CLI
         run: pnpm run build:cli
 
-      - name: Create tarball with bundled dependencies
+      - name: Create tarball (includes vendor/ and node_modules/@sentry/)
         run: |
           cd apps/runner
-          # npm pack will include bundleDependencies (@sentry packages now in node_modules)
+          # npm pack will include files listed in package.json "files" array
           npm pack
           mv *.tgz sentryvibe-cli.tgz
 
