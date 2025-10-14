@@ -58,29 +58,9 @@ API_RESPONSE=$(curl -sfL \
     "$GITHUB_API_URL" || true)
 
 # Get the latest release that ships the CLI tarball asset
-# Using python/node for reliable JSON parsing, fallback to known version
-if command -v python3 &> /dev/null; then
-    TAG_NAME=$(python3 <<'PYTHON'
-import json
-import sys
-
-data = sys.stdin.read()
-if not data.strip():
-    sys.exit(0)
-
-try:
-    releases = json.loads(data)
-except json.JSONDecodeError:
-    sys.exit(0)
-
-for release in releases:
-    assets = release.get("assets") or []
-    if any(asset.get("name") == "sentryvibe-cli.tgz" for asset in assets):
-        print(release["tag_name"])
-        break
-PYTHON
-    <<<"$API_RESPONSE")
-elif command -v node &> /dev/null; then
+# Use Node (we already verified it's installed) to parse JSON safely.
+TAG_NAME=""
+if [ -n "$API_RESPONSE" ]; then
     TAG_NAME=$(node <<'NODE'
 const data = require('fs').readFileSync(0, 'utf-8');
 if (!data.trim()) {
@@ -103,8 +83,6 @@ if (match?.tag_name) {
 }
 NODE
     <<<"$API_RESPONSE")
-else
-    TAG_NAME=""
 fi
 
 if [ -z "$TAG_NAME" ]; then
