@@ -51,29 +51,74 @@ echo ""
 # Get latest release
 echo -e "${BLUE}📥 Fetching latest release...${NC}"
 
+GITHUB_API_URL="https://api.github.com/repos/codyde/sentryvibe/releases"
+API_RESPONSE=$(curl -sfL \
+    -H "Accept: application/vnd.github+json" \
+    -H "User-Agent: sentryvibe-cli-installer" \
+    "$GITHUB_API_URL" || true)
+
 # Get the latest release that ships the CLI tarball asset
 # Using python/node for reliable JSON parsing, fallback to known version
 if command -v python3 &> /dev/null; then
-    TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
-      python3 - "$@" <<'PYTHON'
-import json, sys
-for release in json.load(sys.stdin):
+    TAG_NAME=$(python3 <<'PYTHON'
+import json
+import sys
+
+data = sys.stdin.read()
+if not data.strip():
+    sys.exit(0)
+
+try:
+    releases = json.loads(data)
+except json.JSONDecodeError:
+    sys.exit(0)
+
+for release in releases:
     assets = release.get("assets") or []
     if any(asset.get("name") == "sentryvibe-cli.tgz" for asset in assets):
         print(release["tag_name"])
         break
 PYTHON
-    )
+    <<<"$API_RESPONSE")
 elif command -v node &> /dev/null; then
-    TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
-      node -e "const releases = JSON.parse(require('fs').readFileSync(0, 'utf-8')); const match = releases.find(r => (r.assets || []).some(a => a.name === 'sentryvibe-cli.tgz')); console.log(match ? match.tag_name : '');")
+    TAG_NAME=$(node <<'NODE'
+const data = require('fs').readFileSync(0, 'utf-8');
+if (!data.trim()) {
+  process.exit(0);
+}
+
+let releases;
+try {
+  releases = JSON.parse(data);
+} catch {
+  process.exit(0);
+}
+
+const match = releases.find(
+  release => (release.assets || []).some(asset => asset.name === 'sentryvibe-cli.tgz'),
+);
+
+if (match?.tag_name) {
+  console.log(match.tag_name);
+}
+NODE
+    <<<"$API_RESPONSE")
 else
+    TAG_NAME=""
+fi
+
+if [ -z "$TAG_NAME" ]; then
+    if [ -n "$API_RESPONSE" ] && echo "$API_RESPONSE" | grep -q '"message"'; then
+        echo -e "${YELLOW}!${NC} GitHub API responded with:"
+        echo "$API_RESPONSE"
+        echo ""
+    fi
     # Fallback: hardcode latest known version
     TAG_NAME="runner-cli-v0.1.11"
 fi
 
 if [ -z "$TAG_NAME" ]; then
-    echo -e "${RED}✖ Could not find CLI release${NC}"
+    echo -e "${RED}✖ Could not determine CLI release${NC}"
     echo ""
     echo "Please check https://github.com/codyde/sentryvibe/releases for available versions"
     exit 1
