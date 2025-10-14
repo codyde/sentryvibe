@@ -871,7 +871,7 @@ export function startRunner(options: RunnerOptions = {}) {
           name: "SentryVibe Build Runner",
           forceTransaction: true,
         },
-        (span) => {
+        (span: Sentry.Span) => {
           try {
             const command = JSON.parse(String(data)) as RunnerCommand;
             handleCommand(command);
