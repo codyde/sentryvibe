@@ -13,7 +13,7 @@
     "dist/",
     "templates/",
     "vendor/",
-    "node_modules/@sentry/"
+    "scripts/"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -38,6 +38,7 @@
   "homepage": "https://github.com/codyde/sentryvibe#readme",
   "preferGlobal": true,
   "scripts": {
+    "postinstall": "node scripts/install-vendor.js",
     "dev": "tsx src/index.ts",
     "dev:cli": "tsx src/cli/index.ts",
     "build": "tsc -p tsconfig.json",
@@ -46,8 +47,8 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.11",
-    "@sentry/nextjs": "file:vendor/sentry-nextjs-10.17.0.tgz",
-    "@sentry/node": "file:vendor/sentry-node-10.17.0.tgz",
+    "@sentry/nextjs": "^10.17.0",
+    "@sentry/node": "^10.17.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",
