@@ -88,69 +88,83 @@ export async function POST(req: Request) {
 
     const metadataPrompt = buildMetadataPrompt(prompt);
 
-    // Try up to 2 times to get valid JSON from Haiku
     let jsonResponse = '';
-    let attempts = 0;
-    const maxAttempts = 2;
-
     if (selectedAgent === 'openai-codex') {
       try {
         jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
       } catch (error) {
-        console.error('❌ Codex metadata extraction failed, will fall back to Claude:', error);
-      }
-    }
-
-    while (jsonResponse.trim().length === 0 && attempts < maxAttempts) {
-      attempts++;
-      console.log(`   Attempt ${attempts}/${maxAttempts}...`);
-
-      try {
-        // Use Haiku to extract metadata
-        const metadataStream = claudeMetadataQuery({
-          prompt: metadataPrompt,
-          inputMessages: [],
-          options: {
-            model: 'claude-3-5-haiku-20241022',
-            maxTurns: 1,
-            systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
+        console.error('❌ Codex metadata extraction failed:', error);
+        return NextResponse.json(
+          {
+            error: 'Codex metadata extraction failed',
+            details: error instanceof Error ? error.message : 'Unknown error',
           },
-        });
+          { status: 500 }
+        );
+      }
 
-        // Parse the response with timeout
-        const timeout = setTimeout(() => {
-          console.warn('⚠️  Haiku response timeout after 8 seconds');
-        }, 8000);
+      if (!jsonResponse || jsonResponse.trim().length === 0) {
+        console.error('❌ Codex returned an empty response for metadata prompt');
+        return NextResponse.json(
+          {
+            error: 'Codex metadata extraction failed',
+            details: 'Codex returned an empty response.',
+          },
+          { status: 502 }
+        );
+      }
+      console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
+    } else {
+      // Use Claude Haiku with retries
+      let attempts = 0;
+      const maxAttempts = 2;
 
-        for await (const message of metadataStream) {
-          if (message.type === 'assistant' && message.message?.content) {
-            for (const block of message.message.content) {
-              if (block.type === 'text' && block.text) {
-                jsonResponse += block.text;
+      while (jsonResponse.trim().length === 0 && attempts < maxAttempts) {
+        attempts++;
+        console.log(`   Attempt ${attempts}/${maxAttempts}...`);
+
+        try {
+          const metadataStream = claudeMetadataQuery({
+            prompt: metadataPrompt,
+            inputMessages: [],
+            options: {
+              model: 'claude-3-5-haiku-20241022',
+              maxTurns: 1,
+              systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
+            },
+          });
+
+          const timeout = setTimeout(() => {
+            console.warn('⚠️  Haiku response timeout after 8 seconds');
+          }, 8000);
+
+          for await (const message of metadataStream) {
+            if (message.type === 'assistant' && message.message?.content) {
+              for (const block of message.message.content) {
+                if (block.type === 'text' && block.text) {
+                  jsonResponse += block.text;
+                }
               }
             }
           }
-        }
 
-        clearTimeout(timeout);
+          clearTimeout(timeout);
 
-        if (jsonResponse && jsonResponse.trim().length > 0) {
-          console.log(`✅ Got response on attempt ${attempts}`);
-          break;
-        }
-      } catch (error) {
-        console.error(`❌ Attempt ${attempts} failed:`, error);
-        if (attempts === maxAttempts) {
-          console.log('⚠️  All Haiku attempts failed, will use fallback');
+          if (jsonResponse && jsonResponse.trim().length > 0) {
+            console.log(`✅ Got response on attempt ${attempts}`);
+            break;
+          }
+        } catch (error) {
+          console.error(`❌ Attempt ${attempts} failed:`, error);
+          if (attempts === maxAttempts) {
+            console.log('⚠️  All Haiku attempts failed, using fallback logic');
+          }
         }
       }
+
+      console.log('📥 Raw Haiku response:', JSON.stringify(jsonResponse));
     }
 
-    const usedClaudeFallback = selectedAgent === 'claude-code' || attempts > 0;
-    console.log(
-      usedClaudeFallback ? '📥 Raw Haiku response:' : '📥 Raw Codex response:',
-      JSON.stringify(jsonResponse)
-    );
     console.log('   Response length:', jsonResponse.length);
 
     // Extract JSON - handle multiple formats
