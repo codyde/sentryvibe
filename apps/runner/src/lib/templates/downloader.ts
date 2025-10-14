@@ -66,6 +66,16 @@ export async function downloadTemplateWithGit(
 
     console.log(`✅ Template cloned successfully`);
 
+    // Verify files were actually downloaded
+    const { readdir } = await import('fs/promises');
+    const downloadedFiles = await readdir(targetPath);
+    console.log(`   Downloaded ${downloadedFiles.length} files/directories`);
+    console.log(`   Files: ${downloadedFiles.slice(0, 10).join(', ')}${downloadedFiles.length > 10 ? '...' : ''}`);
+
+    if (downloadedFiles.length === 0) {
+      throw new Error('Template clone succeeded but directory is empty!');
+    }
+
     // Remove .git directory (we don't need version history)
     try {
       await rm(join(targetPath, '.git'), { recursive: true, force: true });
