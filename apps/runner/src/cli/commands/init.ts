@@ -97,7 +97,8 @@ export async function initCommand(options: InitOptions) {
 
       logger.log('');
 
-      // Install dependencies
+      // Install dependencies for entire monorepo
+      logger.info('This may take several minutes...');
       await installDependencies(monorepoPath);
 
       logger.log('');

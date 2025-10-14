@@ -68,6 +68,21 @@ export async function startCommand(options: StartOptions) {
   logger.info(`Broker port: ${chalk.cyan(options.brokerPort || '4000')}`);
   logger.log('');
 
+  // Check if dependencies are installed
+  const { existsSync } = await import('fs');
+  const nodeModulesPath = join(monorepoRoot, 'node_modules');
+
+  if (!existsSync(nodeModulesPath)) {
+    logger.warn('Dependencies not installed');
+    logger.info('Installing dependencies...');
+    logger.log('');
+
+    const { installDependencies } = await import('../utils/repo-cloner.js');
+    await installDependencies(monorepoRoot);
+
+    logger.log('');
+  }
+
   // Get ports
   const webPort = options.port || '3000';
   const brokerPort = options.brokerPort || '4000';
