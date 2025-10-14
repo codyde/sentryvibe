@@ -39,37 +39,21 @@ const log = (...args: unknown[]) => {
 };
 
 const buildQuery = (...args: unknown[]) => {
-  return Sentry.startSpan(
-    {
-      op: "function",
-      name: `buildQuery`,
+  const sentryQuery = Sentry.createInstrumentedClaudeQuery();
+  const [prompt, workingDir, systemPrompt] = args;
+  return sentryQuery({
+    prompt: prompt as string,
+    options: {
+      model: "claude-sonnet-4-5",
+      cwd: workingDir as string,
+      permissionMode: "default",
+      maxTurns: 100,
+      systemPrompt: systemPrompt as string,
+      additionalDirectories: [workingDir as string],
+
+      canUseTool: createProjectScopedPermissionHandler(workingDir as string),
     },
-    () => {
-      const sentryQuery = Sentry.createInstrumentedClaudeQuery();
-      const [prompt, workingDir, systemPrompt] = args;
-      return sentryQuery({
-        prompt: prompt as string,
-        options: {
-          model: "claude-sonnet-4-5",
-          cwd: workingDir as string,
-
-          // 🔒 SECURITY: Changed from "bypassPermissions" to "default" for proper permission checking
-          permissionMode: "default",
-
-          maxTurns: 100,
-          systemPrompt: systemPrompt as string,
-
-          // 🔒 SECURITY: Explicitly allow only the project directory
-          additionalDirectories: [workingDir as string],
-
-          // 🔒 SECURITY: Add custom permission handler to restrict Claude to project directory
-          canUseTool: createProjectScopedPermissionHandler(
-            workingDir as string
-          ),
-        },
-      });
-    }
-  );
+  });
 };
 
 /**
@@ -881,18 +865,31 @@ export function startRunner(options: RunnerOptions = {}) {
     });
 
     socket.on("message", (data: WebSocket.RawData) => {
-      try {
-        const command = JSON.parse(String(data)) as RunnerCommand;
-        handleCommand(command);
-      } catch (error) {
-        console.error("Failed to parse command", error);
-        sendEvent({
-          type: "error",
-          ...buildEventBase(undefined, randomUUID()),
-          error: "Failed to parse command payload",
-          stack: error instanceof Error ? error.stack : undefined,
-        });
-      }
+      Sentry.startSpan(
+        {
+          op: "function",
+          name: "SentryVibe Build Runner",
+          forceTransaction: true,
+        },
+        (span) => {
+          try {
+            const command = JSON.parse(String(data)) as RunnerCommand;
+            handleCommand(command);
+          } catch (error) {
+            console.error("Failed to parse command", error);
+            sendEvent({
+              type: "error",
+              ...buildEventBase(undefined, randomUUID()),
+              error: "Failed to parse command payload",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+            span.setStatus({
+              code: 2,
+              message: "Failed to parse command payload",
+            });
+          }
+        }
+      );
     });
 
     socket.on("close", (code: number) => {
@@ -952,11 +949,5 @@ export function startRunner(options: RunnerOptions = {}) {
 // If running this file directly, start the runner
 // ESM equivalent of: if (require.main === module)
 if (import.meta.url === `file://${process.argv[1]}`) {
-  Sentry.startSpan({
-    op: "function",
-    name: "worker",
-    forceTransaction: true
-  }, () => {
-    startRunner();
-  });
+  startRunner();
 }

@@ -43,12 +43,8 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   // Pass prompt, working directory, and system prompt to the query function
   // The buildQuery wrapper will configure the SDK with all options
   
-  const generator = Sentry.startSpan({
-    op: "function",
-    name: "createBuildStream",
-  }, () => {
-  return query(fullPrompt, workingDirectory, systemPrompt);
-  });
+  const generator = query(fullPrompt, workingDirectory, systemPrompt);
+
 
   // Create a ReadableStream from the AsyncGenerator
   const stream = new ReadableStream({

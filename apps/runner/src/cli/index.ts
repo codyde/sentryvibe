@@ -67,6 +67,7 @@ program
     await startCommand(options);
   });
 
+
 program
   .command('runner')
   .description('Start runner only (connect to existing broker)')
@@ -76,9 +77,15 @@ program
   .option('-s, --secret <secret>', 'Shared secret for authentication')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
+    // Sentry.startSpan({
+    //   op: "function",
+    //   name: "SentryVibe Runner",
+    // }, async () => {
     const { runCommand } = await import('./commands/run.js');
     await runCommand(options);
+  // });
   });
+
 
 program
   .command('config <action> [key] [value]')
@@ -117,10 +124,5 @@ program
     await databaseCommand();
   });
 
-Sentry.startSpan({
-  op: "function",
-  name: "parse",
-}, () => {
+
   program.parse();
-});
-// program.parse();
