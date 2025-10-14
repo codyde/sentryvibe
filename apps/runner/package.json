@@ -11,8 +11,7 @@
   },
   "files": [
     "dist/",
-    "templates/",
-    "vendor/"
+    "templates/"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -36,6 +35,10 @@
   },
   "homepage": "https://github.com/codyde/sentryvibe#readme",
   "preferGlobal": true,
+  "bundleDependencies": [
+    "@sentry/nextjs",
+    "@sentry/node"
+  ],
   "scripts": {
     "dev": "tsx src/index.ts",
     "dev:cli": "tsx src/cli/index.ts",
