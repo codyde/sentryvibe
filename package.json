@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter sentryvibe dev",
     "build": "pnpm --filter sentryvibe build",
+    "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
     "start": "pnpm --filter sentryvibe start",
     "lint": "pnpm --filter sentryvibe lint",
     "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter sentryvibe-runner run dev",
