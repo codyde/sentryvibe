@@ -102,9 +102,10 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     });
 
     console.log(`[orchestrator] Downloading from: ${selectedTemplate.repository}`);
+    console.log(`[orchestrator] Target directory: ${workingDirectory}`);
 
-    // Download template to project directory
-    const downloadedPath = await downloadTemplate(selectedTemplate, projectName);
+    // Download template to project directory (pass exact path, not just name)
+    const downloadedPath = await downloadTemplate(selectedTemplate, workingDirectory);
     console.log(`[orchestrator] Template downloaded to: ${downloadedPath}`);
 
     // Update todo: template downloaded

@@ -11,10 +11,8 @@ import { simpleGit } from 'simple-git';
  */
 export async function downloadTemplate(
   template: Template,
-  projectName: string
+  targetPath: string
 ): Promise<string> {
-  const targetPath = join(getWorkspaceRoot(), projectName);
-
   console.log(`📥 Downloading template: ${template.name}`);
   console.log(`   Repository: ${template.repository}`);
   console.log(`   Branch: ${template.branch}`);
@@ -32,7 +30,7 @@ export async function downloadTemplate(
     : template.repository;
 
   // Use simple-git directly (no spawn issues)
-  return await downloadTemplateWithGit(template, projectName);
+  return await downloadTemplateWithGit(template, targetPath);
 }
 
 /**
@@ -40,9 +38,8 @@ export async function downloadTemplate(
  */
 export async function downloadTemplateWithGit(
   template: Template,
-  projectName: string
+  targetPath: string
 ): Promise<string> {
-  const targetPath = join(getWorkspaceRoot(), projectName);
 
   console.log(`📥 Cloning template with simple-git: ${template.name}`);
 
@@ -86,6 +83,9 @@ export async function downloadTemplateWithGit(
 
     // Create .npmrc to isolate from monorepo workspace
     await createNpmrc(targetPath);
+
+    // Extract project name from path
+    const projectName = targetPath.split('/').pop() || 'project';
 
     // Update package.json name(s)
     await updatePackageName(targetPath, projectName);
