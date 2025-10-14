@@ -957,6 +957,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   Sentry.startSpan({
     op: "function",
     name: "worker",
+    forceTransaction: true
   }, () => {
     startRunner();
   });
