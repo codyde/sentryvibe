@@ -17,9 +17,11 @@ import CodeBlock from '@/components/CodeBlock';
 import TodoVibe, { type TodoItem } from '@/components/TodoVibe';
 import GenerationProgress from '@/components/GenerationProgress';
 import { AppSidebar } from '@/components/app-sidebar';
+import AgentSelector from '@/components/AgentSelector';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
+import { useAgent } from '@/contexts/AgentContext';
 import type { GenerationState, ToolCall, BuildOperationType } from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
 import { detectOperationType, createFreshGenerationState, validateGenerationState } from '@/lib/build-helpers';
@@ -116,6 +118,7 @@ function HomeContent() {
   const shouldGenerate = searchParams.get('generate') === 'true';
   const { projects, refetch, runnerOnline } = useProjects();
   const { selectedRunnerId } = useRunner();
+  const { selectedAgentId } = useAgent();
 
   // Restore view preference from sessionStorage after mount (avoids hydration error)
   useEffect(() => {
@@ -866,6 +869,7 @@ function HomeContent() {
           prompt,
           buildId: existingBuildId,
           runnerId: selectedRunnerId,
+          agent: selectedAgentId,
           context: isElementChange ? {
             elementSelector: 'unknown', // Will be enhanced later
             elementInfo: {},
@@ -2137,6 +2141,9 @@ function HomeContent() {
 
                 {/* Fixed Bottom Input */}
                 <div className="border-t border-white/10 bg-background/50 backdrop-blur-sm p-4 flex-shrink-0">
+                  <div className="mb-3">
+                    <AgentSelector />
+                  </div>
                   <form onSubmit={handleSubmit}>
                     <div className="relative bg-gray-900 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
                       <textarea

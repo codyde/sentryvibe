@@ -2,6 +2,8 @@
  * Build operation types
  * Defines the semantic intent of each build request
  */
+import type { AgentId } from './agent';
+
 export type BuildOperationType =
   | 'initial-build'      // First time build, needs template download
   | 'enhancement'        // Follow-up chat for significant changes
@@ -16,6 +18,7 @@ export interface BuildRequest {
   prompt: string;
   runnerId?: string; // Optional runner ID - falls back to RUNNER_DEFAULT_ID
   buildId?: string;
+  agent?: AgentId; // Selected coding agent provider (Claude Code, OpenAI Codex, etc.)
   context?: {
     elementSelector?: string;
     elementInfo?: {

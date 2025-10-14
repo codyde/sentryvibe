@@ -16,6 +16,10 @@ Sentry.init({
       recordInputs: true,
       recordOutputs: true,
     }),
+    Sentry.openaiCodexIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    }),
   ],
 
   // Enable logs to be sent to Sentry

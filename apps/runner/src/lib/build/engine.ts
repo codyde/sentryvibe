@@ -1,26 +1,30 @@
-import * as Sentry from '@sentry/node';
-/**
- * Build engine for creating and streaming build responses
- * This is a simplified version for the runner MVP
- */
-
 import { existsSync, mkdirSync } from 'fs';
+
+type AgentId = 'claude-code' | 'openai-codex';
+
+type BuildQueryFn = (
+  prompt: string,
+  workingDirectory: string,
+  systemPrompt: string,
+  agent?: AgentId
+) => AsyncGenerator<unknown, void, unknown>;
 
 interface BuildStreamOptions {
   projectId: string;
   prompt: string;
   operationType: string;
   context?: Record<string, unknown>;
-  query: (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>;
+  query: BuildQueryFn;
   workingDirectory: string;
   systemPrompt: string;
+  agent: AgentId;
 }
 
 /**
  * Create a build stream that executes the Claude query and returns a stream
  */
 export async function createBuildStream(options: BuildStreamOptions): Promise<ReadableStream> {
-  const { prompt, query, context, workingDirectory, systemPrompt } = options;
+  const { prompt, query, context, workingDirectory, systemPrompt, agent } = options;
 
   // Ensure the working directory exists
   if (!existsSync(workingDirectory)) {
@@ -43,7 +47,7 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   // Pass prompt, working directory, and system prompt to the query function
   // The buildQuery wrapper will configure the SDK with all options
   
-  const generator = query(fullPrompt, workingDirectory, systemPrompt);
+  const generator = query(fullPrompt, workingDirectory, systemPrompt, agent);
 
 
   // Create a ReadableStream from the AsyncGenerator

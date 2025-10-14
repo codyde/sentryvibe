@@ -15,6 +15,7 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/src/types/generation';
 import { serializeGenerationState } from '@sentryvibe/agent-core/src/lib/generation-persistence';
+import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/src/types/agent';
 
 export const maxDuration = 30;
 
@@ -46,6 +47,7 @@ export async function POST(
 
     commandId = randomUUID();
     const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
+    const agentId = body.agent ?? DEFAULT_AGENT_ID;
     const encoder = new TextEncoder();
 
     // Track messages for DB persistence
@@ -548,6 +550,7 @@ export async function POST(
         projectSlug: project[0].slug,
         projectName: project[0].name,
         context: body.context,
+        agent: agentId,
       },
     });
 

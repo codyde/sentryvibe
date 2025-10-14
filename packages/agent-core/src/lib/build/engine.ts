@@ -35,9 +35,12 @@ export interface AgentMessage {
   };
   uuid?: string;
   error?: unknown;
+  result?: unknown;
+  usage?: unknown;
+  finalResponse?: unknown;
 }
 
-export type ClaudeQueryFn = (args: {
+export type AgentQueryFn = (args: {
   prompt: string;
   inputMessages: Array<{ role: string; content: string }>;
   options: Record<string, unknown>;
@@ -45,7 +48,7 @@ export type ClaudeQueryFn = (args: {
 
 export interface BuildStreamOptions extends BuildRequest {
   projectId: string;
-  query: ClaudeQueryFn;
+  query: AgentQueryFn;
 }
 
 interface ProjectMetadata {
@@ -172,7 +175,7 @@ function serializeMessageContent(content: unknown): string {
 interface BuildPipelineParams extends BuildRequest {
   projectId: string;
   writer: UIMessageStreamWriter;
-  query: ClaudeQueryFn;
+  query: AgentQueryFn;
 }
 
 async function runBuildPipeline(params: BuildPipelineParams) {
@@ -341,7 +344,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   }
 }
 
-async function extractProjectMetadata(prompt: string, query: ClaudeQueryFn): Promise<ProjectMetadata> {
+async function extractProjectMetadata(prompt: string, query: AgentQueryFn): Promise<ProjectMetadata> {
   console.log('🤖 Extracting project metadata...');
 
   const metadataStream = await query({

@@ -3,6 +3,7 @@ import { Rubik } from "next/font/google";
 import "./globals.css";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { RunnerProvider } from "@/contexts/RunnerContext";
+import { AgentProvider } from "@/contexts/AgentContext";
 
 const rubik = Rubik({
   subsets: ["latin"],
@@ -25,11 +26,13 @@ export default function RootLayout({
       <body
         className={`${rubik.variable} font-sans antialiased`}
       >
-        <RunnerProvider>
-          <ProjectProvider>
-            {children}
-          </ProjectProvider>
-        </RunnerProvider>
+        <AgentProvider>
+          <RunnerProvider>
+            <ProjectProvider>
+              {children}
+            </ProjectProvider>
+          </RunnerProvider>
+        </AgentProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 // import "./instrument.js"
 import * as Sentry from "@sentry/node";
+import { createInstrumentedCodex } from "@sentry/node";
 import { config as loadEnv } from "dotenv";
 import { resolve, join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -11,7 +12,7 @@ loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
-import type { RunnerCommand, RunnerEvent } from "./shared/runner/messages.js";
+import type { RunnerCommand, RunnerEvent, AgentId } from "./shared/runner/messages.js";
 import { createBuildStream } from "./lib/build/engine.js";
 import { startDevServer, stopDevServer } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
@@ -38,23 +39,266 @@ const log = (...args: unknown[]) => {
   console.log("[runner]", ...args);
 };
 
-const buildQuery = (...args: unknown[]) => {
-  const sentryQuery = Sentry.createInstrumentedClaudeQuery();
-  const [prompt, workingDir, systemPrompt] = args;
-  return sentryQuery({
-    prompt: prompt as string,
-    options: {
-      model: "claude-sonnet-4-5",
-      cwd: workingDir as string,
-      permissionMode: "default",
-      maxTurns: 100,
-      systemPrompt: systemPrompt as string,
-      additionalDirectories: [workingDir as string],
+const DEFAULT_AGENT: AgentId = "claude-code";
+const CLAUDE_MODEL = "claude-sonnet-4-5";
+const CODEX_MODEL = "gpt-5-codex";
 
-      canUseTool: createProjectScopedPermissionHandler(workingDir as string),
-    },
-  });
+type CodexEvent = {
+  type: string;
+  item?: Record<string, unknown>;
+  finalResponse?: string;
+  usage?: unknown;
+  error?: unknown;
 };
+
+type BuildQueryFn = (
+  prompt: string,
+  workingDirectory: string,
+  systemPrompt: string,
+  agent?: AgentId
+) => AsyncGenerator<unknown, void, unknown>;
+
+function resolveCodexItemType(item: Record<string, unknown> | undefined): string {
+  if (!item) return "";
+  if (typeof item.type === "string") return item.type;
+  if (typeof (item as { item_type?: unknown }).item_type === "string") {
+    return String((item as { item_type?: unknown }).item_type);
+  }
+  return "";
+}
+
+function resolveCodexItemId(item: Record<string, unknown> | undefined): string {
+  if (!item) return randomUUID();
+  const candidateKeys = ["id", "item_id", "tool_call_id", "tool_use_id"] as const;
+  for (const key of candidateKeys) {
+    const value = item[key as keyof typeof item];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return randomUUID();
+}
+
+function extractCodexToolInput(item: Record<string, unknown> | undefined) {
+  if (!item) return {};
+  const possibleKeys = ["arguments", "args", "input"] as const;
+  for (const key of possibleKeys) {
+    const value = item[key as keyof typeof item];
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return {};
+}
+
+function extractCodexToolOutput(item: Record<string, unknown> | undefined) {
+  if (!item) return null;
+  const possibleKeys = [
+    "aggregated_output",
+    "output",
+    "stdout",
+    "result",
+    "response",
+    "content",
+  ] as const;
+  for (const key of possibleKeys) {
+    const value = item[key as keyof typeof item];
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return null;
+}
+
+async function* convertCodexEventsToAgentMessages(
+  events: AsyncIterable<unknown>
+): AsyncGenerator<Record<string, unknown>, void, unknown> {
+  for await (const rawEvent of events) {
+    const event = rawEvent as CodexEvent;
+    const item = (event.item ?? undefined) as unknown as
+      | Record<string, unknown>
+      | undefined;
+    const itemType = resolveCodexItemType(item);
+    const itemId = resolveCodexItemId(item);
+
+    switch (event.type) {
+      case "item.started": {
+        if (itemType === "tool_call" || itemType === "mcp_tool_call") {
+          yield {
+            type: "assistant",
+            message: {
+              id: itemId,
+              content: [
+                {
+                  type: "tool_use",
+                  id: itemId,
+                  name:
+                    (item?.name as string) ||
+                    (item?.tool_name as string) ||
+                    "tool_call",
+                  input: extractCodexToolInput(item),
+                },
+              ],
+            },
+          };
+        } else if (itemType === "command_execution") {
+          yield {
+            type: "assistant",
+            message: {
+              id: itemId,
+              content: [
+                {
+                  type: "tool_use",
+                  id: itemId,
+                  name: "command_execution",
+                  input: {
+                    command:
+                      (item?.command as string) ||
+                      (item?.cmd as string) ||
+                      "",
+                  },
+                },
+              ],
+            },
+          };
+        }
+        break;
+      }
+      case "item.completed": {
+        if (itemType === "assistant_message" || itemType === "agent_message") {
+          const text = (item?.text as string) || "";
+          if (text.trim().length > 0) {
+            yield {
+              type: "assistant",
+              message: {
+                id: itemId,
+                content: [
+                  {
+                    type: "text",
+                    text,
+                  },
+                ],
+              },
+            };
+          }
+        } else if (itemType === "reasoning") {
+          const reasoning = (item?.text as string) || "";
+          if (reasoning.trim().length > 0) {
+            yield {
+              type: "assistant",
+              message: {
+                id: itemId,
+                content: [
+                  {
+                    type: "text",
+                    text: reasoning,
+                  },
+                ],
+              },
+            };
+          }
+        } else if (
+          itemType === "command_execution" ||
+          itemType === "tool_call" ||
+          itemType === "mcp_tool_call"
+        ) {
+          const output = extractCodexToolOutput(item);
+          const exitCode =
+            typeof item?.exit_code === "number" ? item.exit_code : undefined;
+          const status =
+            typeof item?.status === "string" ? item.status : undefined;
+          const isError =
+            typeof exitCode === "number"
+              ? exitCode !== 0
+              : status === "failed" || status === "error";
+
+          yield {
+            type: "user",
+            message: {
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: itemId,
+                  content: output,
+                  is_error: isError || undefined,
+                },
+              ],
+            },
+          };
+        }
+        break;
+      }
+      case "turn.completed": {
+        yield {
+          type: "result",
+          result: event.finalResponse ?? null,
+          usage: event.usage,
+        };
+        break;
+      }
+      case "error": {
+        yield {
+          type: "error",
+          error: event.error,
+        };
+        break;
+      }
+      default:
+        break;
+    }
+  }
+}
+
+function createClaudeQuery(): BuildQueryFn {
+  return (prompt, workingDirectory, systemPrompt) => {
+    const sentryQuery = Sentry.createInstrumentedClaudeQuery();
+    return sentryQuery({
+      prompt,
+      options: {
+        model: CLAUDE_MODEL,
+        cwd: workingDirectory,
+        permissionMode: "default",
+        maxTurns: 100,
+        systemPrompt,
+        additionalDirectories: [workingDirectory],
+        canUseTool: createProjectScopedPermissionHandler(workingDirectory),
+      },
+    });
+  };
+}
+
+function createCodexQuery(): BuildQueryFn {
+  return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
+    const codex = await createInstrumentedCodex({
+      workingDirectory,
+    });
+
+    const combinedPrompt =
+      systemPrompt && systemPrompt.trim().length > 0
+        ? `${systemPrompt.trim()}\n\n${prompt}`
+        : prompt;
+
+    const thread = codex.startThread({
+      sandboxMode: "danger-full-access",
+      model: CODEX_MODEL,
+      workingDirectory,
+      skipGitRepoCheck: true,
+    });
+
+    const { events } = await thread.runStreamed(combinedPrompt);
+
+    for await (const agentMessage of convertCodexEventsToAgentMessages(events)) {
+      yield agentMessage;
+    }
+  };
+}
+
+function createBuildQuery(agent: AgentId): BuildQueryFn {
+  if (agent === "openai-codex") {
+    return createCodexQuery();
+  }
+  return createClaudeQuery();
+}
 
 /**
  * Start the runner with the given options
@@ -599,6 +843,12 @@ export function startRunner(options: RunnerOptions = {}) {
           log("project slug:", projectSlug);
           log("project name:", projectName);
 
+          // Determine agent to use for this build
+          const agent = (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
+          log("selected agent:", agent);
+
+          const agentQuery = createBuildQuery(agent);
+
           // Reset transformer state for new build
           resetTransformerState();
           setExpectedCwd(projectDirectory);
@@ -655,9 +905,10 @@ export function startRunner(options: RunnerOptions = {}) {
             prompt: orchestration.fullPrompt,
             operationType: command.payload.operationType,
             context: command.payload.context,
-            query: buildQuery,
+            query: agentQuery,
             workingDirectory: projectDirectory,
             systemPrompt: orchestration.systemPrompt,
+            agent,
           });
 
           console.log(

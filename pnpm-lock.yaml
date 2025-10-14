@@ -45,6 +45,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.11
         version: 0.1.14(zod@4.1.12)
+      '@openai/codex-sdk':
+        specifier: ^0.46.0
+        version: 0.46.0
       '@sentry/nextjs':
         specifier: file:../sentryvibe/vendor/sentry-nextjs-10.17.0.tgz
         version: file:apps/sentryvibe/vendor/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
@@ -1208,6 +1211,10 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@openai/codex-sdk@0.46.0':
+    resolution: {integrity: sha512-xCjQnuV13rDqVf3EQa/2BD38qzelOofCFVKpexkO6LVnoYaZin/MTwzSNiAR7k8DTF7AHottgqwNOB8hbYVauA==}
+    engines: {node: '>=18'}
 
   '@opentelemetry/api-logs@0.204.0':
     resolution: {integrity: sha512-DqxY8yoAaiBPivoJD4UtgrMS8gEmzZ5lnaxzPojzLVHBGqPxgWm4zcuvcUHZiqQ6kRX2Klel2r9y8cA2HAtqpw==}
@@ -5937,6 +5944,8 @@ snapshots:
       fastq: 1.19.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@openai/codex-sdk@0.46.0': {}
 
   '@opentelemetry/api-logs@0.204.0':
     dependencies:

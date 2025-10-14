@@ -1,3 +1,5 @@
+export type AgentId = 'claude-code' | 'openai-codex';
+
 export type RunnerCommandType =
   | 'start-build'
   | 'start-dev-server'
@@ -39,6 +41,7 @@ export interface StartBuildCommand extends BaseCommand {
     context?: Record<string, unknown>;
     templateId?: string | null;
     regenerate?: boolean;
+    agent?: AgentId;
   };
 }
 
