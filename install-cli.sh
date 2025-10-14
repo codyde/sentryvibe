@@ -51,14 +51,18 @@ echo ""
 # Get latest release
 echo -e "${BLUE}📥 Fetching latest release...${NC}"
 
-LATEST_RELEASE=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases/latest)
-TAG_NAME=$(echo "$LATEST_RELEASE" | grep '"tag_name":' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+# Get the latest release tag that starts with 'cli-v'
+TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
+  grep '"tag_name":' | \
+  grep 'cli-v' | \
+  head -1 | \
+  sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
 
 if [ -z "$TAG_NAME" ]; then
-    echo -e "${RED}✖ Could not find latest release${NC}"
+    echo -e "${RED}✖ Could not find CLI release${NC}"
     echo ""
-    echo "Installing from main branch instead..."
-    TAG_NAME="cli-v0.1.0"  # Fallback
+    echo "Please check https://github.com/codyde/sentryvibe/releases for available versions"
+    exit 1
 fi
 
 echo -e "${GREEN}✓${NC} Latest version: ${TAG_NAME}"
