@@ -1633,6 +1633,11 @@ function HomeContent() {
                   </div>
 
                   {/* Main Input - Centered */}
+                  <div className="max-w-4xl mx-auto mb-6 flex justify-end">
+                    <div className="w-full sm:w-72">
+                      <AgentSelector />
+                    </div>
+                  </div>
                   <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
                     <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
                       <textarea
