@@ -1,14 +1,12 @@
-import "./instrument.js";
+// import "./instrument.js"
 import * as Sentry from "@sentry/node";
 import { config as loadEnv } from "dotenv";
 import { resolve, join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-// ESM compatibility - get __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// loadEnv({ path: resolve(__dirname, "../.env") });
 loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 import WebSocket from "ws";
 import os from "os";
