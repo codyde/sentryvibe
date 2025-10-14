@@ -13,7 +13,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-export default function AgentSelector() {
+interface AgentSelectorProps {
+  className?: string;
+}
+
+export default function AgentSelector({ className }: AgentSelectorProps = {}) {
   const { selectedAgentId, setSelectedAgentId, agents } = useAgent();
   const activeAgent = agents.find((agent) => agent.id === selectedAgentId);
 
@@ -22,6 +26,7 @@ export default function AgentSelector() {
       <DropdownMenuTrigger
         className={cn(
           'flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-left text-sm text-gray-300 transition hover:border-purple-400/40 hover:bg-purple-500/10 hover:text-white focus:outline-none',
+          className,
         )}
       >
         <div className="flex items-center gap-2">

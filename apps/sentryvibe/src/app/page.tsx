@@ -1341,7 +1341,7 @@ function HomeContent() {
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: userPrompt }),
+          body: JSON.stringify({ prompt: userPrompt, agent: selectedAgentId }),
         });
 
         if (!res.ok) throw new Error('Failed to create project');
@@ -1633,32 +1633,34 @@ function HomeContent() {
                   </div>
 
                   {/* Main Input - Centered */}
-                  <div className="max-w-4xl mx-auto mb-6 flex justify-end">
-                    <div className="w-full sm:w-72">
-                      <AgentSelector />
-                    </div>
-                  </div>
                   <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
-                    <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="What do you want to build?"
-                        rows={2}
-                        className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
-                        style={{ minHeight: '80px' }}
-                        disabled={isLoading}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className="absolute right-4 bottom-4 p-3 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                        </svg>
-                      </button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <div className="w-full sm:w-72">
+                        <AgentSelector />
+                      </div>
+                      <div className="relative flex-1">
+                        <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                          <textarea
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="What do you want to build?"
+                            rows={2}
+                            className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
+                            style={{ minHeight: '80px' }}
+                            disabled={isLoading}
+                          />
+                          <button
+                            type="submit"
+                            disabled={isLoading || !input.trim()}
+                            className="absolute right-4 bottom-4 p-3 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                          >
+                            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </form>
                 </div>
@@ -2146,31 +2148,33 @@ function HomeContent() {
 
                 {/* Fixed Bottom Input */}
                 <div className="border-t border-white/10 bg-background/50 backdrop-blur-sm p-4 flex-shrink-0">
-                  <div className="mb-3">
-                    <AgentSelector />
-                  </div>
-                  <form onSubmit={handleSubmit}>
-                    <div className="relative bg-gray-900 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Continue the conversation..."
-                        rows={2}
-                        className="w-full px-6 py-4 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none font-light resize-none"
-                        disabled={isLoading}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className="absolute right-3 bottom-3 p-2 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                        </svg>
-                      </button>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                    <div className="w-full md:w-64">
+                      <AgentSelector />
                     </div>
-                  </form>
+                    <form onSubmit={handleSubmit} className="flex-1">
+                      <div className="relative bg-gray-900 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                        <textarea
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder="Continue the conversation..."
+                          rows={2}
+                          className="w-full px-6 py-4 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none font-light resize-none"
+                          disabled={isLoading}
+                        />
+                        <button
+                          type="submit"
+                          disabled={isLoading || !input.trim()}
+                          className="absolute right-3 bottom-3 p-2 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                          </svg>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
             </motion.div>

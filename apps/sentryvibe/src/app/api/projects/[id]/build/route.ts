@@ -48,6 +48,7 @@ export async function POST(
     commandId = randomUUID();
     const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
     const agentId = body.agent ?? DEFAULT_AGENT_ID;
+    console.log('[build-route] Using agent for build:', agentId);
     const encoder = new TextEncoder();
 
     // Track messages for DB persistence
@@ -462,6 +463,8 @@ export async function POST(
           } catch (e) {
             console.warn('[build-route] failed to parse/persist event payload', e);
           }
+
+          if (closed) return;
 
           const normalized = normalizeSSEChunk(chunk);
           if (!normalized) return;

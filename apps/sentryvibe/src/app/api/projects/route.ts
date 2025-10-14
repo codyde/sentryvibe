@@ -1,16 +1,61 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
+import { createInstrumentedCodex } from '@sentry/node';
 import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import type { AgentId } from '@sentryvibe/agent-core/src/types/agent';
 
-// Note: This route uses Haiku for metadata extraction only (no filesystem access)
+// Note: This route extracts metadata via Claude (Haiku) by default and can fall back to Codex.
 // cwd is set to process.cwd() since we don't need workspace access here
-const query = Sentry.createInstrumentedClaudeQuery({
+const claudeMetadataQuery = Sentry.createInstrumentedClaudeQuery({
   default: {
     cwd: process.cwd(),
   },
 });
+
+const CODEX_MODEL = 'gpt-5-codex';
+
+function buildMetadataPrompt(userPrompt: string): string {
+  return `User wants to build: "${userPrompt}"
+
+Generate project metadata as JSON.
+
+Icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter, Download, Upload, Share, Lock, Key, Bell, Clock
+
+Output ONLY this JSON (no text before or after):
+{"slug":"kebab-case-name","friendlyName":"Friendly Name","description":"Brief description","icon":"IconName"}`;
+}
+
+async function runCodexMetadataPrompt(promptText: string): Promise<string> {
+  const codex = await createInstrumentedCodex({
+    workingDirectory: process.cwd(),
+  });
+
+  const thread = codex.startThread({
+    sandboxMode: 'read-only',
+    model: CODEX_MODEL,
+    workingDirectory: process.cwd(),
+    skipGitRepoCheck: true,
+  });
+
+  const { events } = await thread.runStreamed(promptText);
+  let accumulated = '';
+
+  for await (const event of events as AsyncIterable<any>) {
+    if (event?.type === 'item.completed') {
+      const item = event.item as Record<string, unknown> | undefined;
+      const text = typeof item?.text === 'string' ? item.text : undefined;
+      if (text) {
+        accumulated += text;
+      }
+    } else if (event?.type === 'turn.completed' && typeof event.finalResponse === 'string') {
+      accumulated += event.finalResponse;
+    }
+  }
+
+  return accumulated;
+}
 
 // GET /api/projects - List all projects from database
 export async function GET() {
@@ -26,34 +71,44 @@ export async function GET() {
 // POST /api/projects - Create new project with Haiku metadata extraction
 export async function POST(req: Request) {
   try {
-    const { prompt } = await req.json();
+    const { prompt, agent } = (await req.json()) as { prompt?: string; agent?: AgentId };
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    console.log('🤖 Extracting project metadata with Haiku...');
+    const selectedAgent: AgentId = agent === 'openai-codex' ? 'openai-codex' : 'claude-code';
+
+    console.log('[projects] 🤖 Extracting project metadata...', {
+      agent: selectedAgent,
+    });
+    if (selectedAgent === 'claude-code') {
+      console.log('[projects] Using Claude Haiku for metadata extraction');
+    }
+
+    const metadataPrompt = buildMetadataPrompt(prompt);
 
     // Try up to 2 times to get valid JSON from Haiku
     let jsonResponse = '';
     let attempts = 0;
     const maxAttempts = 2;
 
-    while (attempts < maxAttempts && (!jsonResponse || jsonResponse.trim().length === 0)) {
+    if (selectedAgent === 'openai-codex') {
+      try {
+        jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
+      } catch (error) {
+        console.error('❌ Codex metadata extraction failed, will fall back to Claude:', error);
+      }
+    }
+
+    while (jsonResponse.trim().length === 0 && attempts < maxAttempts) {
       attempts++;
       console.log(`   Attempt ${attempts}/${maxAttempts}...`);
 
       try {
         // Use Haiku to extract metadata
-        const metadataStream = query({
-          prompt: `User wants to build: "${prompt}"
-
-Generate project metadata as JSON.
-
-Icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter, Download, Upload, Share, Lock, Key, Bell, Clock
-
-Output ONLY this JSON (no text before or after):
-{"slug":"kebab-case-name","friendlyName":"Friendly Name","description":"Brief description","icon":"IconName"}`,
+        const metadataStream = claudeMetadataQuery({
+          prompt: metadataPrompt,
           inputMessages: [],
           options: {
             model: 'claude-3-5-haiku-20241022',
@@ -91,7 +146,11 @@ Output ONLY this JSON (no text before or after):
       }
     }
 
-    console.log('📥 Raw Haiku response:', JSON.stringify(jsonResponse));
+    const usedClaudeFallback = selectedAgent === 'claude-code' || attempts > 0;
+    console.log(
+      usedClaudeFallback ? '📥 Raw Haiku response:' : '📥 Raw Codex response:',
+      JSON.stringify(jsonResponse)
+    );
     console.log('   Response length:', jsonResponse.length);
 
     // Extract JSON - handle multiple formats

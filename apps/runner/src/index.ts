@@ -845,6 +845,7 @@ export function startRunner(options: RunnerOptions = {}) {
 
           // Determine agent to use for this build
           const agent = (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
+          const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
           log("selected agent:", agent);
 
           const agentQuery = createBuildQuery(agent);
@@ -970,7 +971,7 @@ export function startRunner(options: RunnerOptions = {}) {
 
             if (!loggedFirstChunk) {
               console.log(
-                "[build] 📨 First chunk received from Claude"
+                `[build] 📨 First chunk received from ${agentLabel}`
               );
               console.log("[build] 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
               loggedFirstChunk = true;
@@ -989,7 +990,7 @@ export function startRunner(options: RunnerOptions = {}) {
                 for (const block of actualMessage.content) {
                   // Log text content
                   if (block.type === 'text' && block.text) {
-                    console.log(`[build] 💭 Claude: ${block.text.slice(0, 200)}${block.text.length > 200 ? '...' : ''}`);
+                    console.log(`[build] 💭 ${agentLabel}: ${block.text.slice(0, 200)}${block.text.length > 200 ? '...' : ''}`);
                   }
 
                   // Log thinking blocks
