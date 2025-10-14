@@ -354,18 +354,40 @@ cd sentryvibe
 pnpm install
 ```
 
-### Running Services Locally
+### Setup Database
+
+After installing dependencies or removing `node_modules` and re-installing, you need to build the native bindings for better-sqlite3 and create the database:
+
+```bash
+# Build better-sqlite3 native bindings
+cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3
+npm run build-release
+cd ../../../../..
+```
+
+### Run Development Server
 
 **Option 1: Run all services**
 ```bash
 pnpm run dev:all
 ```
 
-**Option 2: Run services individually**
+Open [http://localhost:3000](http://localhost:3000) to interact with the Claude Code agent.
+
+### Migrations
+
+This project uses Drizzle ORM with SQLite. Migrations live in the `drizzle/` directory and can be applied with `drizzle-kit`.
 
 Terminal 1 - Web App:
 ```bash
-pnpm --filter sentryvibe dev
+pnpm db:push
+
+# Apply migrations to a different database file
+DATABASE_URL=sentryvibe.db npx drizzle-kit push --config drizzle.config.ts
+
+# Apply migrations manually with sqlite3 (optional)
+sqlite3 sqlite.db ".read drizzle/0003_port_pool.sql"
+sqlite3 sentryvibe.db ".read drizzle/0003_port_pool.sql"
 ```
 
 Terminal 2 - Broker:
@@ -463,12 +485,30 @@ sentryvibe/
 
 The runner stores configuration in a platform-specific location:
 
-- **macOS:** `~/Library/Application Support/sentryvibe/config.json`
-- **Linux:** `~/.config/sentryvibe/config.json`
+**`sentry.server.config.ts`:**
+
+```typescript
+import * as Sentry from "@sentry/nextjs";
 
 ### Default Configuration (Local Mode)
 
-When you run `sentryvibe init` and accept all defaults, you get:
+**`src/app/api/claude-agent/route.ts`:**
+
+```typescript
+import * as Sentry from "@sentry/nextjs";
+
+const query = Sentry.createInstrumentedClaudeQuery();
+```
+
+## Testing with Sentry SDK PR
+
+This project is currently testing [PR #17844](https://github.com/getsentry/sentry-javascript/pull/17844) which adds Claude Code Agent SDK instrumentation to Sentry.
+
+### Installing PR-Based SDKs
+
+#### Step 1: Add pnpm Overrides
+
+**CRITICAL:** Add this to your `package.json` to force pnpm to use local tarballs for ALL dependency resolutions (including nested dependencies):
 
 ```json
 {
@@ -489,10 +529,30 @@ Perfect for running the full stack locally with `sentryvibe run`!
 
 To connect to a remote broker (Railway), override during init:
 
+Depending on where you put your projects, the following commands assume the projects are at the same level and are at `/Users/youruser`.
+
 ```bash
-sentryvibe init \
-  --broker wss://broker.up.railway.app/socket \
-  --secret YOUR_PRODUCTION_SECRET
+# 1. Build the Sentry SDKs from the PR branch
+cd /Users/youruser/sentry-javascript/packages/node
+yarn build
+npm pack
+
+cd /Users/youruser/sentry-javascript
+yarn install # make sure this succeeds before other commands
+yarn build:tarballs # Should generate tarballs for all packages but if it doesn't work, bellow are the 2 we need
+
+cd /Users/youruser/sentry-javascript/packages/nextjs
+yarn build:transpile
+npm pack
+
+# 2. Install in this project (clean install recommended)
+cd /Users/youruser/sentryvibe
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+rm -rf .next
+
+# 3. Start dev server
+pnpm dev
 ```
 
 Or change existing config:

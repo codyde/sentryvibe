@@ -1,21 +1,65 @@
 {
-  "name": "sentryvibe-monorepo",
-  "private": true,
-  "packageManager": "pnpm@9.15.0",
-  "scripts": {
-    "dev": "pnpm --filter sentryvibe dev",
-    "build": "pnpm --filter sentryvibe build",
-    "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
-    "start": "pnpm --filter sentryvibe start",
-    "lint": "pnpm --filter sentryvibe lint",
-    "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter sentryvibe-runner run dev",
-    "broker": "pnpm --filter sentryvibe-broker dev",
-    "runner": "pnpm --filter sentryvibe-runner dev"
-  },
-  "pnpm": {
-    "overrides": {
-      "@sentry/node": "file:./apps/sentryvibe/vendor/sentry-node-10.17.0.tgz",
-      "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-10.17.0.tgz"
-    }
-  }
+	"name": "sentryvibe",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"lint": "eslint",
+		"db:push": "drizzle-kit push"
+	},
+	"dependencies": {
+		"@ai-sdk/anthropic": "^2.0.21",
+		"@ai-sdk/react": "^2.0.57",
+		"@anthropic-ai/claude-agent-sdk": "^0.1.1",
+		"@anthropic-ai/sdk": "^0.65.0",
+		"@monaco-editor/react": "^4.7.0",
+		"@radix-ui/react-avatar": "^1.1.10",
+		"@radix-ui/react-collapsible": "^1.1.12",
+		"@radix-ui/react-dialog": "^1.1.15",
+		"@radix-ui/react-dropdown-menu": "^2.1.16",
+		"@radix-ui/react-hover-card": "^1.1.15",
+		"@radix-ui/react-separator": "^1.1.7",
+		"@radix-ui/react-slot": "^1.2.3",
+		"@radix-ui/react-tooltip": "^1.2.8",
+		"@sentry/nextjs": "file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz",
+		"@sentry/node": "file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz",
+		"ai": "^5.0.57",
+		"ai-sdk-provider-claude-code": "^1.1.4",
+		"ansi-to-html": "^0.7.2",
+		"better-sqlite3": "^12.4.1",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"drizzle-orm": "^0.44.5",
+		"framer-motion": "^12.23.22",
+		"lucide-react": "^0.544.0",
+		"next": "15.5.4",
+		"react": "19.1.0",
+		"react-dom": "19.1.0",
+		"react-markdown": "^10.1.0",
+		"rehype-highlight": "^7.0.2",
+		"remark-gfm": "^4.0.1",
+		"tailwind-merge": "^3.3.1"
+	},
+	"devDependencies": {
+		"@eslint/eslintrc": "^3",
+		"@tailwindcss/postcss": "^4",
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/node": "^20",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"drizzle-kit": "^0.31.5",
+		"eslint": "^9",
+		"eslint-config-next": "15.5.4",
+		"tailwindcss": "^4",
+		"tw-animate-css": "^1.4.0",
+		"typescript": "^5"
+	},
+	"pnpm": {
+		"overrides": {
+			"@sentry/node": "file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz",
+			"@sentry/nextjs": "file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz"
+		}
+	}
 }
