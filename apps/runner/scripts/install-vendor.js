@@ -1,12 +1,25 @@
 #!/usr/bin/env node
-// Install vendor Sentry packages from bundled tarballs
-const { execSync } = require('child_process');
-const { existsSync } = require('fs');
-const path = require('path');
+/**
+ * Install vendor-patched Sentry packages that ship with the CLI bundle.
+ * We unpack the tarballs that live in ./vendor into node_modules/@sentry/*
+ * so the CLI always runs with the patched builds even when installed offline.
+ */
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Get the package root (where this script is located)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const packageRoot = path.join(__dirname, '..');
 const vendorDir = path.join(packageRoot, 'vendor');
+const nodeModules = path.join(packageRoot, 'node_modules');
+
+const packages = [
+  { name: 'node', tarball: 'sentry-node-10.17.0.tgz' },
+  { name: 'nextjs', tarball: 'sentry-nextjs-10.17.0.tgz' },
+];
 
 console.log('Installing vendor Sentry packages...');
 
@@ -15,35 +28,42 @@ if (!existsSync(vendorDir)) {
   process.exit(0);
 }
 
-const nodeTarball = path.join(vendorDir, 'sentry-node-10.17.0.tgz');
-const nextjsTarball = path.join(vendorDir, 'sentry-nextjs-10.17.0.tgz');
+const missing = packages.filter(
+  ({ tarball }) => !existsSync(path.join(vendorDir, tarball)),
+);
 
-if (!existsSync(nodeTarball) || !existsSync(nextjsTarball)) {
-  console.log('Vendor tarballs not found, skipping...');
+if (missing.length) {
+  console.log(
+    `Vendor tarballs not found for: ${missing
+      .map(({ tarball }) => tarball)
+      .join(', ')}, skipping...`,
+  );
   process.exit(0);
 }
 
 try {
-  // Extract tarballs to temp, then move to node_modules
-  const tempDir = path.join(packageRoot, 'temp-vendor');
+  mkdirSync(nodeModules, { recursive: true });
+  mkdirSync(path.join(nodeModules, '@sentry'), { recursive: true });
 
-  // Extract and install
-  execSync(`mkdir -p ${tempDir}`, { stdio: 'inherit' });
-  execSync(`tar -xzf "${nodeTarball}" -C ${tempDir}`, { stdio: 'pipe' });
-  execSync(`tar -xzf "${nextjsTarball}" -C ${tempDir}`, { stdio: 'pipe' });
+  for (const { name, tarball } of packages) {
+    const source = path.join(vendorDir, tarball);
+    const destination = path.join(nodeModules, '@sentry', name);
 
-  // Move extracted packages to node_modules
-  const nodeModules = path.join(packageRoot, 'node_modules');
-  execSync(`mkdir -p ${nodeModules}/@sentry`, { stdio: 'pipe' });
+    // Replace any existing installation to guarantee the patched build is used.
+    rmSync(destination, { recursive: true, force: true });
+    mkdirSync(destination, { recursive: true });
 
-  // Move package/... contents to node_modules/@sentry/...
-  execSync(`cp -R ${tempDir}/package/* ${nodeModules}/@sentry/node 2>/dev/null || mv ${tempDir}/package ${nodeModules}/@sentry/node`, { stdio: 'pipe' });
+    execFileSync(
+      'tar',
+      ['-xzf', source, '--strip-components', '1', '-C', destination],
+      { stdio: 'pipe' },
+    );
 
-  // Clean up temp
-  execSync(`rm -rf ${tempDir}`, { stdio: 'pipe' });
+    console.log(`  ✓ @sentry/${name}`);
+  }
 
   console.log('✓ Vendor packages installed successfully');
 } catch (error) {
   console.warn('Warning: Could not install vendor packages, using published versions');
-  console.warn(error.message);
+  console.warn(error instanceof Error ? error.message : String(error));
 }
