@@ -34,16 +34,44 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const [copied, setCopied] = useState(false);
   const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
   const [healthCheckFailed, setHealthCheckFailed] = useState(false);
+  const [isTunnelLoading, setIsTunnelLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
   const isCheckingRef = useRef(false);
   const lastReadyPortRef = useRef<number | null>(null);
+  const lastTunnelUrlRef = useRef<string | null>(null);
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
 
   // Use terminal-detected port if available, otherwise fall back to DB port
   const actualPort = terminalPort || project?.devServerPort;
+
+  // Watch for tunnel URL changes and show loading screen
+  useEffect(() => {
+    const currentTunnelUrl = project?.tunnelUrl;
+
+    // If tunnel URL just appeared (changed from null/undefined to a value)
+    if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
+      console.log('🔗 New tunnel URL detected, showing loading screen for 5 seconds');
+      setIsTunnelLoading(true);
+      lastTunnelUrlRef.current = currentTunnelUrl;
+
+      // Show loading screen for 5 seconds to let tunnel fully initialize
+      const timer = setTimeout(() => {
+        console.log('✅ Tunnel loading complete, showing preview');
+        setIsTunnelLoading(false);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+
+    // If tunnel URL was removed
+    if (!currentTunnelUrl && lastTunnelUrlRef.current) {
+      lastTunnelUrlRef.current = null;
+      setIsTunnelLoading(false);
+    }
+  }, [project?.tunnelUrl]);
 
   // Construct preview URL - prefer tunnel URL if available, otherwise use localhost directly (bypass proxy)
   const previewUrl = project?.tunnelUrl && project?.devServerStatus === 'running'
@@ -414,8 +442,24 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl ? (
           <>
+            {/* Tunnel loading overlay - 5 second delay */}
+            {isTunnelLoading && (
+              <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <Cloud className="w-16 h-16 text-blue-400 animate-pulse" />
+                    <div className="absolute inset-0 rounded-full border-4 border-blue-400/20 border-t-blue-400 animate-spin"></div>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-semibold text-white">Initializing Tunnel</p>
+                    <p className="text-sm text-gray-400">Setting up secure connection...</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Loading indicator overlay */}
-            {isRefreshing && (
+            {isRefreshing && !isTunnelLoading && (
               <div className="absolute inset-0 bg-[#1e1e1e]/80 backdrop-blur-sm flex items-center justify-center z-10">
                 <div className="flex flex-col items-center gap-3">
                   <RefreshCw className="w-8 h-8 text-[#7553FF] animate-spin" />
