@@ -102,8 +102,14 @@ export class TunnelManager extends EventEmitter {
 
           this.tunnels.set(port, { url, port, process: proc });
 
-          console.log(`✅ Tunnel created: ${url} → localhost:${port}`);
-          resolve(url);
+          console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
+          console.log(`⏳ Waiting 5 seconds for tunnel to stabilize and DNS to propagate...`);
+
+          // Add a 5-second delay to ensure tunnel is fully established and DNS propagated
+          setTimeout(() => {
+            console.log(`✅ Tunnel ready: ${url}`);
+            resolve(url);
+          }, 5000);
         }
       });
 
@@ -124,8 +130,14 @@ export class TunnelManager extends EventEmitter {
 
           this.tunnels.set(port, { url, port, process: proc });
 
-          console.log(`✅ Tunnel created: ${url} → localhost:${port}`);
-          resolve(url);
+          console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
+          console.log(`⏳ Waiting 5 seconds for tunnel to stabilize and DNS to propagate...`);
+
+          // Add a 5-second delay to ensure tunnel is fully established and DNS propagated
+          setTimeout(() => {
+            console.log(`✅ Tunnel ready: ${url}`);
+            resolve(url);
+          }, 5000);
         }
       });
 

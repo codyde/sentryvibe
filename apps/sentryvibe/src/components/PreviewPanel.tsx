@@ -47,17 +47,23 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Use terminal-detected port if available, otherwise fall back to DB port
   const actualPort = terminalPort || project?.devServerPort;
 
-  // Watch for tunnel URL changes and show loading screen
+  // Show loading screen immediately when tunnel starts, keep showing until ready
   useEffect(() => {
+    // Show loading as soon as tunnel starts
+    if (isStartingTunnel) {
+      console.log('🔗 Tunnel starting, showing loading screen...');
+      setIsTunnelLoading(true);
+      return;
+    }
+
     const currentTunnelUrl = project?.tunnelUrl;
 
     // If tunnel URL just appeared (changed from null/undefined to a value)
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      console.log('🔗 New tunnel URL detected, showing loading screen for 5 seconds');
-      setIsTunnelLoading(true);
+      console.log('🔗 New tunnel URL detected, keeping loading screen for 5 more seconds');
       lastTunnelUrlRef.current = currentTunnelUrl;
 
-      // Show loading screen for 5 seconds to let tunnel fully initialize
+      // Keep loading screen for 5 seconds after URL appears to let tunnel fully initialize
       const timer = setTimeout(() => {
         console.log('✅ Tunnel loading complete, showing preview');
         setIsTunnelLoading(false);
@@ -71,7 +77,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       lastTunnelUrlRef.current = null;
       setIsTunnelLoading(false);
     }
-  }, [project?.tunnelUrl]);
+
+    // If not starting and no URL, hide loading
+    if (!isStartingTunnel && !currentTunnelUrl) {
+      setIsTunnelLoading(false);
+    }
+  }, [project?.tunnelUrl, isStartingTunnel]);
 
   // Construct preview URL - prefer tunnel URL if available, otherwise use localhost directly (bypass proxy)
   const previewUrl = project?.tunnelUrl && project?.devServerStatus === 'running'

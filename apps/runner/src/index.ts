@@ -79,9 +79,11 @@ export function startRunner(options: RunnerOptions = {}) {
 
   let socket: WebSocket | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
+  let pingTimer: NodeJS.Timeout | null = null;
   let loggedFirstChunk = false;
   let reconnectAttempts = 0;
   const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
+  const PING_INTERVAL = 30000; // Ping every 30 seconds
 
   // Track verified listening ports per project (single source of truth)
   const verifiedPortsByProject = new Map<string, number>();
@@ -719,6 +721,7 @@ export function startRunner(options: RunnerOptions = {}) {
               console.log(
                 "[build] 📨 First chunk received from Claude"
               );
+              console.log("[build] 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
               loggedFirstChunk = true;
             }
 
@@ -727,58 +730,60 @@ export function startRunner(options: RunnerOptions = {}) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const msg = agentMessage as any;
 
-              // Log text generation
-              if (msg.type === 'content_block_delta' && msg.delta?.type === 'text_delta') {
-                const text = msg.delta.text || '';
-                if (text) {
-                  console.log(`[build] 💭 Generating: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`);
+              // The actual message is nested in a 'message' property
+              const actualMessage = msg.message || msg;
+
+              // Handle assistant messages (conversation turn format)
+              if (msg.type === 'assistant' && actualMessage.content && Array.isArray(actualMessage.content)) {
+                for (const block of actualMessage.content) {
+                  // Log text content
+                  if (block.type === 'text' && block.text) {
+                    console.log(`[build] 💭 Claude: ${block.text.slice(0, 200)}${block.text.length > 200 ? '...' : ''}`);
+                  }
+
+                  // Log thinking blocks
+                  if (block.type === 'thinking' && block.thinking) {
+                    console.log(`[build] 🤔 Thinking: ${block.thinking.slice(0, 300)}${block.thinking.length > 300 ? '...' : ''}`);
+                  }
+
+                  // Log tool use
+                  if (block.type === 'tool_use') {
+                    const toolName = block.name;
+                    const toolId = block.id;
+                    const input = JSON.stringify(block.input, null, 2);
+                    console.log(`[build] 🔧 Tool called: ${toolName} (${toolId})`);
+                    console.log(`[build]    Input: ${input.slice(0, 300)}${input.length > 300 ? '...' : ''}`);
+                  }
                 }
               }
 
-              // Log thinking content
-              if (msg.type === 'content_block_delta' && msg.delta?.type === 'thinking_delta') {
-                const thinking = msg.delta.thinking || '';
-                if (thinking) {
-                  console.log(`[build] 🤔 Thinking: ${thinking.slice(0, 200)}${thinking.length > 200 ? '...' : ''}`);
-                }
-              }
-
-              // Log thinking blocks start
-              if (msg.type === 'content_block_start' && msg.content_block?.type === 'thinking') {
-                console.log(`[build] 🤔 Claude is thinking...`);
-              }
-
-              // Log tool use starts
-              if (msg.type === 'content_block_start' && msg.content_block?.type === 'tool_use') {
-                const toolName = msg.content_block.name;
-                const toolId = msg.content_block.id;
-                console.log(`[build] 🔧 Tool called: ${toolName} (${toolId})`);
-              }
-
-              // Log tool use inputs
-              if (msg.type === 'content_block_delta' && msg.delta?.type === 'input_json_delta') {
-                const partialInput = msg.delta.partial_json || '';
-                if (partialInput) {
-                  console.log(`[build] 📝 Tool input: ${partialInput.slice(0, 150)}${partialInput.length > 150 ? '...' : ''}`);
-                }
-              }
-
-              // Log tool results with output content
-              if (msg.type === 'message' && msg.content) {
-                for (const block of msg.content) {
+              // Handle user messages (tool results)
+              if (msg.type === 'user' && actualMessage.content && Array.isArray(actualMessage.content)) {
+                for (const block of actualMessage.content) {
                   if (block.type === 'tool_result') {
                     const toolId = block.tool_use_id;
                     const isError = block.is_error;
-                    const content = typeof block.content === 'string'
-                      ? block.content
-                      : JSON.stringify(block.content);
+
+                    // Handle different content formats
+                    let content = '';
+                    if (typeof block.content === 'string') {
+                      content = block.content;
+                    } else if (Array.isArray(block.content)) {
+                      // Content might be an array of content blocks
+                      content = block.content.map((c: any) => {
+                        if (c.type === 'text') return c.text;
+                        return JSON.stringify(c);
+                      }).join('\n');
+                    } else {
+                      content = JSON.stringify(block.content);
+                    }
 
                     if (isError) {
                       console.error(`[build] ❌ Tool error (${toolId}):`);
                       console.error(`[build]    ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
                     } else {
-                      console.log(`[build] ✅ Tool completed: ${toolId}`);
-                      console.log(`[build]    Output: ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
+                      console.log(`[build] ✅ Tool result (${toolId}):`);
+                      console.log(`[build]    ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
                     }
                   }
                 }
@@ -924,6 +929,14 @@ export function startRunner(options: RunnerOptions = {}) {
       log("connected to broker", url.toString());
       publishStatus();
       scheduleHeartbeat();
+
+      // Start ping/pong to keep connection alive
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = setInterval(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.ping();
+        }
+      }, PING_INTERVAL);
     });
 
     socket.on("message", (data: WebSocket.RawData) => {
@@ -954,11 +967,18 @@ export function startRunner(options: RunnerOptions = {}) {
       );
     });
 
-    socket.on("close", (code: number) => {
-      log(`connection closed with code ${code}`);
+    socket.on("close", (code: number, reason: Buffer) => {
+      const reasonStr = reason.toString() || 'no reason provided';
+      log(`connection closed with code ${code}, reason: ${reasonStr}`);
+
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
         heartbeatTimer = null;
+      }
+
+      if (pingTimer) {
+        clearInterval(pingTimer);
+        pingTimer = null;
       }
 
       // Exponential backoff with max delay
@@ -972,6 +992,10 @@ export function startRunner(options: RunnerOptions = {}) {
       setTimeout(connect, delay);
     });
 
+    socket.on("pong", () => {
+      // Connection is alive
+    });
+
     socket.on("error", (error: Error) => {
       console.error("socket error", error);
     });
@@ -980,6 +1004,7 @@ export function startRunner(options: RunnerOptions = {}) {
   process.on("SIGINT", async () => {
     log("shutting down");
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (pingTimer) clearInterval(pingTimer);
 
     // Cleanup all tunnels
     await tunnelManager.closeAll();
@@ -994,6 +1019,7 @@ export function startRunner(options: RunnerOptions = {}) {
   process.on("SIGTERM", async () => {
     log("shutting down (SIGTERM)");
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (pingTimer) clearInterval(pingTimer);
 
     // Cleanup all tunnels
     await tunnelManager.closeAll();
