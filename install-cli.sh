@@ -51,17 +51,25 @@ echo ""
 # Get latest release
 echo -e "${BLUE}📥 Fetching latest release...${NC}"
 
-# Get the latest release tag that starts with 'cli-v'
-# Using python/node for reliable JSON parsing, fallback to sed
+# Get the latest release that ships the CLI tarball asset
+# Using python/node for reliable JSON parsing, fallback to known version
 if command -v python3 &> /dev/null; then
     TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
-      python3 -c "import sys, json; releases = json.load(sys.stdin); print(next((r['tag_name'] for r in releases if r['tag_name'].startswith('cli-v')), ''))")
+      python3 - "$@" <<'PYTHON'
+import json, sys
+for release in json.load(sys.stdin):
+    assets = release.get("assets") or []
+    if any(asset.get("name") == "sentryvibe-cli.tgz" for asset in assets):
+        print(release["tag_name"])
+        break
+PYTHON
+    )
 elif command -v node &> /dev/null; then
     TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
-      node -e "const releases = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(releases.find(r => r.tag_name.startsWith('cli-v'))?.tag_name || '')")
+      node -e "const releases = JSON.parse(require('fs').readFileSync(0, 'utf-8')); const match = releases.find(r => (r.assets || []).some(a => a.name === 'sentryvibe-cli.tgz')); console.log(match ? match.tag_name : '');")
 else
     # Fallback: hardcode latest known version
-    TAG_NAME="cli-v0.1.0"
+    TAG_NAME="runner-cli-v0.1.11"
 fi
 
 if [ -z "$TAG_NAME" ]; then
