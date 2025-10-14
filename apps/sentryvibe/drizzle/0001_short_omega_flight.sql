@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "tunnel_url" text;

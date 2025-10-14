@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1759883261890,
+      "tag": "0000_init_postgres",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1759997664463,
+      "tag": "0001_short_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1760168351083,
+      "tag": "0002_lush_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1760210400000,
+      "tag": "0003_wider_generation_persistence",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1760300000000,
+      "tag": "0004_fix_tool_calls_unique_index",
+      "breakpoints": true
+    }
+  ]
+}

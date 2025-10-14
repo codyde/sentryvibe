@@ -1,0 +1,196 @@
+import { existsSync } from 'fs';
+import { readFile, writeFile, rm } from 'fs/promises';
+import type { Template } from './config.js';
+import { join } from 'path';
+import { getWorkspaceRoot } from '../workspace.js';
+import { simpleGit } from 'simple-git';
+
+/**
+ * Download template from GitHub using degit
+ * degit is faster than git clone (no history, just files)
+ */
+export async function downloadTemplate(
+  template: Template,
+  targetPath: string
+): Promise<string> {
+  console.log(`📥 Downloading template: ${template.name}`);
+  console.log(`   Repository: ${template.repository}`);
+  console.log(`   Branch: ${template.branch}`);
+  console.log(`   Target: ${targetPath}`);
+
+  // Check if target already exists
+  if (existsSync(targetPath)) {
+    throw new Error(`Project directory already exists: ${targetPath}`);
+  }
+
+  // Use degit to download template
+  // Format: github:username/repo#branch
+  const repoUrl = template.branch !== 'main'
+    ? `${template.repository}#${template.branch}`
+    : template.repository;
+
+  // Use simple-git directly (no spawn issues)
+  return await downloadTemplateWithGit(template, targetPath);
+}
+
+/**
+ * Alternative: Use git clone (fallback if degit unavailable)
+ */
+export async function downloadTemplateWithGit(
+  template: Template,
+  targetPath: string
+): Promise<string> {
+
+  console.log(`📥 Cloning template with simple-git: ${template.name}`);
+
+  // Parse GitHub URL
+  // "github:username/repo" → "https://github.com/username/repo.git"
+  const repoUrl = template.repository.replace('github:', 'https://github.com/') + '.git';
+
+  console.log(`   Repository: ${repoUrl}`);
+  console.log(`   Branch: ${template.branch}`);
+  console.log(`   Target: ${targetPath}`);
+
+  try {
+    const git = simpleGit();
+
+    // Clone with depth 1 (shallow clone)
+    await git.clone(repoUrl, targetPath, [
+      '--depth', '1',
+      '--branch', template.branch,
+      '--single-branch'
+    ]);
+
+    console.log(`✅ Template cloned successfully`);
+
+    // Verify files were actually downloaded
+    const { readdir } = await import('fs/promises');
+    const downloadedFiles = await readdir(targetPath);
+    console.log(`   Downloaded ${downloadedFiles.length} files/directories`);
+    console.log(`   Files: ${downloadedFiles.slice(0, 10).join(', ')}${downloadedFiles.length > 10 ? '...' : ''}`);
+
+    if (downloadedFiles.length === 0) {
+      throw new Error('Template clone succeeded but directory is empty!');
+    }
+
+    // Remove .git directory (we don't need version history)
+    try {
+      await rm(join(targetPath, '.git'), { recursive: true, force: true });
+      console.log(`   Cleaned .git directory`);
+    } catch (error) {
+      console.warn(`   Failed to remove .git:`, error);
+    }
+
+    // Create .npmrc to isolate from monorepo workspace
+    await createNpmrc(targetPath);
+
+    // Extract project name from path
+    const projectName = targetPath.split('/').pop() || 'project';
+
+    // Update package.json name(s)
+    await updatePackageName(targetPath, projectName);
+
+    // Handle multi-package projects (like vite-react-node with client/server)
+    const clientPkgPath = join(targetPath, 'client', 'package.json');
+    const serverPkgPath = join(targetPath, 'server', 'package.json');
+
+    if (existsSync(clientPkgPath)) {
+      await updatePackageName(join(targetPath, 'client'), `${projectName}-client`);
+    }
+    if (existsSync(serverPkgPath)) {
+      await updatePackageName(join(targetPath, 'server'), `${projectName}-server`);
+    }
+
+    return targetPath;
+
+  } catch (error) {
+    console.error(`❌ Failed to clone template:`, error);
+    throw new Error(`Template download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Create .npmrc to isolate project from monorepo workspace
+ */
+async function createNpmrc(projectPath: string): Promise<void> {
+  const npmrcPath = join(projectPath, '.npmrc');
+  const npmrcContent = `# Disable workspace mode - treat as standalone project
+enable-modules-dir=true
+shamefully-hoist=false
+`;
+
+  try {
+    await writeFile(npmrcPath, npmrcContent);
+    console.log(`   Created .npmrc to isolate from workspace`);
+  } catch (error) {
+    console.warn(`   Failed to create .npmrc:`, error);
+  }
+}
+
+/**
+ * Update package.json name field
+ */
+async function updatePackageName(projectPath: string, newName: string): Promise<void> {
+  const pkgPath = join(projectPath, 'package.json');
+
+  if (!existsSync(pkgPath)) {
+    console.log(`   No package.json found in ${projectPath}, skipping name update`);
+    return;
+  }
+
+  try {
+    const content = await readFile(pkgPath, 'utf-8');
+    const pkg = JSON.parse(content);
+    pkg.name = newName;
+    await writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+
+    console.log(`   Updated package.json name to: ${newName}`);
+  } catch (error) {
+    console.warn(`   Failed to update package.json:`, error);
+  }
+}
+
+/**
+ * Get project file tree (for AI context)
+ * Shows directory structure to help AI understand what's included
+ */
+export async function getProjectFileTree(projectPath: string): Promise<string> {
+  // Simplified version - just return the path
+  // TODO: Implement tree generation without execAsync
+  return `Project path: ${projectPath}`;
+}
+
+/**
+ * Get summary of key files in template (for AI context)
+ */
+export async function getTemplateFileSummary(projectPath: string): Promise<string> {
+  const keyFiles = [
+    'package.json',
+    'tsconfig.json',
+    'README.md',
+    'next.config.ts',
+    'next.config.js',
+    'vite.config.ts',
+    'astro.config.mjs',
+  ];
+
+  const summary: string[] = [];
+
+  for (const file of keyFiles) {
+    const filePath = join(projectPath, file);
+    if (existsSync(filePath)) {
+      summary.push(file);
+    }
+  }
+
+  // Check for key directories
+  const keyDirs = ['app', 'src', 'components', 'pages', 'client', 'server'];
+  for (const dir of keyDirs) {
+    const dirPath = join(projectPath, dir);
+    if (existsSync(dirPath)) {
+      summary.push(`${dir}/`);
+    }
+  }
+
+  return summary.join(', ');
+}

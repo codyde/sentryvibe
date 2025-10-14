@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root {
+  --background: rgb(24 18 37);
+  --foreground: rgb(255 255 255);
+  --primary: rgb(117 83 255);
+  --accent: rgb(167 55 180);
+  --border: rgb(78 42 154);
+  --ring: rgb(117 83 255);
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
