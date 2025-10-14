@@ -14,6 +14,8 @@ export type BuildOperationType =
 export interface BuildRequest {
   operationType: BuildOperationType;
   prompt: string;
+  runnerId?: string; // Optional runner ID - falls back to RUNNER_DEFAULT_ID
+  buildId?: string;
   context?: {
     elementSelector?: string;
     elementInfo?: {
