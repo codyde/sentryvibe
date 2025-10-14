@@ -17,6 +17,7 @@ interface InitOptions {
   secret?: string;
   branch?: string;
   database?: boolean;
+  yes?: boolean;
   nonInteractive?: boolean;
 }
 
@@ -113,23 +114,33 @@ export async function initCommand(options: InitOptions) {
 
   logger.log('');
 
-  // Check if already initialized
+  // Handle -y / --yes flag (alias for --non-interactive)
+  const isNonInteractive = options.nonInteractive || options.yes;
+
+  // Check if already initialized - default to YES for reset
   if (configManager.isInitialized()) {
     logger.warn('Configuration already exists');
-    const shouldReset = await prompts.confirm(
-      'Do you want to reset and reconfigure?',
-      false
-    );
-    if (!shouldReset) {
-      logger.info('Setup cancelled');
-      return;
+
+    if (isNonInteractive) {
+      // In non-interactive mode, always reset
+      logger.info('Resetting configuration...');
+      configManager.reset();
+    } else {
+      const shouldReset = await prompts.confirm(
+        'Do you want to reset and reconfigure?',
+        true  // Default to YES
+      );
+      if (!shouldReset) {
+        logger.info('Setup cancelled');
+        return;
+      }
+      configManager.reset();
     }
-    configManager.reset();
   }
 
   let answers;
 
-  if (options.nonInteractive) {
+  if (isNonInteractive) {
     // Non-interactive mode: use provided options or defaults
     answers = {
       workspace: options.workspace || configManager.get('workspace'),
@@ -167,10 +178,12 @@ export async function initCommand(options: InitOptions) {
   logger.log('');
   let databaseUrl: string | undefined;
 
-  if (monorepoPath && (options.database || !options.nonInteractive)) {
-    const shouldSetupDb = options.database || await prompts.confirm(
+  if (monorepoPath) {
+    // In non-interactive mode, always setup database
+    // In interactive mode, default to YES
+    const shouldSetupDb = isNonInteractive || options.database || await prompts.confirm(
       'Set up a Neon PostgreSQL database? (Required for full-stack mode)',
-      true
+      true  // Default to YES
     );
 
     if (shouldSetupDb) {
@@ -181,21 +194,13 @@ export async function initCommand(options: InitOptions) {
         logger.success(`Database URL saved`);
         logger.log('');
 
-        // Offer to push schema
-        const shouldPushSchema = options.database || await prompts.confirm(
-          'Initialize database schema with Drizzle?',
-          true
-        );
+        // Auto-push schema (no prompt needed - it's required)
+        const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
 
-        if (shouldPushSchema) {
-          logger.log('');
-          const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
-
-          if (!pushed) {
-            logger.warn('Schema push failed - you can try manually later');
-            logger.info(`  cd ${monorepoPath}/apps/sentryvibe`);
-            logger.info(`  DATABASE_URL="${databaseUrl}" npx drizzle-kit push --config=drizzle.config.ts`);
-          }
+        if (!pushed) {
+          logger.warn('Schema push failed - you can try manually later');
+          logger.info(`  cd ${monorepoPath}/apps/sentryvibe`);
+          logger.info(`  DATABASE_URL="${databaseUrl}" npx drizzle-kit push --config=drizzle.config.ts`);
         }
       } else {
         logger.warn('Database setup skipped or failed');

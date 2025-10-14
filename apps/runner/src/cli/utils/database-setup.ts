@@ -165,7 +165,7 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
     return false;
   }
 
-  spinner.start('Pushing database schema...');
+  spinner.start('Initializing database schema (this may take a moment)...');
 
   return new Promise((resolve) => {
     const proc = spawn('npx', ['drizzle-kit', 'push', '--config=drizzle.config.ts'], {
@@ -179,31 +179,30 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
     });
 
     let hasError = false;
-    let output = '';
+    let errorOutput = '';
 
-    proc.stdout?.on('data', (data) => {
-      const text = data.toString();
-      output += text;
-      // Show all output for debugging
-      console.log(text.trim());
+    // Suppress normal output, only capture errors
+    proc.stdout?.on('data', () => {
+      // Silently consume stdout
     });
 
     proc.stderr?.on('data', (data) => {
       const text = data.toString();
-      output += text;
       if (text.includes('error') || text.includes('Error')) {
         hasError = true;
+        errorOutput += text;
       }
-      // Show all output for debugging
-      console.error(text.trim());
     });
 
     proc.on('exit', (code) => {
       if (code === 0 && !hasError) {
-        spinner.succeed('Database schema pushed successfully');
+        spinner.succeed('Database schema initialized successfully');
         resolve(true);
       } else {
         spinner.fail('Failed to push database schema');
+        if (errorOutput) {
+          logger.error(errorOutput.trim());
+        }
         resolve(false);
       }
     });

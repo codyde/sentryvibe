@@ -44,7 +44,8 @@ program
   .option('--secret <secret>', 'Set shared secret')
   .option('--branch <branch>', 'Git branch to clone (default: main)')
   .option('--database', 'Set up new database and push schema')
-  .option('--non-interactive', 'Use defaults without prompts')
+  .option('-y, --yes', 'Accept all defaults (non-interactive mode)')
+  .option('--non-interactive', 'Use defaults without prompts (alias for -y)')
   .action(async (options) => {
     const { initCommand } = await import('./commands/init.js');
     await initCommand(options);
