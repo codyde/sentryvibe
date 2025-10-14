@@ -10,7 +10,138 @@ overrides:
 
 importers:
 
-  .: {}
+  .:
+    dependencies:
+      '@ai-sdk/anthropic':
+        specifier: ^2.0.21
+        version: 2.0.23(zod@3.25.76)
+      '@ai-sdk/react':
+        specifier: ^2.0.57
+        version: 2.0.59(react@19.1.0)(zod@3.25.76)
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.1.1
+        version: 0.1.11(zod@3.25.76)
+      '@anthropic-ai/sdk':
+        specifier: ^0.65.0
+        version: 0.65.0(zod@3.25.76)
+      '@monaco-editor/react':
+        specifier: ^4.7.0
+        version: 4.7.0(monaco-editor@0.53.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-avatar':
+        specifier: ^1.1.10
+        version: 1.1.10(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-collapsible':
+        specifier: ^1.1.12
+        version: 1.1.12(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-dialog':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-dropdown-menu':
+        specifier: ^2.1.16
+        version: 2.1.16(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-hover-card':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-separator':
+        specifier: ^1.1.7
+        version: 1.1.7(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.3
+        version: 1.2.3(@types/react@19.2.0)(react@19.1.0)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.8
+        version: 1.2.8(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@sentry/nextjs':
+        specifier: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
+        version: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
+      '@sentry/node':
+        specifier: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+        version: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+      ai:
+        specifier: ^5.0.57
+        version: 5.0.59(zod@3.25.76)
+      ai-sdk-provider-claude-code:
+        specifier: ^1.1.4
+        version: 1.1.4(zod@3.25.76)
+      ansi-to-html:
+        specifier: ^0.7.2
+        version: 0.7.2
+      better-sqlite3:
+        specifier: ^12.4.1
+        version: 12.4.1
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      drizzle-orm:
+        specifier: ^0.44.5
+        version: 0.44.6(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.5)(better-sqlite3@12.4.1)(pg@8.16.3)
+      framer-motion:
+        specifier: ^12.23.22
+        version: 12.23.22(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      lucide-react:
+        specifier: ^0.544.0
+        version: 0.544.0(react@19.1.0)
+      next:
+        specifier: 15.5.4
+        version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-dom:
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.2.0)(react@19.1.0)
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.3.1
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3
+        version: 3.3.1
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.1.14
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      '@types/node':
+        specifier: ^20
+        version: 20.19.19
+      '@types/react':
+        specifier: ^19
+        version: 19.2.0
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.0(@types/react@19.2.0)
+      drizzle-kit:
+        specifier: ^0.31.5
+        version: 0.31.5
+      eslint:
+        specifier: ^9
+        version: 9.36.0(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 15.5.4
+        version: 15.5.4(eslint@9.36.0(jiti@2.6.1))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.1.14
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
   apps/broker:
     dependencies:
@@ -46,11 +177,11 @@ importers:
         specifier: ^0.1.11
         version: 0.1.11(zod@3.25.76)
       '@sentry/nextjs':
-        specifier: file:../sentryvibe/vendor/sentry-nextjs-10.17.0.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
+        specifier: file:../../../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
+        version: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
       '@sentry/node':
-        specifier: file:../sentryvibe/vendor/sentry-node-10.17.0.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-10.17.0.tgz
+        specifier: file:../../../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+        version: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -137,11 +268,14 @@ importers:
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.0(@types/react@19.2.0))(@types/react@19.2.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@sentry/nextjs':
-        specifier: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
-        version: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.0(esbuild@0.25.10))
+        specifier: file:../../../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz
+        version: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))
       '@sentry/node':
-        specifier: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+        specifier: file:../../../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
         version: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
+      '@sentryvibe/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
       ai:
         specifier: ^5.0.57
         version: 5.0.59(zod@3.25.76)
@@ -2006,7 +2140,7 @@ packages:
     engines: {node: '>=18'}
 
   '@sentry/nextjs@file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz':
-    resolution: {integrity: sha512-Qwx0ZKd70fDZFAHj44JCEzb4zecd/cCWfiH88Dv6unKVtbo0y27YB5HXt/2GGwCTgtCdvXI+HJTugBWraLTI3w==, tarball: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz}
+    resolution: {integrity: sha512-ZRmO3Kw8PlCdILopZSaRFr6ZsgVgQuRZRdAVjxwM2J8ynKnOuISuJScpJhmvPc7igW9+B7Hb0Ik50NfLzbsXKw==, tarball: file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -2025,7 +2159,7 @@ packages:
       '@opentelemetry/semantic-conventions': ^1.37.0
 
   '@sentry/node@file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz':
-    resolution: {integrity: sha512-LmQDPaxemoJexpMXUsinyqZm+1YzoioxoPaUlppFdLBaPVtPImHlT+3Yq5QWeu/p2/sVFsEwHwGZbncte0iAMA==, tarball: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz}
+    resolution: {integrity: sha512-Lw1DEZawES3v8CCFyi0cy4iMkg07U/rDVLhGFLIqRj7WH1Ur3KtH/XzwQfA1JdWqovQna3MjILjvZ9vwb/qNOw==, tarball: file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
 
@@ -6843,7 +6977,7 @@ snapshots:
 
   '@sentry/core@10.17.0': {}
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))':
+  '@sentry/nextjs@file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.37.0
@@ -6851,7 +6985,7 @@ snapshots:
       '@sentry-internal/browser-utils': 10.17.0
       '@sentry/bundler-plugin-core': 4.3.0
       '@sentry/core': 10.17.0
-      '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-10.17.0.tgz
+      '@sentry/node': file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/react': 10.17.0(react@19.1.0)
       '@sentry/vercel-edge': 10.17.0
@@ -6870,7 +7004,7 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)':
+  '@sentry/nextjs@file:../sentry-javascript/packages/nextjs/sentry-nextjs-10.17.0.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.37.0
@@ -6878,7 +7012,7 @@ snapshots:
       '@sentry-internal/browser-utils': 10.17.0
       '@sentry/bundler-plugin-core': 4.3.0
       '@sentry/core': 10.17.0
-      '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-10.17.0.tgz
+      '@sentry/node': file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/react': 10.17.0(react@19.1.0)
       '@sentry/vercel-edge': 10.17.0
@@ -6910,7 +7044,7 @@ snapshots:
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       import-in-the-middle: 1.14.4
 
-  '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-10.17.0.tgz':
+  '@sentry/node@file:../sentry-javascript/packages/node/sentry-node-10.17.0.tgz':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/context-async-hooks': 2.1.0(@opentelemetry/api@1.9.0)
@@ -7078,7 +7212,6 @@ snapshots:
   '@types/better-sqlite3@7.6.13':
     dependencies:
       '@types/node': 20.19.19
-    optional: true
 
   '@types/body-parser@1.19.6':
     dependencies:
@@ -7632,8 +7765,7 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  base64-js@1.5.1:
-    optional: true
+  base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.8.13: {}
 
@@ -7641,21 +7773,18 @@ snapshots:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
-    optional: true
 
   binary-extensions@2.3.0: {}
 
   bindings@1.5.0:
     dependencies:
       file-uri-to-path: 1.0.0
-    optional: true
 
   bl@4.1.0:
     dependencies:
       buffer: 5.7.1
       inherits: 2.0.4
       readable-stream: 3.6.2
-    optional: true
 
   body-parser@1.20.3:
     dependencies:
@@ -7723,7 +7852,6 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
-    optional: true
 
   bytes@3.1.2: {}
 
@@ -7788,8 +7916,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  chownr@1.1.4:
-    optional: true
+  chownr@1.1.4: {}
 
   chownr@3.0.0: {}
 
@@ -7918,7 +8045,6 @@ snapshots:
   decompress-response@6.0.0:
     dependencies:
       mimic-response: 3.1.0
-    optional: true
 
   deep-extend@0.6.0: {}
 
@@ -8006,7 +8132,6 @@ snapshots:
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
-    optional: true
 
   enhanced-resolve@5.18.3:
     dependencies:
@@ -8405,8 +8530,7 @@ snapshots:
 
   eventsource-parser@3.0.6: {}
 
-  expand-template@2.0.3:
-    optional: true
+  expand-template@2.0.3: {}
 
   express@4.21.2:
     dependencies:
@@ -8482,8 +8606,7 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
-  file-uri-to-path@1.0.0:
-    optional: true
+  file-uri-to-path@1.0.0: {}
 
   fill-range@7.1.1:
     dependencies:
@@ -8532,8 +8655,7 @@ snapshots:
 
   fresh@0.5.2: {}
 
-  fs-constants@1.0.0:
-    optional: true
+  fs-constants@1.0.0: {}
 
   fs.realpath@1.0.0: {}
 
@@ -8589,8 +8711,7 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
-  github-from-package@0.0.0:
-    optional: true
+  github-from-package@0.0.0: {}
 
   glob-parent@5.1.2:
     dependencies:
@@ -8716,8 +8837,7 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
-  ieee754@1.2.1:
-    optional: true
+  ieee754@1.2.1: {}
 
   ignore@5.3.2: {}
 
@@ -9460,8 +9580,7 @@ snapshots:
 
   mimic-function@5.0.1: {}
 
-  mimic-response@3.1.0:
-    optional: true
+  mimic-response@3.1.0: {}
 
   minimatch@3.1.2:
     dependencies:
@@ -9485,8 +9604,7 @@ snapshots:
     dependencies:
       minipass: 7.1.2
 
-  mkdirp-classic@0.5.3:
-    optional: true
+  mkdirp-classic@0.5.3: {}
 
   module-details-from-path@1.0.4: {}
 
@@ -9508,8 +9626,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  napi-build-utils@2.0.0:
-    optional: true
+  napi-build-utils@2.0.0: {}
 
   napi-postinstall@0.3.3: {}
 
@@ -9546,7 +9663,6 @@ snapshots:
   node-abi@3.77.0:
     dependencies:
       semver: 7.7.2
-    optional: true
 
   node-fetch@2.7.0:
     dependencies:
@@ -9605,7 +9721,6 @@ snapshots:
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
-    optional: true
 
   onetime@7.0.0:
     dependencies:
@@ -9761,7 +9876,6 @@ snapshots:
       simple-get: 4.0.1
       tar-fs: 2.1.4
       tunnel-agent: 0.6.0
-    optional: true
 
   prelude-ls@1.2.1: {}
 
@@ -9788,7 +9902,6 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
-    optional: true
 
   punycode@2.3.1: {}
 
@@ -9881,7 +9994,6 @@ snapshots:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
-    optional: true
 
   readdirp@3.6.0:
     dependencies:
@@ -10193,15 +10305,13 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
-  simple-concat@1.0.1:
-    optional: true
+  simple-concat@1.0.1: {}
 
   simple-get@4.0.1:
     dependencies:
       decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
-    optional: true
 
   simple-git@3.28.0:
     dependencies:
@@ -10317,7 +10427,6 @@ snapshots:
   string_decoder@1.3.0:
     dependencies:
       safe-buffer: 5.2.1
-    optional: true
 
   stringify-entities@4.0.4:
     dependencies:
@@ -10385,7 +10494,6 @@ snapshots:
       mkdirp-classic: 0.5.3
       pump: 3.0.3
       tar-stream: 2.2.0
-    optional: true
 
   tar-stream@2.2.0:
     dependencies:
@@ -10394,7 +10502,6 @@ snapshots:
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.2
-    optional: true
 
   tar@7.5.1:
     dependencies:
@@ -10475,7 +10582,6 @@ snapshots:
   tunnel-agent@0.6.0:
     dependencies:
       safe-buffer: 5.2.1
-    optional: true
 
   tw-animate-css@1.4.0: {}
 
@@ -10657,8 +10763,7 @@ snapshots:
     dependencies:
       react: 19.1.0
 
-  util-deprecate@1.0.2:
-    optional: true
+  util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
 
@@ -10831,8 +10936,7 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.1.2
 
-  wrappy@1.0.2:
-    optional: true
+  wrappy@1.0.2: {}
 
   ws@8.18.3: {}
 
