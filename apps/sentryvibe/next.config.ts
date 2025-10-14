@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingRoot: path.resolve(__dirname, "..", ".."),
   transpilePackages: ['@sentryvibe/agent-core'],
+  // Reduce noise from frequent API endpoint calls
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
 };
 
 export default withSentryConfig(nextConfig, {

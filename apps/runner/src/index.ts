@@ -717,10 +717,72 @@ export function startRunner(options: RunnerOptions = {}) {
 
             if (!loggedFirstChunk) {
               console.log(
-                "[runner] first build chunk sample:",
-                JSON.stringify(agentMessage).slice(0, 1000)
+                "[build] 📨 First chunk received from Claude"
               );
               loggedFirstChunk = true;
+            }
+
+            // Log generation and tool usage
+            if (typeof agentMessage === 'object' && agentMessage !== null) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const msg = agentMessage as any;
+
+              // Log text generation
+              if (msg.type === 'content_block_delta' && msg.delta?.type === 'text_delta') {
+                const text = msg.delta.text || '';
+                if (text) {
+                  console.log(`[build] 💭 Generating: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`);
+                }
+              }
+
+              // Log thinking content
+              if (msg.type === 'content_block_delta' && msg.delta?.type === 'thinking_delta') {
+                const thinking = msg.delta.thinking || '';
+                if (thinking) {
+                  console.log(`[build] 🤔 Thinking: ${thinking.slice(0, 200)}${thinking.length > 200 ? '...' : ''}`);
+                }
+              }
+
+              // Log thinking blocks start
+              if (msg.type === 'content_block_start' && msg.content_block?.type === 'thinking') {
+                console.log(`[build] 🤔 Claude is thinking...`);
+              }
+
+              // Log tool use starts
+              if (msg.type === 'content_block_start' && msg.content_block?.type === 'tool_use') {
+                const toolName = msg.content_block.name;
+                const toolId = msg.content_block.id;
+                console.log(`[build] 🔧 Tool called: ${toolName} (${toolId})`);
+              }
+
+              // Log tool use inputs
+              if (msg.type === 'content_block_delta' && msg.delta?.type === 'input_json_delta') {
+                const partialInput = msg.delta.partial_json || '';
+                if (partialInput) {
+                  console.log(`[build] 📝 Tool input: ${partialInput.slice(0, 150)}${partialInput.length > 150 ? '...' : ''}`);
+                }
+              }
+
+              // Log tool results with output content
+              if (msg.type === 'message' && msg.content) {
+                for (const block of msg.content) {
+                  if (block.type === 'tool_result') {
+                    const toolId = block.tool_use_id;
+                    const isError = block.is_error;
+                    const content = typeof block.content === 'string'
+                      ? block.content
+                      : JSON.stringify(block.content);
+
+                    if (isError) {
+                      console.error(`[build] ❌ Tool error (${toolId}):`);
+                      console.error(`[build]    ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
+                    } else {
+                      console.log(`[build] ✅ Tool completed: ${toolId}`);
+                      console.log(`[build]    Output: ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
+                    }
+                  }
+                }
+              }
             }
 
             // Transform agent message to SSE events
