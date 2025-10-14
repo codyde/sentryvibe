@@ -4,6 +4,7 @@ import updateNotifier from 'update-notifier';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { displayBanner } from './utils/banner.js';
 
 // Get package.json for version info
 const __filename = fileURLToPath(import.meta.url);
@@ -11,6 +12,9 @@ const __dirname = dirname(__filename);
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, '../../package.json'), 'utf-8')
 );
+
+// Display splash screen banner
+displayBanner();
 
 // Check for updates
 updateNotifier({ pkg: packageJson }).notify();
