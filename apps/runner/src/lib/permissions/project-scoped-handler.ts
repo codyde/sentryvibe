@@ -16,11 +16,7 @@ import type { CanUseTool, PermissionResult } from '@anthropic-ai/claude-agent-sd
 export function createProjectScopedPermissionHandler(projectDirectory: string): CanUseTool {
   const normalizedProjectDir = resolve(projectDirectory);
 
-  console.log(`[permissions] Creating scoped handler for: ${normalizedProjectDir}`);
-
   return async (toolName, input, { signal, suggestions }) => {
-    console.log(`[permissions] 🔍 Evaluating tool: ${toolName} with input:`, JSON.stringify(input, null, 2));
-
     // Helper: Check if a path is within the project directory
     const isWithinProject = (filePath: string): boolean => {
       const absPath = resolve(normalizedProjectDir, filePath);
@@ -31,8 +27,6 @@ export function createProjectScopedPermissionHandler(projectDirectory: string): 
       // 2. Relative path is not absolute (not escaping to root)
       const isWithin = !relPath.startsWith('..') && !isAbsolute(relPath);
 
-      console.log(`[permissions]   📁 Path check: "${filePath}" -> abs: "${absPath}" -> rel: "${relPath}" -> within: ${isWithin}`);
-
       return isWithin;
     };
 
@@ -42,22 +36,17 @@ export function createProjectScopedPermissionHandler(projectDirectory: string): 
 
       if (!filePath) {
         // No path provided - allow (will use cwd)
-        console.log(`[permissions] ✅ ALLOWED ${toolName}: No path specified (will use cwd)`);
         return { behavior: 'allow', updatedInput: input };
       }
 
       if (!isWithinProject(filePath)) {
-        console.warn(`[permissions] ❌ ❌ ❌ DENIED ${toolName} - File outside project boundary`);
-        console.warn(`[permissions]   Attempted: ${filePath}`);
-        console.warn(`[permissions]   Allowed:   ${normalizedProjectDir}`);
+        console.warn(`[permissions] DENIED ${toolName} - File outside project boundary: ${filePath}`);
         return {
           behavior: 'deny',
           message: `Access denied: File "${filePath}" is outside the project directory. You can only access files within ${normalizedProjectDir}`,
           interrupt: true,
         };
       }
-
-      console.log(`[permissions] ✅ ✅ ✅ ALLOWED ${toolName}: ${filePath}`);
     }
 
     // 2️⃣ SEARCH OPERATIONS - Restrict to project directory
@@ -65,23 +54,18 @@ export function createProjectScopedPermissionHandler(projectDirectory: string): 
       const searchPath = input.path as string | undefined;
 
       if (searchPath && !isWithinProject(searchPath)) {
-        console.warn(`[permissions] ❌ ❌ ❌ DENIED ${toolName} - Search outside project boundary`);
-        console.warn(`[permissions]   Attempted: ${searchPath}`);
-        console.warn(`[permissions]   Allowed:   ${normalizedProjectDir}`);
+        console.warn(`[permissions] DENIED ${toolName} - Search outside project boundary: ${searchPath}`);
         return {
           behavior: 'deny',
           message: `Search denied: Path "${searchPath}" is outside the project directory. You can only search within ${normalizedProjectDir}`,
           interrupt: true,
         };
       }
-
-      console.log(`[permissions] ✅ ALLOWED ${toolName}: ${searchPath || 'current directory'}`);
     }
 
     // 3️⃣ BASH COMMANDS - Block dangerous operations
     if (toolName === 'Bash') {
       const command = input.command as string;
-      console.log(`[permissions]   🔧 Bash command: ${command}`);
 
       // Block dangerous command patterns
       const dangerousPatterns = [
@@ -96,9 +80,7 @@ export function createProjectScopedPermissionHandler(projectDirectory: string): 
 
       for (const { pattern, message } of dangerousPatterns) {
         if (pattern.test(command)) {
-          console.warn(`[permissions] ❌ ❌ ❌ BLOCKED dangerous bash command`);
-          console.warn(`[permissions]   Reason: ${message}`);
-          console.warn(`[permissions]   Command: ${command}`);
+          console.warn(`[permissions] BLOCKED dangerous bash command: ${message} - ${command}`);
           return {
             behavior: 'deny',
             message: `Command blocked for safety: ${message}. Command: "${command}"`,
@@ -112,9 +94,7 @@ export function createProjectScopedPermissionHandler(projectDirectory: string): 
       if (cdMatch) {
         const targetPath = cdMatch[1];
         if (!isWithinProject(targetPath)) {
-          console.warn(`[permissions] ❌ ❌ ❌ BLOCKED cd outside project`);
-          console.warn(`[permissions]   Target: ${targetPath}`);
-          console.warn(`[permissions]   Command: ${command}`);
+          console.warn(`[permissions] BLOCKED cd outside project: ${targetPath}`);
           return {
             behavior: 'deny',
             message: `Cannot change directory outside project. You are restricted to ${normalizedProjectDir}`,
@@ -122,31 +102,9 @@ export function createProjectScopedPermissionHandler(projectDirectory: string): 
           };
         }
       }
-
-      console.log(`[permissions] ✅ ✅ ✅ ALLOWED bash: ${command.length > 100 ? command.slice(0, 100) + '...' : command}`);
-    }
-
-    // 4️⃣ WEB ACCESS - Allow (useful for downloading packages, docs, etc.)
-    if (['WebFetch', 'WebSearch'].includes(toolName)) {
-      // Web access is allowed - Claude may need to fetch documentation or packages
-      const url = input.url || input.query;
-      console.log(`[permissions] ✅ ALLOWED ${toolName}: ${url || 'N/A'}`);
-    }
-
-    // 5️⃣ SUBAGENTS - Inherit parent restrictions
-    if (toolName === 'Task' || toolName === 'Agent') {
-      console.log(`[permissions] ✅ ALLOWED subagent: ${input.description}`);
-      console.log(`[permissions]   (Subagent will inherit same security restrictions)`);
-      // Subagents inherit the same permission handler
-    }
-
-    // 6️⃣ OTHER TOOLS - Log and allow
-    if (!['Read', 'Write', 'Edit', 'NotebookEdit', 'Glob', 'Grep', 'Bash', 'WebFetch', 'WebSearch', 'Task', 'Agent'].includes(toolName)) {
-      console.log(`[permissions] ✅ ALLOWED ${toolName} (non-filesystem tool)`);
     }
 
     // Default: Allow all other operations
-    console.log(`[permissions] ✅ Final decision: ALLOW`);
     return { behavior: 'allow', updatedInput: input };
   };
 }

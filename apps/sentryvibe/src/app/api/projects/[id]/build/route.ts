@@ -260,13 +260,11 @@ export async function POST(
           return;
         }
         // If no existing record and no toolName, we can't insert - skip it
-        console.warn('[build-route] Skipping tool call persist - missing toolName:', toolCallId);
         return;
       }
 
       // Ensure toolName exists for insert
       if (!eventData.toolName) {
-        console.warn('[build-route] Skipping tool call persist - missing toolName:', toolCallId);
         return;
       }
 
@@ -408,15 +406,6 @@ export async function POST(
 
         const writeChunk = async (chunk: string) => {
           if (closed) return;
-          try {
-            // helpful debug output to inspect raw SSE payloads
-            console.log('[build-route] streaming chunk', chunk.slice(0, 200));
-            if (chunk.includes('TodoWrite')) {
-              console.log('[build-route] chunk contains TodoWrite');
-            }
-          } catch {
-            // ignore logging issues
-          }
           if (!chunk) return;
 
           // Parse events to track messages for DB
@@ -524,7 +513,7 @@ export async function POST(
             }
           }
 
-          console.log(`[build-route] Saved ${completedMessages.length} messages to DB`);
+          // Messages saved to DB
 
           unsubscribe();
 

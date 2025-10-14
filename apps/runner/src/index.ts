@@ -102,33 +102,26 @@ export function startRunner(options: RunnerOptions = {}) {
       return;
     }
     try {
-      // Log event transmission with size info
       const eventJson = JSON.stringify(event);
-      const eventSize = new TextEncoder().encode(eventJson).length;
 
-      console.log(`[runner] 📤 Sending event: ${event.type} (${eventSize} bytes) projectId: ${event.projectId || 'N/A'}`);
-
-      // Log event details for specific types
-      if (event.type === 'build-stream') {
-        // Log first 500 chars for better visibility
-        const preview = event.data?.substring(0, 500) || '';
-        console.log(`[runner]   Stream preview: ${preview}${event.data && event.data.length > 500 ? '...' : ''}`);
-      } else if (event.type === 'error') {
-        console.log(`[runner]   Error: ${event.error}`);
+      // Only log important events
+      if (event.type === 'error') {
+        console.error(`[runner] ❌ Error: ${event.error}`);
         if (event.stack) {
-          console.log(`[runner]   Stack: ${event.stack.substring(0, 1000)}`);
+          console.error(`[runner]   Stack: ${event.stack.substring(0, 500)}`);
         }
       } else if (event.type === 'port-detected') {
-        console.log(`[runner]   Port: ${event.port}`);
+        console.log(`[runner] 🔌 Port detected: ${event.port}`);
       } else if (event.type === 'tunnel-created') {
-        console.log(`[runner]   Tunnel: ${event.tunnelUrl} -> localhost:${event.port}`);
-      } else {
-        // For other events, log first 1000 chars of JSON for better visibility
-        console.log(`[runner]   Data: ${eventJson.substring(0, 1000)}${eventJson.length > 1000 ? '...' : ''}`);
+        console.log(`[runner] 🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`);
+      } else if (event.type === 'build-completed') {
+        console.log(`[runner] ✅ Build completed for project: ${event.projectId}`);
+      } else if (event.type === 'build-failed') {
+        console.error(`[runner] ❌ Build failed: ${event.error}`);
       }
+      // Suppress: build-stream, runner-status, ack, etc.
 
       socket.send(eventJson);
-      console.log(`[runner] ✅ Event sent successfully`);
     } catch (error) {
       console.error(`[runner] ❌ Failed to send event ${event.type}:`, error);
     }

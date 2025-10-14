@@ -33,11 +33,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    console.log('[runner-event]', event.type, event.commandId ?? 'no-command', event.projectId ?? 'no-project');
-    if (event.type === 'build-stream' && typeof event.data === 'string') {
-      console.log('[runner-event] chunk preview', event.data.slice(0, 200));
-    }
-
     publishRunnerEvent(event);
 
     if (event.type === 'log-chunk' && typeof event.data === 'string') {
@@ -109,7 +104,6 @@ export async function POST(request: Request) {
         // Update project metadata (path, runCommand, projectType, port) from template download
         const metadata = (event as any).payload;
         if (metadata && event.projectId) {
-          console.log('[runner-event] Updating project metadata:', metadata);
           await db.update(projects)
             .set({
               path: metadata.path,
