@@ -1,9 +1,8 @@
 import * as Sentry from "@sentry/node";
-import type { Integration } from "@sentry/types";
 
 type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
   dsn: string;
-  integrations?: Integration[];
+  integrations?: Array<ReturnType<typeof Sentry.claudeCodeIntegration>>;
   tracesSampleRate?: number;
   debug?: boolean;
   enableLogs?: boolean;
