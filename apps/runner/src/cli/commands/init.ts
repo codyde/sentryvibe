@@ -10,6 +10,7 @@ import { spinner } from '../utils/spinner.js';
 import { isInsideMonorepo, findMonorepoRoot } from '../utils/repo-detector.js';
 import { cloneRepository, installDependencies, isPnpmInstalled } from '../utils/repo-cloner.js';
 import { setupDatabase, pushDatabaseSchema } from '../utils/database-setup.js';
+import { displaySetupComplete } from '../utils/banner.js';
 
 interface InitOptions {
   workspace?: string;
@@ -76,14 +77,8 @@ export async function initCommand(options: InitOptions) {
       defaultClonePath
     );
 
-    // Get branch to clone
-    let branchToClone = options.branch || 'main';
-    if (!options.branch) {
-      branchToClone = await prompts.input(
-        'Which branch should be cloned?',
-        'main'
-      );
-    }
+    // Get branch to clone - silent flag, defaults to 'main'
+    const branchToClone = options.branch || 'main';
 
     logger.log('');
     logger.info(`Cloning branch: ${chalk.cyan(branchToClone)}`);
@@ -191,9 +186,6 @@ export async function initCommand(options: InitOptions) {
       databaseUrl = await setupDatabase(monorepoPath) || undefined;
 
       if (databaseUrl) {
-        logger.success(`Database URL saved`);
-        logger.log('');
-
         // Auto-push schema (no prompt needed - it's required)
         const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
 
@@ -213,7 +205,6 @@ export async function initCommand(options: InitOptions) {
   logger.log('');
 
   // Save configuration
-  spinner.start('Saving configuration...');
   try {
     configManager.set('workspace', answers.workspace);
     if (monorepoPath) {
@@ -235,10 +226,8 @@ export async function initCommand(options: InitOptions) {
       provider: 'cloudflare',
       autoCreate: true,
     });
-
-    spinner.succeed('Configuration saved');
   } catch (error) {
-    spinner.fail('Failed to save configuration');
+    logger.error('Failed to save configuration');
     logger.error(error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
@@ -253,7 +242,8 @@ export async function initCommand(options: InitOptions) {
 
   // Success
   logger.log('');
-  logger.success('Setup complete! 🎉');
+  logger.log('');
+  displaySetupComplete();
   logger.log('');
   logger.info(`Config file: ${chalk.cyan(configManager.path)}`);
   logger.info(`Workspace: ${chalk.cyan(answers.workspace)}`);
@@ -263,12 +253,14 @@ export async function initCommand(options: InitOptions) {
   logger.log('');
   logger.info('Next steps:');
   if (monorepoPath) {
-    logger.log(`  1. Navigate to repository: ${chalk.cyan(`cd ${monorepoPath}`)}`);
-    logger.log(`  2. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
-    logger.log(`  3. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
+    logger.log(`  1. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
+    logger.log(`  2. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
   } else {
     logger.log(`  1. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
     logger.log(`  2. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
   }
+  logger.log('');
+  logger.log('');
+  logger.info(`Run ${chalk.cyan('sentryvibe --help')} to see all available commands and options`);
   logger.log('');
 }

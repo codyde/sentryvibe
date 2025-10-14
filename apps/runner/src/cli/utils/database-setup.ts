@@ -99,7 +99,6 @@ export async function setupDatabase(monorepoPath: string): Promise<string | null
         if (urlFromEnv) {
           databaseUrl = urlFromEnv;
           spinner.succeed('Database created successfully');
-          logger.info(`DATABASE_URL: ${databaseUrl.substring(0, 50)}...`);
           resolve(databaseUrl);
         } else if (databaseUrl) {
           // Fallback to what we parsed from output
