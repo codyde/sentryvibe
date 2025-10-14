@@ -52,11 +52,17 @@ echo ""
 echo -e "${BLUE}📥 Fetching latest release...${NC}"
 
 # Get the latest release tag that starts with 'cli-v'
-TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
-  grep '"tag_name":' | \
-  grep 'cli-v' | \
-  head -1 | \
-  sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+# Using python/node for reliable JSON parsing, fallback to sed
+if command -v python3 &> /dev/null; then
+    TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
+      python3 -c "import sys, json; releases = json.load(sys.stdin); print(next((r['tag_name'] for r in releases if r['tag_name'].startswith('cli-v')), ''))")
+elif command -v node &> /dev/null; then
+    TAG_NAME=$(curl -s https://api.github.com/repos/codyde/sentryvibe/releases | \
+      node -e "const releases = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(releases.find(r => r.tag_name.startsWith('cli-v'))?.tag_name || '')")
+else
+    # Fallback: hardcode latest known version
+    TAG_NAME="cli-v0.1.0"
+fi
 
 if [ -z "$TAG_NAME" ]; then
     echo -e "${RED}✖ Could not find CLI release${NC}"
