@@ -48,58 +48,27 @@ fi
 echo -e "${GREEN}✓${NC} npm $(npm --version) detected"
 echo ""
 
-# Get latest release
+# Get latest release tag by following GitHub's redirect
 echo -e "${BLUE}📥 Fetching latest release...${NC}"
 
-GITHUB_API_URL="https://api.github.com/repos/codyde/sentryvibe/releases"
-API_RESPONSE=$(curl -sfL \
-    -H "Accept: application/vnd.github+json" \
-    -H "User-Agent: sentryvibe-cli-installer" \
-    "$GITHUB_API_URL" || true)
+LATEST_RELEASE_URL="https://github.com/codyde/sentryvibe/releases/latest"
+LOCATION_HEADER=$(curl -fsI "$LATEST_RELEASE_URL" | tr -d '\r' | awk '/^location:/ {print $2}' | tail -n1)
 
-# Get the latest release that ships the CLI tarball asset
-# Use Node (we already verified it's installed) to parse JSON safely.
 TAG_NAME=""
-if [ -n "$API_RESPONSE" ]; then
-    TAG_NAME=$(node <<'NODE'
-const data = require('fs').readFileSync(0, 'utf-8');
-if (!data.trim()) {
-  process.exit(0);
-}
-
-let releases;
-try {
-  releases = JSON.parse(data);
-} catch {
-  process.exit(0);
-}
-
-const match = releases.find(
-  release => (release.assets || []).some(asset => asset.name === 'sentryvibe-cli.tgz'),
-);
-
-if (match?.tag_name) {
-  console.log(match.tag_name);
-}
-NODE
-    <<<"$API_RESPONSE")
+if [ -n "$LOCATION_HEADER" ]; then
+    TAG_NAME="${LOCATION_HEADER##*/}"
 fi
 
 if [ -z "$TAG_NAME" ]; then
-    if [ -n "$API_RESPONSE" ] && echo "$API_RESPONSE" | grep -q '"message"'; then
-        echo -e "${YELLOW}!${NC} GitHub API responded with:"
-        echo "$API_RESPONSE"
-        echo ""
-    fi
-    # Fallback: hardcode latest known version
+    echo -e "${YELLOW}!${NC} Could not resolve latest release automatically."
+    echo "   Falling back to runner-cli-v0.1.11"
     TAG_NAME="runner-cli-v0.1.11"
 fi
 
-if [ -z "$TAG_NAME" ]; then
-    echo -e "${RED}✖ Could not determine CLI release${NC}"
-    echo ""
-    echo "Please check https://github.com/codyde/sentryvibe/releases for available versions"
-    exit 1
+if [[ "$TAG_NAME" != *"cli"* ]]; then
+    echo -e "${YELLOW}!${NC} Latest release tag (${TAG_NAME}) does not appear to be a CLI release."
+    echo "   Falling back to runner-cli-v0.1.11"
+    TAG_NAME="runner-cli-v0.1.11"
 fi
 
 echo -e "${GREEN}✓${NC} Latest version: ${TAG_NAME}"
