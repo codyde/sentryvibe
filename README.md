@@ -4,7 +4,17 @@ AI-powered project generation and management platform with remote runner archite
 
 ## Quick Reference
 
-**Build & use CLI from source:**
+**Install CLI (recommended):**
+```bash
+# One-line install
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
+
+# Then setup and run
+sentryvibe init -y
+sentryvibe run
+```
+
+**Build from source:**
 ```bash
 # From repository root
 ./build-cli.sh        # Build and link CLI
@@ -13,13 +23,6 @@ AI-powered project generation and management platform with remote runner archite
 sentryvibe run
 
 # Start runner only
-sentryvibe --runner
-```
-
-**From npm (when published):**
-```bash
-npm install -g @sentryvibe/runner-cli
-sentryvibe init
 sentryvibe --runner
 ```
 
@@ -125,6 +128,16 @@ If the web app and broker are already deployed (Railway), just run the runner lo
 **Step 1: Install the CLI**
 
 ```bash
+# Recommended - One-line install
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
+```
+
+**Alternative methods:**
+```bash
+# From latest GitHub release
+npm install -g https://github.com/codyde/sentryvibe/releases/latest/download/sentryvibe-cli.tgz
+
+# From npm (if published)
 npm install -g @sentryvibe/runner-cli
 ```
 

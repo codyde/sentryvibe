@@ -2,7 +2,7 @@
   "name": "@sentryvibe/runner-cli",
   "version": "0.1.0",
   "description": "SentryVibe Runner CLI - Execute AI-powered builds locally",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -24,6 +24,16 @@
     "build",
     "claude"
   ],
+  "author": "Cody De Arkland",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codyde/sentryvibe.git",
+    "directory": "apps/runner"
+  },
+  "bugs": {
+    "url": "https://github.com/codyde/sentryvibe/issues"
+  },
+  "homepage": "https://github.com/codyde/sentryvibe#readme",
   "preferGlobal": true,
   "scripts": {
     "dev": "tsx src/index.ts",

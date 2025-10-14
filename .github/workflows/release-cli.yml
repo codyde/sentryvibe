@@ -1,0 +1,87 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'cli-v*'  # Trigger on tags like cli-v0.1.0
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build CLI
+        run: pnpm run build:cli
+
+      - name: Create tarball
+        run: |
+          cd apps/runner
+          npm pack
+          mv *.tgz sentryvibe-cli.tgz
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION=${GITHUB_REF#refs/tags/cli-v}
+          else
+            VERSION="latest"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SentryVibe CLI ${{ steps.version.outputs.version }}
+          body: |
+            # SentryVibe CLI ${{ steps.version.outputs.version }}
+
+            AI-powered project generation with local runner support.
+
+            ## Installation
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
+            ```
+
+            Or install directly:
+
+            ```bash
+            npm install -g https://github.com/codyde/sentryvibe/releases/download/${{ github.ref_name }}/sentryvibe-cli.tgz
+            ```
+
+            ## Quick Start
+
+            ```bash
+            sentryvibe init -y
+            sentryvibe run
+            ```
+
+            See [full documentation](https://github.com/codyde/sentryvibe/blob/main/apps/runner/README.md) for details.
+          files: |
+            apps/runner/sentryvibe-cli.tgz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
