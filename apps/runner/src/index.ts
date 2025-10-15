@@ -336,16 +336,67 @@ function createCodexQuery(): BuildQueryFn {
       skipGitRepoCheck: true,
     });
 
-    console.log(`[codex-query] Starting Codex thread (single turn execution)`);
+    console.log(`[codex-query] Starting Codex thread (multi-turn on same thread)`);
 
-    // Simple pattern from SDK samples: one runStreamed() call processes the entire turn
-    const { events } = await thread.runStreamed(combinedPrompt);
+    // Multi-turn pattern from SDK docs: call runStreamed() repeatedly on same thread
+    const MAX_TURNS = 50;
+    let turnCount = 0;
+    let nextPrompt = combinedPrompt;
 
-    for await (const agentMessage of convertCodexEventsToAgentMessages(events)) {
-      yield agentMessage;
+    while (turnCount < MAX_TURNS) {
+      turnCount++;
+      console.log(`[codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
+
+      const { events } = await thread.runStreamed(nextPrompt);
+
+      let hadToolCalls = false;
+      let lastMessage = '';
+
+      for await (const rawEvent of events) {
+        // Track what happened in this turn
+        const event = rawEvent as CodexEvent;
+        if (event.type === 'item.completed') {
+          const itemType = resolveCodexItemType(event.item as any);
+          if (itemType === 'command_execution' || itemType === 'tool_call' || itemType === 'mcp_tool_call' || itemType === 'file_change') {
+            hadToolCalls = true;
+          } else if (itemType === 'agent_message') {
+            lastMessage = (event.item as any)?.text || '';
+          }
+        }
+
+        // Convert and yield to stream (create async iterable from single event)
+        async function* singleEvent() {
+          yield rawEvent;
+        }
+        for await (const agentMessage of convertCodexEventsToAgentMessages(singleEvent())) {
+          yield agentMessage;
+        }
+      }
+
+      console.log(`[codex-query] Turn ${turnCount} complete. Tool calls: ${hadToolCalls}`);
+
+      // Decide if we should continue
+      if (!hadToolCalls) {
+        // No tools used - check if task is complete
+        const isDone = lastMessage.toLowerCase().includes('summary') ||
+                       lastMessage.toLowerCase().includes('all set') ||
+                       lastMessage.toLowerCase().includes('completed') ||
+                       lastMessage.toLowerCase().includes('finished');
+
+        if (isDone) {
+          console.log(`[codex-query] ✅ Task complete`);
+          break;
+        } else {
+          console.log(`[codex-query] ⚠️ No tools used but not done - continuing`);
+          nextPrompt = "Please continue with the next steps.";
+        }
+      } else {
+        // Had tool calls - continue naturally
+        nextPrompt = "";
+      }
     }
 
-    console.log(`[codex-query] Codex turn completed`);
+    console.log(`[codex-query] Session complete after ${turnCount} turns`);
   };
 }
 
