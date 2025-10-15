@@ -26,7 +26,7 @@ const sentryOptions: RunnerSentryOptions = {
     Sentry.consoleLoggingIntegration(),
   ],
   tracesSampleRate: 1.0,
-  debug: true,
+  debug: false,
   enableLogs: true,
   sendDefaultPii: true,
 };
