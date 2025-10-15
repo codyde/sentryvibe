@@ -84,6 +84,8 @@ export async function getTemplateSelectionContext(): Promise<string> {
   for (const template of templates) {
     context += `**${template.name}** (ID: ${template.id})\n`;
     context += `${template.description}\n\n`;
+    context += `📦 Clone command:\n`;
+    context += `  npx degit ${template.repository}#${template.branch} "<project-name>"\n\n`;
     context += `Best for:\n${template.selection.useCases.map(uc => `  • ${uc}`).join('\n')}\n\n`;
     context += `Example user requests:\n${template.selection.examples.map(ex => `  • "${ex}"`).join('\n')}\n\n`;
     context += `Tech Stack: ${template.tech.framework} ${template.tech.version}, ${template.tech.language}, ${template.tech.styling}`;

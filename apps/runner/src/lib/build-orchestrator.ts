@@ -217,6 +217,12 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   console.log(`[orchestrator] System prompt generated (${systemPrompt.length} chars)`);
   console.log(`[orchestrator] First 500 chars:\n${systemPrompt.substring(0, 500)}...`);
 
+  // Log template catalog section if present
+  if (templateSelectionContext) {
+    console.log(`[orchestrator] Template catalog section (${templateSelectionContext.length} chars):`);
+    console.log(`[orchestrator] First 1200 chars of catalog:\n${templateSelectionContext.substring(0, 1200)}...`);
+  }
+
   // Generate full prompt
   let fullPrompt = prompt;
   if (isNewProject) {
@@ -287,12 +293,13 @@ async function generateSystemPrompt(context: {
 
 - Interpret the user's request and pick the template whose capabilities best match.
 - Use the catalog below to reference template IDs, repositories, and branches.
-- Clone the chosen template into "${projectName}" (within ${workspaceRoot}) using \`npx degit <repository>#<branch> "${projectName}"\`.
-- After cloning, create a .npmrc in the project root containing:
+- Clone the chosen template using: \`npx degit <repository>#<branch> "${projectName}"\`
+- After cloning, cd into the project directory: \`cd ${projectName}\`
+- Create a .npmrc file containing:
   enable-modules-dir=true
   shamefully-hoist=false
 - Update every package.json "name" field so the project identifies as "${projectName}".
-- Confirm the clone (e.g., \`ls ${projectName}\`) and summarize your implementation plan before writing code.`);
+- Verify the setup with \`ls\` and summarize your implementation plan before modifying files.`);
 
       if (templateSelectionContext) {
         sections.push(`### Template Catalog
@@ -306,9 +313,10 @@ ${templateSelectionContext}`);
     }
 
     sections.push(`## Workspace Rules
-- Commands execute from ${workspaceRoot}. Stay inside this workspace.
-- Refer to the project as \`${projectName}\` when issuing relative paths.
-- Never construct absolute paths that include user directories (e.g., /Users/.../${projectName}).`);
+- You are currently in the workspace directory.
+- After cloning, all commands should be run from inside the \`${projectName}\` directory.
+- Use relative paths from the project root (e.g., \`src/pages/index.astro\`).
+- Never use absolute paths.`);
 
     sections.push(`## Quality Expectations
 - Narrate key decisions and outcomes in the chat stream.

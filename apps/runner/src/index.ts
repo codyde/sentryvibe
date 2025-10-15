@@ -952,6 +952,7 @@ export function startRunner(options: RunnerOptions = {}) {
             workingDirectory: projectDirectory,
             systemPrompt: orchestration.systemPrompt,
             agent,
+            isNewProject: orchestration.isNewProject,
           });
 
           console.log(
