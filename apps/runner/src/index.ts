@@ -391,8 +391,9 @@ function createCodexQuery(): BuildQueryFn {
           nextPrompt = "Please continue with the next steps.";
         }
       } else {
-        // Had tool calls - continue naturally
-        nextPrompt = "";
+        // Had tool calls - continue naturally with minimal prompt
+        // IMPORTANT: Cannot send empty string - Codex CLI requires input
+        nextPrompt = "Continue.";
       }
     }
 

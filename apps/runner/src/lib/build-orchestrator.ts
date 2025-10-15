@@ -301,22 +301,35 @@ async function generateSystemPrompt(context: {
 
   if (agent === 'openai-codex') {
     if (isNewProject) {
-      sections.push(`## Template Selection Responsibilities
+      sections.push(`## Template Selection and Setup
 
-- Interpret the user's request and pick the template whose capabilities best match.
-- Use the catalog below to reference template IDs, repositories, and branches.
-- Clone the chosen template using: \`npx degit <repository>#<branch> "${projectName}"\`
-- After cloning, cd into the project directory: \`cd ${projectName}\`
-- Create a .npmrc file containing:
-  enable-modules-dir=true
-  shamefully-hoist=false
-- Update every package.json "name" field so the project identifies as "${projectName}".
-- Verify the setup with \`ls\` and summarize your implementation plan before modifying files.`);
+EXACT CLONE COMMANDS (use these exactly as shown):
 
-      if (templateSelectionContext) {
-        sections.push(`### Template Catalog
-${templateSelectionContext}`);
-      }
+**For React/Vite projects:**
+  npx degit github:codyde/template-reactvite#main "${projectName}"
+
+**For Next.js projects:**
+  npx degit github:codyde/template-nextjs15#main "${projectName}"
+
+**For Astro projects:**
+  npx degit github:codyde/template-astro#main "${projectName}"
+
+**For React + Node.js:**
+  npx degit github:codyde/template-reactnode#main "${projectName}"
+
+Select based on user's request:
+- Astro, static, blog, docs, landing page → Use Astro template
+- Next.js, full-stack, API, database, auth → Use Next.js template
+- React + backend, SPA + API → Use React + Node template
+- Simple React app, prototype, basic UI → Use React/Vite template
+
+After cloning:
+1. cd ${projectName}
+2. Create .npmrc containing:
+   enable-modules-dir=true
+   shamefully-hoist=false
+3. Update package.json "name" field to "${projectName}"
+4. Implement the user's request by modifying the template files`);
     } else {
       sections.push(`## Existing Project Context
 
