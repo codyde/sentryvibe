@@ -40,26 +40,38 @@ export interface OrchestrationResult {
  * Orchestrate the build - handle templates, prompts, context
  */
 export async function orchestrateBuild(context: BuildContext): Promise<OrchestrationResult> {
-  const { projectId, projectName, prompt, workingDirectory, agent } = context;
+  const { projectId, projectName, prompt, workingDirectory, agent, operationType } = context;
   const workspaceRoot = getWorkspaceRoot();
 
   // Check if this is a NEW project or EXISTING project
-  let isNewProject = false;
+  // Use operationType as the source of truth - 'initial-build' ALWAYS means new project
+  let isNewProject = operationType === 'initial-build';
   let selectedTemplate: Template | null = null;
   let fileTree = '';
   const templateEvents: Array<{type: string; data: any}> = [];
 
+  // Log the determination
+  if (isNewProject) {
+    console.log(`[orchestrator] NEW PROJECT (operationType: ${operationType})`);
+  } else {
+    console.log(`[orchestrator] EXISTING PROJECT (operationType: ${operationType})`);
+  }
+
+  // Verify directory state for logging
   try {
     if (existsSync(workingDirectory)) {
       const files = await readdir(workingDirectory);
-      isNewProject = files.length === 0;
-      console.log(`[orchestrator] Project exists: ${files.length} files found`);
+      console.log(`[orchestrator] Directory status: ${files.length} files found`);
+
+      // If initial-build but files exist, we should clean them first
+      if (isNewProject && files.length > 0) {
+        console.log(`[orchestrator] WARNING: initial-build but directory not empty - will overwrite`);
+      }
     } else {
-      isNewProject = true;
-      console.log(`[orchestrator] Project directory doesn't exist - NEW project`);
+      console.log(`[orchestrator] Directory doesn't exist - will create`);
     }
-  } catch {
-    isNewProject = true;
+  } catch (error) {
+    console.log(`[orchestrator] Directory check failed:`, error);
   }
 
   // Handle NEW projects - download template
