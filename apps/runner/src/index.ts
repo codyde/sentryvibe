@@ -876,6 +876,7 @@ export function startRunner(options: RunnerOptions = {}) {
             prompt: command.payload.prompt,
             operationType: command.payload.operationType,
             workingDirectory: projectDirectory,
+            agent,
           });
 
           log("orchestration complete:", {
