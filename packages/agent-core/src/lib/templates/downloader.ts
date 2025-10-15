@@ -4,7 +4,7 @@ import { existsSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
 import type { Template } from './config';
 import { join } from 'path';
-import { getWorkspaceRoot } from '@/lib/workspace';
+import { getWorkspaceRoot } from '../workspace';
 
 const execAsync = promisify(exec);
 

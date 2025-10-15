@@ -1,13 +1,13 @@
 import { createUIMessageStream, type UIMessageStreamWriter } from 'ai';
-import { db } from '@/lib/db/client';
-import { projects, messages } from '@/lib/db/schema';
+import { db } from '../db/client';
+import { projects, messages } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
-import type { Template } from '@/lib/templates/config';
-import { getTemplateById, selectTemplateFromPrompt } from '@/lib/templates/config';
-import { downloadTemplate, getProjectFileTree } from '@/lib/templates/downloader';
-import type { BuildRequest } from '@/types/build';
+import type { Template } from '../templates/config';
+import { getTemplateById, selectTemplateFromPrompt } from '../templates/config';
+import { downloadTemplate, getProjectFileTree } from '../templates/downloader';
+import type { BuildRequest } from '../../types/build';
 import {
   reservePortForProject,
   releasePortForProject,
@@ -15,8 +15,8 @@ import {
   buildEnvForFramework,
   getRunCommand,
   withEnforcedPort,
-} from '@/lib/port-allocator';
-import { getWorkspaceRoot } from '@/lib/workspace';
+} from '../port-allocator';
+import { getWorkspaceRoot } from '../workspace';
 
 export interface AgentMessage {
   type: string;
@@ -538,7 +538,7 @@ async function autoStartDevServer(projectId: string) {
     const command = withEnforcedPort(baseCommand, framework, reservedPort);
     const env = buildEnvForFramework(framework, reservedPort);
 
-    const { startDevServer } = await import('@/lib/process-manager');
+    const { startDevServer } = await import('../process-manager');
 
     const { pid, emitter } = startDevServer({
       projectId,
