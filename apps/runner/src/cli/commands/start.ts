@@ -71,6 +71,7 @@ export async function startCommand(options: StartOptions) {
   // Check if dependencies are installed
   const { existsSync } = await import('fs');
   const nodeModulesPath = join(monorepoRoot, 'node_modules');
+  const agentCoreDistPath = join(monorepoRoot, 'packages/agent-core/dist');
 
   if (!existsSync(nodeModulesPath)) {
     logger.warn('Dependencies not installed');
@@ -79,6 +80,18 @@ export async function startCommand(options: StartOptions) {
 
     const { installDependencies } = await import('../utils/repo-cloner.js');
     await installDependencies(monorepoRoot);
+
+    logger.log('');
+  }
+
+  // Check if agent-core is built
+  if (!existsSync(agentCoreDistPath)) {
+    logger.warn('agent-core package not built');
+    logger.info('Building agent-core...');
+    logger.log('');
+
+    const { buildAgentCore } = await import('../utils/repo-cloner.js');
+    await buildAgentCore(monorepoRoot);
 
     logger.log('');
   }

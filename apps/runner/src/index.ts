@@ -256,6 +256,12 @@ async function* convertCodexEventsToAgentMessages(
   }
 }
 
+/**
+ * Create Claude query function
+ *
+ * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * The orchestrator provides context-specific sections only (no base prompt).
+ */
 function createClaudeQuery(): BuildQueryFn {
   return (prompt, workingDirectory, systemPrompt) => {
     const sentryQuery = Sentry.createInstrumentedClaudeQuery();
@@ -279,6 +285,12 @@ function createClaudeQuery(): BuildQueryFn {
   };
 }
 
+/**
+ * Create Codex query function
+ *
+ * NOTE: This function prepends CODEX_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * The orchestrator provides context-specific sections only (no base prompt).
+ */
 function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
     const codex = await createInstrumentedCodex({

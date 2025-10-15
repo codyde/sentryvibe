@@ -42,6 +42,7 @@
     "postinstall": "node scripts/install-vendor.js",
     "dev": "tsx src/index.ts",
     "dev:cli": "tsx src/cli/index.ts",
+    "prebuild": "cd ../../packages/agent-core && pnpm build",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "cli": "node dist/cli/index.js"

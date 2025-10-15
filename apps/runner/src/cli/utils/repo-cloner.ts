@@ -104,6 +104,53 @@ export async function installDependencies(repoPath: string): Promise<void> {
 }
 
 /**
+ * Build agent-core package (required before running apps)
+ */
+export async function buildAgentCore(repoPath: string): Promise<void> {
+  const { spawn } = await import('child_process');
+
+  spinner.start('Building agent-core package...');
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('pnpm', ['--filter', '@sentryvibe/agent-core', 'build'], {
+      cwd: repoPath,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
+    });
+
+    let hasError = false;
+    let errorOutput = '';
+
+    proc.stderr?.on('data', (data) => {
+      const text = data.toString();
+      // Capture errors but don't spam the console
+      if (text.includes('ERR!') || text.includes('ERROR')) {
+        hasError = true;
+        errorOutput += text;
+      }
+    });
+
+    proc.on('exit', (code) => {
+      if (code === 0 && !hasError) {
+        spinner.succeed('agent-core package built');
+        resolve();
+      } else {
+        spinner.fail('Failed to build agent-core package');
+        if (errorOutput) {
+          logger.error(errorOutput.trim());
+        }
+        reject(new Error(`agent-core build exited with code ${code}`));
+      }
+    });
+
+    proc.on('error', (error) => {
+      spinner.fail('Failed to build agent-core package');
+      reject(error);
+    });
+  });
+}
+
+/**
  * Check if pnpm is installed
  */
 export async function isPnpmInstalled(): Promise<boolean> {

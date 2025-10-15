@@ -8,7 +8,7 @@ import { prompts } from '../utils/prompts.js';
 import { configManager } from '../utils/config-manager.js';
 import { spinner } from '../utils/spinner.js';
 import { isInsideMonorepo, findMonorepoRoot } from '../utils/repo-detector.js';
-import { cloneRepository, installDependencies, isPnpmInstalled } from '../utils/repo-cloner.js';
+import { cloneRepository, installDependencies, buildAgentCore, isPnpmInstalled } from '../utils/repo-cloner.js';
 import { setupDatabase, pushDatabaseSchema } from '../utils/database-setup.js';
 import { displaySetupComplete } from '../utils/banner.js';
 
@@ -40,6 +40,16 @@ export async function initCommand(options: InitOptions) {
     const savedPath = configManager.get('monorepoPath');
     if (savedPath && savedPath !== monorepoPath) {
       logger.info(`Updating monorepo path (was: ${savedPath})`);
+    }
+
+    // Ensure agent-core is built (in case user just cloned manually or pulled updates)
+    logger.log('');
+    logger.info('Ensuring agent-core package is built...');
+    try {
+      await buildAgentCore(monorepoPath);
+    } catch (error) {
+      logger.warn('Failed to build agent-core - you may need to run: pnpm build:deps');
+      logger.warn(error instanceof Error ? error.message : 'Unknown error');
     }
   } else {
     logger.warn('SentryVibe repository not found in current directory');
@@ -96,6 +106,11 @@ export async function initCommand(options: InitOptions) {
       // Install dependencies for entire monorepo
       logger.info('This may take several minutes...');
       await installDependencies(monorepoPath);
+
+      logger.log('');
+
+      // Build agent-core package (required before running)
+      await buildAgentCore(monorepoPath);
 
       logger.log('');
       logger.success('Repository setup complete!');
