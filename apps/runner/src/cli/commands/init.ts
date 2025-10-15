@@ -32,7 +32,7 @@ export async function initCommand(options: InitOptions) {
 
   let monorepoPath: string | undefined;
 
-  if (repoCheck.inside) {
+  if (repoCheck.inside && repoCheck.root) {
     logger.success(`Found repository at: ${chalk.cyan(repoCheck.root)}`);
     monorepoPath = repoCheck.root;
 
