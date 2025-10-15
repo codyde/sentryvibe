@@ -227,8 +227,20 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   let fullPrompt = prompt;
   if (isNewProject) {
     if (isCodexAgent) {
-      fullPrompt = `${prompt}\n\nMANDATORY STEPS BEFORE CODING:\n1. Review the template catalog in your system instructions and choose the best-fitting template ID.\n2. Clone it into \"${projectName}\" using the repository and branch from the catalog: npx degit <repository>#<branch> \"${projectName}\".\n3. After cloning, create a .npmrc in the project root containing: \nenable-modules-dir=true\nshamefully-hoist=false\n4. Update all package.json \"name\" fields so the project identifies as \"${projectName}\".\n5. Verify the clone with commands like \`ls ${projectName}\` and summarize your execution plan before modifying files.`;
-      console.log(`[orchestrator] 📝 Added MANDATORY STEPS to Codex prompt`);
+      fullPrompt = `USER REQUEST: ${prompt}
+
+SETUP STEPS (complete these FIRST, then implement the user's request above):
+1. Review the template catalog in your system instructions and choose the best-fitting template ID
+2. Clone it: npx degit <repository>#<branch> "${projectName}"
+3. cd ${projectName}
+4. Create .npmrc containing:
+   enable-modules-dir=true
+   shamefully-hoist=false
+5. Update package.json "name" field to "${projectName}"
+
+After setup is complete, IMPLEMENT THE USER'S REQUEST ABOVE by modifying the template files.
+Work iteratively until the user's request is fully satisfied, then provide a summary.`;
+      console.log(`[orchestrator] 📝 Added SETUP STEPS + implementation instructions to Codex prompt`);
     } else {
       fullPrompt = `${prompt}\n\nCRITICAL: The template has ALREADY been downloaded to: ${workingDirectory}\nDO NOT run create-next-app, create-vite, or any scaffolding CLIs.\nSTART by installing dependencies, then customize the template.`;
       console.log(`[orchestrator] 📝 Added template-ready instructions to Claude prompt`);
