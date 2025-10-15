@@ -134,8 +134,38 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
         if (block.type === 'text' && block.text) {
           let text = String(block.text);
           text = processTodoWriteMarkers(text);
-          const trimmed = text.trim();
 
+          // Extract Codex task list and send as separate event
+          const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
+          if (todoMatch) {
+            const todoListJson = todoMatch[1].trim();
+            try {
+              const tasks = JSON.parse(todoListJson);
+              if (Array.isArray(tasks)) {
+                // Send task list as TodoWrite event for UI
+                const toolCallId = `codex-todo-${Date.now()}`;
+                events.push({
+                  type: 'tool-input-available',
+                  toolCallId,
+                  toolName: 'TodoWrite',
+                  input: {
+                    todos: tasks.map((t: any) => ({
+                      content: t.title,
+                      activeForm: t.description,
+                      status: t.status === 'complete' ? 'completed' : t.status === 'in-progress' ? 'in_progress' : 'pending',
+                    })),
+                  },
+                });
+              }
+            } catch (e) {
+              console.warn('[transformer] Failed to parse Codex todolist:', e);
+            }
+
+            // Remove task list from displayed text
+            text = text.replace(/<start-todolist>[\s\S]*?<end-todolist>/g, '').trim();
+          }
+
+          const trimmed = text.trim();
           if (trimmed.length === 0) {
             continue;
           }

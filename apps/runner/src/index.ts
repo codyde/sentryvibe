@@ -363,25 +363,34 @@ function createCodexQuery(): BuildQueryFn {
           } else if (itemType === 'agent_message') {
             lastMessage = (event.item as any)?.text || '';
 
-            // Extract todolist from message if present
-            const todoMatch = lastMessage.match(/todolist:\s*(\[[\s\S]*?\])/);
+            // Extract todolist from message using XML-style tags
+            const todoMatch = lastMessage.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
             if (todoMatch) {
-              const newTodoList = todoMatch[1];
+              const newTodoList = todoMatch[1].trim();
               if (newTodoList !== todoList) {
                 todoList = newTodoList;
-                console.log(`[codex-query] 📋 Task list updated`);
+                console.log(`[codex-query] 📋 Task list extracted and updated`);
                 try {
                   const tasks = JSON.parse(todoList);
-                  const complete = tasks.filter((t: any) => t.status === 'complete').length;
-                  const inProgress = tasks.filter((t: any) => t.status === 'in-progress').length;
-                  const notDone = tasks.filter((t: any) => t.status === 'not-done').length;
-                  console.log(`[codex-query]    ✅ ${complete} complete | ⏳ ${inProgress} in-progress | ⭕ ${notDone} not-done`);
+                  if (Array.isArray(tasks)) {
+                    const complete = tasks.filter((t: any) => t.status === 'complete').length;
+                    const inProgress = tasks.filter((t: any) => t.status === 'in-progress').length;
+                    const notDone = tasks.filter((t: any) => t.status === 'not-done').length;
+                    console.log(`[codex-query]    ✅ ${complete} complete | ⏳ ${inProgress} in-progress | ⭕ ${notDone} not-done (total: ${tasks.length})`);
+
+                    // Log each task for visibility
+                    tasks.forEach((task: any, idx: number) => {
+                      const statusIcon = task.status === 'complete' ? '✅' : task.status === 'in-progress' ? '⏳' : '⭕';
+                      console.log(`[codex-query]      ${statusIcon} ${idx + 1}. ${task.title}`);
+                    });
+                  }
                 } catch (e) {
-                  console.warn(`[codex-query]    ⚠️  Could not parse task list JSON`);
+                  console.error(`[codex-query]    ❌ PARSE ERROR: Could not parse task list JSON:`, e);
+                  console.error(`[codex-query]    Raw content: ${todoList.substring(0, 200)}...`);
                 }
               }
-            } else if (turnCount > 1 && !todoList) {
-              console.warn(`[codex-query] ⚠️  WARNING: No todolist found in Turn ${turnCount} response!`);
+            } else if (turnCount > 1) {
+              console.warn(`[codex-query] ⚠️  WARNING: No <start-todolist> tags found in Turn ${turnCount} response!`);
             }
           }
         }
@@ -433,30 +442,33 @@ function createCodexQuery(): BuildQueryFn {
         } else {
           console.log(`[codex-query] ⚠️ No tools used but not done - prompting to continue`);
           nextPrompt = todoList
-            ? `Continue the MVP with this task list, updating as you go:\n\ntodolist: ${todoList}\n\nWork on the next incomplete task.`
-            : "Please continue with the next MVP step.";
+            ? `Continue the MVP. Current progress:
+
+<start-todolist>
+${todoList}
+<end-todolist>
+
+Work on the next incomplete task and update the list.`
+            : "Please continue with the next MVP step and include your task list.";
         }
       } else {
         // Had tool calls - continue with task list
         if (todoList) {
-          nextPrompt = `Continue working towards MVP completion.
+          nextPrompt = `Continue towards MVP completion. Latest progress:
 
-CURRENT TASK LIST:
-todolist: ${todoList}
+<start-todolist>
+${todoList}
+<end-todolist>
 
-INSTRUCTIONS:
-1. Work on the next incomplete task using command_execution tools
-2. Update that task's status to "complete" with result when done
-3. MUST include the updated todolist in your response using EXACT format: todolist: [...]
-4. When ALL tasks show status: "complete", respond with "Implementation complete. All MVP tasks finished."`;
+Next: Work on the next incomplete task. After each action, provide an update with the task list showing updated statuses. When ALL tasks are complete, signal completion.`;
         } else {
-          nextPrompt = `Continue working towards MVP completion.
+          nextPrompt = `Continue working.
 
-CRITICAL: You MUST include a todolist in your response! Use this exact format:
+CRITICAL: Include your task list in EVERY response using:
 
-todolist: [
-  {title: "Task", description: "Details", status: "not-done", result: null}
-]`;
+<start-todolist>
+[{title: "Task", description: "Details", status: "not-done", result: null}]
+<end-todolist>`;
         }
       }
     }
