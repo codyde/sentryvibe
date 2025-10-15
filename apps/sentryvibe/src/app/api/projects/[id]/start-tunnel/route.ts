@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
-import { projects } from '@/lib/db/schema';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { sendCommandToRunner } from '@/lib/runner/broker-state';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import type { StartTunnelCommand } from '@/shared/runner/messages';
 
 // POST /api/projects/:id/start-tunnel - Start tunnel for dev server

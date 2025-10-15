@@ -31,8 +31,8 @@ import type {
   CodexPhase,
   TodoItem,
 } from '@/types/generation';
-import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
-import { detectOperationType, createFreshGenerationState, validateGenerationState, createInitialCodexSessionState } from '@/lib/build-helpers';
+import { saveGenerationState, deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
+import { detectOperationType, createFreshGenerationState, validateGenerationState, createInitialCodexSessionState } from '@sentryvibe/agent-core/lib/build-helpers';
 import ElementChangeCard from '@/components/ElementChangeCard';
 import InitializingCard from '@/components/InitializingCard';
 

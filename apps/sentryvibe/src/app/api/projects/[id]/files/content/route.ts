@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
-import { projects } from '@/lib/db/schema';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 const MAX_FILE_SIZE = 500 * 1024; // 500KB limit

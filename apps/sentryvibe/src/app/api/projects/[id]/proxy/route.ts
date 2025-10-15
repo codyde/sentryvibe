@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
-import { projects } from '@/lib/db/schema';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { SELECTION_SCRIPT } from '@/lib/selection/injector';
+import { SELECTION_SCRIPT } from '@sentryvibe/agent-core/lib/selection/injector';
 
 /**
  * Simple, robust proxy for dev servers

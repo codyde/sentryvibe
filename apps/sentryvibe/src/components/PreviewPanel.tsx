@@ -6,7 +6,7 @@ import { ExternalLink, RefreshCw, Play, Square, Copy, Check, Monitor, Smartphone
 import { useProjects } from '@/contexts/ProjectContext';
 import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
-import { toggleSelectionMode } from '@/lib/selection/injector';
+import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
 
 interface PreviewPanelProps {

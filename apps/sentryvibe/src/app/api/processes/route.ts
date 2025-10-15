@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
-import { projects } from '@/lib/db/schema';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { or, eq } from 'drizzle-orm';
-import { getAllProcesses } from '@/lib/process-manager';
+import { getAllProcesses } from '@sentryvibe/agent-core/lib/process-manager';
 
 // GET /api/processes - List all running dev servers
 export async function GET() {

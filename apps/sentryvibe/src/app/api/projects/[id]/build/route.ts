@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { BuildRequest } from '@/types/build';
-import { sendCommandToRunner } from '@/lib/runner/broker-state';
-import { addRunnerEventSubscriber } from '@/lib/runner/event-stream';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import type { RunnerEvent } from '@/shared/runner/messages';
-import { db } from '@/lib/db/client';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
 import {
   projects,
   messages,
@@ -11,7 +11,7 @@ import {
   generationTodos,
   generationToolCalls,
   generationNotes,
-} from '@/lib/db/schema';
+} from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/types/generation';
 import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
