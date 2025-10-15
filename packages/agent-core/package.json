@@ -8,6 +8,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./shared/runner/messages": {
+      "types": "./dist/shared/runner/messages.d.ts",
+      "default": "./dist/shared/runner/messages.js"
+    },
+    "./lib/prompts": {
+      "types": "./dist/lib/prompts.d.ts",
+      "default": "./dist/lib/prompts.js"
+    },
+    "./types/project": {
+      "types": "./dist/types/project.d.ts",
+      "default": "./dist/types/project.js"
     }
   },
   "scripts": {

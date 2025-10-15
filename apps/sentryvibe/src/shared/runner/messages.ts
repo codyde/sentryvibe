@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/shared/runner/messages';
+export * from '@sentryvibe/agent-core/shared/runner/messages';
