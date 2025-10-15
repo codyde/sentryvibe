@@ -93,6 +93,45 @@ export async function initCommand(options: InitOptions) {
 
       logger.log('');
 
+      // Check if vendor directory exists - if not, we need to build agent-core first
+      const vendorPath = join(monorepoPath, 'vendor');
+      const agentCoreTgz = join(vendorPath, 'sentryvibe-agent-core-0.1.0.tgz');
+
+      if (!existsSync(agentCoreTgz)) {
+        logger.warn('vendor/sentryvibe-agent-core-0.1.0.tgz not found in cloned repo');
+        logger.info('Building agent-core package from source...');
+        logger.log('');
+
+        // Build agent-core from source
+        const { spawn } = await import('child_process');
+
+        spinner.start('Building agent-core...');
+
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn('bash', ['-c', 'cd packages/agent-core && pnpm build && pnpm pack && mkdir -p ../../vendor && mv *.tgz ../../vendor/'], {
+            cwd: monorepoPath,
+            stdio: 'inherit',
+          });
+
+          proc.on('exit', (code) => {
+            if (code === 0) {
+              spinner.succeed('agent-core built and packaged');
+              resolve();
+            } else {
+              spinner.fail('Failed to build agent-core');
+              reject(new Error(`agent-core build failed with code ${code}`));
+            }
+          });
+
+          proc.on('error', (error) => {
+            spinner.fail('Failed to build agent-core');
+            reject(error);
+          });
+        });
+
+        logger.log('');
+      }
+
       // Install dependencies for entire monorepo
       logger.info('This may take several minutes...');
       await installDependencies(monorepoPath);

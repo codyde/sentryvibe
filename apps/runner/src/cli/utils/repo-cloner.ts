@@ -64,7 +64,6 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
  */
 export async function installDependencies(repoPath: string): Promise<void> {
   const { spawn } = await import('child_process');
-  const { promisify } = await import('util');
 
   spinner.start('Installing dependencies (this may take a few minutes)...');
 
@@ -76,12 +75,21 @@ export async function installDependencies(repoPath: string): Promise<void> {
     });
 
     let hasError = false;
+    let stderrBuffer = '';
+    let stdoutBuffer = '';
+
+    proc.stdout?.on('data', (data) => {
+      stdoutBuffer += data.toString();
+    });
 
     proc.stderr?.on('data', (data) => {
       const text = data.toString();
-      // Only show actual errors, not warnings
-      if (text.includes('ERR!') || text.includes('ERROR')) {
+      stderrBuffer += text;
+
+      // Show critical errors immediately
+      if (text.includes('ERR!') || text.includes('ERROR') || text.includes('ELIFECYCLE')) {
         hasError = true;
+        spinner.stop();
         logger.error(text.trim());
       }
     });
@@ -92,12 +100,29 @@ export async function installDependencies(repoPath: string): Promise<void> {
         resolve();
       } else {
         spinner.fail('Failed to install dependencies');
+
+        // Show full output on failure
+        logger.log('');
+        logger.error('Installation failed. Full output:');
+        logger.log('');
+
+        if (stderrBuffer) {
+          logger.error('STDERR:');
+          logger.log(stderrBuffer);
+        }
+
+        if (stdoutBuffer) {
+          logger.log('STDOUT:');
+          logger.log(stdoutBuffer);
+        }
+
         reject(new Error(`pnpm install exited with code ${code}`));
       }
     });
 
     proc.on('error', (error) => {
       spinner.fail('Failed to install dependencies');
+      logger.error(`Process error: ${error.message}`);
       reject(error);
     });
   });
