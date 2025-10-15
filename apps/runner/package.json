@@ -42,7 +42,6 @@
     "postinstall": "node scripts/install-vendor.js",
     "dev": "tsx src/index.ts",
     "dev:cli": "tsx src/cli/index.ts",
-    "prebuild": "cd ../../packages/agent-core && pnpm build",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "cli": "node dist/cli/index.js"
@@ -52,7 +51,7 @@
     "@openai/codex-sdk": "^0.46.0",
     "@sentry/nextjs": "^10.17.0",
     "@sentry/node": "^10.17.0",
-    "@sentryvibe/agent-core": "workspace:*",
+    "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",

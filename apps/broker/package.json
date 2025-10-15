@@ -9,6 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "ws": "^8.18.0"

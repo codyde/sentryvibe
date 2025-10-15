@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "cd ../../packages/agent-core && pnpm build",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -26,7 +25,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@sentry/nextjs": "file:./vendor/sentry-nextjs-10.17.0.tgz",
     "@sentry/node": "file:./vendor/sentry-node-10.17.0.tgz",
-    "@sentryvibe/agent-core": "workspace:*",
+    "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
     "ai": "^5.0.57",
     "ai-sdk-provider-claude-code": "^1.1.4",
     "ansi-to-html": "^0.7.2",

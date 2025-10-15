@@ -13,6 +13,10 @@
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
     },
+    "./shared/runner/messages": {
+      "types": "./dist/shared/runner/messages.d.ts",
+      "default": "./dist/shared/runner/messages.js"
+    },
     "./shared/*": {
       "types": "./dist/shared/*.d.ts",
       "default": "./dist/shared/*.js"
