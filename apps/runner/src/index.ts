@@ -118,8 +118,18 @@ function extractCodexToolOutput(item: Record<string, unknown> | undefined) {
 async function* convertCodexEventsToAgentMessages(
   events: AsyncIterable<unknown>
 ): AsyncGenerator<Record<string, unknown>, void, unknown> {
+  let eventCount = 0;
   for await (const rawEvent of events) {
+    eventCount++;
     const event = rawEvent as CodexEvent;
+
+    // Log every single raw event from Codex
+    console.log(`[codex-events] ═══════════════════════════════════════════════`);
+    console.log(`[codex-events] RAW EVENT #${eventCount}`);
+    console.log(`[codex-events] Type: ${event.type}`);
+    console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
+    console.log(`[codex-events] ═══════════════════════════════════════════════`);
+
     const item = (event.item ?? undefined) as unknown as
       | Record<string, unknown>
       | undefined;
