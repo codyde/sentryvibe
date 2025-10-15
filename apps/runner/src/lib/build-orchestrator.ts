@@ -9,7 +9,7 @@ import { join } from 'path';
 import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';
-import type { AgentId } from '@sentryvibe/agent-core';
+import { CLAUDE_SYSTEM_PROMPT, type AgentId } from '@sentryvibe/agent-core';
 
 export interface BuildContext {
   projectId: string;
@@ -331,5 +331,5 @@ export default defineConfig({
 - When editing files, provide complete, production-ready content—no placeholders.
 - Close with a concise summary covering shipped features, validation (tests, lint, manual checks), and follow-up work.`);
 
-  return sections.join('\n\n');
+  return [CLAUDE_SYSTEM_PROMPT.trim(), ...sections].join('\n\n');
 }

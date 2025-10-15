@@ -33,7 +33,7 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
   });
 
   const thread = codex.startThread({
-    sandboxMode: 'read-only',
+    sandboxMode: "danger-full-access",
     model: CODEX_MODEL,
     workingDirectory: process.cwd(),
     skipGitRepoCheck: true,
