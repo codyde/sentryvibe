@@ -139,30 +139,38 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
           const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
           if (todoMatch) {
             const todoListJson = todoMatch[1].trim();
+            console.log('[transformer] 📋 Found Codex task list, parsing...');
             try {
               const tasks = JSON.parse(todoListJson);
               if (Array.isArray(tasks)) {
                 // Send task list as TodoWrite event for UI
                 const toolCallId = `codex-todo-${Date.now()}`;
+                const todoItems = tasks.map((t: any) => ({
+                  content: t.title,
+                  activeForm: t.description,
+                  status: t.status === 'complete' ? 'completed' : t.status === 'in-progress' ? 'in_progress' : 'pending',
+                }));
+
+                console.log(`[transformer] ✅ Parsed ${tasks.length} tasks, sending TodoWrite event`);
+                console.log(`[transformer]    ${tasks.filter((t: any) => t.status === 'complete').length} complete, ${tasks.filter((t: any) => t.status === 'in-progress').length} in-progress, ${tasks.filter((t: any) => t.status === 'not-done').length} not-done`);
+
                 events.push({
                   type: 'tool-input-available',
                   toolCallId,
                   toolName: 'TodoWrite',
                   input: {
-                    todos: tasks.map((t: any) => ({
-                      content: t.title,
-                      activeForm: t.description,
-                      status: t.status === 'complete' ? 'completed' : t.status === 'in-progress' ? 'in_progress' : 'pending',
-                    })),
+                    todos: todoItems,
                   },
                 });
               }
             } catch (e) {
-              console.warn('[transformer] Failed to parse Codex todolist:', e);
+              console.error('[transformer] ❌ Failed to parse Codex todolist:', e);
+              console.error('[transformer]    Raw JSON:', todoListJson.substring(0, 300));
             }
 
             // Remove task list from displayed text
             text = text.replace(/<start-todolist>[\s\S]*?<end-todolist>/g, '').trim();
+            console.log('[transformer] 📝 Removed task list from chat text');
           }
 
           const trimmed = text.trim();

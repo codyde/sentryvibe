@@ -2154,6 +2154,7 @@ function HomeContent() {
                               codex={generationState.codex}
                               projectName={generationState.projectName}
                               isActive
+                              todos={generationState.todos}
                               onViewFiles={() => {
                                 window.dispatchEvent(new CustomEvent('switch-to-editor'));
                               }}
@@ -2207,6 +2208,7 @@ function HomeContent() {
                                 codex={generationState.codex}
                                 projectName={generationState.projectName}
                                 isActive={false}
+                                todos={generationState.todos}
                                 onViewFiles={() => {
                                   window.dispatchEvent(new CustomEvent('switch-to-editor'));
                                 }}
@@ -2278,6 +2280,7 @@ function HomeContent() {
                                         codex={build.codex}
                                         projectName={build.projectName}
                                         isActive={false}
+                                        todos={build.todos}
                                         onViewFiles={() => {
                                           window.dispatchEvent(new CustomEvent('switch-to-editor'));
                                         }}

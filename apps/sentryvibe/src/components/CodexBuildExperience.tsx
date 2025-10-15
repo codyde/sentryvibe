@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
   GitBranch,
@@ -10,8 +10,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
+  Loader2,
+  Circle,
 } from 'lucide-react';
-import type { CodexSessionState, CodexPhase } from '@/types/generation';
+import type { CodexSessionState, CodexPhase, TodoItem } from '@/types/generation';
 
 const phaseIcons: Record<string, ComponentType<{ className?: string }>> = {
   'prompt-analysis': Sparkles,
@@ -57,6 +59,7 @@ interface CodexBuildExperienceProps {
   isActive: boolean;
   onViewFiles?: () => void;
   onStartServer?: () => void;
+  todos?: TodoItem[];
 }
 
 export function CodexBuildExperience({
@@ -65,6 +68,7 @@ export function CodexBuildExperience({
   isActive,
   onViewFiles,
   onStartServer,
+  todos = [],
 }: CodexBuildExperienceProps) {
   if (!codex) {
     return (
@@ -317,6 +321,110 @@ export function CodexBuildExperience({
                 ))}
               </ul>
             </div>
+          </div>
+        </motion.section>
+      )}
+
+      {todos.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5"
+        >
+          <header className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-lg font-semibold text-white">Live Task Progress</h4>
+                <p className="text-xs text-purple-200/80">
+                  {todos.filter(t => t.status === 'completed').length} of {todos.length} tasks complete
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-purple-400">
+                {Math.round((todos.filter(t => t.status === 'completed').length / todos.length) * 100)}%
+              </div>
+            </div>
+          </header>
+
+          <div className="space-y-2">
+            <AnimatePresence mode="popLayout">
+              {todos.map((todo, index) => (
+                <motion.div
+                  key={`${todo.content}-${index}`}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ delay: index * 0.03 }}
+                  className={`flex items-start gap-3 rounded-lg border p-3 transition-all ${
+                    todo.status === 'completed'
+                      ? 'border-emerald-500/30 bg-emerald-950/20'
+                      : todo.status === 'in_progress'
+                        ? 'border-purple-500/40 bg-purple-950/30 shadow-lg shadow-purple-500/10'
+                        : 'border-purple-700/30 bg-purple-900/20'
+                  }`}
+                >
+                  <div className="mt-0.5 flex-shrink-0">
+                    {todo.status === 'completed' ? (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      >
+                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                      </motion.div>
+                    ) : todo.status === 'in_progress' ? (
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                      >
+                        <Loader2 className="h-5 w-5 text-purple-400" />
+                      </motion.div>
+                    ) : (
+                      <Circle className="h-5 w-5 text-purple-500" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium ${
+                        todo.status === 'completed'
+                          ? 'text-emerald-300 line-through'
+                          : todo.status === 'in_progress'
+                            ? 'text-white'
+                            : 'text-purple-200'
+                      }`}
+                    >
+                      {todo.status === 'in_progress' ? todo.activeForm : todo.content}
+                    </p>
+
+                    {todo.status === 'in_progress' && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mt-2 h-1 overflow-hidden rounded-full bg-purple-900/50"
+                      >
+                        <motion.div
+                          animate={{
+                            x: ['-100%', '100%'],
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }}
+                          className="h-full w-1/3 bg-gradient-to-r from-transparent via-purple-400 to-transparent"
+                        />
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </motion.section>
       )}
