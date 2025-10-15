@@ -26,7 +26,7 @@ import { tunnelManager } from "./lib/tunnel/manager.js";
 import { allocatePort, releasePort } from "./lib/port-allocator.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
-import { BASE_SYSTEM_PROMPT, CLAUDE_SYSTEM_PROMPT } from "./lib/system-prompt.js";
+import { SYSTEM_PROMPT } from "./lib/system-prompt.js";
 
 export interface RunnerOptions {
   brokerUrl?: string;
@@ -44,13 +44,13 @@ const DEFAULT_AGENT: AgentId = "claude-code";
 const CLAUDE_MODEL = "claude-sonnet-4-5";
 const CODEX_MODEL = "gpt-5-codex";
 const CODEX_SYSTEM_PROMPT_ADDITION = `## Codex-Specific Notes
-- You inherit ALL workflow requirements from the shared system prompt above: holistic planning, TodoWrite usage, styling standards, dependency policies, and the prohibition on starting dev servers yourself.
+- You inherit ALL workflow requirements from the core system prompt above: holistic planning, TodoWrite usage, styling standards, dependency policies, and the prohibition on starting dev servers yourself.
 - TodoWrite must always be managed directly in your assistant messages using the schema shown. Never spawn shell commands (e.g., "printf", "cat") solely to output TODO_WRITE JSON—emit the line directly before continuing your reasoning.
 - When you need to inspect files or directories, prefer targeted commands (e.g., "ls src/components") and summarize results succinctly; avoid redundant broad listings.
 - Reflect on path context before issuing commands. If you change directories, update your todos to capture that work.
 - Produce a final TODO_WRITE snapshot (all tasks completed or explicitly blocked) followed by three markdown sections: ### Summary, ### Verification (tests run or manual checks), and ### Next Steps.
 - If a task spans multiple steps, create subtodos or clarify the sequence so humans can follow your plan.`;
-const CODEX_SYSTEM_PROMPT = `${BASE_SYSTEM_PROMPT.trim()}\n\n${CODEX_SYSTEM_PROMPT_ADDITION.trim()}`;
+const CODEX_SYSTEM_PROMPT = `${SYSTEM_PROMPT.trim()}\n\n${CODEX_SYSTEM_PROMPT_ADDITION.trim()}`;
 
 type CodexEvent = {
   type: string;
