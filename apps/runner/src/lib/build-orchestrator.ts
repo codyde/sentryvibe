@@ -230,16 +230,21 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
       fullPrompt = `USER REQUEST: ${prompt}
 
 SETUP STEPS (complete these FIRST, then implement the user's request above):
-1. Review the template catalog in your system instructions and choose the best-fitting template ID
-2. Clone it: npx degit <repository>#<branch> "${projectName}"
-3. cd ${projectName}
-4. Create .npmrc containing:
-   enable-modules-dir=true
-   shamefully-hoist=false
-5. Update package.json "name" field to "${projectName}"
+1. Clone the appropriate template (see EXACT CLONE COMMANDS in your instructions)
+2. cd ${projectName}
+3. Create .npmrc with required settings
+4. Update package.json "name" field to "${projectName}"
 
-After setup is complete, IMPLEMENT THE USER'S REQUEST ABOVE by modifying the template files.
-Work iteratively until the user's request is fully satisfied, then provide a summary.`;
+IMPLEMENTATION STEPS:
+5. Modify the template files to satisfy the user's request (MVP only)
+6. Install dependencies if needed
+7. Verify the core functionality works
+
+COMPLETION:
+When the user's request is satisfied at an MVP level, respond with:
+"Implementation complete. Summary: [brief description of what was built]"
+
+DO NOT continue enhancing or adding features beyond the user's request.`;
       console.log(`[orchestrator] 📝 Added SETUP STEPS + implementation instructions to Codex prompt`);
     } else {
       fullPrompt = `${prompt}\n\nCRITICAL: The template has ALREADY been downloaded to: ${workingDirectory}\nDO NOT run create-next-app, create-vite, or any scaffolding CLIs.\nSTART by installing dependencies, then customize the template.`;

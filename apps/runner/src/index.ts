@@ -342,6 +342,7 @@ function createCodexQuery(): BuildQueryFn {
     const MAX_TURNS = 50;
     let turnCount = 0;
     let nextPrompt = combinedPrompt;
+    let todoList: string | null = null;
 
     while (turnCount < MAX_TURNS) {
       turnCount++;
@@ -361,6 +362,27 @@ function createCodexQuery(): BuildQueryFn {
             hadToolCalls = true;
           } else if (itemType === 'agent_message') {
             lastMessage = (event.item as any)?.text || '';
+
+            // Extract todolist from message if present
+            const todoMatch = lastMessage.match(/todolist:\s*(\[[\s\S]*?\])/);
+            if (todoMatch) {
+              const newTodoList = todoMatch[1];
+              if (newTodoList !== todoList) {
+                todoList = newTodoList;
+                console.log(`[codex-query] 📋 Task list updated`);
+                try {
+                  const tasks = JSON.parse(todoList);
+                  const complete = tasks.filter((t: any) => t.status === 'complete').length;
+                  const inProgress = tasks.filter((t: any) => t.status === 'in-progress').length;
+                  const notDone = tasks.filter((t: any) => t.status === 'not-done').length;
+                  console.log(`[codex-query]    ✅ ${complete} complete | ⏳ ${inProgress} in-progress | ⭕ ${notDone} not-done`);
+                } catch (e) {
+                  console.warn(`[codex-query]    ⚠️  Could not parse task list JSON`);
+                }
+              }
+            } else if (turnCount > 1 && !todoList) {
+              console.warn(`[codex-query] ⚠️  WARNING: No todolist found in Turn ${turnCount} response!`);
+            }
           }
         }
 
@@ -375,25 +397,67 @@ function createCodexQuery(): BuildQueryFn {
 
       console.log(`[codex-query] Turn ${turnCount} complete. Tool calls: ${hadToolCalls}`);
 
+      // Check if all tasks are complete by parsing todolist
+      let allTasksComplete = false;
+      if (todoList) {
+        try {
+          const tasks = JSON.parse(todoList);
+          if (Array.isArray(tasks)) {
+            allTasksComplete = tasks.every((task: any) => task.status === 'complete');
+            console.log(`[codex-query] Task status: ${tasks.filter((t: any) => t.status === 'complete').length}/${tasks.length} complete`);
+          }
+        } catch (e) {
+          // Couldn't parse todolist, fall back to text detection
+        }
+      }
+
       // Decide if we should continue
-      if (!hadToolCalls) {
-        // No tools used - check if task is complete
-        const isDone = lastMessage.toLowerCase().includes('summary') ||
-                       lastMessage.toLowerCase().includes('all set') ||
-                       lastMessage.toLowerCase().includes('completed') ||
-                       lastMessage.toLowerCase().includes('finished');
+      if (allTasksComplete) {
+        console.log(`[codex-query] ✅ All MVP tasks complete!`);
+        break;
+      } else if (!hadToolCalls) {
+        // No tools used - check if task is complete via message text
+        const completionSignals = [
+          'implementation complete',
+          'all mvp tasks finished',
+          'summary:',
+          'ready to use',
+        ];
+        const isDone = completionSignals.some(signal =>
+          lastMessage.toLowerCase().includes(signal)
+        );
 
         if (isDone) {
-          console.log(`[codex-query] ✅ Task complete`);
+          console.log(`[codex-query] ✅ Task complete (detected completion signal)`);
           break;
         } else {
-          console.log(`[codex-query] ⚠️ No tools used but not done - continuing`);
-          nextPrompt = "Please continue with the next steps.";
+          console.log(`[codex-query] ⚠️ No tools used but not done - prompting to continue`);
+          nextPrompt = todoList
+            ? `Continue the MVP with this task list, updating as you go:\n\ntodolist: ${todoList}\n\nWork on the next incomplete task.`
+            : "Please continue with the next MVP step.";
         }
       } else {
-        // Had tool calls - continue naturally with minimal prompt
-        // IMPORTANT: Cannot send empty string - Codex CLI requires input
-        nextPrompt = "Continue.";
+        // Had tool calls - continue with task list
+        if (todoList) {
+          nextPrompt = `Continue working towards MVP completion.
+
+CURRENT TASK LIST:
+todolist: ${todoList}
+
+INSTRUCTIONS:
+1. Work on the next incomplete task using command_execution tools
+2. Update that task's status to "complete" with result when done
+3. MUST include the updated todolist in your response using EXACT format: todolist: [...]
+4. When ALL tasks show status: "complete", respond with "Implementation complete. All MVP tasks finished."`;
+        } else {
+          nextPrompt = `Continue working towards MVP completion.
+
+CRITICAL: You MUST include a todolist in your response! Use this exact format:
+
+todolist: [
+  {title: "Task", description: "Details", status: "not-done", result: null}
+]`;
+        }
       }
     }
 
