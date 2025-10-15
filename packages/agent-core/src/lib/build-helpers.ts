@@ -1,13 +1,13 @@
 import type { BuildOperationType } from '@/types/build';
 import type { AgentId } from '@/types/agent';
 import type { CodexSessionState, GenerationState } from '@/types/generation';
-import type { Project } from '@/contexts/ProjectContext';
+import type { ProjectSummary } from '@/types/project';
 
 /**
  * Detect the appropriate build operation type based on context
  */
 export function detectOperationType(params: {
-  project: Project;
+  project: ProjectSummary;
   isElementChange?: boolean;
   isRetry?: boolean;
 }): BuildOperationType {
@@ -39,7 +39,7 @@ export function detectOperationType(params: {
 /**
  * Detect operation type from project status
  */
-export function isNewProject(project: Project): boolean {
+export function isNewProject(project: ProjectSummary): boolean {
   return project.status === 'pending' || (!project.runCommand && !project.projectType);
 }
 

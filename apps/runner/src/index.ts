@@ -12,7 +12,13 @@ loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
-import type { RunnerCommand, RunnerEvent, AgentId } from "./shared/runner/messages.js";
+import {
+  CLAUDE_SYSTEM_PROMPT,
+  CODEX_SYSTEM_PROMPT,
+  type RunnerCommand,
+  type RunnerEvent,
+  type AgentId,
+} from "@sentryvibe/agent-core";
 import { createBuildStream } from "./lib/build/engine.js";
 import { startDevServer, stopDevServer } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
@@ -26,7 +32,6 @@ import { tunnelManager } from "./lib/tunnel/manager.js";
 import { allocatePort, releasePort } from "./lib/port-allocator.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
-import { SYSTEM_PROMPT } from "./lib/system-prompt.js";
 
 export interface RunnerOptions {
   brokerUrl?: string;
@@ -43,15 +48,6 @@ const log = (...args: unknown[]) => {
 const DEFAULT_AGENT: AgentId = "claude-code";
 const CLAUDE_MODEL = "claude-sonnet-4-5";
 const CODEX_MODEL = "gpt-5-codex";
-const CODEX_SYSTEM_PROMPT_ADDITION = `## Codex-Specific Notes
-- You inherit ALL workflow requirements from the core system prompt above: holistic planning, TodoWrite usage, styling standards, dependency policies, and the prohibition on starting dev servers yourself.
-- TodoWrite must always be managed directly in your assistant messages using the schema shown. Never spawn shell commands (e.g., "printf", "cat") solely to output TODO_WRITE JSON—emit the line directly before continuing your reasoning.
-- When you need to inspect files or directories, prefer targeted commands (e.g., "ls src/components") and summarize results succinctly; avoid redundant broad listings.
-- Reflect on path context before issuing commands. If you change directories, update your todos to capture that work.
-- Produce a final TODO_WRITE snapshot (all tasks completed or explicitly blocked) followed by three markdown sections: ### Summary, ### Verification (tests run or manual checks), and ### Next Steps.
-- If a task spans multiple steps, create subtodos or clarify the sequence so humans can follow your plan.`;
-const CODEX_SYSTEM_PROMPT = `${SYSTEM_PROMPT.trim()}\n\n${CODEX_SYSTEM_PROMPT_ADDITION.trim()}`;
-
 type CodexEvent = {
   type: string;
   item?: Record<string, unknown>;
@@ -263,6 +259,11 @@ async function* convertCodexEventsToAgentMessages(
 function createClaudeQuery(): BuildQueryFn {
   return (prompt, workingDirectory, systemPrompt) => {
     const sentryQuery = Sentry.createInstrumentedClaudeQuery();
+    const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
+    if (systemPrompt && systemPrompt.trim().length > 0) {
+      systemPromptSegments.push(systemPrompt.trim());
+    }
+
     return sentryQuery({
       prompt,
       options: {
@@ -270,7 +271,7 @@ function createClaudeQuery(): BuildQueryFn {
         cwd: workingDirectory,
         permissionMode: "default",
         maxTurns: 100,
-        systemPrompt,
+        systemPrompt: systemPromptSegments.join("\n\n"),
         additionalDirectories: [workingDirectory],
         canUseTool: createProjectScopedPermissionHandler(workingDirectory),
       },
@@ -1035,6 +1036,7 @@ export function startRunner(options: RunnerOptions = {}) {
                       content = block.content;
                     } else if (Array.isArray(block.content)) {
                       // Content might be an array of content blocks
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       content = block.content.map((c: any) => {
                         if (c.type === 'text') return c.text;
                         return JSON.stringify(c);
@@ -1150,7 +1152,7 @@ export function startRunner(options: RunnerOptions = {}) {
         break;
       }
       default:
-        assertNever(command);
+        assertNever(command as never);
     }
   }
 

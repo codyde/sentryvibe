@@ -1,4 +1,4 @@
-import type { RunnerEvent } from '@/shared/runner/messages';
+import type { RunnerEvent } from '../../shared/runner/messages';
 
 type RunnerEventHandler = (event: RunnerEvent) => void;
 

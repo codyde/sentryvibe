@@ -215,13 +215,13 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   switch (operationType) {
     case 'initial-build': {
       console.log('🆕 INITIAL BUILD - Starting pre-build phase...');
-      writer.write({ type: 'pre-build-start' });
+      writer.write({ type: 'pre-build-start' } as any);
 
       metadata = await extractProjectMetadata(prompt, query);
       writer.write({
         type: 'metadata-extracted',
         metadata,
-      });
+      } as any);
 
       selectedTemplate = metadata?.template
         ? await getTemplateById(metadata.template)
@@ -231,10 +231,10 @@ async function runBuildPipeline(params: BuildPipelineParams) {
         throw new Error('Unable to resolve template for build');
       }
 
-      writer.write({ type: 'template-selected', template: selectedTemplate });
+      writer.write({ type: 'template-selected', template: selectedTemplate } as any);
 
       const downloadResult = await downloadTemplate(selectedTemplate, projectName);
-      writer.write({ type: 'template-downloaded', path: downloadResult });
+      writer.write({ type: 'template-downloaded', path: downloadResult } as any);
 
       fileTree = await getProjectFileTree(downloadResult);
       systemPrompt = await buildInitialSystemPrompt({
@@ -513,7 +513,7 @@ async function writeAgentMessagesToStream(
       writer.write({
         type: 'error',
         error: message.error instanceof Error ? message.error.message : String(message.error),
-      });
+      } as any);
     }
   }
 }

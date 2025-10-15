@@ -122,7 +122,7 @@ export interface ListFilesCommand extends BaseCommand {
   type: 'list-files';
   payload: {
     slug: string;
-    path?: string; // Optional subdirectory path within project
+    path?: string;
   };
 }
 
@@ -165,6 +165,17 @@ export interface PortDetectedEvent extends BaseEvent {
   framework: string;
 }
 
+export interface TunnelCreatedEvent extends BaseEvent {
+  type: 'tunnel-created';
+  port: number;
+  tunnelUrl: string;
+}
+
+export interface TunnelClosedEvent extends BaseEvent {
+  type: 'tunnel-closed';
+  port: number;
+}
+
 export interface ProcessExitedEvent extends BaseEvent {
   type: 'process-exited';
   exitCode: number | null;
@@ -200,11 +211,6 @@ export interface BuildFailedEvent extends BaseEvent {
   stack?: string;
 }
 
-export interface BuildStreamEvent extends BaseEvent {
-  type: 'build-stream';
-  data: string;
-}
-
 export interface RunnerStatusEvent extends BaseEvent {
   type: 'runner-status';
   payload: {
@@ -217,10 +223,9 @@ export interface RunnerStatusEvent extends BaseEvent {
   };
 }
 
-export interface ErrorEvent extends BaseEvent {
-  type: 'error';
-  error: string;
-  stack?: string;
+export interface BuildStreamEvent extends BaseEvent {
+  type: 'build-stream';
+  data: string;
 }
 
 export interface ProjectMetadataEvent extends BaseEvent {
@@ -231,17 +236,6 @@ export interface ProjectMetadataEvent extends BaseEvent {
     runCommand: string;
     port: number;
   };
-}
-
-export interface TunnelCreatedEvent extends BaseEvent {
-  type: 'tunnel-created';
-  port: number;
-  tunnelUrl: string;
-}
-
-export interface TunnelClosedEvent extends BaseEvent {
-  type: 'tunnel-closed';
-  port: number;
 }
 
 export interface FilesDeletedEvent extends BaseEvent {
@@ -272,6 +266,12 @@ export interface FileListEvent extends BaseEvent {
     path: string;
     size?: number;
   }>;
+}
+
+export interface ErrorEvent extends BaseEvent {
+  type: 'error';
+  error: string;
+  stack?: string;
 }
 
 export type RunnerEvent =

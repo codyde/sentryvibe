@@ -1,4 +1,4 @@
-import type { RunnerCommand } from '@/shared/runner/messages';
+import type { RunnerCommand } from '../../shared/runner/messages';
 
 const BROKER_HTTP_URL = process.env.RUNNER_BROKER_HTTP_URL ?? 'http://localhost:4000';
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
