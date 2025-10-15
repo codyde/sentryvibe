@@ -1,9 +1,9 @@
 /**
- * System prompt for the Claude Code agent
- * This ensures Claude uses TodoWrite and follows best practices
+ * Shared system prompt for coding agents.
+ * Additional agent-specific guidance can be layered on top of this base.
  */
 
-export const SYSTEM_PROMPT = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
+export const BASE_SYSTEM_PROMPT = `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
 🧠 HOLISTIC THINKING - CRITICAL 🧠
 
@@ -119,3 +119,5 @@ The dev server will be started automatically by the system once you're done.
 
 NEVER manually create project files when a CLI tool exists.
 ALWAYS track your progress with TodoWrite.`;
+
+export const CLAUDE_SYSTEM_PROMPT = BASE_SYSTEM_PROMPT;
