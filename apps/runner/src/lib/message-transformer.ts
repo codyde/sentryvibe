@@ -12,18 +12,21 @@ interface TransformerState {
   currentMessageId: string | null;
   messageStarted: boolean;
   expectedCwd?: string;
+  commandMetadata: Map<string, { command?: string }>;
 }
 
 // Track state across transformations
 let transformerState: TransformerState = {
   currentMessageId: null,
   messageStarted: false,
+  commandMetadata: new Map(),
 };
 
 export function resetTransformerState() {
   transformerState = {
     currentMessageId: null,
     messageStarted: false,
+    commandMetadata: new Map(),
   };
 }
 
@@ -92,8 +95,51 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
 
     // Process each content block
     if (message.content && Array.isArray(message.content)) {
+      const processTodoWriteMarkers = (text: string) => {
+        const regex = /TODO_WRITE\s*:\s*(\{[\s\S]*?\})(?=$|\n)/g;
+        let match: RegExpExecArray | null;
+        let cleaned = '';
+        let lastIndex = 0;
+
+        while ((match = regex.exec(text)) !== null) {
+          const fullMatch = match[0];
+          const jsonText = match[1];
+
+          try {
+            const payload = JSON.parse(jsonText);
+            const toolCallId =
+              typeof payload.toolCallId === 'string' && payload.toolCallId.length > 0
+                ? payload.toolCallId
+                : `codex-todo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+            events.push({
+              type: 'tool-input-available',
+              toolCallId,
+              toolName: 'TodoWrite',
+              input: payload,
+            });
+          } catch (error) {
+            console.warn('⚠️  Failed to parse TODO_WRITE payload:', error);
+          }
+
+          cleaned += text.slice(lastIndex, match.index);
+          lastIndex = match.index + fullMatch.length;
+        }
+
+        cleaned += text.slice(lastIndex);
+        return cleaned;
+      };
+
       for (const block of message.content) {
         if (block.type === 'text' && block.text) {
+          let text = String(block.text);
+          text = processTodoWriteMarkers(text);
+          const trimmed = text.trim();
+
+          if (trimmed.length === 0) {
+            continue;
+          }
+
           const textBlockId = `${assistantMessageId}-text-${Date.now()}-${Math.random()}`;
 
           events.push({
@@ -104,7 +150,7 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
           events.push({
             type: 'text-delta',
             id: textBlockId,
-            delta: block.text,
+            delta: text,
           });
 
           events.push({
@@ -122,6 +168,20 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
             toolName: block.name,
             input: block.input,
           });
+
+          if (block.name === 'command_execution') {
+          const command =
+            typeof block.input?.command === 'string'
+              ? block.input.command
+              : '';
+          transformerState.commandMetadata.set(block.id, { command });
+
+            events.push({
+              type: 'command_start',
+              command,
+              id: block.id,
+            });
+          }
         }
       }
     }
@@ -131,11 +191,53 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
     if (message.content && Array.isArray(message.content)) {
       for (const block of message.content) {
         if (block.type === 'tool_result') {
+          const toolId = block.tool_use_id;
+          let output = block.content;
+          if (Array.isArray(output)) {
+            output = output
+              .map((c: any) => (typeof c?.text === 'string' ? c.text : JSON.stringify(c)))
+              .join('\n');
+          } else if (typeof output !== 'string') {
+            output = JSON.stringify(output);
+          }
+
+          // Process TodoWrite markers in command outputs
+          if (typeof output === 'string' && output.includes('TODO_WRITE')) {
+            const regex = /TODO_WRITE\s*:\s*(\{[\s\S]*?\})(?=$|\n)/g;
+            let match: RegExpExecArray | null;
+            while ((match = regex.exec(output)) !== null) {
+              try {
+                const payload = JSON.parse(match[1]);
+                events.push({
+                  type: 'tool-input-available',
+                  toolCallId: payload.toolCallId ?? toolId ?? `todo-${Date.now()}`,
+                  toolName: 'TodoWrite',
+                  input: payload,
+                });
+              } catch (error) {
+                console.warn('⚠️  Failed to parse TODO_WRITE payload from tool result:', error);
+              }
+            }
+          }
+
           events.push({
             type: 'tool-output-available',
             toolCallId: block.tool_use_id,
             output: block.content,
           });
+
+          const commandMeta = transformerState.commandMetadata.get(toolId);
+          if (commandMeta) {
+            events.push({
+              type: 'command_complete',
+              id: toolId,
+              command: commandMeta.command,
+              output,
+              exitCode: block.exit_code,
+              status: block.status ?? (block.is_error ? 'failed' : 'completed'),
+            });
+            transformerState.commandMetadata.delete(toolId);
+          }
         }
       }
     }
@@ -158,4 +260,3 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
 
   return events;
 }
-

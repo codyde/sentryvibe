@@ -1,0 +1,279 @@
+{
+  "id": "c1c5946c-8c42-4f2a-9f34-79d3d0cb3af9",
+  "prevId": "763ad537-55b2-46bc-ae51-3e97326ec7b3",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.messages": {
+      "name": "messages",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "project_id": { "name": "project_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "role": { "name": "role", "type": "text", "primaryKey": false, "notNull": true },
+        "content": { "name": "content", "type": "text", "primaryKey": false, "notNull": true },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "messages_project_id_projects_id_fk": {
+          "name": "messages_project_id_projects_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "projects",
+          "columnsFrom": [ "project_id" ],
+          "columnsTo": [ "id" ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.port_allocations": {
+      "name": "port_allocations",
+      "schema": "",
+      "columns": {
+        "port": { "name": "port", "type": "integer", "primaryKey": true, "notNull": true },
+        "framework": { "name": "framework", "type": "text", "primaryKey": false, "notNull": true },
+        "project_id": { "name": "project_id", "type": "uuid", "primaryKey": false, "notNull": false },
+        "reserved_at": { "name": "reserved_at", "type": "timestamp", "primaryKey": false, "notNull": false, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "port_allocations_project_id_projects_id_fk": {
+          "name": "port_allocations_project_id_projects_id_fk",
+          "tableFrom": "port_allocations",
+          "tableTo": "projects",
+          "columnsFrom": [ "project_id" ],
+          "columnsTo": [ "id" ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.projects": {
+      "name": "projects",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "name": { "name": "name", "type": "text", "primaryKey": false, "notNull": true },
+        "slug": { "name": "slug", "type": "text", "primaryKey": false, "notNull": true },
+        "description": { "name": "description", "type": "text", "primaryKey": false, "notNull": false },
+        "original_prompt": { "name": "original_prompt", "type": "text", "primaryKey": false, "notNull": false },
+        "icon": { "name": "icon", "type": "text", "primaryKey": false, "notNull": false, "default": "'Folder'" },
+        "status": { "name": "status", "type": "text", "primaryKey": false, "notNull": true, "default": "'pending'" },
+        "project_type": { "name": "project_type", "type": "text", "primaryKey": false, "notNull": false },
+        "path": { "name": "path", "type": "text", "primaryKey": false, "notNull": false },
+        "run_command": { "name": "run_command", "type": "text", "primaryKey": false, "notNull": false },
+        "port": { "name": "port", "type": "integer", "primaryKey": false, "notNull": false },
+        "dev_server_pid": { "name": "dev_server_pid", "type": "integer", "primaryKey": false, "notNull": false },
+        "dev_server_port": { "name": "dev_server_port", "type": "integer", "primaryKey": false, "notNull": false },
+        "dev_server_status": { "name": "dev_server_status", "type": "text", "primaryKey": false, "notNull": false, "default": "'stopped'" },
+        "tunnel_url": { "name": "tunnel_url", "type": "text", "primaryKey": false, "notNull": false },
+        "generation_state": { "name": "generation_state", "type": "text", "primaryKey": false, "notNull": false },
+        "last_activity_at": { "name": "last_activity_at", "type": "timestamp", "primaryKey": false, "notNull": false, "default": "now()" },
+        "error_message": { "name": "error_message", "type": "text", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "projects_slug_unique": { "name": "projects_slug_unique", "nullsNotDistinct": false, "columns": [ "slug" ] }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.generation_sessions": {
+      "name": "generation_sessions",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "project_id": { "name": "project_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "build_id": { "name": "build_id", "type": "text", "primaryKey": false, "notNull": true },
+        "operation_type": { "name": "operation_type", "type": "text", "primaryKey": false, "notNull": false },
+        "status": { "name": "status", "type": "text", "primaryKey": false, "notNull": true, "default": "'active'" },
+        "started_at": { "name": "started_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "ended_at": { "name": "ended_at", "type": "timestamp", "primaryKey": false, "notNull": false },
+        "summary": { "name": "summary", "type": "text", "primaryKey": false, "notNull": false },
+        "raw_state": { "name": "raw_state", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "generation_sessions_project_id_idx": {
+          "name": "generation_sessions_project_id_idx",
+          "columns": [ "project_id" ],
+          "isUnique": false
+        },
+        "generation_sessions_build_id_unique": {
+          "name": "generation_sessions_build_id_unique",
+          "columns": [ "build_id" ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "generation_sessions_project_id_projects_id_fk": {
+          "name": "generation_sessions_project_id_projects_id_fk",
+          "tableFrom": "generation_sessions",
+          "tableTo": "projects",
+          "columnsFrom": [ "project_id" ],
+          "columnsTo": [ "id" ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.generation_todos": {
+      "name": "generation_todos",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "session_id": { "name": "session_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "todo_index": { "name": "todo_index", "type": "integer", "primaryKey": false, "notNull": true },
+        "content": { "name": "content", "type": "text", "primaryKey": false, "notNull": true },
+        "active_form": { "name": "active_form", "type": "text", "primaryKey": false, "notNull": false },
+        "status": { "name": "status", "type": "text", "primaryKey": false, "notNull": true },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "generation_todos_session_id_idx": {
+          "name": "generation_todos_session_id_idx",
+          "columns": [ "session_id" ],
+          "isUnique": false
+        },
+        "generation_todos_session_index_unique": {
+          "name": "generation_todos_session_index_unique",
+          "columns": [ "session_id", "todo_index" ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "generation_todos_session_id_generation_sessions_id_fk": {
+          "name": "generation_todos_session_id_generation_sessions_id_fk",
+          "tableFrom": "generation_todos",
+          "tableTo": "generation_sessions",
+          "columnsFrom": [ "session_id" ],
+          "columnsTo": [ "id" ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.generation_tool_calls": {
+      "name": "generation_tool_calls",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "session_id": { "name": "session_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "todo_index": { "name": "todo_index", "type": "integer", "primaryKey": false, "notNull": true },
+        "tool_call_id": { "name": "tool_call_id", "type": "text", "primaryKey": false, "notNull": false },
+        "name": { "name": "name", "type": "text", "primaryKey": false, "notNull": true },
+        "input": { "name": "input", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "output": { "name": "output", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "state": { "name": "state", "type": "text", "primaryKey": false, "notNull": true },
+        "started_at": { "name": "started_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "ended_at": { "name": "ended_at", "type": "timestamp", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "generation_tool_calls_session_id_idx": {
+          "name": "generation_tool_calls_session_id_idx",
+          "columns": [ "session_id" ],
+          "isUnique": false
+        },
+        "generation_tool_calls_call_id_unique": {
+          "name": "generation_tool_calls_call_id_unique",
+          "columns": [ "session_id", "tool_call_id" ],
+          "isUnique": true,
+          "where": "(tool_call_id IS NOT NULL)"
+        }
+      },
+      "foreignKeys": {
+        "generation_tool_calls_session_id_generation_sessions_id_fk": {
+          "name": "generation_tool_calls_session_id_generation_sessions_id_fk",
+          "tableFrom": "generation_tool_calls",
+          "tableTo": "generation_sessions",
+          "columnsFrom": [ "session_id" ],
+          "columnsTo": [ "id" ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.generation_notes": {
+      "name": "generation_notes",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "session_id": { "name": "session_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "todo_index": { "name": "todo_index", "type": "integer", "primaryKey": false, "notNull": true },
+        "kind": { "name": "kind", "type": "text", "primaryKey": false, "notNull": true, "default": "'text'" },
+        "content": { "name": "content", "type": "text", "primaryKey": false, "notNull": true },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "generation_notes_session_id_idx": {
+          "name": "generation_notes_session_id_idx",
+          "columns": [ "session_id" ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "generation_notes_session_id_generation_sessions_id_fk": {
+          "name": "generation_notes_session_id_generation_sessions_id_fk",
+          "tableFrom": "generation_notes",
+          "tableTo": "generation_sessions",
+          "columnsFrom": [ "session_id" ],
+          "columnsTo": [ "id" ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
+
