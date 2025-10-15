@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/generation-persistence';
+export * from '@sentryvibe/agent-core/lib/generation-persistence';

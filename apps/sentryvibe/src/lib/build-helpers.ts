@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/build-helpers';
+export * from '@sentryvibe/agent-core/lib/build-helpers';

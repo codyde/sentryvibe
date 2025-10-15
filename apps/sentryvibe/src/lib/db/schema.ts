@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/db/schema';
+export * from '@sentryvibe/agent-core/lib/db/schema';

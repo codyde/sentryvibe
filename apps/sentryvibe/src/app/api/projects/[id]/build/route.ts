@@ -13,9 +13,9 @@ import {
   generationNotes,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/src/types/generation';
-import { serializeGenerationState } from '@sentryvibe/agent-core/src/lib/generation-persistence';
-import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/src/types/agent';
+import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/types/generation';
+import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
+import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/types/agent';
 
 export const maxDuration = 30;
 

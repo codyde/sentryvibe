@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/runner/event-stream';
+export * from '@sentryvibe/agent-core/lib/runner/event-stream';

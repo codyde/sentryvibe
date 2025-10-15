@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/runner/log-store';
+export * from '@sentryvibe/agent-core/lib/runner/log-store';

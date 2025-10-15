@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/templates/config';
+export * from '@sentryvibe/agent-core/lib/templates/config';

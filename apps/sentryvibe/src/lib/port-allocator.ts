@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/port-allocator';
+export * from '@sentryvibe/agent-core/lib/port-allocator';

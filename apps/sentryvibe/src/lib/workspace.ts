@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/workspace';
+export * from '@sentryvibe/agent-core/lib/workspace';

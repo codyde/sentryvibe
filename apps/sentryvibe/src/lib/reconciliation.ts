@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/reconciliation';
+export * from '@sentryvibe/agent-core/lib/reconciliation';

@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/process-manager';
+export * from '@sentryvibe/agent-core/lib/process-manager';

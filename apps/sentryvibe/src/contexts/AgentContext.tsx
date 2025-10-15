@@ -9,8 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AgentId } from '@sentryvibe/agent-core/src/types/agent';
-import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/src/types/agent';
+import { DEFAULT_AGENT_ID, type AgentId } from '@sentryvibe/agent-core';
 
 export interface AgentOption {
   id: AgentId;

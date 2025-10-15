@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/selection/injector';
+export * from '@sentryvibe/agent-core/lib/selection/injector';

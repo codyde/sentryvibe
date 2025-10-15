@@ -4,7 +4,7 @@ import { createInstrumentedCodex } from '@sentry/node';
 import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import type { AgentId } from '@sentryvibe/agent-core/src/types/agent';
+import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 
 // Note: This route extracts metadata via Claude (Haiku) by default and can fall back to Codex.
 // cwd is set to process.cwd() since we don't need workspace access here

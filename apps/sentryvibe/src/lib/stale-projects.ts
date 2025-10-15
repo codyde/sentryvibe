@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/stale-projects';
+export * from '@sentryvibe/agent-core/lib/stale-projects';

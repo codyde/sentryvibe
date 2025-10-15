@@ -1,1 +1,1 @@
-export * from '@sentryvibe/agent-core/src/lib/icon-mapper';
+export * from '@sentryvibe/agent-core/lib/icon-mapper';
