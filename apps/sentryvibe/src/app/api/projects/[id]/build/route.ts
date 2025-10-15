@@ -168,11 +168,25 @@ export async function POST(
 
       const activeIndex = todoRows.findIndex(row => row.status === 'in_progress');
 
+      let persistedState: any = null;
+      if (sessionRow.rawState) {
+        if (typeof sessionRow.rawState === 'string') {
+          try {
+            persistedState = JSON.parse(sessionRow.rawState);
+          } catch (parseError) {
+            console.warn('[build-route] Failed to parse rawState JSON:', parseError);
+          }
+        } else {
+          persistedState = sessionRow.rawState;
+        }
+      }
+
       const snapshot: GenerationState = {
         id: sessionRow.buildId,
         projectId: sessionRow.projectId,
         projectName: project[0].name,
         operationType: (sessionRow.operationType ?? body.operationType) as GenerationState['operationType'],
+        agentId: (persistedState?.agentId as GenerationState['agentId']) ?? agentId,
         todos: todosSnapshot,
         toolsByTodo,
         textByTodo,
@@ -180,6 +194,7 @@ export async function POST(
         isActive: sessionRow.status === 'active',
         startTime: sessionRow.startedAt ?? now,
         endTime: sessionRow.endedAt ?? undefined,
+        codex: persistedState?.codex,
       };
 
       return snapshot;

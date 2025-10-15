@@ -7,26 +7,56 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, ChevronDown } from 'lucide-react';
 import TabbedPreview from '@/components/TabbedPreview';
 import TerminalOutput from '@/components/TerminalOutput';
 import ProcessManagerModal from '@/components/ProcessManagerModal';
 import ToolCallCard from '@/components/ToolCallCard';
 import SummaryCard from '@/components/SummaryCard';
 import CodeBlock from '@/components/CodeBlock';
-import TodoVibe, { type TodoItem } from '@/components/TodoVibe';
 import GenerationProgress from '@/components/GenerationProgress';
+import CodexBuildExperience, { CodexPhaseStrip } from '@/components/CodexBuildExperience';
 import { AppSidebar } from '@/components/app-sidebar';
 import AgentSelector from '@/components/AgentSelector';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
 import { useAgent } from '@/contexts/AgentContext';
-import type { GenerationState, ToolCall, BuildOperationType } from '@/types/generation';
+import type {
+  GenerationState,
+  ToolCall,
+  BuildOperationType,
+  CodexSessionState,
+  CodexPhaseId,
+  CodexPhase,
+  TodoItem,
+} from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
-import { detectOperationType, createFreshGenerationState, validateGenerationState } from '@/lib/build-helpers';
+import { detectOperationType, createFreshGenerationState, validateGenerationState, createInitialCodexSessionState } from '@/lib/build-helpers';
 import ElementChangeCard from '@/components/ElementChangeCard';
 import InitializingCard from '@/components/InitializingCard';
+
+const CODEX_PHASE_ORDER: CodexPhaseId[] = [
+  'prompt-analysis',
+  'template-selection',
+  'template-clone',
+  'workspace-verification',
+  'task-synthesis',
+  'execution',
+];
+
+function sortCodexPhases(phases: CodexPhase[]): CodexPhase[] {
+  return [...phases].sort((a, b) => {
+    const idxA = CODEX_PHASE_ORDER.indexOf(a.id as CodexPhaseId);
+    const idxB = CODEX_PHASE_ORDER.indexOf(b.id as CodexPhaseId);
+    const safeA = idxA === -1 ? CODEX_PHASE_ORDER.length + 1 : idxA;
+    const safeB = idxB === -1 ? CODEX_PHASE_ORDER.length + 1 : idxB;
+    if (safeA === safeB) {
+      return a.title.localeCompare(b.title);
+    }
+    return safeA - safeB;
+  });
+}
 
 interface MessagePart {
   type: string;
@@ -142,10 +172,51 @@ function HomeContent() {
         projectId: currentProject.id,
         projectName: currentProject.name,
         operationType: generationStateRef.current?.operationType ?? 'initial-build',
+        agentId: generationStateRef.current?.agentId ?? selectedAgentId,
       });
     }
     return null;
-  }, [generationState, currentProject]);
+  }, [generationState, currentProject, selectedAgentId]);
+
+  const updateCodexState = useCallback(
+    (mutator: (state: CodexSessionState) => CodexSessionState) => {
+      updateGenerationState(prev => {
+        const baseState = ensureGenerationState(prev);
+        if (!baseState) return prev;
+
+        const existingCodex = baseState.codex ?? createInitialCodexSessionState();
+        const workingCodex: CodexSessionState = {
+          ...existingCodex,
+          phases: existingCodex.phases.map(phase => ({ ...phase })),
+          executionInsights: existingCodex.executionInsights
+            ? existingCodex.executionInsights.map(insight => ({ ...insight }))
+            : [],
+        };
+
+        const nextCodex = mutator(workingCodex);
+        const updated: GenerationState = {
+          ...baseState,
+          agentId: baseState.agentId ?? 'openai-codex',
+          codex: {
+            ...nextCodex,
+            phases: nextCodex.phases.map(phase => ({ ...phase })),
+            executionInsights: nextCodex.executionInsights
+              ? nextCodex.executionInsights.map(insight => ({ ...insight }))
+              : [],
+            lastUpdatedAt: new Date(),
+          },
+        };
+
+        console.log('🌀 Codex state updated:', {
+          phases: updated.codex?.phases.map(p => `${p.id}:${p.status}`),
+        });
+
+        saveGenerationState(updated.projectId, updated);
+        return updated;
+      });
+    },
+    [ensureGenerationState, updateGenerationState]
+  );
 
   // Use ref to access latest projects without triggering effects
   const projectsRef = useRef(projects);
@@ -153,6 +224,8 @@ function HomeContent() {
 
   const isLoading = isCreatingProject || isGenerating;
   const activeProject = selectedProjectSlug || selectedDirectory;
+  const activeAgentId = generationState?.agentId ?? selectedAgentId;
+  const isCodexSession = activeAgentId === 'openai-codex';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -238,6 +311,10 @@ function HomeContent() {
 
   // Auto-switch to Build when todos first populate
   const previousTodoCountRef = useRef(0);
+  const codexAutoSwitchRef = useRef(false);
+  useEffect(() => {
+    codexAutoSwitchRef.current = false;
+  }, [generationState?.id]);
   useEffect(() => {
     const currentTodoCount = generationState?.todos?.length || 0;
 
@@ -257,22 +334,45 @@ function HomeContent() {
     previousTodoCountRef.current = currentTodoCount;
   }, [generationState?.todos?.length]);
 
+  useEffect(() => {
+    const isCodex = (generationState?.agentId ?? selectedAgentId) === 'openai-codex';
+    if (!isCodex) {
+      codexAutoSwitchRef.current = false;
+      return;
+    }
+    if (!generationState?.codex?.lastUpdatedAt) return;
+    if (codexAutoSwitchRef.current) return;
+    console.log('🌀 Codex activity detected, switching to Build tab');
+    switchTab('build');
+    codexAutoSwitchRef.current = true;
+  }, [generationState?.codex?.lastUpdatedAt, generationState?.agentId, selectedAgentId]);
+
   // Archive completed builds to history (per project)
   useEffect(() => {
-    if (generationState && !generationState.isActive && generationState.todos && generationState.todos.length > 0 && currentProject) {
-      const projectHistory = buildHistoryByProject.get(currentProject.id) || [];
-      const alreadyArchived = projectHistory.some(b => b.id === generationState.id);
-
-      if (!alreadyArchived) {
-        console.log('📚 Archiving completed build to history:', generationState.id);
-        setBuildHistoryByProject(prev => {
-          const newMap = new Map(prev);
-          newMap.set(currentProject.id, [generationState, ...projectHistory]);
-          return newMap;
-        });
-      }
+    if (!generationState || generationState.isActive || !currentProject) {
+      return;
     }
-  }, [generationState?.isActive, generationState?.id, generationState?.todos?.length, currentProject?.id, buildHistoryByProject]);
+
+    const isCodexBuildState = (generationState.agentId ?? selectedAgentId) === 'openai-codex';
+    const hasCodexData = isCodexBuildState && !!generationState.codex;
+    const hasTodoHistory = Array.isArray(generationState.todos) && generationState.todos.length > 0;
+
+    if (!hasCodexData && !hasTodoHistory) {
+      return;
+    }
+
+    const projectHistory = buildHistoryByProject.get(currentProject.id) || [];
+    const alreadyArchived = projectHistory.some(b => b.id === generationState.id);
+
+    if (!alreadyArchived) {
+      console.log('📚 Archiving completed build to history:', generationState.id);
+      setBuildHistoryByProject(prev => {
+        const newMap = new Map(prev);
+        newMap.set(currentProject.id, [generationState, ...projectHistory]);
+        return newMap;
+      });
+    }
+  }, [generationState, currentProject?.id, buildHistoryByProject, selectedAgentId]);
 
   // Calculate badge values
   const buildProgress = generationState ?
@@ -845,6 +945,7 @@ function HomeContent() {
       projectId: project.id,
       projectName: project.name,
       operationType,
+      agentId: selectedAgentId,
     });
 
     console.log('✅ Created fresh generationState:', freshState.id);
@@ -984,6 +1085,178 @@ function HomeContent() {
             }
           } else if (data.type === 'text-end') {
             console.log('✅ Text block finished:', data.id);
+          } else if (data.type === 'codex-phase-start') {
+            const phaseId = data.phaseId as CodexPhaseId | undefined;
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            if (!phaseId) {
+              console.warn('⚠️ codex-phase-start missing phaseId', data);
+            } else {
+              updateCodexState(codex => {
+                let found = false;
+                const phases = codex.phases.map(phase => {
+                  if (phase.id === phaseId) {
+                    found = true;
+                    return {
+                      ...phase,
+                      title: data.title ?? phase.title,
+                      description: data.description ?? phase.description,
+                      status: 'active',
+                      startedAt: phase.startedAt ?? timestamp,
+                      spotlight: data.spotlight ?? phase.spotlight,
+                    };
+                  }
+                  if (phase.status === 'active' && phase.completedAt === undefined && phase.id !== phaseId) {
+                    return {
+                      ...phase,
+                      status: 'completed',
+                      completedAt: timestamp,
+                    };
+                  }
+                  return phase;
+                });
+
+                const nextPhases = found
+                  ? phases
+                  : sortCodexPhases([
+                      ...phases,
+                      {
+                        id: phaseId,
+                        title: data.title ?? 'In Progress',
+                        description: data.description ?? '',
+                        status: 'active',
+                        startedAt: timestamp,
+                        spotlight: data.spotlight,
+                      },
+                    ]);
+
+                return {
+                  ...codex,
+                  phases: nextPhases,
+                };
+              });
+            }
+          } else if (data.type === 'codex-phase-complete') {
+            const phaseId = data.phaseId as CodexPhaseId | undefined;
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            if (!phaseId) {
+              console.warn('⚠️ codex-phase-complete missing phaseId', data);
+            } else {
+              updateCodexState(codex => ({
+                ...codex,
+                phases: sortCodexPhases(
+                  codex.phases.map(phase =>
+                    phase.id === phaseId
+                      ? {
+                          ...phase,
+                          title: data.title ?? phase.title,
+                          description: data.description ?? phase.description,
+                          status: 'completed',
+                          completedAt: timestamp,
+                          spotlight: data.spotlight ?? phase.spotlight,
+                        }
+                      : phase
+                  )
+                ),
+              }));
+            }
+          } else if (data.type === 'codex-phase-blocked') {
+            const phaseId = data.phaseId as CodexPhaseId | undefined;
+            if (!phaseId) {
+              console.warn('⚠️ codex-phase-blocked missing phaseId', data);
+            } else {
+              updateCodexState(codex => ({
+                ...codex,
+                phases: codex.phases.map(phase =>
+                  phase.id === phaseId
+                    ? {
+                        ...phase,
+                        status: 'blocked',
+                        spotlight: data.reason ?? data.spotlight ?? phase.spotlight,
+                      }
+                    : phase
+                ),
+              }));
+            }
+          } else if (data.type === 'codex-phase-spotlight') {
+            const phaseId = data.phaseId as CodexPhaseId | undefined;
+            if (phaseId && data.spotlight) {
+              updateCodexState(codex => ({
+                ...codex,
+                phases: codex.phases.map(phase =>
+                  phase.id === phaseId ? { ...phase, spotlight: data.spotlight } : phase
+                ),
+              }));
+            }
+          } else if (data.type === 'codex-template-decision') {
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            updateCodexState(codex => ({
+              ...codex,
+              templateDecision: {
+                templateId: data.templateId ?? 'unknown-template',
+                templateName: data.templateName ?? data.displayName ?? 'Selected Template',
+                repository: data.repository,
+                branch: data.branch,
+                confidence: typeof data.confidence === 'number' ? data.confidence : undefined,
+                rationale: data.rationale ?? data.reason,
+                decidedAt: timestamp,
+              },
+            }));
+          } else if (data.type === 'codex-workspace-verified') {
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            updateCodexState(codex => ({
+              ...codex,
+              workspaceVerification: {
+                directory: data.directory ?? data.path ?? '',
+                exists: data.exists !== undefined ? Boolean(data.exists) : true,
+                discoveredEntries: Array.isArray(data.entries) ? data.entries : undefined,
+                notes: data.notes ?? data.summary,
+                verifiedAt: timestamp,
+              },
+            }));
+          } else if (data.type === 'codex-task-summary') {
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            const bullets: string[] = Array.isArray(data.bullets)
+              ? data.bullets
+              : typeof data.summary === 'string'
+                ? data.summary.split('\n').map((line: string) => line.trim()).filter(Boolean)
+                : [];
+            updateCodexState(codex => ({
+              ...codex,
+              taskSummary: {
+                headline: data.headline ?? data.title ?? 'Key Tasks Identified',
+                bullets,
+                capturedAt: timestamp,
+              },
+            }));
+          } else if (data.type === 'codex-execution-insight') {
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            const tone = ['success', 'warning', 'error', 'info'].includes(data.tone)
+              ? data.tone
+              : 'info';
+            updateCodexState(codex => {
+              const insight = {
+                id: data.id ?? `insight-${Date.now()}`,
+                text: data.text ?? data.message ?? '',
+                tone,
+                timestamp,
+              };
+
+              if (!insight.text) {
+                return codex;
+              }
+
+              const existing = codex.executionInsights ?? [];
+              const existingIndex = existing.findIndex(item => item.id === insight.id);
+              const nextInsights =
+                existingIndex >= 0
+                  ? existing.map(item => (item.id === insight.id ? insight : item))
+                  : [...existing.slice(-19), insight]; // keep last 20
+
+              return {
+                ...codex,
+                executionInsights: nextInsights,
+              };
+            });
           } else if (data.type === 'tool-input-available') {
             console.log('🧰 Tool event detected:', data.toolName);
             // Route TodoWrite to separate generation state
@@ -1361,6 +1634,7 @@ function HomeContent() {
           projectId: project.id,
           projectName: project.name,
           operationType: 'initial-build',
+          agentId: selectedAgentId,
         });
 
         console.log('✅ Fresh state created:', {
@@ -1875,7 +2149,17 @@ function HomeContent() {
                       {/* Active Build - Always show if active */}
                       {generationState?.isActive && (
                         <div>
-                          {generationState.todos && generationState.todos.length > 0 ? (
+                          {isCodexSession ? (
+                            <CodexBuildExperience
+                              codex={generationState.codex}
+                              projectName={generationState.projectName}
+                              isActive
+                              onViewFiles={() => {
+                                window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                              }}
+                              onStartServer={startDevServer}
+                            />
+                          ) : generationState.todos && generationState.todos.length > 0 ? (
                             <GenerationProgress
                               state={generationState}
                               onClose={() => updateGenerationState(null)}
@@ -1914,19 +2198,36 @@ function HomeContent() {
                       )}
 
                       {/* Completed Build (most recent) - Collapsed by default */}
-                      {!generationState?.isActive && generationState && generationState.todos && generationState.todos.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
-                          <GenerationProgress
-                            state={generationState}
-                            defaultCollapsed={true}
-                            onClose={() => updateGenerationState(null)}
-                            onViewFiles={() => {
-                              window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                            }}
-                            onStartServer={startDevServer}
-                          />
-                        </div>
+                      {!generationState?.isActive && generationState && (
+                        <>
+                          {generationState.agentId === 'openai-codex' ? (
+                            <div>
+                              <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
+                              <CodexBuildExperience
+                                codex={generationState.codex}
+                                projectName={generationState.projectName}
+                                isActive={false}
+                                onViewFiles={() => {
+                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                }}
+                                onStartServer={startDevServer}
+                              />
+                            </div>
+                          ) : generationState.todos && generationState.todos.length > 0 ? (
+                            <div>
+                              <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
+                              <GenerationProgress
+                                state={generationState}
+                                defaultCollapsed={true}
+                                onClose={() => updateGenerationState(null)}
+                                onViewFiles={() => {
+                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                }}
+                                onStartServer={startDevServer}
+                              />
+                            </div>
+                          ) : null}
+                        </>
                       )}
 
                       {/* Build History - Collapsed by default */}
@@ -1935,15 +2236,67 @@ function HomeContent() {
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Previous Builds ({buildHistory.length})</h3>
                           <div className="space-y-4">
                             {buildHistory.map((build, idx) => (
-                              <GenerationProgress
-                                key={build.id}
-                                state={build}
-                                defaultCollapsed={true}
-                                onViewFiles={() => {
-                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                }}
-                                onStartServer={startDevServer}
-                              />
+                              build.agentId === 'openai-codex' ? (
+                                <div
+                                  key={build.id}
+                                  className="rounded-2xl border border-white/10 bg-black/30 p-4 shadow-inner shadow-purple-950/20"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div>
+                                      <p className="text-sm font-semibold text-white">Codex Build Snapshot</p>
+                                      <p className="text-xs text-gray-400">
+                                        {build.startTime
+                                          ? `Started ${build.startTime.toLocaleString()}`
+                                          : 'Start time unavailable'}
+                                        {build.endTime && ` • Finished ${build.endTime.toLocaleTimeString()}`}
+                                      </p>
+                                    </div>
+                                    <CodexPhaseStrip codex={build.codex ?? createInitialCodexSessionState()} />
+                                  </div>
+
+                                  {build.codex?.taskSummary && (
+                                    <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-200">
+                                      <p className="font-medium text-white">{build.codex.taskSummary.headline}</p>
+                                      <ul className="mt-2 space-y-1.5 text-[12px] text-slate-300">
+                                        {build.codex.taskSummary.bullets.slice(0, 3).map((bullet, bulletIdx) => (
+                                          <li key={`${build.id}-bullet-${bulletIdx}`} className="flex gap-2">
+                                            <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-purple-300" />
+                                            <span className="flex-1">{bullet}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  <details className="group mt-4 rounded-xl border border-white/10 bg-white/5">
+                                    <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 text-xs font-medium text-purple-200">
+                                      <span>View detailed timeline</span>
+                                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                                    </summary>
+                                    <div className="border-t border-white/10 p-4">
+                                      <CodexBuildExperience
+                                        codex={build.codex}
+                                        projectName={build.projectName}
+                                        isActive={false}
+                                        onViewFiles={() => {
+                                          window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                        }}
+                                        onStartServer={startDevServer}
+                                      />
+                                    </div>
+                                  </details>
+                                </div>
+                              ) : (
+                                <GenerationProgress
+                                  key={build.id}
+                                  state={build}
+                                  defaultCollapsed={true}
+                                  onViewFiles={() => {
+                                    window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                  }}
+                                  onStartServer={startDevServer}
+                                />
+                              )
                             ))}
                           </div>
                         </div>
