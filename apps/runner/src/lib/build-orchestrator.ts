@@ -80,13 +80,23 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   const isCodexAgent = agent === 'openai-codex';
   let templateSelectionContext: string | undefined;
 
+  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
+  console.log(`[orchestrator] TEMPLATE HANDLING DECISION POINT`);
+  console.log(`[orchestrator]   agent value: "${agent}" (type: ${typeof agent})`);
+  console.log(`[orchestrator]   isCodexAgent check: agent === 'openai-codex' = ${isCodexAgent}`);
+  console.log(`[orchestrator]   isNewProject: ${isNewProject}`);
+  console.log(`[orchestrator]   SKIP_TEMPLATES: ${SKIP_TEMPLATES}`);
+  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
+
   if (isNewProject && !SKIP_TEMPLATES) {
     if (isCodexAgent) {
-      console.log('[orchestrator] NEW PROJECT (Codex) - Deferring template selection to agent');
+      console.log('[orchestrator] 🤖 NEW PROJECT (Codex) - Deferring template selection to agent');
+      console.log('[orchestrator]    Codex will receive template catalog and clone itself');
       templateSelectionContext = await getTemplateSelectionContext();
+      console.log(`[orchestrator]    Template catalog prepared (${templateSelectionContext.length} chars)`);
       fileTree = '';
     } else {
-      console.log('[orchestrator] NEW PROJECT - Downloading template...');
+      console.log('[orchestrator] 🎯 NEW PROJECT (Claude) - Orchestrator downloads template...');
 
       // Send initial setup todos
       templateEvents.push({
@@ -185,6 +195,14 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   } : undefined;
 
   // Generate dynamic system prompt
+  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
+  console.log(`[orchestrator] GENERATING SYSTEM PROMPT`);
+  console.log(`[orchestrator]   isNewProject: ${isNewProject}`);
+  console.log(`[orchestrator]   template: ${selectedTemplate?.name || 'none'}`);
+  console.log(`[orchestrator]   fileTree length: ${fileTree.length} chars`);
+  console.log(`[orchestrator]   hasTemplateCatalog: ${!!templateSelectionContext}`);
+  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
+
   const systemPrompt = await generateSystemPrompt({
     isNewProject,
     template: selectedTemplate,
@@ -196,15 +214,29 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     templateSelectionContext,
   });
 
+  console.log(`[orchestrator] System prompt generated (${systemPrompt.length} chars)`);
+  console.log(`[orchestrator] First 500 chars:\n${systemPrompt.substring(0, 500)}...`);
+
   // Generate full prompt
   let fullPrompt = prompt;
   if (isNewProject) {
     if (isCodexAgent) {
       fullPrompt = `${prompt}\n\nMANDATORY STEPS BEFORE CODING:\n1. Review the template catalog in your system instructions and choose the best-fitting template ID.\n2. Clone it into \"${projectName}\" using the repository and branch from the catalog: npx degit <repository>#<branch> \"${projectName}\".\n3. After cloning, create a .npmrc in the project root containing: \nenable-modules-dir=true\nshamefully-hoist=false\n4. Update all package.json \"name\" fields so the project identifies as \"${projectName}\".\n5. Verify the clone with commands like \`ls ${projectName}\` and summarize your execution plan before modifying files.`;
+      console.log(`[orchestrator] 📝 Added MANDATORY STEPS to Codex prompt`);
     } else {
       fullPrompt = `${prompt}\n\nCRITICAL: The template has ALREADY been downloaded to: ${workingDirectory}\nDO NOT run create-next-app, create-vite, or any scaffolding CLIs.\nSTART by installing dependencies, then customize the template.`;
+      console.log(`[orchestrator] 📝 Added template-ready instructions to Claude prompt`);
     }
   }
+
+  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
+  console.log(`[orchestrator] FINAL ORCHESTRATION RESULT`);
+  console.log(`[orchestrator]   isNewProject: ${isNewProject}`);
+  console.log(`[orchestrator]   template: ${selectedTemplate?.name || 'none'}`);
+  console.log(`[orchestrator]   systemPrompt length: ${systemPrompt.length}`);
+  console.log(`[orchestrator]   fullPrompt length: ${fullPrompt.length}`);
+  console.log(`[orchestrator]   hasMetadata: ${!!projectMetadata}`);
+  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
 
   return {
     isNewProject,

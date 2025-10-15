@@ -293,6 +293,14 @@ function createClaudeQuery(): BuildQueryFn {
  */
 function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
+    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(`[codex-query] BUILDING CODEX PROMPT`);
+    console.log(`[codex-query]   workingDirectory: ${workingDirectory}`);
+    console.log(`[codex-query]   CODEX_SYSTEM_PROMPT length: ${CODEX_SYSTEM_PROMPT.length} chars`);
+    console.log(`[codex-query]   orchestrator systemPrompt length: ${systemPrompt?.length || 0} chars`);
+    console.log(`[codex-query]   user prompt length: ${prompt.length} chars`);
+    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+
     const codex = await createInstrumentedCodex({
       workingDirectory,
     });
@@ -303,6 +311,13 @@ function createCodexQuery(): BuildQueryFn {
     }
 
     const combinedPrompt = `${systemParts.join('\n\n')}\n\n${prompt}`;
+
+    console.log(`[codex-query] 📨 FINAL COMBINED PROMPT TO CODEX:`);
+    console.log(`[codex-query]   Total length: ${combinedPrompt.length} chars`);
+    console.log(`[codex-query]   First 1000 chars of systemPrompt sections:`);
+    console.log(`[codex-query]   ${systemParts.join('\n\n').substring(0, 1000)}...`);
+    console.log(`[codex-query]   User prompt: "${prompt}"`);
+    console.log(`[codex-query] ═══════════════════════════════════════════════`);
 
     const thread = codex.startThread({
       sandboxMode: "danger-full-access",
@@ -946,10 +961,15 @@ export function startRunner(options: RunnerOptions = {}) {
           const reader = stream.getReader();
           const decoder = new TextDecoder();
 
+          let chunkCount = 0;
           while (true) {
             const { value, done } = await reader.read();
-            if (done) break;
+            if (done) {
+              console.log(`[build] Stream reader reports DONE after ${chunkCount} chunks`);
+              break;
+            }
             if (value === undefined || value === null) continue;
+            chunkCount++;
 
             // Decode the chunk to get the agent message object
             let agentMessage: unknown;
@@ -1084,8 +1104,13 @@ export function startRunner(options: RunnerOptions = {}) {
             }
           }
 
+          console.log(`[build] ═══════════════════════════════════════════════`);
+          console.log(`[build] STREAM ENDED - Processing final chunks`);
+          console.log(`[build] ═══════════════════════════════════════════════`);
+
           const finalChunk = decoder.decode();
           if (finalChunk) {
+            console.log(`[build] Final chunk decoded: ${finalChunk.length} chars`);
             let payload = finalChunk.startsWith("data:")
               ? finalChunk
               : `data: ${finalChunk}`;
@@ -1099,6 +1124,7 @@ export function startRunner(options: RunnerOptions = {}) {
             });
           }
 
+          console.log(`[build] Sending [DONE] signal to client`);
           sendEvent({
             type: "build-stream",
             ...buildEventBase(command.projectId, command.id),
