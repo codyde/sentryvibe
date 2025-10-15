@@ -334,16 +334,18 @@ function createCodexQuery(): BuildQueryFn {
       model: CODEX_MODEL,
       workingDirectory,
       skipGitRepoCheck: true,
-      maxTurns: 50,  // Allow multiple turns for complex tasks
     });
 
-    console.log(`[codex-query] Starting Codex thread with maxTurns: 50`);
+    console.log(`[codex-query] Starting Codex thread (single turn execution)`);
+
+    // Simple pattern from SDK samples: one runStreamed() call processes the entire turn
     const { events } = await thread.runStreamed(combinedPrompt);
-    console.log(`[codex-query] Codex thread started, processing events...`);
 
     for await (const agentMessage of convertCodexEventsToAgentMessages(events)) {
       yield agentMessage;
     }
+
+    console.log(`[codex-query] Codex turn completed`);
   };
 }
 
