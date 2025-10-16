@@ -7,6 +7,7 @@ settings:
 overrides:
   '@sentry/core': file:./apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
   '@sentry/node': file:./apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
+  '@sentry/node-core': file:./apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz
   '@sentry/nextjs': file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz
 
 importers:
@@ -61,6 +62,9 @@ importers:
       '@sentry/node':
         specifier: file:../sentryvibe/vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
+      '@sentry/node-core':
+        specifier: file:../sentryvibe/vendor/sentry-node-core-LOCAL.tgz
+        version: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentryvibe/agent-core':
         specifier: file:../../vendor/sentryvibe-agent-core-0.1.0.tgz
         version: file:vendor/sentryvibe-agent-core-0.1.0.tgz(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(react@19.1.0)(zod@4.1.12)
@@ -161,6 +165,9 @@ importers:
       '@sentry/node':
         specifier: file:vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
+      '@sentry/node-core':
+        specifier: file:vendor/sentry-node-core-LOCAL.tgz
+        version: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentryvibe/agent-core':
         specifier: file:../../vendor/sentryvibe-agent-core-0.1.0.tgz
         version: file:vendor/sentryvibe-agent-core-0.1.0.tgz(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(react@19.1.0)(zod@4.1.12)
@@ -2038,8 +2045,9 @@ packages:
     peerDependencies:
       next: ^13.2.0 || ^14.0 || ^15.0.0-rc.0
 
-  '@sentry/node-core@10.17.0':
-    resolution: {integrity: sha512-x6av2pFtsAeN+nZKkhI07cOCugTKux908DCGBlwQEw8ZjghcO5jn3unfAlKZqxZ0ktWgBcSrCM/iJ5Gk2nxPFg==}
+  '@sentry/node-core@file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz':
+    resolution: {integrity: sha512-/tNGbKNvxf5iTaXUU9TkBdLghgZ3tSJXnmR/rk3fSut0QUoPfRozprNjmaI4WZ1dQq5roaf5XQYtLt5/qCpfPw==, tarball: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz}
+    version: 10.17.0
     engines: {node: '>=18'}
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
@@ -6830,7 +6838,7 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/node-core@10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)':
+  '@sentry/node-core@file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/context-async-hooks': 2.1.0(@opentelemetry/api@1.9.0)
@@ -6876,7 +6884,7 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.37.0
       '@prisma/instrumentation': 6.15.0(@opentelemetry/api@1.9.0)
       '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
-      '@sentry/node-core': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
+      '@sentry/node-core': file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       import-in-the-middle: 1.15.0
       minimatch: 9.0.5

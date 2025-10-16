@@ -19,7 +19,11 @@ const nodeModules = path.join(packageRoot, 'node_modules');
 const packages = [
   // { name: 'node', tarball: 'sentry-node-10.17.0.tgz' },
   // { name: 'nextjs', tarball: 'sentry-nextjs-10.17.0.tgz' },
+  // { name: 'core', tarball: 'sentry-core-10.17.0.tgz' },
+  // { name: 'node-core', tarball: 'sentry-node-core-10.17.0.tgz' },
+  { name: 'core', tarball: 'sentry-core-LOCAL.tgz' },
   { name: 'node', tarball: 'sentry-node-LOCAL.tgz' },
+  { name: 'node-core', tarball: 'sentry-node-core-LOCAL.tgz' },
   { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz' },
 ];
 
