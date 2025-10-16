@@ -21,10 +21,28 @@ function sortPhases(phases: CodexPhase[]): CodexPhase[] {
     const safeA = idxA === -1 ? CODEX_PHASE_ORDER.length + 1 : idxA;
     const safeB = idxB === -1 ? CODEX_PHASE_ORDER.length + 1 : idxB;
     if (safeA === safeB) {
-      return a.title.localeCompare(b.title);
+      return (a.title ?? '').localeCompare(b.title ?? '');
     }
     return safeA - safeB;
   });
+}
+
+function toStringOr(value: unknown, fallback: string): string {
+  if (value === undefined || value === null) return fallback;
+  return String(value);
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return String(value);
+}
+
+function toOptionalStringArray(values: unknown): string[] | undefined {
+  if (!Array.isArray(values)) return undefined;
+  const mapped = values
+    .map(value => toOptionalString(value)?.trim())
+    .filter((item): item is string => !!item);
+  return mapped.length > 0 ? mapped : undefined;
 }
 
 export type CodexEvent =
@@ -39,7 +57,8 @@ export type CodexEvent =
   | { type: string; [key: string]: unknown };
 
 export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent): CodexSessionState {
-  const timestamp = rawEvent.timestamp ? new Date(rawEvent.timestamp) : new Date();
+  const timestampValue = (rawEvent as { timestamp?: string | number | Date }).timestamp;
+  const timestamp = timestampValue ? new Date(timestampValue) : new Date();
 
   switch (rawEvent.type) {
     case 'codex-phase-start': {
@@ -52,15 +71,19 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
           found = true;
           return {
             ...phase,
-            title: rawEvent.title ?? phase.title,
-            description: rawEvent.description ?? phase.description,
+            title: toOptionalString(rawEvent.title) ?? phase.title,
+            description: toOptionalString(rawEvent.description) ?? phase.description,
             status: 'active',
             startedAt: phase.startedAt ?? timestamp,
-            spotlight: rawEvent.spotlight ?? phase.spotlight,
-          };
+            spotlight: toOptionalString(rawEvent.spotlight) ?? phase.spotlight,
+          } as CodexPhase;
         }
         if (phase.status === 'active' && phase.completedAt === undefined) {
-          return { ...phase, status: 'completed', completedAt: timestamp };
+          return {
+            ...phase,
+            status: 'completed',
+            completedAt: timestamp,
+          } as CodexPhase;
         }
         return phase;
       });
@@ -71,11 +94,11 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
             ...phases,
             {
               id: phaseId,
-              title: rawEvent.title ?? 'In Progress',
-              description: rawEvent.description ?? '',
+              title: toStringOr(rawEvent.title, 'In Progress'),
+              description: toStringOr(rawEvent.description, ''),
               status: 'active',
               startedAt: timestamp,
-              spotlight: rawEvent.spotlight,
+              spotlight: toOptionalString(rawEvent.spotlight),
             },
           ];
 
@@ -95,12 +118,12 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
             phase.id === phaseId
               ? {
                   ...phase,
-                  title: rawEvent.title ?? phase.title,
-                  description: rawEvent.description ?? phase.description,
+                  title: toOptionalString(rawEvent.title) ?? phase.title,
+                  description: toOptionalString(rawEvent.description) ?? phase.description,
                   status: 'completed',
                   completedAt: timestamp,
-                  spotlight: rawEvent.spotlight ?? phase.spotlight,
-                }
+                  spotlight: toOptionalString(rawEvent.spotlight) ?? phase.spotlight,
+                } satisfies CodexPhase
               : phase
           )
         ),
@@ -117,7 +140,9 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
             ? {
                 ...phase,
                 status: 'blocked',
-                spotlight: rawEvent.reason ?? rawEvent.spotlight ?? phase.spotlight,
+                spotlight: toOptionalString(rawEvent.reason)
+                  ?? toOptionalString(rawEvent.spotlight)
+                  ?? phase.spotlight,
               }
             : phase
         ),
@@ -130,7 +155,9 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       return {
         ...state,
         phases: state.phases.map(phase =>
-          phase.id === phaseId ? { ...phase, spotlight: rawEvent.spotlight } : phase
+          phase.id === phaseId
+            ? { ...phase, spotlight: toOptionalString(rawEvent.spotlight) ?? phase.spotlight }
+            : phase
         ),
       };
     }
@@ -138,12 +165,15 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       return {
         ...state,
         templateDecision: {
-          templateId: rawEvent.templateId ?? 'unknown-template',
-          templateName: rawEvent.templateName ?? rawEvent.displayName ?? 'Selected Template',
-          repository: rawEvent.repository,
-          branch: rawEvent.branch,
+          templateId: toStringOr(rawEvent.templateId, 'unknown-template'),
+          templateName:
+            toOptionalString(rawEvent.templateName)
+            ?? toOptionalString(rawEvent.displayName)
+            ?? 'Selected Template',
+          repository: toOptionalString(rawEvent.repository),
+          branch: toOptionalString(rawEvent.branch),
           confidence: typeof rawEvent.confidence === 'number' ? rawEvent.confidence : undefined,
-          rationale: rawEvent.rationale ?? rawEvent.reason,
+          rationale: toOptionalString(rawEvent.rationale) ?? toOptionalString(rawEvent.reason),
           decidedAt: timestamp,
         },
       };
@@ -152,17 +182,19 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       return {
         ...state,
         workspaceVerification: {
-          directory: rawEvent.directory ?? rawEvent.path ?? '',
+          directory: toOptionalString(rawEvent.directory)
+            ?? toOptionalString(rawEvent.path)
+            ?? '',
           exists: rawEvent.exists !== undefined ? Boolean(rawEvent.exists) : true,
-          discoveredEntries: Array.isArray(rawEvent.entries) ? rawEvent.entries : undefined,
-          notes: rawEvent.notes ?? rawEvent.summary,
+          discoveredEntries: toOptionalStringArray(rawEvent.entries),
+          notes: toOptionalString(rawEvent.notes) ?? toOptionalString(rawEvent.summary),
           verifiedAt: timestamp,
         },
       };
     }
     case 'codex-task-summary': {
       const bullets = Array.isArray(rawEvent.bullets)
-        ? rawEvent.bullets
+        ? toOptionalStringArray(rawEvent.bullets) ?? []
         : typeof rawEvent.summary === 'string'
           ? rawEvent.summary.split('\n').map(line => line.trim()).filter(Boolean)
           : [];
@@ -170,7 +202,9 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       return {
         ...state,
         taskSummary: {
-          headline: rawEvent.headline ?? rawEvent.title ?? 'Key Tasks Identified',
+          headline: toOptionalString(rawEvent.headline)
+            ?? toOptionalString(rawEvent.title)
+            ?? 'Key Tasks Identified',
           bullets,
           capturedAt: timestamp,
         },
@@ -181,14 +215,14 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       if (!text) return state;
 
       const tone: CodexExecutionInsight['tone'] = ['success', 'warning', 'error', 'info'].includes(
-        rawEvent.tone as string
+        toStringOr(rawEvent.tone, '')
       )
         ? (rawEvent.tone as CodexExecutionInsight['tone'])
         : 'info';
 
       const insight = {
-        id: rawEvent.id ?? `insight-${Date.now()}`,
-        text,
+        id: toOptionalString(rawEvent.id) ?? `insight-${Date.now()}`,
+        text: toStringOr(text, ''),
         tone,
         timestamp,
       };

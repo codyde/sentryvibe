@@ -49,12 +49,8 @@ CRITICAL: The template has already been prepared in ${context.workingDirectory}.
 }
 
 const claudeStrategy: AgentStrategy = {
-  buildSystemPromptSections(context) {
-    return buildClaudeSections(context);
-  },
-  buildFullPrompt(context, basePrompt) {
-    return buildFullPrompt(context, basePrompt);
-  },
+  buildSystemPromptSections: buildClaudeSections,
+  buildFullPrompt,
   shouldDownloadTemplate(context) {
     return context.isNewProject && !context.skipTemplates;
   },
