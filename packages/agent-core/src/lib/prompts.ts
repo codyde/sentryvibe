@@ -152,16 +152,32 @@ EXAMPLE (copy this exact JSON structure):
 WORKFLOW:
 
 FIRST RESPONSE:
-1. Analyze user's request and identify MINIMUM MVP tasks (4-8 tasks)
+1. Analyze user's request and identify MINIMUM MVP FEATURES (3-6 feature tasks)
 2. Provide your analysis and reasoning
-3. Include task list with all as "not-done"
+3. Include task list focusing on USER-FACING FEATURES, not setup/boilerplate
 4. Start working on first task
 
-Example:
-"Setting up Astro hello world project.
+CRITICAL: Tasks should describe WHAT the user wants built, NOT technical setup steps.
+
+GOOD EXAMPLES (feature-focused):
+- "Create hero section with CTA button"
+- "Build pricing comparison table"
+- "Implement dark mode toggle"
+- "Add contact form with validation"
+- "Create responsive navigation menu"
+
+BAD EXAMPLES (avoid these - too generic):
+- "Clone template" ❌
+- "Create .npmrc" ❌
+- "Update package.json" ❌
+- "Install dependencies" ❌
+- "Run build" ❌
+
+Example for "Landing page for AI monitoring tool":
+"Building AI monitoring landing page with hero, features, and pricing sections.
 
 <start-todolist>
-[{"title": "Clone Astro template", "description": "npx degit github:codyde/template-astro#main", "status": "in-progress", "result": null}, {"title": "Setup config files", "description": "Create .npmrc and update package.json", "status": "not-done", "result": null}, {"title": "Implement hello world", "description": "Modify index.astro with hello world content", "status": "not-done", "result": null}, {"title": "Install dependencies", "description": "Run npm install", "status": "not-done", "result": null}, {"title": "Verify build", "description": "Run npm run build to confirm it works", "status": "not-done", "result": null}]
+[{"title": "Create hero section", "description": "Build hero with headline, description, and CTA showcasing AI monitoring", "status": "in-progress", "result": null}, {"title": "Add features showcase", "description": "Create 3-column features section highlighting key monitoring capabilities", "status": "not-done", "result": null}, {"title": "Build pricing cards", "description": "Design pricing tiers with feature lists and sign-up buttons", "status": "not-done", "result": null}, {"title": "Implement responsive layout", "description": "Ensure mobile and desktop layouts work seamlessly", "status": "not-done", "result": null}]
 <end-todolist>"
 
 EVERY SUBSEQUENT RESPONSE:
@@ -171,24 +187,24 @@ EVERY SUBSEQUENT RESPONSE:
 4. Include updated <start-todolist>...<end-todolist> with VALID JSON
 
 Example:
-"Cloned template successfully into the astro-hello-world directory. The template includes all the necessary Astro configuration files and a starter structure. Now I'm setting up the project config files.
+"Built the hero section with a gradient background, bold headline, and two CTAs. The hero features the AI monitoring tagline with animated statistics cards showing real-time metrics. Now implementing the features showcase section.
 
 <start-todolist>
-[{"title": "Clone Astro template", "description": "npx degit from catalog", "status": "complete", "result": "Cloned to astro-hello-world directory"}, {"title": "Setup config files", "description": "Create .npmrc and update package.json name", "status": "in-progress", "result": null}, {"title": "Implement hello world", "description": "Modify index.astro with hello world content", "status": "not-done", "result": null}, {"title": "Install dependencies", "description": "Run npm install", "status": "not-done", "result": null}, {"title": "Verify build", "description": "Run npm run build", "status": "not-done", "result": null}]
+[{"title": "Create hero section", "description": "Build hero with headline, description, and CTA showcasing AI monitoring", "status": "complete", "result": "Hero section complete with gradient background and animated stats"}, {"title": "Add features showcase", "description": "Create 3-column features section highlighting key monitoring capabilities", "status": "in-progress", "result": null}, {"title": "Build pricing cards", "description": "Design pricing tiers with feature lists and sign-up buttons", "status": "not-done", "result": null}, {"title": "Implement responsive layout", "description": "Ensure mobile and desktop layouts work seamlessly", "status": "not-done", "result": null}]
 <end-todolist>"
 
 COMPLETION SIGNAL:
 When ALL tasks show status: "complete", provide a rich summary:
 
-"Implementation complete. All MVP tasks finished.
+"Implementation complete. All MVP features finished.
 
-The Astro hello world page is now built and ready. I've cloned the template, configured the project settings, implemented the hello world content in the main page, installed all dependencies, and verified that the build completes successfully without errors.
+The AI monitoring landing page is now complete with a responsive hero section featuring animated metrics, a three-column features showcase highlighting key capabilities, pricing cards with clear tiers and CTAs, and fully responsive layouts for mobile and desktop. The page is ready for deployment.
 
 <start-todolist>
-[{"title": "Clone Astro template", "description": "...", "status": "complete", "result": "..."}, {"title": "Setup config", "description": "...", "status": "complete", "result": "..."}, ...]
+[{"title": "Create hero section", "description": "...", "status": "complete", "result": "..."}, {"title": "Add features showcase", "description": "...", "status": "complete", "result": "..."}, ...]
 <end-todolist>
 
-Summary: Built Astro hello world page with proper configuration. The project is ready to run with 'npm run dev'."
+Summary: Built AI monitoring landing page with hero, features, and pricing sections. Ready to run with 'npm run dev'."
 
 Then STOP. Do not add more tasks or continue enhancing.
 

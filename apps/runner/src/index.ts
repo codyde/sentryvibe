@@ -347,8 +347,17 @@ function createCodexQuery(): BuildQueryFn {
     while (turnCount < MAX_TURNS) {
       turnCount++;
       console.log(`[codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
+      console.log(`[codex-query]   nextPrompt length: ${nextPrompt.length} chars`);
+      console.log(`[codex-query]   First 200 chars: ${nextPrompt.substring(0, 200)}`);
 
-      const { events } = await thread.runStreamed(nextPrompt);
+      let events;
+      try {
+        const result = await thread.runStreamed(nextPrompt);
+        events = result.events;
+      } catch (error) {
+        console.error(`[codex-query] ❌ ERROR in thread.runStreamed():`, error);
+        throw error;
+      }
 
       let hadToolCalls = false;
       let lastMessage = '';
@@ -405,6 +414,8 @@ function createCodexQuery(): BuildQueryFn {
       }
 
       console.log(`[codex-query] Turn ${turnCount} complete. Tool calls: ${hadToolCalls}`);
+      console.log(`[codex-query]   lastMessage length: ${lastMessage.length} chars`);
+      console.log(`[codex-query]   todoList present: ${!!todoList}`);
 
       // Check if all tasks are complete by parsing todolist
       let allTasksComplete = false;
@@ -421,6 +432,10 @@ function createCodexQuery(): BuildQueryFn {
       }
 
       // Decide if we should continue
+      console.log(`[codex-query] Decision time:`);
+      console.log(`[codex-query]   allTasksComplete: ${allTasksComplete}`);
+      console.log(`[codex-query]   hadToolCalls: ${hadToolCalls}`);
+
       if (allTasksComplete) {
         console.log(`[codex-query] ✅ All MVP tasks complete!`);
         break;
@@ -453,6 +468,7 @@ Work on the next incomplete task and update the list.`
         }
       } else {
         // Had tool calls - continue with task list
+        console.log(`[codex-query] ⏭️  Continuing to next turn (had tool calls)`);
         if (todoList) {
           nextPrompt = `Continue towards MVP completion. Latest progress:
 
@@ -461,6 +477,7 @@ ${todoList}
 <end-todolist>
 
 Next: Work on the next incomplete task. After each action, provide an update with the task list showing updated statuses. When ALL tasks are complete, signal completion.`;
+          console.log(`[codex-query]   Set nextPrompt with todoList (${nextPrompt.length} chars)`);
         } else {
           nextPrompt = `Continue working.
 
@@ -469,9 +486,16 @@ CRITICAL: Include your task list in EVERY response using:
 <start-todolist>
 [{title: "Task", description: "Details", status: "not-done", result: null}]
 <end-todolist>`;
+          console.log(`[codex-query]   Set nextPrompt without todoList (${nextPrompt.length} chars)`);
         }
       }
     }
+
+    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(`[codex-query] EXITED WHILE LOOP`);
+    console.log(`[codex-query]   turnCount: ${turnCount}`);
+    console.log(`[codex-query]   MAX_TURNS: ${MAX_TURNS}`);
+    console.log(`[codex-query] ═══════════════════════════════════════════════`);
 
     console.log(`[codex-query] Session complete after ${turnCount} turns`);
   };

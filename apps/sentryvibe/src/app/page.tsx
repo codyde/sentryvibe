@@ -2152,16 +2152,23 @@ function HomeContent() {
                       {generationState?.isActive && (
                         <div>
                           {isCodexSession ? (
-                            <CodexBuildExperience
-                              codex={generationState.codex}
-                              projectName={generationState.projectName}
-                              isActive
-                              todos={generationState.todos}
-                              onViewFiles={() => {
-                                window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                              }}
-                              onStartServer={startDevServer}
-                            />
+                            generationState.todos && generationState.todos.length > 0 ? (
+                              <CodexBuildExperience
+                                codex={generationState.codex}
+                                projectName={generationState.projectName}
+                                isActive
+                                todos={generationState.todos}
+                                onViewFiles={() => {
+                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                }}
+                                onStartServer={startDevServer}
+                              />
+                            ) : (
+                              <InitializingCard
+                                projectName={generationState.projectName}
+                                message="Analyzing your request and planning MVP features..."
+                              />
+                            )
                           ) : generationState.todos && generationState.todos.length > 0 ? (
                             <GenerationProgress
                               state={generationState}
