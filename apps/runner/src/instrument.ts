@@ -27,6 +27,7 @@ const sentryOptions: RunnerSentryOptions = {
   ],
   tracesSampleRate: 1.0,
   enableLogs: true,
+  debug: true,
   sendDefaultPii: true,
 };
 
