@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from 'fs';
-
-type AgentId = 'claude-code' | 'openai-codex';
+import path from 'path';
+import type { AgentId } from '@sentryvibe/agent-core/types/agent';
+import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
 
 type BuildQueryFn = (
   prompt: string,
@@ -11,6 +12,7 @@ type BuildQueryFn = (
 
 interface BuildStreamOptions {
   projectId: string;
+  projectName: string;
   prompt: string;
   operationType: string;
   context?: Record<string, unknown>;
@@ -29,20 +31,27 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
 
   // For Codex on NEW projects, use parent directory as CWD (Codex will create the project dir)
   // For everything else, use the project directory
-  const isCodexNewProject = agent === 'openai-codex' && isNewProject;
+  const strategy = resolveAgentStrategy(agent);
+  const projectName = options.projectName || path.basename(workingDirectory);
+  const strategyContext = {
+    projectId: options.projectId,
+    projectName,
+    prompt,
+    workingDirectory,
+    operationType: options.operationType,
+    isNewProject: !!isNewProject,
+  };
 
-  let actualWorkingDir = workingDirectory;
-  if (isCodexNewProject) {
-    // Use parent directory - Codex will create the project subdirectory
-    const path = await import('path');
-    actualWorkingDir = path.dirname(workingDirectory);
-    console.log(`[engine] Codex NEW project - using parent dir as CWD: ${actualWorkingDir}`);
-    console.log(`[engine] Codex will create: ${path.basename(workingDirectory)}`);
-  } else {
-    // Ensure the working directory exists for Claude or existing projects
-    if (!existsSync(workingDirectory)) {
-      mkdirSync(workingDirectory, { recursive: true });
-    }
+  const resolvedDir = strategy.resolveWorkingDirectory?.(strategyContext);
+  const actualWorkingDir = resolvedDir ?? workingDirectory;
+
+  if (resolvedDir) {
+    console.log(`[engine] Strategy adjusted CWD to: ${actualWorkingDir}`);
+  } else if (!existsSync(workingDirectory)) {
+    mkdirSync(workingDirectory, { recursive: true });
+  }
+
+  if (!resolvedDir) {
     console.log(`[engine] Using project directory as CWD: ${actualWorkingDir}`);
   }
 

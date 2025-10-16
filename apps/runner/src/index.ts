@@ -1134,6 +1134,7 @@ export function startRunner(options: RunnerOptions = {}) {
 
           const stream = await createBuildStream({
             projectId: command.projectId,
+            projectName,
             prompt: orchestration.fullPrompt,
             operationType: command.payload.operationType,
             context: command.payload.context,

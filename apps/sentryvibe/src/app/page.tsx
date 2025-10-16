@@ -33,6 +33,7 @@ import type {
 } from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { detectOperationType, createFreshGenerationState, validateGenerationState, createInitialCodexSessionState } from '@sentryvibe/agent-core/lib/build-helpers';
+import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
 import ElementChangeCard from '@/components/ElementChangeCard';
 import InitializingCard from '@/components/InitializingCard';
 
@@ -1085,177 +1086,10 @@ function HomeContent() {
             }
           } else if (data.type === 'text-end') {
             console.log('✅ Text block finished:', data.id);
-          } else if (data.type === 'codex-phase-start') {
-            const phaseId = data.phaseId as CodexPhaseId | undefined;
-            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-            if (!phaseId) {
-              console.warn('⚠️ codex-phase-start missing phaseId', data);
-            } else {
-              updateCodexState(codex => {
-                let found = false;
-                const phases = codex.phases.map(phase => {
-                  if (phase.id === phaseId) {
-                    found = true;
-                    return {
-                      ...phase,
-                      title: data.title ?? phase.title,
-                      description: data.description ?? phase.description,
-                      status: 'active',
-                      startedAt: phase.startedAt ?? timestamp,
-                      spotlight: data.spotlight ?? phase.spotlight,
-                    };
-                  }
-                  if (phase.status === 'active' && phase.completedAt === undefined && phase.id !== phaseId) {
-                    return {
-                      ...phase,
-                      status: 'completed',
-                      completedAt: timestamp,
-                    };
-                  }
-                  return phase;
-                });
-
-                const nextPhases = found
-                  ? phases
-                  : sortCodexPhases([
-                      ...phases,
-                      {
-                        id: phaseId,
-                        title: data.title ?? 'In Progress',
-                        description: data.description ?? '',
-                        status: 'active',
-                        startedAt: timestamp,
-                        spotlight: data.spotlight,
-                      },
-                    ]);
-
-                return {
-                  ...codex,
-                  phases: nextPhases,
-                };
-              });
-            }
-          } else if (data.type === 'codex-phase-complete') {
-            const phaseId = data.phaseId as CodexPhaseId | undefined;
-            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-            if (!phaseId) {
-              console.warn('⚠️ codex-phase-complete missing phaseId', data);
-            } else {
-              updateCodexState(codex => ({
-                ...codex,
-                phases: sortCodexPhases(
-                  codex.phases.map(phase =>
-                    phase.id === phaseId
-                      ? {
-                          ...phase,
-                          title: data.title ?? phase.title,
-                          description: data.description ?? phase.description,
-                          status: 'completed',
-                          completedAt: timestamp,
-                          spotlight: data.spotlight ?? phase.spotlight,
-                        }
-                      : phase
-                  )
-                ),
-              }));
-            }
-          } else if (data.type === 'codex-phase-blocked') {
-            const phaseId = data.phaseId as CodexPhaseId | undefined;
-            if (!phaseId) {
-              console.warn('⚠️ codex-phase-blocked missing phaseId', data);
-            } else {
-              updateCodexState(codex => ({
-                ...codex,
-                phases: codex.phases.map(phase =>
-                  phase.id === phaseId
-                    ? {
-                        ...phase,
-                        status: 'blocked',
-                        spotlight: data.reason ?? data.spotlight ?? phase.spotlight,
-                      }
-                    : phase
-                ),
-              }));
-            }
-          } else if (data.type === 'codex-phase-spotlight') {
-            const phaseId = data.phaseId as CodexPhaseId | undefined;
-            if (phaseId && data.spotlight) {
-              updateCodexState(codex => ({
-                ...codex,
-                phases: codex.phases.map(phase =>
-                  phase.id === phaseId ? { ...phase, spotlight: data.spotlight } : phase
-                ),
-              }));
-            }
-          } else if (data.type === 'codex-template-decision') {
-            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-            updateCodexState(codex => ({
-              ...codex,
-              templateDecision: {
-                templateId: data.templateId ?? 'unknown-template',
-                templateName: data.templateName ?? data.displayName ?? 'Selected Template',
-                repository: data.repository,
-                branch: data.branch,
-                confidence: typeof data.confidence === 'number' ? data.confidence : undefined,
-                rationale: data.rationale ?? data.reason,
-                decidedAt: timestamp,
-              },
-            }));
-          } else if (data.type === 'codex-workspace-verified') {
-            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-            updateCodexState(codex => ({
-              ...codex,
-              workspaceVerification: {
-                directory: data.directory ?? data.path ?? '',
-                exists: data.exists !== undefined ? Boolean(data.exists) : true,
-                discoveredEntries: Array.isArray(data.entries) ? data.entries : undefined,
-                notes: data.notes ?? data.summary,
-                verifiedAt: timestamp,
-              },
-            }));
-          } else if (data.type === 'codex-task-summary') {
-            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-            const bullets: string[] = Array.isArray(data.bullets)
-              ? data.bullets
-              : typeof data.summary === 'string'
-                ? data.summary.split('\n').map((line: string) => line.trim()).filter(Boolean)
-                : [];
-            updateCodexState(codex => ({
-              ...codex,
-              taskSummary: {
-                headline: data.headline ?? data.title ?? 'Key Tasks Identified',
-                bullets,
-                capturedAt: timestamp,
-              },
-            }));
-          } else if (data.type === 'codex-execution-insight') {
-            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-            const tone = ['success', 'warning', 'error', 'info'].includes(data.tone)
-              ? data.tone
-              : 'info';
+          } else if (data.type?.startsWith('codex-')) {
             updateCodexState(codex => {
-              const insight = {
-                id: data.id ?? `insight-${Date.now()}`,
-                text: data.text ?? data.message ?? '',
-                tone,
-                timestamp,
-              };
-
-              if (!insight.text) {
-                return codex;
-              }
-
-              const existing = codex.executionInsights ?? [];
-              const existingIndex = existing.findIndex(item => item.id === insight.id);
-              const nextInsights =
-                existingIndex >= 0
-                  ? existing.map(item => (item.id === insight.id ? insight : item))
-                  : [...existing.slice(-19), insight]; // keep last 20
-
-              return {
-                ...codex,
-                executionInsights: nextInsights,
-              };
+              const strategy = resolveAgentStrategy('openai-codex');
+              return strategy.processRunnerEvent?.(codex, data as any) ?? codex;
             });
           } else if (data.type === 'tool-input-available') {
             console.log('🧰 Tool event detected:', data.toolName, 'toolCallId:', data.toolCallId);

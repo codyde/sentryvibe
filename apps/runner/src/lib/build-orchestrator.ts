@@ -4,12 +4,13 @@
  */
 
 import { existsSync } from 'fs';
-import { readdir, readFile } from 'fs/promises';
+import { readdir } from 'fs/promises';
 import { join } from 'path';
 import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';
 import { type AgentId } from '@sentryvibe/agent-core';
+import { resolveAgentStrategy, type AgentStrategyContext } from '@sentryvibe/agent-core/lib/agents';
 
 export interface BuildContext {
   projectId: string;
@@ -49,6 +50,16 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   let selectedTemplate: Template | null = null;
   let fileTree = '';
   const templateEvents: Array<{type: string; data: any}> = [];
+  const strategy = resolveAgentStrategy(agent);
+  const strategyContext: AgentStrategyContext = {
+    projectId,
+    projectName,
+    prompt,
+    workingDirectory,
+    operationType,
+    isNewProject,
+    workspaceRoot,
+  };
 
   // Log the determination
   if (isNewProject) {
@@ -76,24 +87,20 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
 
   // Handle NEW projects - download template
   const SKIP_TEMPLATES = process.env.SKIP_TEMPLATES === 'true';
+  strategyContext.skipTemplates = SKIP_TEMPLATES;
 
-  const isCodexAgent = agent === 'openai-codex';
   let templateSelectionContext: string | undefined;
 
-  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
-  console.log(`[orchestrator] TEMPLATE HANDLING DECISION POINT`);
-  console.log(`[orchestrator]   agent value: "${agent}" (type: ${typeof agent})`);
-  console.log(`[orchestrator]   isCodexAgent check: agent === 'openai-codex' = ${isCodexAgent}`);
-  console.log(`[orchestrator]   isNewProject: ${isNewProject}`);
-  console.log(`[orchestrator]   SKIP_TEMPLATES: ${SKIP_TEMPLATES}`);
-  console.log(`[orchestrator] ═══════════════════════════════════════════════`);
-
   if (isNewProject && !SKIP_TEMPLATES) {
-    if (isCodexAgent) {
-      console.log('[orchestrator] 🤖 NEW PROJECT (Codex) - Deferring template selection to agent');
-      console.log('[orchestrator]    Codex will receive template catalog and clone itself');
-      templateSelectionContext = await getTemplateSelectionContext();
-      console.log(`[orchestrator]    Template catalog prepared (${templateSelectionContext.length} chars)`);
+    const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
+    if (!shouldDownload) {
+      console.log('[orchestrator] 🤖 NEW PROJECT (Agent-managed template) - Deferring template selection to agent');
+      templateSelectionContext = typeof strategy.getTemplateSelectionContext === 'function'
+        ? await strategy.getTemplateSelectionContext(strategyContext)
+        : await getTemplateSelectionContext();
+      if (templateSelectionContext) {
+        console.log(`[orchestrator]    Template catalog prepared (${templateSelectionContext.length} chars)`);
+      }
       fileTree = '';
     } else {
       console.log('[orchestrator] 🎯 NEW PROJECT (Claude) - Orchestrator downloads template...');
@@ -186,8 +193,21 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     fileTree = await getProjectFileTree(workingDirectory);
   }
 
+  strategyContext.templateSelectionContext = templateSelectionContext;
+  strategyContext.fileTree = fileTree;
+  strategyContext.templateName = selectedTemplate?.name;
+  strategyContext.templateFramework = selectedTemplate?.tech.framework;
+
+  if (selectedTemplate) {
+    strategy.postTemplateSelected?.(strategyContext, {
+      name: selectedTemplate.name,
+      framework: selectedTemplate.tech.framework,
+      fileTree,
+    });
+  }
+
   // Prepare project metadata (for new projects with templates)
-  const projectMetadata = !isCodexAgent && isNewProject && selectedTemplate ? {
+  const projectMetadata = agent !== 'openai-codex' && isNewProject && selectedTemplate ? {
     path: workingDirectory,
     projectType: selectedTemplate.tech.framework,
     runCommand: selectedTemplate.setup.devCommand,
@@ -203,16 +223,8 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   console.log(`[orchestrator]   hasTemplateCatalog: ${!!templateSelectionContext}`);
   console.log(`[orchestrator] ═══════════════════════════════════════════════`);
 
-  const systemPrompt = await generateSystemPrompt({
-    isNewProject,
-    template: selectedTemplate,
-    projectName,
-    projectPath: workingDirectory,
-    workspaceRoot,
-    fileTree,
-    agent,
-    templateSelectionContext,
-  });
+  const systemPromptSections = await strategy.buildSystemPromptSections(strategyContext);
+  const systemPrompt = systemPromptSections.join('\n\n');
 
   console.log(`[orchestrator] System prompt generated (${systemPrompt.length} chars)`);
   console.log(`[orchestrator] First 500 chars:\n${systemPrompt.substring(0, 500)}...`);
@@ -223,34 +235,7 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     console.log(`[orchestrator] First 1200 chars of catalog:\n${templateSelectionContext.substring(0, 1200)}...`);
   }
 
-  // Generate full prompt
-  let fullPrompt = prompt;
-  if (isNewProject) {
-    if (isCodexAgent) {
-      fullPrompt = `USER REQUEST: ${prompt}
-
-SETUP STEPS (complete these FIRST, then implement the user's request above):
-1. Clone the appropriate template (see EXACT CLONE COMMANDS in your instructions)
-2. cd ${projectName}
-3. Create .npmrc with required settings
-4. Update package.json "name" field to "${projectName}"
-
-IMPLEMENTATION STEPS:
-5. Modify the template files to satisfy the user's request (MVP only)
-6. Install dependencies if needed
-7. Verify the core functionality works
-
-COMPLETION:
-When the user's request is satisfied at an MVP level, respond with:
-"Implementation complete. Summary: [brief description of what was built]"
-
-DO NOT continue enhancing or adding features beyond the user's request.`;
-      console.log(`[orchestrator] 📝 Added SETUP STEPS + implementation instructions to Codex prompt`);
-    } else {
-      fullPrompt = `${prompt}\n\nCRITICAL: The template has ALREADY been downloaded to: ${workingDirectory}\nDO NOT run create-next-app, create-vite, or any scaffolding CLIs.\nSTART by installing dependencies, then customize the template.`;
-      console.log(`[orchestrator] 📝 Added template-ready instructions to Claude prompt`);
-    }
-  }
+  const fullPrompt = await strategy.buildFullPrompt(strategyContext, prompt);
 
   console.log(`[orchestrator] ═══════════════════════════════════════════════`);
   console.log(`[orchestrator] FINAL ORCHESTRATION RESULT`);
