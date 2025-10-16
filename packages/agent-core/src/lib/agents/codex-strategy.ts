@@ -1,7 +1,6 @@
 import { buildCodexTemplateCatalogSection } from './codex/template-catalog';
 import type { AgentStrategy, AgentStrategyContext } from './strategy';
 import { processCodexEvent } from './codex/events';
-import { getTemplateSelectionContext as loadTemplateCatalog } from '../templates/config';
 import type { CodexSessionState } from '@/types/generation';
 
 function getParentDirectory(filePath: string): string {
@@ -85,7 +84,12 @@ const codexStrategy: AgentStrategy = {
     if (context.templateSelectionContext) {
       return context.templateSelectionContext;
     }
-    return loadTemplateCatalog();
+    if (typeof window !== 'undefined') {
+      return undefined;
+    }
+
+    const { getTemplateSelectionContext } = await import('../templates/config.js');
+    return getTemplateSelectionContext();
   },
   processRunnerEvent<State>(state: State, event) {
     if (!state || typeof state !== 'object') {
