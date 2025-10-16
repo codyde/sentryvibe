@@ -11,6 +11,6 @@ export async function loadTemplateSelectionContext(
     return undefined;
   }
 
-  const { getTemplateSelectionContext } = await import('./config.js');
+  const { getTemplateSelectionContext } = await import('./config.server.js');
   return getTemplateSelectionContext();
 }
