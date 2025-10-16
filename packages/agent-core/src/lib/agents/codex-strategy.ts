@@ -1,4 +1,3 @@
-import 'server-only';
 import { buildCodexTemplateCatalogSection } from './codex/template-catalog';
 import type { AgentStrategy, AgentStrategyContext } from './strategy';
 import { processCodexEvent } from './codex/events';
