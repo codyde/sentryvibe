@@ -668,10 +668,13 @@ export function startRunner(options: RunnerOptions = {}) {
 
           // Don't allocate port - let the dev server choose and we'll detect it
           // Build environment without forcing a specific port
-          const envVars = {
-            ...process.env,
-            ...env,
-          };
+          // Filter out undefined values to satisfy Record<string, string> type
+          const envVars: Record<string, string> = {};
+          for (const [key, value] of Object.entries({ ...process.env, ...env })) {
+            if (value !== undefined) {
+              envVars[key] = String(value);
+            }
+          }
 
           const startTime = Date.now();
 

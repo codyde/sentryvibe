@@ -220,14 +220,20 @@ CRITICAL: ALWAYS VERIFY THE PROJECT WORKS
 
 Your final task MUST ALWAYS be:
 1. Install dependencies (npm install, pnpm install, etc.)
-2. Test that npm run dev starts successfully (run for 3-5 seconds then kill the process)
+2. Test that the dev server starts (run in background, wait 5 seconds, then kill it)
 3. Fix any startup errors before marking complete
+
+HOW TO TEST DEV SERVER (use this exact pattern):
+Command: npm run dev & ; sleep 5 ; kill $!
+
+This starts the server in background, waits 5 seconds, then kills it.
+Do NOT run 'npm run dev' without backgrounding and killing - it will hang forever.
 
 NEVER mark the build complete until you have:
 - Installed all dependencies
-- Tested that the dev server starts without errors
+- Tested that the dev server starts without errors (using the background pattern above)
 - Verified there are no missing dependencies or startup failures
-- Killed the test dev server process (do not leave it running)
+- Confirmed the dev server process was killed (not left running)
 
 If there are missing dependencies or startup errors, FIX them before completing.
 
