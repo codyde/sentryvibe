@@ -1,16 +1,9 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
 import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-
-// Note: This route uses Haiku for metadata extraction only (no filesystem access)
-// cwd is set to process.cwd() since we don't need workspace access here
-const query = Sentry.createInstrumentedClaudeQuery({
-  default: {
-    cwd: process.cwd(),
-  },
-});
+import { generateText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
 
 // GET /api/projects - List all projects from database
 export async function GET() {
@@ -44,8 +37,10 @@ export async function POST(req: Request) {
       console.log(`   Attempt ${attempts}/${maxAttempts}...`);
 
       try {
-        // Use Haiku to extract metadata
-        const metadataStream = query({
+        // Use Haiku to extract metadata via direct Anthropic API call
+        const result = await generateText({
+          model: anthropic('claude-3-5-haiku-20241022'),
+          system: 'Output valid JSON only. No markdown. No explanations.',
           prompt: `User wants to build: "${prompt}"
 
 Generate project metadata as JSON.
@@ -54,30 +49,9 @@ Icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, Mess
 
 Output ONLY this JSON (no text before or after):
 {"slug":"kebab-case-name","friendlyName":"Friendly Name","description":"Brief description","icon":"IconName"}`,
-          inputMessages: [],
-          options: {
-            model: 'claude-3-5-haiku-20241022',
-            maxTurns: 1,
-            systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
-          },
         });
 
-        // Parse the response with timeout
-        const timeout = setTimeout(() => {
-          console.warn('⚠️  Haiku response timeout after 8 seconds');
-        }, 8000);
-
-        for await (const message of metadataStream) {
-          if (message.type === 'assistant' && message.message?.content) {
-            for (const block of message.message.content) {
-              if (block.type === 'text' && block.text) {
-                jsonResponse += block.text;
-              }
-            }
-          }
-        }
-
-        clearTimeout(timeout);
+        jsonResponse = result.text;
 
         if (jsonResponse && jsonResponse.trim().length > 0) {
           console.log(`✅ Got response on attempt ${attempts}`);
