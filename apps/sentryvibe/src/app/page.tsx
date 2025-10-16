@@ -1268,6 +1268,10 @@ function HomeContent() {
               console.log('   Todos count:', todos.length);
               console.log('   Current generationState exists?', !!generationState);
               console.log('   Current todos in state:', generationState?.todos?.length);
+
+              // Find the active todo index (first in_progress, or -1 if none)
+              const activeIndex = todos.findIndex(t => t.status === 'in_progress');
+              console.log('   Active todo index:', activeIndex);
               console.log('   Incoming todos:', todos.map(t => `${t.status}:${t.content}`).join(' | '));
 
               updateGenerationState(prev => {
@@ -1276,8 +1280,6 @@ function HomeContent() {
                   console.error('❌ Cannot update todos - generationState is null!');
                   return prev;
                 }
-
-                const activeIndex = todos.findIndex(t => t.status === 'in_progress');
 
                 const updated = {
                   ...baseState,

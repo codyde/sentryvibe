@@ -224,12 +224,12 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
       exit={{ opacity: 0, y: -20 }}
       className="w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95 shadow-2xl backdrop-blur-sm"
     >
-      {/* Header - Clickable when complete */}
+      {/* Header - Always clickable when there are todos */}
       <div
         className={`relative border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-4 py-3 ${
-          isComplete ? 'cursor-pointer hover:bg-purple-500/5 transition-colors' : ''
+          total > 0 ? 'cursor-pointer hover:bg-purple-500/5 transition-colors' : ''
         }`}
-        onClick={() => isComplete && setIsCardExpanded(!isCardExpanded)}
+        onClick={() => total > 0 && setIsCardExpanded(!isCardExpanded)}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
@@ -250,7 +250,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 </p>
               ) : (
                 <p className="text-xs text-gray-400">
-                  {total} tasks completed • Click to expand
+                  {completed} of {total} complete • Click to expand
                 </p>
               )}
             </div>
@@ -261,7 +261,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 {Math.round(progress)}%
               </div>
             </div>
-            {isComplete && (
+            {total > 0 && (
               <div className="ml-2">
                 {isCardExpanded ? (
                   <ChevronUp className="w-5 h-5 text-gray-400" />

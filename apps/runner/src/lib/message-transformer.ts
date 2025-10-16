@@ -180,32 +180,23 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
 
           const textBlockId = `${assistantMessageId}-text-${Date.now()}-${Math.random()}`;
 
-          // Check if this is reasoning (starts with **) - send as reasoning event
-          const isReasoning = trimmed.startsWith('**') && trimmed.includes('**\n');
+          // Send all text as regular text-delta events for the chat
+          // The UI will handle displaying it appropriately
+          events.push({
+            type: 'text-start',
+            id: textBlockId,
+          });
 
-          if (isReasoning) {
-            events.push({
-              type: 'data-reasoning',
-              id: textBlockId,
-              data: { message: text },
-            });
-          } else {
-            events.push({
-              type: 'text-start',
-              id: textBlockId,
-            });
+          events.push({
+            type: 'text-delta',
+            id: textBlockId,
+            delta: text,
+          });
 
-            events.push({
-              type: 'text-delta',
-              id: textBlockId,
-              delta: text,
-            });
-
-            events.push({
-              type: 'text-end',
-              id: textBlockId,
-            });
-          }
+          events.push({
+            type: 'text-end',
+            id: textBlockId,
+          });
         } else if (block.type === 'tool_use') {
           // Detect path violations
           detectPathViolations(block.name, block.input, transformerState.expectedCwd);
