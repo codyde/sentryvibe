@@ -31,7 +31,7 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
 
   // For Codex on NEW projects, use parent directory as CWD (Codex will create the project dir)
   // For everything else, use the project directory
-  const strategy = resolveAgentStrategy(agent);
+  const strategy = await resolveAgentStrategy(agent);
   const projectName = options.projectName || path.basename(workingDirectory);
   const strategyContext = {
     projectId: options.projectId,

@@ -1,3 +1,4 @@
+import 'server-only';
 import type { AgentStrategy, AgentStrategyContext } from './strategy';
 
 function buildClaudeSections(context: AgentStrategyContext): string[] {

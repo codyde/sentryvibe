@@ -1,3 +1,4 @@
+import 'server-only';
 import type { AgentStrategyContext } from '../agents/strategy';
 
 export async function loadTemplateSelectionContext(

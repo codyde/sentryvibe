@@ -50,7 +50,7 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   let selectedTemplate: Template | null = null;
   let fileTree = '';
   const templateEvents: Array<{type: string; data: any}> = [];
-  const strategy = resolveAgentStrategy(agent);
+  const strategy = await resolveAgentStrategy(agent);
   const strategyContext: AgentStrategyContext = {
     projectId,
     projectName,
