@@ -2024,7 +2024,7 @@ packages:
     engines: {node: '>=18'}
 
   '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz':
-    resolution: {integrity: sha512-Yi56UPzdeiqMtmLlVsjdEZmUhrWSY/MMnJIbLXR4ZhEL7RAajo637UUDZraxXEqdcJ96f99nBD9YWP/35blAEA==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz}
+    resolution: {integrity: sha512-eZc8bXAGxVXT6VkCvaGAbQP/2fTjfWlWdHiCgVFPX88J+U2qaMrvhHRoCPwHnqRPxkR68M61jESisQcmtHdxMw==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -2043,7 +2043,7 @@ packages:
       '@opentelemetry/semantic-conventions': ^1.37.0
 
   '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz':
-    resolution: {integrity: sha512-f97Q1DWEHfy/BVaEHLom3H3Z2373emYEUvCE2PfnU+KBN8ISsdF1MmLCtc4O6C0+ph5pUhr6u2YqXD+xYZYgLA==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
+    resolution: {integrity: sha512-+NRacczkZ9BQfFDOQVHzRkV6AaL76PqpGrMT08DENEgDwlJef6EuzApxfOpN037aNbDa0CfnF3wiqC5qlTIM1Q==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
 

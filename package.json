@@ -16,6 +16,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@sentry/core": "file:./apps/sentryvibe/vendor/sentry-core-LOCAL.tgz",
       "@sentry/node": "file:./apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
       "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz"
     }

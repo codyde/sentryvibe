@@ -23,6 +23,7 @@
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@sentry/core": "file:./vendor/sentry-core-LOCAL.tgz",
     "@sentry/nextjs": "file:./vendor/sentry-nextjs-LOCAL.tgz",
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
