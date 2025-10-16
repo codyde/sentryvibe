@@ -62,7 +62,7 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
 
   switch (rawEvent.type) {
     case 'codex-phase-start': {
-      const phaseId = rawEvent.phaseId;
+      const phaseId = rawEvent.phaseId as CodexPhaseId | undefined;
       if (!phaseId) return state;
 
       let found = false;
@@ -93,13 +93,13 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
         : [
             ...phases,
             {
-              id: phaseId,
+              id: phaseId as CodexPhaseId,
               title: toStringOr(rawEvent.title, 'In Progress'),
               description: toStringOr(rawEvent.description, ''),
               status: 'active',
               startedAt: timestamp,
               spotlight: toOptionalString(rawEvent.spotlight),
-            },
+            } satisfies CodexPhase,
           ];
 
       return {
@@ -108,7 +108,7 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       };
     }
     case 'codex-phase-complete': {
-      const phaseId = rawEvent.phaseId;
+      const phaseId = rawEvent.phaseId as CodexPhaseId | undefined;
       if (!phaseId) return state;
 
       return {
@@ -130,7 +130,7 @@ export function processCodexEvent(state: CodexSessionState, rawEvent: CodexEvent
       };
     }
     case 'codex-phase-blocked': {
-      const phaseId = rawEvent.phaseId;
+      const phaseId = rawEvent.phaseId as CodexPhaseId | undefined;
       if (!phaseId) return state;
 
       return {

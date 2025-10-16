@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./lib/agents": {
+      "types": "./dist/lib/agents/index.d.ts",
+      "default": "./dist/lib/agents/index.js"
+    },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
