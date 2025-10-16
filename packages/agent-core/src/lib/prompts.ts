@@ -220,30 +220,16 @@ CRITICAL: ALWAYS VERIFY THE PROJECT WORKS
 
 Your final task MUST ALWAYS be:
 1. Install dependencies (npm install, pnpm install, etc.)
-2. Test that the dev server starts (run for 3-5 seconds then kill)
+2. Test that npm run dev starts successfully (run for 3-5 seconds then kill the process)
 3. Fix any startup errors before marking complete
-
-HOW TO VERIFY DEV SERVER:
-```bash
-# Start the dev server in background
-npm run dev &
-DEV_PID=$!
-
-# Wait a few seconds for it to start
-sleep 5
-
-# Kill the dev server (don't leave it running)
-kill $DEV_PID
-```
 
 NEVER mark the build complete until you have:
 - Installed all dependencies
-- Tested 'npm run dev' starts without errors (then killed it)
-- Confirmed no missing dependencies or startup failures
+- Tested that the dev server starts without errors
+- Verified there are no missing dependencies or startup failures
+- Killed the test dev server process (do not leave it running)
 
 If there are missing dependencies or startup errors, FIX them before completing.
-
-DO NOT leave the dev server running in the background.
 
 ═══════════════════════════════════════════════════════════════════
 The task list is extracted by the system and shown in the UI. It MUST be present and properly formatted in EVERY response.
