@@ -1156,15 +1156,14 @@ export function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
-        Sentry.startSpan({
-          name: "start-build",
-          forceTransaction: true,
-          attributes: {
-            projectId: command.projectId,
-            projectSlug: command.payload.projectSlug,
-            projectName: command.payload.projectName,
-          },
-        }, async (span) => {
+        // Sentry.startSpan({
+        //   name: "start-build",
+        //   attributes: {
+        //     projectId: command.projectId,
+        //     projectSlug: command.payload.projectSlug,
+        //     projectName: command.payload.projectName,
+        //   },
+        // }, async (span) => {
         try {
           loggedFirstChunk = false;
           if (!command.payload?.prompt || !command.payload?.operationType) {
@@ -1515,13 +1514,13 @@ export function startRunner(options: RunnerOptions = {}) {
             ...buildEventBase(command.projectId, command.id),
             payload: { todos: [], summary: "Build completed" },
           });
-          span.end();
+          // span.end();
         } catch (error) {
           console.error("Failed to run build", error);
-          span.setStatus({
-            code: 2,
-            message: "Build failed",
-          });
+          // span.setStatus({
+          //   code: 2,
+          //   message: "Build failed",
+          // });
           sendEvent({
             type: "build-failed",
             ...buildEventBase(command.projectId, command.id),
@@ -1529,9 +1528,9 @@ export function startRunner(options: RunnerOptions = {}) {
               error instanceof Error ? error.message : "Failed to run build",
             stack: error instanceof Error ? error.stack : undefined,
           });
-          span.end();
+          // span.end();
         }
-        });
+        // });
         break;
       }
       default:
