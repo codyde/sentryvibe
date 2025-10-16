@@ -13,3 +13,6 @@ export * from './client';
 export { CLAUDE_SYSTEM_PROMPT, CODEX_SYSTEM_PROMPT } from './lib/prompts';
 export { resolveAgentStrategy } from './lib/agents';
 export type { AgentStrategy, AgentStrategyContext } from './lib/agents';
+
+// Template configuration
+export { setTemplatesPath } from './lib/templates/config.server';

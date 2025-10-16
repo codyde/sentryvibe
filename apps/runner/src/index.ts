@@ -18,8 +18,12 @@ import {
   type RunnerCommand,
   type RunnerEvent,
   type AgentId,
+  setTemplatesPath,
 } from "@sentryvibe/agent-core";
 import { createBuildStream } from "./lib/build/engine.js";
+
+// Configure templates.json path for this runner app
+setTemplatesPath(resolve(__dirname, "../templates.json"));
 import { startDevServer, stopDevServer } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
 import {
@@ -62,7 +66,9 @@ type BuildQueryFn = (
   agent?: AgentId
 ) => AsyncGenerator<unknown, void, unknown>;
 
-function resolveCodexItemType(item: Record<string, unknown> | undefined): string {
+function resolveCodexItemType(
+  item: Record<string, unknown> | undefined
+): string {
   if (!item) return "";
   if (typeof item.type === "string") return item.type;
   if (typeof (item as { item_type?: unknown }).item_type === "string") {
@@ -73,7 +79,12 @@ function resolveCodexItemType(item: Record<string, unknown> | undefined): string
 
 function resolveCodexItemId(item: Record<string, unknown> | undefined): string {
   if (!item) return randomUUID();
-  const candidateKeys = ["id", "item_id", "tool_call_id", "tool_use_id"] as const;
+  const candidateKeys = [
+    "id",
+    "item_id",
+    "tool_call_id",
+    "tool_use_id",
+  ] as const;
   for (const key of candidateKeys) {
     const value = item[key as keyof typeof item];
     if (typeof value === "string" && value.trim().length > 0) {
@@ -123,11 +134,15 @@ async function* convertCodexEventsToAgentMessages(
     const event = rawEvent as CodexEvent;
 
     // Log every single raw event from Codex
-    console.log(`[codex-events] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-events] ═══════════════════════════════════════════════`
+    );
     console.log(`[codex-events] RAW EVENT #${eventCount}`);
     console.log(`[codex-events] Type: ${event.type}`);
     console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
-    console.log(`[codex-events] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-events] ═══════════════════════════════════════════════`
+    );
 
     const item = (event.item ?? undefined) as unknown as
       | Record<string, unknown>
@@ -167,9 +182,7 @@ async function* convertCodexEventsToAgentMessages(
                   name: "command_execution",
                   input: {
                     command:
-                      (item?.command as string) ||
-                      (item?.cmd as string) ||
-                      "",
+                      (item?.command as string) || (item?.cmd as string) || "",
                   },
                 },
               ],
@@ -177,8 +190,8 @@ async function* convertCodexEventsToAgentMessages(
           };
         } else if (itemType === "file_change") {
           // Convert file_change events to tool_use for UI display
-          const changes = (item?.changes as any[]) || [];
-          const filePaths = changes.map(c => c.path || 'unknown').join(', ');
+          const changes = (item?.changes as { kind: string; path: string }[]) || [];
+          const filePaths = changes.map((c) => c.path || "unknown").join(", ");
           yield {
             type: "assistant",
             message: {
@@ -251,8 +264,10 @@ async function* convertCodexEventsToAgentMessages(
           // For file_change, create a more readable output
           let finalOutput = output;
           if (itemType === "file_change" && !output) {
-            const changes = (item?.changes as any[]) || [];
-            finalOutput = changes.map(c => `${c.kind || 'modified'}: ${c.path}`).join('\n');
+            const changes = (item?.changes as { kind: string; path: string }[]) || [];
+            finalOutput = changes
+              .map((c) => `${c.kind || "modified"}: ${c.path}`)
+              .join("\n");
           }
 
           yield {
@@ -331,13 +346,23 @@ function createClaudeQuery(): BuildQueryFn {
  */
 function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
-    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-query] ═══════════════════════════════════════════════`
+    );
     console.log(`[codex-query] BUILDING CODEX PROMPT`);
     console.log(`[codex-query]   workingDirectory: ${workingDirectory}`);
-    console.log(`[codex-query]   CODEX_SYSTEM_PROMPT length: ${CODEX_SYSTEM_PROMPT.length} chars`);
-    console.log(`[codex-query]   orchestrator systemPrompt length: ${systemPrompt?.length || 0} chars`);
+    console.log(
+      `[codex-query]   CODEX_SYSTEM_PROMPT length: ${CODEX_SYSTEM_PROMPT.length} chars`
+    );
+    console.log(
+      `[codex-query]   orchestrator systemPrompt length: ${
+        systemPrompt?.length || 0
+      } chars`
+    );
     console.log(`[codex-query]   user prompt length: ${prompt.length} chars`);
-    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-query] ═══════════════════════════════════════════════`
+    );
 
     const codex = await createInstrumentedCodex({
       workingDirectory,
@@ -348,14 +373,18 @@ function createCodexQuery(): BuildQueryFn {
       systemParts.push(systemPrompt.trim());
     }
 
-    const combinedPrompt = `${systemParts.join('\n\n')}\n\n${prompt}`;
+    const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
 
     console.log(`[codex-query] 📨 FINAL COMBINED PROMPT TO CODEX:`);
     console.log(`[codex-query]   Total length: ${combinedPrompt.length} chars`);
     console.log(`[codex-query]   First 1000 chars of systemPrompt sections:`);
-    console.log(`[codex-query]   ${systemParts.join('\n\n').substring(0, 1000)}...`);
+    console.log(
+      `[codex-query]   ${systemParts.join("\n\n").substring(0, 1000)}...`
+    );
     console.log(`[codex-query]   User prompt: "${prompt}"`);
-    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-query] ═══════════════════════════════════════════════`
+    );
 
     const thread = codex.startThread({
       sandboxMode: "danger-full-access",
@@ -364,7 +393,9 @@ function createCodexQuery(): BuildQueryFn {
       skipGitRepoCheck: true,
     });
 
-    console.log(`[codex-query] Starting Codex thread (multi-turn on same thread)`);
+    console.log(
+      `[codex-query] Starting Codex thread (multi-turn on same thread)`
+    );
 
     // Multi-turn pattern from SDK docs: call runStreamed() repeatedly on same thread
     const MAX_TURNS = 50;
@@ -375,8 +406,12 @@ function createCodexQuery(): BuildQueryFn {
     while (turnCount < MAX_TURNS) {
       turnCount++;
       console.log(`[codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
-      console.log(`[codex-query]   nextPrompt length: ${nextPrompt.length} chars`);
-      console.log(`[codex-query]   First 200 chars: ${nextPrompt.substring(0, 200)}`);
+      console.log(
+        `[codex-query]   nextPrompt length: ${nextPrompt.length} chars`
+      );
+      console.log(
+        `[codex-query]   First 200 chars: ${nextPrompt.substring(0, 200)}`
+      );
 
       let events;
       try {
@@ -388,20 +423,27 @@ function createCodexQuery(): BuildQueryFn {
       }
 
       let hadToolCalls = false;
-      let lastMessage = '';
+      let lastMessage = "";
 
       for await (const rawEvent of events) {
         // Track what happened in this turn
         const event = rawEvent as CodexEvent;
-        if (event.type === 'item.completed') {
-          const itemType = resolveCodexItemType(event.item as any);
-          if (itemType === 'command_execution' || itemType === 'tool_call' || itemType === 'mcp_tool_call' || itemType === 'file_change') {
+        if (event.type === "item.completed") {
+          const itemType = resolveCodexItemType(event.item as Record<string, unknown>);
+          if (
+            itemType === "command_execution" ||
+            itemType === "tool_call" ||
+            itemType === "mcp_tool_call" ||
+            itemType === "file_change"
+          ) {
             hadToolCalls = true;
-          } else if (itemType === 'agent_message') {
-            lastMessage = (event.item as any)?.text || '';
+          } else if (itemType === "agent_message") {
+            lastMessage = (event.item as { text: string })?.text || "";
 
             // Extract todolist from message using XML-style tags
-            const todoMatch = lastMessage.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
+            const todoMatch = lastMessage.match(
+              /<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/
+            );
             if (todoMatch) {
               const newTodoList = todoMatch[1].trim();
               if (newTodoList !== todoList) {
@@ -410,24 +452,51 @@ function createCodexQuery(): BuildQueryFn {
                 try {
                   const tasks = JSON.parse(todoList);
                   if (Array.isArray(tasks)) {
-                    const complete = tasks.filter((t: any) => t.status === 'complete').length;
-                    const inProgress = tasks.filter((t: any) => t.status === 'in-progress').length;
-                    const notDone = tasks.filter((t: any) => t.status === 'not-done').length;
-                    console.log(`[codex-query]    ✅ ${complete} complete | ⏳ ${inProgress} in-progress | ⭕ ${notDone} not-done (total: ${tasks.length})`);
+                    const complete = tasks.filter(
+                      (t: { status: string }) => t.status === "complete"
+                    ).length;
+                    const inProgress = tasks.filter(
+                      (t: { status: string }) => t.status === "in-progress"
+                    ).length;
+                    const notDone = tasks.filter(
+                      (t: { status: string }) => t.status === "not-done"
+                    ).length;
+                    console.log(
+                      `[codex-query]    ✅ ${complete} complete | ⏳ ${inProgress} in-progress | ⭕ ${notDone} not-done (total: ${tasks.length})`
+                    );
 
                     // Log each task for visibility
-                    tasks.forEach((task: any, idx: number) => {
-                      const statusIcon = task.status === 'complete' ? '✅' : task.status === 'in-progress' ? '⏳' : '⭕';
-                      console.log(`[codex-query]      ${statusIcon} ${idx + 1}. ${task.title}`);
+                    tasks.forEach((task: { status: string; title: string }, idx: number) => {
+                      const statusIcon =
+                        task.status === "complete"
+                          ? "✅"
+                          : task.status === "in-progress"
+                          ? "⏳"
+                          : "⭕";
+                      console.log(
+                        `[codex-query]      ${statusIcon} ${idx + 1}. ${
+                          task.title
+                        }`
+                      );
                     });
                   }
                 } catch (e) {
-                  console.error(`[codex-query]    ❌ PARSE ERROR: Could not parse task list JSON:`, e);
-                  console.error(`[codex-query]    Raw content: ${todoList.substring(0, 200)}...`);
+                  console.error(
+                    `[codex-query]    ❌ PARSE ERROR: Could not parse task list JSON:`,
+                    e
+                  );
+                  console.error(
+                    `[codex-query]    Raw content: ${todoList.substring(
+                      0,
+                      200
+                    )}...`
+                  );
                 }
               }
             } else if (turnCount > 1) {
-              console.warn(`[codex-query] ⚠️  WARNING: No <start-todolist> tags found in Turn ${turnCount} response!`);
+              console.warn(
+                `[codex-query] ⚠️  WARNING: No <start-todolist> tags found in Turn ${turnCount} response!`
+              );
             }
           }
         }
@@ -436,13 +505,19 @@ function createCodexQuery(): BuildQueryFn {
         async function* singleEvent() {
           yield rawEvent;
         }
-        for await (const agentMessage of convertCodexEventsToAgentMessages(singleEvent())) {
+        for await (const agentMessage of convertCodexEventsToAgentMessages(
+          singleEvent()
+        )) {
           yield agentMessage;
         }
       }
 
-      console.log(`[codex-query] Turn ${turnCount} complete. Tool calls: ${hadToolCalls}`);
-      console.log(`[codex-query]   lastMessage length: ${lastMessage.length} chars`);
+      console.log(
+        `[codex-query] Turn ${turnCount} complete. Tool calls: ${hadToolCalls}`
+      );
+      console.log(
+        `[codex-query]   lastMessage length: ${lastMessage.length} chars`
+      );
       console.log(`[codex-query]   todoList present: ${!!todoList}`);
 
       // Check if all tasks are complete by parsing todolist
@@ -451,8 +526,14 @@ function createCodexQuery(): BuildQueryFn {
         try {
           const tasks = JSON.parse(todoList);
           if (Array.isArray(tasks)) {
-            allTasksComplete = tasks.every((task: any) => task.status === 'complete');
-            console.log(`[codex-query] Task status: ${tasks.filter((t: any) => t.status === 'complete').length}/${tasks.length} complete`);
+            allTasksComplete = tasks.every(
+              (task: { status: string }) => task.status === "complete"
+            );
+            console.log(
+              `[codex-query] Task status: ${
+                tasks.filter((t: { status: string }) => t.status === "complete").length
+              }/${tasks.length} complete`
+            );
           }
         } catch (e) {
           // Couldn't parse todolist, fall back to text detection
@@ -470,20 +551,24 @@ function createCodexQuery(): BuildQueryFn {
       } else if (!hadToolCalls) {
         // No tools used - check if task is complete via message text
         const completionSignals = [
-          'implementation complete',
-          'all mvp tasks finished',
-          'summary:',
-          'ready to use',
+          "implementation complete",
+          "all mvp tasks finished",
+          "summary:",
+          "ready to use",
         ];
-        const isDone = completionSignals.some(signal =>
+        const isDone = completionSignals.some((signal) =>
           lastMessage.toLowerCase().includes(signal)
         );
 
         if (isDone) {
-          console.log(`[codex-query] ✅ Task complete (detected completion signal)`);
+          console.log(
+            `[codex-query] ✅ Task complete (detected completion signal)`
+          );
           break;
         } else {
-          console.log(`[codex-query] ⚠️ No tools used but not done - prompting to continue`);
+          console.log(
+            `[codex-query] ⚠️ No tools used but not done - prompting to continue`
+          );
           nextPrompt = todoList
             ? `Continue the MVP. Current progress:
 
@@ -496,7 +581,9 @@ Work on the next incomplete task and update the list.`
         }
       } else {
         // Had tool calls - continue with task list
-        console.log(`[codex-query] ⏭️  Continuing to next turn (had tool calls)`);
+        console.log(
+          `[codex-query] ⏭️  Continuing to next turn (had tool calls)`
+        );
         if (todoList) {
           nextPrompt = `Continue towards MVP completion. Latest progress:
 
@@ -505,7 +592,9 @@ ${todoList}
 <end-todolist>
 
 Next: Work on the next incomplete task. After each action, provide an update with the task list showing updated statuses. When ALL tasks are complete, signal completion.`;
-          console.log(`[codex-query]   Set nextPrompt with todoList (${nextPrompt.length} chars)`);
+          console.log(
+            `[codex-query]   Set nextPrompt with todoList (${nextPrompt.length} chars)`
+          );
         } else {
           nextPrompt = `Continue working.
 
@@ -514,16 +603,22 @@ CRITICAL: Include your task list in EVERY response using:
 <start-todolist>
 [{title: "Task", description: "Details", status: "not-done", result: null}]
 <end-todolist>`;
-          console.log(`[codex-query]   Set nextPrompt without todoList (${nextPrompt.length} chars)`);
+          console.log(
+            `[codex-query]   Set nextPrompt without todoList (${nextPrompt.length} chars)`
+          );
         }
       }
     }
 
-    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-query] ═══════════════════════════════════════════════`
+    );
     console.log(`[codex-query] EXITED WHILE LOOP`);
     console.log(`[codex-query]   turnCount: ${turnCount}`);
     console.log(`[codex-query]   MAX_TURNS: ${MAX_TURNS}`);
-    console.log(`[codex-query] ═══════════════════════════════════════════════`);
+    console.log(
+      `[codex-query] ═══════════════════════════════════════════════`
+    );
 
     console.log(`[codex-query] Session complete after ${turnCount} turns`);
   };
@@ -670,7 +765,10 @@ export function startRunner(options: RunnerOptions = {}) {
           // Build environment without forcing a specific port
           // Filter out undefined values to satisfy Record<string, string> type
           const envVars: Record<string, string> = {};
-          for (const [key, value] of Object.entries({ ...process.env, ...env })) {
+          for (const [key, value] of Object.entries({
+            ...process.env,
+            ...env,
+          })) {
             if (value !== undefined) {
               envVars[key] = String(value);
             }
@@ -1058,6 +1156,15 @@ export function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
+        Sentry.startSpan({
+          name: "start-build",
+          forceTransaction: true,
+          attributes: {
+            projectId: command.projectId,
+            projectSlug: command.payload.projectSlug,
+            projectName: command.payload.projectName,
+          },
+        }, async (span) => {
         try {
           loggedFirstChunk = false;
           if (!command.payload?.prompt || !command.payload?.operationType) {
@@ -1074,7 +1181,8 @@ export function startRunner(options: RunnerOptions = {}) {
           log("project name:", projectName);
 
           // Determine agent to use for this build
-          const agent = (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
+          const agent =
+            (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
           const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
           log("selected agent:", agent);
 
@@ -1156,7 +1264,9 @@ export function startRunner(options: RunnerOptions = {}) {
           while (true) {
             const { value, done } = await reader.read();
             if (done) {
-              console.log(`[build] Stream reader reports DONE after ${chunkCount} chunks`);
+              console.log(
+                `[build] Stream reader reports DONE after ${chunkCount} chunks`
+              );
               break;
             }
             if (value === undefined || value === null) continue;
@@ -1208,15 +1318,13 @@ export function startRunner(options: RunnerOptions = {}) {
             }
 
             if (!loggedFirstChunk) {
-              console.log(
-                `[build] 📨 First chunk received from ${agentLabel}`
-              );
+              console.log(`[build] 📨 First chunk received from ${agentLabel}`);
               console.log("[build] 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
               loggedFirstChunk = true;
             }
 
             // Log generation and tool usage
-            if (typeof agentMessage === 'object' && agentMessage !== null) {
+            if (typeof agentMessage === "object" && agentMessage !== null) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const msg = agentMessage as any;
 
@@ -1224,57 +1332,89 @@ export function startRunner(options: RunnerOptions = {}) {
               const actualMessage = msg.message || msg;
 
               // Handle assistant messages (conversation turn format)
-              if (msg.type === 'assistant' && actualMessage.content && Array.isArray(actualMessage.content)) {
+              if (
+                msg.type === "assistant" &&
+                actualMessage.content &&
+                Array.isArray(actualMessage.content)
+              ) {
                 for (const block of actualMessage.content) {
                   // Log text content
-                  if (block.type === 'text' && block.text) {
-                    console.log(`[build] 💭 ${agentLabel}: ${block.text.slice(0, 200)}${block.text.length > 200 ? '...' : ''}`);
+                  if (block.type === "text" && block.text) {
+                    console.log(
+                      `[build] 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
+                        block.text.length > 200 ? "..." : ""
+                      }`
+                    );
                   }
 
                   // Log thinking blocks
-                  if (block.type === 'thinking' && block.thinking) {
-                    console.log(`[build] 🤔 Thinking: ${block.thinking.slice(0, 300)}${block.thinking.length > 300 ? '...' : ''}`);
+                  if (block.type === "thinking" && block.thinking) {
+                    console.log(
+                      `[build] 🤔 Thinking: ${block.thinking.slice(0, 300)}${
+                        block.thinking.length > 300 ? "..." : ""
+                      }`
+                    );
                   }
 
                   // Log tool use
-                  if (block.type === 'tool_use') {
+                  if (block.type === "tool_use") {
                     const toolName = block.name;
                     const toolId = block.id;
                     const input = JSON.stringify(block.input, null, 2);
-                    console.log(`[build] 🔧 Tool called: ${toolName} (${toolId})`);
-                    console.log(`[build]    Input: ${input.slice(0, 300)}${input.length > 300 ? '...' : ''}`);
+                    console.log(
+                      `[build] 🔧 Tool called: ${toolName} (${toolId})`
+                    );
+                    console.log(
+                      `[build]    Input: ${input.slice(0, 300)}${
+                        input.length > 300 ? "..." : ""
+                      }`
+                    );
                   }
                 }
               }
 
               // Handle user messages (tool results)
-              if (msg.type === 'user' && actualMessage.content && Array.isArray(actualMessage.content)) {
+              if (
+                msg.type === "user" &&
+                actualMessage.content &&
+                Array.isArray(actualMessage.content)
+              ) {
                 for (const block of actualMessage.content) {
-                  if (block.type === 'tool_result') {
+                  if (block.type === "tool_result") {
                     const toolId = block.tool_use_id;
                     const isError = block.is_error;
 
                     // Handle different content formats
-                    let content = '';
-                    if (typeof block.content === 'string') {
+                    let content = "";
+                    if (typeof block.content === "string") {
                       content = block.content;
                     } else if (Array.isArray(block.content)) {
                       // Content might be an array of content blocks
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      content = block.content.map((c: any) => {
-                        if (c.type === 'text') return c.text;
-                        return JSON.stringify(c);
-                      }).join('\n');
+                      content = block.content
+                        .map((c: { type: string; text: string }) => {
+                          if (c.type === "text") return c.text;
+                          return JSON.stringify(c);
+                        })
+                        .join("\n");
                     } else {
                       content = JSON.stringify(block.content);
                     }
 
                     if (isError) {
                       console.error(`[build] ❌ Tool error (${toolId}):`);
-                      console.error(`[build]    ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
+                      console.error(
+                        `[build]    ${content.slice(0, 500)}${
+                          content.length > 500 ? "..." : ""
+                        }`
+                      );
                     } else {
                       console.log(`[build] ✅ Tool result (${toolId}):`);
-                      console.log(`[build]    ${content.slice(0, 500)}${content.length > 500 ? '...' : ''}`);
+                      console.log(
+                        `[build]    ${content.slice(0, 500)}${
+                          content.length > 500 ? "..." : ""
+                        }`
+                      );
                     }
                   }
                 }
@@ -1295,13 +1435,19 @@ export function startRunner(options: RunnerOptions = {}) {
             }
           }
 
-          console.log(`[build] ═══════════════════════════════════════════════`);
+          console.log(
+            `[build] ═══════════════════════════════════════════════`
+          );
           console.log(`[build] STREAM ENDED - Processing final chunks`);
-          console.log(`[build] ═══════════════════════════════════════════════`);
+          console.log(
+            `[build] ═══════════════════════════════════════════════`
+          );
 
           const finalChunk = decoder.decode();
           if (finalChunk) {
-            console.log(`[build] Final chunk decoded: ${finalChunk.length} chars`);
+            console.log(
+              `[build] Final chunk decoded: ${finalChunk.length} chars`
+            );
             let payload = finalChunk.startsWith("data:")
               ? finalChunk
               : `data: ${finalChunk}`;
@@ -1369,8 +1515,13 @@ export function startRunner(options: RunnerOptions = {}) {
             ...buildEventBase(command.projectId, command.id),
             payload: { todos: [], summary: "Build completed" },
           });
+          span.end();
         } catch (error) {
           console.error("Failed to run build", error);
+          span.setStatus({
+            code: 2,
+            message: "Build failed",
+          });
           sendEvent({
             type: "build-failed",
             ...buildEventBase(command.projectId, command.id),
@@ -1378,7 +1529,9 @@ export function startRunner(options: RunnerOptions = {}) {
               error instanceof Error ? error.message : "Failed to run build",
             stack: error instanceof Error ? error.stack : undefined,
           });
+          span.end();
         }
+        });
         break;
       }
       default:
@@ -1437,13 +1590,6 @@ export function startRunner(options: RunnerOptions = {}) {
     });
 
     socket.on("message", (data: WebSocket.RawData) => {
-      Sentry.startSpan(
-        {
-          op: "function",
-          name: "SentryVibe Build Runner",
-          forceTransaction: true,
-        },
-        (span: Sentry.Span) => {
           try {
             const command = JSON.parse(String(data)) as RunnerCommand;
             handleCommand(command);
@@ -1455,17 +1601,11 @@ export function startRunner(options: RunnerOptions = {}) {
               error: "Failed to parse command payload",
               stack: error instanceof Error ? error.stack : undefined,
             });
-            span.setStatus({
-              code: 2,
-              message: "Failed to parse command payload",
-            });
           }
-        }
-      );
-    });
+        });
 
     socket.on("close", (code: number, reason: Buffer) => {
-      const reasonStr = reason.toString() || 'no reason provided';
+      const reasonStr = reason.toString() || "no reason provided";
       log(`connection closed with code ${code}, reason: ${reasonStr}`);
 
       if (heartbeatTimer) {

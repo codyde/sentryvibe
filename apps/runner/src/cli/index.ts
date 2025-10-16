@@ -77,13 +77,8 @@ program
   .option('-s, --secret <secret>', 'Shared secret for authentication')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
-    // Sentry.startSpan({
-    //   op: "function",
-    //   name: "SentryVibe Runner",
-    // }, async () => {
     const { runCommand } = await import('./commands/run.js');
     await runCommand(options);
-  // });
   });
 
 

@@ -3,6 +3,16 @@ import { join } from 'path';
 import type { Template, TemplateConfig } from './config';
 
 let cachedConfig: TemplateConfig | null = null;
+let configuredPath: string | undefined;
+
+/**
+ * Configure the path to templates.json
+ * Call this before using any template functions
+ */
+export function setTemplatesPath(path: string): void {
+  configuredPath = path;
+  cachedConfig = null; // Clear cache when path changes
+}
 
 /**
  * Load template configuration from templates.json (SERVER-ONLY)
@@ -12,11 +22,12 @@ export async function loadTemplateConfig(): Promise<TemplateConfig> {
     return cachedConfig;
   }
 
-  const configPath = join(process.cwd(), 'templates.json');
+  // Use configured path, or fall back to process.cwd()
+  const configPath = configuredPath ?? join(process.cwd(), 'templates.json');
   const content = await readFile(configPath, 'utf-8');
   cachedConfig = JSON.parse(content) as TemplateConfig;
 
-  console.log(`✅ Loaded ${cachedConfig.templates.length} templates from config`);
+  console.log(`✅ Loaded ${cachedConfig.templates.length} templates from ${configPath}`);
   return cachedConfig;
 }
 

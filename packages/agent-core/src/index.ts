@@ -6,3 +6,6 @@ export type { ProjectSummary, ProjectStatus } from './types/project';
 // Only export specific items from agents to prevent bundling server-only code
 export { resolveAgentStrategy } from './lib/agents';
 export type { AgentStrategy, AgentStrategyContext } from './lib/agents';
+
+// Template configuration (server-only)
+export { setTemplatesPath } from './lib/templates/config.server';
