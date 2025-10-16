@@ -21,6 +21,20 @@ const nextConfig: NextConfig = {
       fullUrl: false,
     },
   },
+  webpack: (config, { isServer }) => {
+    // Explicitly configure webpack cache to prevent ENOENT errors
+    if (config.cache && typeof config.cache !== 'boolean') {
+      config.cache = {
+        ...config.cache,
+        type: 'filesystem',
+        cacheDirectory: path.resolve(__dirname, '.next/cache/webpack'),
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
+    }
+    return config;
+  },
 };
 
 export default withSentryConfig(nextConfig, {
@@ -53,5 +67,12 @@ export default withSentryConfig(nextConfig, {
   // See the following for more information:
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
-  automaticVercelMonitors: true
+  automaticVercelMonitors: true,
+
+  // Disable source map hiding to reduce webpack plugin interference
+  hideSourceMaps: false,
+
+  // Disable webpack plugins in development to prevent cache interference
+  disableServerWebpackPlugin: process.env.NODE_ENV === 'development',
+  disableClientWebpackPlugin: process.env.NODE_ENV === 'development',
 });
