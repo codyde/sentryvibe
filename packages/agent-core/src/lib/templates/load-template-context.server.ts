@@ -11,7 +11,6 @@ export async function loadTemplateSelectionContext(
     return undefined;
   }
 
-  const requireFn: NodeRequire | undefined = typeof require === 'function' ? require : undefined;
-  const loader = requireFn ? requireFn('./load-template-context.server.js') : eval('require')("./load-template-context.server.js");
-  return loader.loadTemplateSelectionContext(context);
+  const { getTemplateSelectionContext } = await import('./config.js');
+  return getTemplateSelectionContext();
 }

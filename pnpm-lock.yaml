@@ -2071,7 +2071,7 @@ packages:
       webpack: '>=4.40.0'
 
   '@sentryvibe/agent-core@file:vendor/sentryvibe-agent-core-0.1.0.tgz':
-    resolution: {integrity: sha512-Qnxj5WEr53TKAYmxXVNZPsSbwGZEGTmljvNRwiIDpAB/WoJ8N9CZ5lEHFTGLbO0vuBViIqWGr7eVLjfAUNg4UQ==, tarball: file:vendor/sentryvibe-agent-core-0.1.0.tgz}
+    resolution: {integrity: sha512-7ZrImaUIqXUhK/T0Onm+guPliZAR1uqVt7IgVdrZtQC1KExFQDhxLHvQQKJkF8kwzGgwPgOZXOqefKJXHhEcGA==, tarball: file:vendor/sentryvibe-agent-core-0.1.0.tgz}
     version: 0.1.0
 
   '@standard-schema/spec@1.0.0':
