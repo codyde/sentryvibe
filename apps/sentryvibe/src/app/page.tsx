@@ -1258,7 +1258,9 @@ function HomeContent() {
               };
             });
           } else if (data.type === 'tool-input-available') {
-            console.log('🧰 Tool event detected:', data.toolName);
+            console.log('🧰 Tool event detected:', data.toolName, 'toolCallId:', data.toolCallId);
+            console.log('   Current activeTodoIndex:', generationStateRef.current?.activeTodoIndex);
+            console.log('   Current todos count:', generationStateRef.current?.todos?.length);
             // Route TodoWrite to separate generation state
             if (data.toolName === 'TodoWrite') {
               const inputData = data.input as { todos?: TodoItem[] };
@@ -1321,7 +1323,7 @@ function HomeContent() {
                 const activeIndex = baseState.activeTodoIndex >= 0 ? baseState.activeTodoIndex : 0;
                 const existing = baseState.toolsByTodo[activeIndex] || [];
 
-                console.log('   ✅ Nesting under todo', activeIndex);
+                console.log('   ✅ Nesting under todo', activeIndex, 'Current tools for this todo:', existing.length);
 
                 const updated = {
                   ...baseState,
@@ -1330,6 +1332,8 @@ function HomeContent() {
                     [activeIndex]: [...existing, tool],
                   },
                 };
+
+                console.log('   📊 Updated toolsByTodo:', Object.keys(updated.toolsByTodo).map(idx => `todo${idx}: ${updated.toolsByTodo[Number(idx)].length} tools`).join(', '));
 
                 // Save to DB using projectId from state
                 console.log('💾 Saving tool addition, projectId:', updated.projectId);

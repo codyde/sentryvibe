@@ -133,6 +133,16 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
 
+  // Debug logging for toolsByTodo
+  useEffect(() => {
+    if (state?.toolsByTodo) {
+      const toolCounts = Object.keys(state.toolsByTodo).map(idx =>
+        `todo${idx}: ${state.toolsByTodo[Number(idx)]?.length || 0} tools`
+      ).join(', ');
+      console.log('📊 GenerationProgress toolsByTodo:', toolCounts || 'empty');
+    }
+  }, [state?.toolsByTodo]);
+
   // Auto-collapse card when build completes (only if not defaultCollapsed)
   useEffect(() => {
     if (isComplete && !defaultCollapsed) {

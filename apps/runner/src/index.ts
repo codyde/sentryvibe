@@ -29,7 +29,6 @@ import {
 } from "./lib/message-transformer.js";
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
-import { allocatePort, releasePort } from "./lib/port-allocator.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
 
@@ -176,6 +175,27 @@ async function* convertCodexEventsToAgentMessages(
               ],
             },
           };
+        } else if (itemType === "file_change") {
+          // Convert file_change events to tool_use for UI display
+          const changes = (item?.changes as any[]) || [];
+          const filePaths = changes.map(c => c.path || 'unknown').join(', ');
+          yield {
+            type: "assistant",
+            message: {
+              id: itemId,
+              content: [
+                {
+                  type: "tool_use",
+                  id: itemId,
+                  name: "file_change",
+                  input: {
+                    changes: changes,
+                    summary: `Modified ${changes.length} file(s): ${filePaths}`,
+                  },
+                },
+              ],
+            },
+          };
         }
         break;
       }
@@ -215,7 +235,8 @@ async function* convertCodexEventsToAgentMessages(
         } else if (
           itemType === "command_execution" ||
           itemType === "tool_call" ||
-          itemType === "mcp_tool_call"
+          itemType === "mcp_tool_call" ||
+          itemType === "file_change"
         ) {
           const output = extractCodexToolOutput(item);
           const exitCode =
@@ -227,6 +248,13 @@ async function* convertCodexEventsToAgentMessages(
               ? exitCode !== 0
               : status === "failed" || status === "error";
 
+          // For file_change, create a more readable output
+          let finalOutput = output;
+          if (itemType === "file_change" && !output) {
+            const changes = (item?.changes as any[]) || [];
+            finalOutput = changes.map(c => `${c.kind || 'modified'}: ${c.path}`).join('\n');
+          }
+
           yield {
             type: "user",
             message: {
@@ -234,7 +262,7 @@ async function* convertCodexEventsToAgentMessages(
                 {
                   type: "tool_result",
                   tool_use_id: itemId,
-                  content: output,
+                  content: finalOutput,
                   is_error: isError || undefined,
                   status,
                   exit_code: exitCode,
@@ -638,17 +666,11 @@ export function startRunner(options: RunnerOptions = {}) {
             framework,
           } = command.payload;
 
-          // Allocate port locally (await since it's now async)
-          const allocatedPort = await allocatePort();
-
-          // Build environment with framework-specific port variables
+          // Don't allocate port - let the dev server choose and we'll detect it
+          // Build environment without forcing a specific port
           const envVars = {
             ...process.env,
             ...env,
-            PORT: String(allocatedPort),
-            // Framework-specific port variables
-            VITE_PORT: String(allocatedPort),
-            ASTRO_PORT: String(allocatedPort),
           };
 
           const startTime = Date.now();
@@ -697,9 +719,6 @@ export function startRunner(options: RunnerOptions = {}) {
               await tunnelManager.closeTunnel(verifiedPort);
               verifiedPortsByProject.delete(command.projectId);
             }
-
-            // Release allocated port from pool
-            releasePort(allocatedPort);
 
             sendEvent({
               type: "process-exited",
