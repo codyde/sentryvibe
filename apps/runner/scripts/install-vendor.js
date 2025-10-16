@@ -17,8 +17,10 @@ const vendorDir = path.join(packageRoot, 'vendor');
 const nodeModules = path.join(packageRoot, 'node_modules');
 
 const packages = [
-  { name: 'node', tarball: 'sentry-node-10.17.0.tgz' },
-  { name: 'nextjs', tarball: 'sentry-nextjs-10.17.0.tgz' },
+  // { name: 'node', tarball: 'sentry-node-10.17.0.tgz' },
+  // { name: 'nextjs', tarball: 'sentry-nextjs-10.17.0.tgz' },
+  { name: 'node', tarball: 'sentry-node-LOCAL.tgz' },
+  { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz' },
 ];
 
 console.log('Installing vendor Sentry packages...');
