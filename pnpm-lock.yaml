@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@sentry/core': file:./apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
   '@sentry/node': file:./apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
   '@sentry/nextjs': file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz
 
@@ -51,9 +52,12 @@ importers:
       '@openai/codex-sdk':
         specifier: ^0.46.0
         version: 0.46.0
+      '@sentry/core':
+        specifier: file:../sentryvibe/vendor/sentry-core-LOCAL.tgz
+        version: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/nextjs':
         specifier: file:../sentryvibe/vendor/sentry-nextjs-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
+        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
       '@sentry/node':
         specifier: file:../sentryvibe/vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
@@ -148,9 +152,12 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@sentry/core':
+        specifier: file:vendor/sentry-core-LOCAL.tgz
+        version: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/nextjs':
         specifier: file:vendor/sentry-nextjs-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))
+        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))
       '@sentry/node':
         specifier: file:vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
@@ -2019,8 +2026,9 @@ packages:
     engines: {node: '>= 10'}
     hasBin: true
 
-  '@sentry/core@10.17.0':
-    resolution: {integrity: sha512-UVIvxSzS0n5QbIDPyFf0WX9I77Of1bcr6a0sCEKfjhJGmGQ8mFWoWgR2gF4wcPw60XUrzbryCr79eOsIHLQ5cw==}
+  '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz':
+    resolution: {integrity: sha512-OafmdLdYb3PzZlP+Gc8TeZtuEE8gURscChXAHXTmNJO9RkQtV/w1cyrgWz43YVVD9d+O/5gsdGk2H1I4GMkthQ==, tarball: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz}
+    version: 10.17.0
     engines: {node: '>=18'}
 
   '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz':
@@ -6682,21 +6690,21 @@ snapshots:
 
   '@sentry-internal/browser-utils@10.17.0':
     dependencies:
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry-internal/feedback@10.17.0':
     dependencies:
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry-internal/replay-canvas@10.17.0':
     dependencies:
       '@sentry-internal/replay': 10.17.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry-internal/replay@10.17.0':
     dependencies:
       '@sentry-internal/browser-utils': 10.17.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry/babel-plugin-component-annotate@4.4.0': {}
 
@@ -6706,7 +6714,7 @@ snapshots:
       '@sentry-internal/feedback': 10.17.0
       '@sentry-internal/replay': 10.17.0
       '@sentry-internal/replay-canvas': 10.17.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry/bundler-plugin-core@4.4.0':
     dependencies:
@@ -6766,21 +6774,21 @@ snapshots:
       - encoding
       - supports-color
 
-  '@sentry/core@10.17.0': {}
+  '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz': {}
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)':
+  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.37.0
       '@rollup/plugin-commonjs': 28.0.1(rollup@4.52.4)
       '@sentry-internal/browser-utils': 10.17.0
       '@sentry/bundler-plugin-core': 4.4.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/react': 10.17.0(react@19.1.0)
       '@sentry/vercel-edge': 10.17.0
-      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1)
+      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1(esbuild@0.25.10))
       chalk: 3.0.0
       next: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       resolve: 1.22.8
@@ -6795,19 +6803,19 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))':
+  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.37.0
       '@rollup/plugin-commonjs': 28.0.1(rollup@4.52.4)
       '@sentry-internal/browser-utils': 10.17.0
       '@sentry/bundler-plugin-core': 4.4.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/react': 10.17.0(react@19.1.0)
       '@sentry/vercel-edge': 10.17.0
-      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1(esbuild@0.25.10))
+      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1)
       chalk: 3.0.0
       next: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       resolve: 1.22.8
@@ -6831,7 +6839,7 @@ snapshots:
       '@opentelemetry/resources': 2.1.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 2.1.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.37.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       import-in-the-middle: 1.15.0
 
@@ -6867,7 +6875,7 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.1.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.37.0
       '@prisma/instrumentation': 6.15.0(@opentelemetry/api@1.9.0)
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/node-core': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       import-in-the-middle: 1.15.0
@@ -6882,12 +6890,12 @@ snapshots:
       '@opentelemetry/core': 2.1.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 2.1.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.37.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry/react@10.17.0(react@19.1.0)':
     dependencies:
       '@sentry/browser': 10.17.0
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       hoist-non-react-statics: 3.3.2
       react: 19.1.0
 
@@ -6895,7 +6903,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/resources': 2.1.0(@opentelemetry/api@1.9.0)
-      '@sentry/core': 10.17.0
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
   '@sentry/webpack-plugin@4.4.0(webpack@5.102.1(esbuild@0.25.10))':
     dependencies:

@@ -52,6 +52,7 @@
     "@sentry/core": "file:./vendor/sentry-core-LOCAL.tgz",
     "@sentry/nextjs": "file:./vendor/sentry-nextjs-LOCAL.tgz",
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
+    "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
