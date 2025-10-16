@@ -33,7 +33,7 @@ import type {
 } from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { detectOperationType, createFreshGenerationState, validateGenerationState, createInitialCodexSessionState } from '@sentryvibe/agent-core/lib/build-helpers';
-import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
+import { processCodexEvent } from '@sentryvibe/agent-core/lib/agents/codex/events';
 import ElementChangeCard from '@/components/ElementChangeCard';
 import InitializingCard from '@/components/InitializingCard';
 
@@ -1087,10 +1087,7 @@ function HomeContent() {
           } else if (data.type === 'text-end') {
             console.log('✅ Text block finished:', data.id);
           } else if (data.type?.startsWith('codex-')) {
-            updateCodexState(codex => {
-              const strategy = resolveAgentStrategy('openai-codex');
-              return strategy.processRunnerEvent?.(codex, data as any) ?? codex;
-            });
+            updateCodexState(codex => processCodexEvent(codex, data as any));
           } else if (data.type === 'tool-input-available') {
             console.log('🧰 Tool event detected:', data.toolName, 'toolCallId:', data.toolCallId);
             console.log('   Current activeTodoIndex:', generationStateRef.current?.activeTodoIndex);
