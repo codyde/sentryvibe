@@ -59,6 +59,9 @@ export async function POST(
     // Map toolCallId to toolName for output events that don't include toolName
     const toolCallNameMap = new Map<string, string>();
 
+    // Track active todo index to associate tools/text with todos
+    let currentActiveTodoIndex = -1;
+
     // Save user message first
     await db.insert(messages).values({
       projectId: id,
@@ -349,14 +352,40 @@ export async function POST(
       if (!eventData || !sessionId) return;
       const timestamp = new Date();
 
+      // Helper to retry DB operations on timeout
+      const retryOnTimeout = async <T>(fn: () => Promise<T>, retries = 2): Promise<T | null> => {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            return await fn();
+          } catch (error: any) {
+            const isTimeout = error?.code === 'ETIMEDOUT' || error?.errno === -60;
+            const isLastAttempt = attempt === retries;
+
+            if (isTimeout && !isLastAttempt) {
+              console.warn(`[build-route] DB timeout on attempt ${attempt + 1}, retrying...`);
+              await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1))); // Exponential backoff
+              continue;
+            }
+
+            // If not timeout or last attempt, throw
+            if (!isTimeout || isLastAttempt) {
+              throw error;
+            }
+          }
+        }
+        return null;
+      };
+
       switch (eventData.type) {
         case 'start':
-          await db.update(generationSessions)
-            .set({
-              status: 'active',
-              updatedAt: timestamp,
-            })
-            .where(eq(generationSessions.id, sessionId));
+          await retryOnTimeout(() =>
+            db.update(generationSessions)
+              .set({
+                status: 'active',
+                updatedAt: timestamp,
+              })
+              .where(eq(generationSessions.id, sessionId))
+          );
           await refreshRawState();
           break;
         case 'tool-input-available':
@@ -368,9 +397,19 @@ export async function POST(
           if (eventData.toolName === 'TodoWrite') {
             const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
             await Promise.all(todos.map((todo: any, index: number) => persistTodo(todo, index)));
+
+            // Update active todo index for subsequent events
+            currentActiveTodoIndex = todos.findIndex((t: any) => t.status === 'in_progress');
+            console.log(`[build-route] Updated activeTodoIndex to ${currentActiveTodoIndex}`);
+
             // Also persist TodoWrite as a tool call for completeness
             await persistToolCall(eventData, 'input-available');
           } else if (eventData.toolName) {
+            // Inject active todo index into tool event before persisting
+            if (!eventData.todoIndex && currentActiveTodoIndex >= 0) {
+              eventData.todoIndex = currentActiveTodoIndex;
+              console.log(`[build-route] Injected todoIndex ${currentActiveTodoIndex} into ${eventData.toolName} tool`);
+            }
             await persistToolCall(eventData, 'input-available');
           }
           await refreshRawState();
@@ -387,22 +426,30 @@ export async function POST(
           await refreshRawState();
           break;
         case 'text-delta':
+          // Inject active todo index if not present
+          const textTodoIndex = typeof eventData.todoIndex === 'number'
+            ? eventData.todoIndex
+            : currentActiveTodoIndex;
           await appendNote({
             textId: eventData.id,
             content: eventData.delta ?? '',
             kind: 'text',
-            todoIndex: typeof eventData.todoIndex === 'number' ? eventData.todoIndex : -1,
+            todoIndex: textTodoIndex,
           });
           await refreshRawState();
           break;
         case 'data-reasoning':
         case 'reasoning':
           if (eventData.message || eventData.data?.message) {
+            // Inject active todo index if not present
+            const reasoningTodoIndex = typeof eventData.todoIndex === 'number'
+              ? eventData.todoIndex
+              : currentActiveTodoIndex;
             await appendNote({
               textId: eventData.id ?? undefined,
               content: eventData.message ?? eventData.data?.message ?? '',
               kind: 'reasoning',
-              todoIndex: typeof eventData.todoIndex === 'number' ? eventData.todoIndex : -1,
+              todoIndex: reasoningTodoIndex,
             });
             await refreshRawState();
           }
@@ -431,7 +478,12 @@ export async function POST(
             const match = chunk.match(/data:\s*({.*})/);
             if (match) {
               const eventData = JSON.parse(match[1]);
-              await persistEvent(eventData);
+              try {
+                await persistEvent(eventData);
+              } catch (persistError) {
+                console.error('[build-route] Failed to persist event (non-fatal):', persistError);
+                // Continue processing - don't let DB errors stop the stream
+              }
 
               // Track message lifecycle for legacy chat transcript
               if (eventData.type === 'start') {
@@ -476,7 +528,8 @@ export async function POST(
               }
             }
           } catch (e) {
-            console.warn('[build-route] failed to parse/persist event payload', e);
+            console.warn('[build-route] Failed to parse SSE event (non-fatal):', e);
+            // Continue processing even if one event fails to parse
           }
 
           if (closed) return;

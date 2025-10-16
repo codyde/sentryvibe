@@ -2208,37 +2208,19 @@ function HomeContent() {
                       )}
 
                       {/* Completed Build (most recent) - Collapsed by default */}
-                      {!generationState?.isActive && generationState && (
-                        <>
-                          {generationState.agentId === 'openai-codex' ? (
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
-                              <CodexBuildExperience
-                                codex={generationState.codex}
-                                projectName={generationState.projectName}
-                                isActive={false}
-                                todos={generationState.todos}
-                                onViewFiles={() => {
-                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                }}
-                                onStartServer={startDevServer}
-                              />
-                            </div>
-                          ) : generationState.todos && generationState.todos.length > 0 ? (
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
-                              <GenerationProgress
-                                state={generationState}
-                                defaultCollapsed={true}
-                                onClose={() => updateGenerationState(null)}
-                                onViewFiles={() => {
-                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                }}
-                                onStartServer={startDevServer}
-                              />
-                            </div>
-                          ) : null}
-                        </>
+                      {!generationState?.isActive && generationState && generationState.todos && generationState.todos.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
+                          <GenerationProgress
+                            state={generationState}
+                            defaultCollapsed={true}
+                            onClose={() => updateGenerationState(null)}
+                            onViewFiles={() => {
+                              window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                            }}
+                            onStartServer={startDevServer}
+                          />
+                        </div>
                       )}
 
                       {/* Build History - Collapsed by default */}
@@ -2247,68 +2229,15 @@ function HomeContent() {
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Previous Builds ({buildHistory.length})</h3>
                           <div className="space-y-4">
                             {buildHistory.map((build, idx) => (
-                              build.agentId === 'openai-codex' ? (
-                                <div
-                                  key={build.id}
-                                  className="rounded-2xl border border-white/10 bg-black/30 p-4 shadow-inner shadow-purple-950/20"
-                                >
-                                  <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div>
-                                      <p className="text-sm font-semibold text-white">Codex Build Snapshot</p>
-                                      <p className="text-xs text-gray-400">
-                                        {build.startTime
-                                          ? `Started ${build.startTime.toLocaleString()}`
-                                          : 'Start time unavailable'}
-                                        {build.endTime && ` • Finished ${build.endTime.toLocaleTimeString()}`}
-                                      </p>
-                                    </div>
-                                    <CodexPhaseStrip codex={build.codex ?? createInitialCodexSessionState()} />
-                                  </div>
-
-                                  {build.codex?.taskSummary && (
-                                    <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-200">
-                                      <p className="font-medium text-white">{build.codex.taskSummary.headline}</p>
-                                      <ul className="mt-2 space-y-1.5 text-[12px] text-slate-300">
-                                        {build.codex.taskSummary.bullets.slice(0, 3).map((bullet, bulletIdx) => (
-                                          <li key={`${build.id}-bullet-${bulletIdx}`} className="flex gap-2">
-                                            <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-purple-300" />
-                                            <span className="flex-1">{bullet}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  <details className="group mt-4 rounded-xl border border-white/10 bg-white/5">
-                                    <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 text-xs font-medium text-purple-200">
-                                      <span>View detailed timeline</span>
-                                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-                                    </summary>
-                                    <div className="border-t border-white/10 p-4">
-                                      <CodexBuildExperience
-                                        codex={build.codex}
-                                        projectName={build.projectName}
-                                        isActive={false}
-                                        todos={build.todos}
-                                        onViewFiles={() => {
-                                          window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                        }}
-                                        onStartServer={startDevServer}
-                                      />
-                                    </div>
-                                  </details>
-                                </div>
-                              ) : (
-                                <GenerationProgress
-                                  key={build.id}
-                                  state={build}
-                                  defaultCollapsed={true}
-                                  onViewFiles={() => {
-                                    window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                  }}
-                                  onStartServer={startDevServer}
-                                />
-                              )
+                              <GenerationProgress
+                                key={build.id}
+                                state={build}
+                                defaultCollapsed={true}
+                                onViewFiles={() => {
+                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                }}
+                                onStartServer={startDevServer}
+                              />
                             ))}
                           </div>
                         </div>
