@@ -12,10 +12,11 @@ Sentry.init({
   integrations: [
     Sentry.spotlightIntegration(),
     Sentry.consoleLoggingIntegration(),
-    Sentry.claudeCodeIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
+    // Temporarily disabled to prevent webpack cache interference
+    // Sentry.claudeCodeIntegration({
+    //   recordInputs: true,
+    //   recordOutputs: true,
+    // }),
   ],
 
   // Enable logs to be sent to Sentry
