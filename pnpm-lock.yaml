@@ -58,7 +58,7 @@ importers:
         version: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/nextjs':
         specifier: file:../sentryvibe/vendor/sentry-nextjs-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
+        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)
       '@sentry/node':
         specifier: file:../sentryvibe/vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
@@ -161,7 +161,7 @@ importers:
         version: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/nextjs':
         specifier: file:vendor/sentry-nextjs-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))
+        version: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))
       '@sentry/node':
         specifier: file:vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
@@ -2034,19 +2034,19 @@ packages:
     hasBin: true
 
   '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz':
-    resolution: {integrity: sha512-OafmdLdYb3PzZlP+Gc8TeZtuEE8gURscChXAHXTmNJO9RkQtV/w1cyrgWz43YVVD9d+O/5gsdGk2H1I4GMkthQ==, tarball: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz}
+    resolution: {integrity: sha512-4pKttvtbxemZBLiBQTGJPrdNemd0uYfkktt8Ii1PNeHUFuVqejrz83sVlyxMll1b6e12afEcZzpn0MpisIXZBg==, tarball: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
 
   '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz':
-    resolution: {integrity: sha512-eZc8bXAGxVXT6VkCvaGAbQP/2fTjfWlWdHiCgVFPX88J+U2qaMrvhHRoCPwHnqRPxkR68M61jESisQcmtHdxMw==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz}
+    resolution: {integrity: sha512-0DyzhyTa5QZvvPd1yGt+6EHW8+gyf8T7YTFY1JxDngnm0Rd/Y4z3dWhi6O6I+lVTyS3rHVUh1lYCbiC/N19nZg==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
     peerDependencies:
       next: ^13.2.0 || ^14.0 || ^15.0.0-rc.0
 
   '@sentry/node-core@file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz':
-    resolution: {integrity: sha512-/tNGbKNvxf5iTaXUU9TkBdLghgZ3tSJXnmR/rk3fSut0QUoPfRozprNjmaI4WZ1dQq5roaf5XQYtLt5/qCpfPw==, tarball: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz}
+    resolution: {integrity: sha512-BxaEkSVAS9u4Efz+umWQ1PjmoHzEveD3uMurQ4tIrLs5CJ9eKHcfownUtl/HmA9tUwPI0ldN36Bql4M72ysJdg==, tarball: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -2059,7 +2059,7 @@ packages:
       '@opentelemetry/semantic-conventions': ^1.37.0
 
   '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz':
-    resolution: {integrity: sha512-+NRacczkZ9BQfFDOQVHzRkV6AaL76PqpGrMT08DENEgDwlJef6EuzApxfOpN037aNbDa0CfnF3wiqC5qlTIM1Q==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
+    resolution: {integrity: sha512-NKz5HoMWZCAO6dvsGfGaRqGKzJIouFCN8JDyIPiT8o6kUP6hhXx6co/cFpi4paIK5UaIbQnALqEy78v7zISz7w==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
 
@@ -6784,7 +6784,7 @@ snapshots:
 
   '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz': {}
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))':
+  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.37.0
@@ -6796,7 +6796,7 @@ snapshots:
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/react': 10.17.0(react@19.1.0)
       '@sentry/vercel-edge': 10.17.0
-      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1(esbuild@0.25.10))
+      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1)
       chalk: 3.0.0
       next: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       resolve: 1.22.8
@@ -6811,7 +6811,7 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1)':
+  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.102.1(esbuild@0.25.10))':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.37.0
@@ -6823,7 +6823,7 @@ snapshots:
       '@sentry/opentelemetry': 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentry/react': 10.17.0(react@19.1.0)
       '@sentry/vercel-edge': 10.17.0
-      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1)
+      '@sentry/webpack-plugin': 4.4.0(webpack@5.102.1(esbuild@0.25.10))
       chalk: 3.0.0
       next: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       resolve: 1.22.8
