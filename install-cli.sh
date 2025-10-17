@@ -76,10 +76,10 @@ if [ -z "$TAG_NAME" ] || [[ "$TAG_NAME" != *"cli"* ]]; then
     # Try to get version from npm
     if NPM_VERSION=$(npm view @sentryvibe/runner-cli version 2>/dev/null); then
         echo -e "${GREEN}✓${NC} Found version ${NPM_VERSION} on npm"
-        TAG_NAME="v${NPM_VERSION}"
+        TAG_NAME="cli-v${NPM_VERSION}"
     else
-        echo -e "${YELLOW}!${NC} Using fallback version: runner-cli-v0.1.11"
-        TAG_NAME="runner-cli-v0.1.11"
+        echo -e "${YELLOW}!${NC} Using fallback version: cli-v0.3.3"
+        TAG_NAME="cli-v0.3.3"
     fi
 fi
 
