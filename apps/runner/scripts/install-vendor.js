@@ -46,6 +46,7 @@ if (missing.length) {
 try {
   mkdirSync(nodeModules, { recursive: true });
   mkdirSync(path.join(nodeModules, '@sentry'), { recursive: true });
+  mkdirSync(path.join(nodeModules, '@sentryvibe'), { recursive: true });
 
   for (const { name, tarball } of packages) {
     const source = path.join(vendorDir, tarball);

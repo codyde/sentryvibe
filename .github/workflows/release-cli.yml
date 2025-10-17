@@ -81,6 +81,17 @@ jobs:
       - name: Build CLI
         run: pnpm run build:cli
 
+      - name: Prepare package.json for publishing
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Replacing file: dependencies with npm versions"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          node apps/runner/scripts/prepare-release.js
+
+          echo ""
+          echo "Verifying updated package.json dependencies:"
+          cat apps/runner/package.json | jq '.dependencies'
+
       - name: Create tarball (includes vendor/ and dist/)
         run: |
           cd apps/runner
