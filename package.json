@@ -10,9 +10,9 @@
     "build:agent-core": "cd packages/agent-core && pnpm build && pnpm pack && mv *.tgz ../../vendor/",
     "start": "pnpm --filter sentryvibe start",
     "lint": "pnpm --filter sentryvibe lint",
-    "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter sentryvibe-runner run dev",
+    "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter @sentryvibe/runner-cli run dev",
     "broker": "pnpm --filter sentryvibe-broker dev",
-    "runner": "pnpm --filter sentryvibe-runner dev"
+    "runner": "pnpm --filter @sentryvibe/runner-cli dev"
   },
   "pnpm": {
     "overrides": {

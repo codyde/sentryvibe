@@ -365,6 +365,7 @@ function createCodexQuery(): BuildQueryFn {
     );
 
     const codex = await createInstrumentedCodex({
+      apiKey: process.env.OPENAI_API_KEY,
       workingDirectory,
     });
 
@@ -1187,6 +1188,14 @@ export function startRunner(options: RunnerOptions = {}) {
 
           // Orchestrate the build - handle templates, generate dynamic prompt
           log("orchestrating build...");
+
+          // Log template if provided
+          if (command.payload.template) {
+            log("template provided by frontend:", command.payload.template.name);
+            log("  framework:", command.payload.template.framework);
+            log("  repository:", command.payload.template.repository);
+          }
+
           const orchestration = await orchestrateBuild({
             projectId: command.projectId,
             projectName: projectSlug,
@@ -1194,6 +1203,7 @@ export function startRunner(options: RunnerOptions = {}) {
             operationType: command.payload.operationType,
             workingDirectory: projectDirectory,
             agent,
+            template: command.payload.template, // NEW: Pass template from frontend
           });
 
           log("orchestration complete:", {

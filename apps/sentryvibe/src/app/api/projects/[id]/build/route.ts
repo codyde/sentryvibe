@@ -16,8 +16,24 @@ import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/types/generation';
 import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/types/agent';
+import { analyzePromptForTemplate } from '@/services/template-analysis';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 
 export const maxDuration = 30;
+
+interface TemplateConfig {
+  version: string;
+  templates: Template[];
+}
+
+async function loadTemplates(): Promise<Template[]> {
+  const templatesPath = join(process.cwd(), 'templates.json');
+  const content = await readFile(templatesPath, 'utf-8');
+  const config: TemplateConfig = JSON.parse(content);
+  return config.templates;
+}
 
 export async function POST(
   req: Request,
@@ -49,6 +65,38 @@ export async function POST(
     const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
     const agentId = body.agent ?? DEFAULT_AGENT_ID;
     console.log('[build-route] Using agent for build:', agentId);
+
+    // NEW: Automatically analyze prompt for template selection if this is a new project
+    let templateMetadata = body.template; // Use provided template if available
+
+    if (body.operationType === 'initial-build' && !templateMetadata) {
+      console.log('[build-route] New project detected, analyzing prompt for template selection...');
+      console.log(`[build-route] Using ${agentId} model for analysis`);
+
+      try {
+        const templates = await loadTemplates();
+        const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates);
+
+        templateMetadata = {
+          id: analysis.templateId,
+          name: analysis.templateName,
+          framework: analysis.framework,
+          port: analysis.defaultPort,
+          runCommand: analysis.devCommand,
+          repository: analysis.repository,
+          branch: analysis.branch,
+        };
+
+        console.log(`[build-route] ✅ Template selected: ${analysis.templateName}`);
+        console.log(`[build-route]    Reasoning: ${analysis.reasoning}`);
+        console.log(`[build-route]    Confidence: ${analysis.confidence}`);
+        console.log(`[build-route]    Analyzed by: ${analysis.analyzedBy}`);
+      } catch (analysisError) {
+        console.error('[build-route] ⚠️ Template analysis failed, will fall back to runner auto-selection:', analysisError);
+        // Don't fail the build - let the runner handle template selection as fallback
+      }
+    }
+
     const encoder = new TextEncoder();
 
     // Track messages for DB persistence
@@ -216,9 +264,11 @@ export async function POST(
     };
 
     const finalizeSession = async (status: 'completed' | 'failed', timestamp: Date) => {
-      await db.update(generationSessions)
-        .set({ status, endedAt: timestamp, updatedAt: timestamp })
-        .where(eq(generationSessions.id, sessionId));
+      await retryOnTimeout(() =>
+        db.update(generationSessions)
+          .set({ status, endedAt: timestamp, updatedAt: timestamp })
+          .where(eq(generationSessions.id, sessionId))
+      );
       await refreshRawState();
     };
 
@@ -228,23 +278,26 @@ export async function POST(
       const status = todo?.status ?? 'pending';
       const timestamp = new Date();
 
-      await db.insert(generationTodos).values({
-        sessionId,
-        todoIndex: index,
-        content,
-        activeForm,
-        status,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      }).onConflictDoUpdate({
-        target: [generationTodos.sessionId, generationTodos.todoIndex],
-        set: {
+      // Wrap in retry logic for DB timeouts
+      await retryOnTimeout(() =>
+        db.insert(generationTodos).values({
+          sessionId,
+          todoIndex: index,
           content,
           activeForm,
           status,
+          createdAt: timestamp,
           updatedAt: timestamp,
-        },
-      });
+        }).onConflictDoUpdate({
+          target: [generationTodos.sessionId, generationTodos.todoIndex],
+          set: {
+            content,
+            activeForm,
+            status,
+            updatedAt: timestamp,
+          },
+        })
+      );
     };
 
     const persistToolCall = async (eventData: any, state: 'input-available' | 'output-available') => {
@@ -319,33 +372,39 @@ export async function POST(
       const timestamp = new Date();
 
       if (textId) {
-        const existing = await db
-          .select()
-          .from(generationNotes)
-          .where(and(
-            eq(generationNotes.sessionId, sessionId),
-            eq(generationNotes.textId, textId),
-          ))
-          .limit(1);
+        const existing = await retryOnTimeout(() =>
+          db
+            .select()
+            .from(generationNotes)
+            .where(and(
+              eq(generationNotes.sessionId, sessionId),
+              eq(generationNotes.textId, textId),
+            ))
+            .limit(1)
+        );
 
-        if (existing.length > 0) {
-          await db.update(generationNotes)
-            .set({
-              content: existing[0].content + content,
-            })
-            .where(eq(generationNotes.id, existing[0].id));
+        if (existing && existing.length > 0) {
+          await retryOnTimeout(() =>
+            db.update(generationNotes)
+              .set({
+                content: existing[0].content + content,
+              })
+              .where(eq(generationNotes.id, existing[0].id))
+          );
           return;
         }
       }
 
-      await db.insert(generationNotes).values({
-        sessionId,
-        todoIndex,
-        textId: textId ?? null,
-        kind,
-        content,
-        createdAt: timestamp,
-      });
+      await retryOnTimeout(() =>
+        db.insert(generationNotes).values({
+          sessionId,
+          todoIndex,
+          textId: textId ?? null,
+          kind,
+          content,
+          createdAt: timestamp,
+        })
+      );
     };
 
     const persistEvent = async (eventData: any) => {
@@ -610,6 +669,15 @@ export async function POST(
       },
     });
 
+    // Log template being sent to runner
+    if (templateMetadata) {
+      console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
+      console.log(`[build-route]    ID: ${templateMetadata.id}`);
+      console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
+    } else {
+      console.log('[build-route] 📤 No template metadata - runner will auto-select');
+    }
+
     await sendCommandToRunner(runnerId, {
       id: commandId,
       type: 'start-build',
@@ -622,6 +690,7 @@ export async function POST(
         projectName: project[0].name,
         context: body.context,
         agent: agentId,
+        template: templateMetadata, // NEW: Pass analyzed template metadata to runner
       },
     });
 

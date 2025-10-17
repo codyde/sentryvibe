@@ -11,6 +11,19 @@ export type BuildOperationType =
   | 'continuation';      // Retry or continue a failed build
 
 /**
+ * Template metadata for frontend-selected templates
+ */
+export interface TemplateMetadata {
+  id: string;
+  name: string;
+  framework: string;
+  port: number;
+  runCommand: string;
+  repository: string;
+  branch: string;
+}
+
+/**
  * Build request payload
  */
 export interface BuildRequest {
@@ -19,6 +32,7 @@ export interface BuildRequest {
   runnerId?: string; // Optional runner ID - falls back to RUNNER_DEFAULT_ID
   buildId?: string;
   agent?: AgentId; // Selected coding agent provider (Claude Code, OpenAI Codex, etc.)
+  template?: TemplateMetadata; // Frontend-selected template (NEW: for parity improvements)
   context?: {
     elementSelector?: string;
     elementInfo?: {

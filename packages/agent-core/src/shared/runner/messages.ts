@@ -50,6 +50,15 @@ export interface StartBuildCommand extends BaseCommand {
     templateId?: string | null;
     regenerate?: boolean;
     agent?: AgentId;
+    template?: {
+      id: string;
+      name: string;
+      framework: string;
+      port: number;
+      runCommand: string;
+      repository: string;
+      branch: string;
+    }; // NEW: Frontend-selected template metadata
   };
 }
 

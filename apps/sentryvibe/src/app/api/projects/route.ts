@@ -6,7 +6,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 
-// Note: This route extracts metadata via Claude (Haiku) by default and can fall back to Codex.
+// Note: This route extracts metadata via Claude (Sonnet) by default and can fall back to Codex.
 // cwd is set to process.cwd() since we don't need workspace access here
 const claudeMetadataQuery = Sentry.createInstrumentedClaudeQuery({
   default: {
@@ -68,7 +68,7 @@ export async function GET() {
   }
 }
 
-// POST /api/projects - Create new project with Haiku metadata extraction
+// POST /api/projects - Create new project with Sonnet metadata extraction
 export async function POST(req: Request) {
   try {
     const { prompt, agent } = (await req.json()) as { prompt?: string; agent?: AgentId };
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
       agent: selectedAgent,
     });
     if (selectedAgent === 'claude-code') {
-      console.log('[projects] Using Claude Haiku for metadata extraction');
+      console.log('[projects] Using Claude Sonnet for metadata extraction');
     }
 
     const metadataPrompt = buildMetadataPrompt(prompt);
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
       }
       console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
     } else {
-      // Use Claude Haiku with retries
+      // Use Claude Sonnet with retries
       let attempts = 0;
       const maxAttempts = 2;
 
@@ -128,14 +128,14 @@ export async function POST(req: Request) {
             prompt: metadataPrompt,
             inputMessages: [],
             options: {
-              model: 'claude-3-5-haiku-20241022',
+              model: 'claude-3-5-Sonnet-20241022',
               maxTurns: 1,
               systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
             },
           });
 
           const timeout = setTimeout(() => {
-            console.warn('⚠️  Haiku response timeout after 8 seconds');
+            console.warn('⚠️  Sonnet response timeout after 8 seconds');
           }, 8000);
 
           for await (const message of metadataStream) {
@@ -157,12 +157,12 @@ export async function POST(req: Request) {
         } catch (error) {
           console.error(`❌ Attempt ${attempts} failed:`, error);
           if (attempts === maxAttempts) {
-            console.log('⚠️  All Haiku attempts failed, using fallback logic');
+            console.log('⚠️  All Sonnet attempts failed, using fallback logic');
           }
         }
       }
 
-      console.log('📥 Raw Haiku response:', JSON.stringify(jsonResponse));
+      console.log('📥 Raw Sonnet response:', JSON.stringify(jsonResponse));
     }
 
     console.log('   Response length:', jsonResponse.length);
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
 
     // Check if response is empty
     if (!jsonResponse || jsonResponse.trim().length === 0) {
-      console.warn('⚠️  Haiku returned empty response, using fallback');
+      console.warn('⚠️  Sonnet returned empty response, using fallback');
       // Skip parsing, go straight to fallback
     } else {
       try {
@@ -188,7 +188,7 @@ export async function POST(req: Request) {
           metadata = JSON.parse(jsonMatch[0]);
           console.log('📋 Parsed metadata:', metadata);
         } else {
-          console.warn('⚠️  No JSON object found in Haiku response');
+          console.warn('⚠️  No JSON object found in Sonnet response');
         }
       } catch (parseError) {
         console.error('❌ JSON parsing failed:', parseError);

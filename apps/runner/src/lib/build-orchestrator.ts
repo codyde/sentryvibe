@@ -19,6 +19,15 @@ export interface BuildContext {
   operationType: string;
   workingDirectory: string;
   agent: AgentId;
+  template?: {
+    id: string;
+    name: string;
+    framework: string;
+    port: number;
+    runCommand: string;
+    repository: string;
+    branch: string;
+  }; // Frontend-provided template (NEW: from analysis endpoint)
 }
 
 export interface OrchestrationResult {
@@ -41,7 +50,7 @@ export interface OrchestrationResult {
  * Orchestrate the build - handle templates, prompts, context
  */
 export async function orchestrateBuild(context: BuildContext): Promise<OrchestrationResult> {
-  const { projectId, projectName, prompt, workingDirectory, agent, operationType } = context;
+  const { projectId, projectName, prompt, workingDirectory, agent, operationType, template: providedTemplate } = context;
   const workspaceRoot = getWorkspaceRoot();
 
   // Check if this is a NEW project or EXISTING project
@@ -60,6 +69,26 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     isNewProject,
     workspaceRoot,
   };
+
+  // NEW: Check if frontend provided a template (from analysis endpoint)
+  if (providedTemplate) {
+    console.log(`[orchestrator] ✅ Frontend provided template: ${providedTemplate.name}`);
+    console.log(`[orchestrator]    Template ID: ${providedTemplate.id}`);
+    console.log(`[orchestrator]    Framework: ${providedTemplate.framework}`);
+    console.log(`[orchestrator]    Repository: ${providedTemplate.repository}`);
+
+    // Find full template object from templates.json
+    const allTemplates = await import('./templates/config.js').then(m => m.getAllTemplates?.() || []);
+    const fullTemplate = await allTemplates.find((t: Template) => t.id === providedTemplate.id);
+
+    if (fullTemplate) {
+      selectedTemplate = fullTemplate;
+      console.log(`[orchestrator]    Matched full template from templates.json`);
+    } else {
+      console.warn(`[orchestrator]    ⚠️ Template ${providedTemplate.id} not found in templates.json, will use metadata`);
+      // Even if not found, we can still use the provided metadata
+    }
+  }
 
   // Log the determination
   if (isNewProject) {
@@ -91,19 +120,54 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
 
   let templateSelectionContext: string | undefined;
 
+  // NEW: Handle frontend-provided template OR fallback to auto-selection
   if (isNewProject && !SKIP_TEMPLATES) {
-    const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
-    if (!shouldDownload) {
-      console.log('[orchestrator] 🤖 NEW PROJECT (Agent-managed template) - Deferring template selection to agent');
-      templateSelectionContext = typeof strategy.getTemplateSelectionContext === 'function'
-        ? await strategy.getTemplateSelectionContext(strategyContext)
-        : await getTemplateSelectionContext();
-      if (templateSelectionContext) {
-        console.log(`[orchestrator]    Template catalog prepared (${templateSelectionContext.length} chars)`);
+    if (providedTemplate) {
+      // Frontend provided a template - use it!
+      console.log('[orchestrator] 🎯 NEW PROJECT (Frontend-selected template)');
+
+      const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
+      if (shouldDownload) {
+        // Claude path: Download the template
+        console.log('[orchestrator]    Claude agent: Downloading frontend-selected template...');
+
+        // selectedTemplate should already be set from the earlier block (lines 74-91)
+        // But if it's not (template not in templates.json), we need to handle that
+        if (!selectedTemplate) {
+          console.error('[orchestrator]    ERROR: selectedTemplate is null but shouldDownloadTemplate is true');
+          console.error(`[orchestrator]    providedTemplate.id: ${providedTemplate.id}`);
+          throw new Error(`Template ${providedTemplate.id} not found in runner's templates.json. Cannot download.`);
+        }
+
+        const downloadedPath = await downloadTemplate(selectedTemplate, workingDirectory);
+        console.log(`[orchestrator]    Template downloaded to: ${downloadedPath}`);
+        fileTree = await getProjectFileTree(downloadedPath);
+      } else {
+        // Codex path: Don't download, agent will clone it
+        console.log('[orchestrator]    Codex agent: Will clone template during execution');
+        fileTree = '';
+
+        // Store template metadata in strategy context for Codex prompt
+        strategyContext.templateMetadata = {
+          id: providedTemplate.id,
+          repository: providedTemplate.repository,
+          branch: providedTemplate.branch,
+        };
       }
-      fileTree = '';
     } else {
-      console.log('[orchestrator] 🎯 NEW PROJECT (Claude) - Orchestrator downloads template...');
+      // No template provided - use auto-selection
+      const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
+      if (!shouldDownload) {
+        console.log('[orchestrator] 🤖 NEW PROJECT (Agent-managed template) - Deferring template selection to agent');
+        templateSelectionContext = typeof strategy.getTemplateSelectionContext === 'function'
+          ? await strategy.getTemplateSelectionContext(strategyContext)
+          : await getTemplateSelectionContext();
+        if (templateSelectionContext) {
+          console.log(`[orchestrator]    Template catalog prepared (${templateSelectionContext.length} chars)`);
+        }
+        fileTree = '';
+      } else {
+        console.log('[orchestrator] 🎯 NEW PROJECT (Claude) - Orchestrator downloads template...');
 
       // Send initial setup todos
       templateEvents.push({
@@ -185,8 +249,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         },
       });
 
-      // Get file tree
-      fileTree = await getProjectFileTree(downloadedPath);
+        // Get file tree
+        fileTree = await getProjectFileTree(downloadedPath);
+      }
     }
   } else {
     console.log('[orchestrator] EXISTING PROJECT - Skipping template download');
@@ -207,11 +272,12 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   }
 
   // Prepare project metadata (for new projects with templates)
-  const projectMetadata = agent !== 'openai-codex' && isNewProject && selectedTemplate ? {
+  // NEW: If template was provided by frontend, BOTH agents get metadata immediately
+  const projectMetadata = isNewProject && (selectedTemplate || providedTemplate) ? {
     path: workingDirectory,
-    projectType: selectedTemplate.tech.framework,
-    runCommand: selectedTemplate.setup.devCommand,
-    port: selectedTemplate.setup.defaultPort,
+    projectType: selectedTemplate?.tech.framework ?? providedTemplate?.framework ?? 'unknown',
+    runCommand: selectedTemplate?.setup.devCommand ?? providedTemplate?.runCommand ?? 'npm run dev',
+    port: selectedTemplate?.setup.defaultPort ?? providedTemplate?.port ?? 3000,
   } : undefined;
 
   // Generate dynamic system prompt

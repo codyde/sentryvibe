@@ -97,6 +97,8 @@ function HomeContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<{name: string; framework: string; analyzedBy: string} | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -1278,6 +1280,24 @@ function HomeContent() {
             const path = (data.data as any)?.path;
             console.log('📦 Template downloaded to:', path);
             // Could show this in UI if desired
+          } else if (data.type === 'project-metadata') {
+            // NEW: Handle project metadata event (includes template info)
+            const metadata = data.payload || data.data || data;
+            console.log('🎯 Project metadata received:', metadata);
+            console.log(`   Framework: ${metadata.projectType}`);
+            console.log(`   Run command: ${metadata.runCommand}`);
+            console.log(`   Port: ${metadata.port}`);
+
+            // Store for UI display
+            if (metadata.projectType && metadata.projectType !== 'unknown') {
+              const agentName = selectedAgentId === 'claude-code' ? 'Claude Sonnet 4.5' : 'GPT-5 Codex';
+              setSelectedTemplate({
+                name: metadata.projectType,
+                framework: metadata.projectType,
+                analyzedBy: agentName,
+              });
+              console.log(`✅ Template selected by ${agentName}: ${metadata.projectType}`);
+            }
           } else if (data.type === 'finish') {
             currentMessage = null;
             textBlocksMap.clear(); // Clear for next message
@@ -1446,6 +1466,7 @@ function HomeContent() {
     // If no project selected, create new project
     if (!currentProject) {
       setIsCreatingProject(true);
+      setIsAnalyzingTemplate(true);
 
       try {
         const res = await fetch('/api/projects', {
@@ -1460,6 +1481,10 @@ function HomeContent() {
         const project = data.project;
 
         console.log('✅ Project created:', project.slug);
+
+        // Template analysis happens automatically in the build API route
+        // We'll see the results in the build metadata event
+        setIsAnalyzingTemplate(false);
 
         // LOCK generation mode FIRST (before anything else!)
         isGeneratingRef.current = true;
@@ -1945,8 +1970,31 @@ function HomeContent() {
 
                         {/* Loading text */}
                         <div className="space-y-2">
-                          <h3 className="text-2xl font-semibold text-white">Preparing Your Project</h3>
-                          <p className="text-gray-400">Setting up the perfect environment...</p>
+                          <h3 className="text-2xl font-semibold text-white">
+                            {isAnalyzingTemplate ? 'Analyzing Your Request' : 'Preparing Your Project'}
+                          </h3>
+                          <p className="text-gray-400">
+                            {isAnalyzingTemplate
+                              ? `${selectedAgentId === 'claude-code' ? 'Claude Sonnet 4.5' : 'GPT-5 Codex'} is selecting the best template...`
+                              : 'Setting up the perfect environment...'
+                            }
+                          </p>
+
+                          {/* Show selected template if available */}
+                          {selectedTemplate && !isAnalyzingTemplate && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20"
+                            >
+                              <p className="text-sm text-purple-300 font-medium">
+                                ✓ Template: {selectedTemplate.name}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Selected by {selectedTemplate.analyzedBy}
+                              </p>
+                            </motion.div>
+                          )}
                         </div>
 
                         {/* Animated progress dots */}
@@ -2007,6 +2055,7 @@ function HomeContent() {
                           ) : generationState.todos && generationState.todos.length > 0 ? (
                             <GenerationProgress
                               state={generationState}
+                              templateInfo={selectedTemplate}
                               onClose={() => updateGenerationState(null)}
                               onViewFiles={() => {
                                 window.dispatchEvent(new CustomEvent('switch-to-editor'));
@@ -2048,6 +2097,7 @@ function HomeContent() {
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
                           <GenerationProgress
                             state={generationState}
+                            templateInfo={selectedTemplate}
                             defaultCollapsed={true}
                             onClose={() => updateGenerationState(null)}
                             onViewFiles={() => {

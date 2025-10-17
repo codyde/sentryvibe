@@ -13,6 +13,11 @@ interface GenerationProgressProps {
   onClose?: () => void;
   onViewFiles?: () => void;
   onStartServer?: () => void;
+  templateInfo?: {
+    name: string;
+    framework: string;
+    analyzedBy: string;
+  } | null;
 }
 
 interface ToolCallMiniCardProps {
@@ -123,7 +128,7 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
   );
 }
 
-export default function GenerationProgress({ state, defaultCollapsed = false, onClose, onViewFiles, onStartServer }: GenerationProgressProps) {
+export default function GenerationProgress({ state, defaultCollapsed = false, onClose, onViewFiles, onStartServer, templateInfo }: GenerationProgressProps) {
   // ALWAYS call hooks first (React rules!)
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
@@ -255,9 +260,16 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 {isComplete ? '✓ Build Complete!' : `Building ${state.projectName}`}
               </h3>
               {isCardExpanded ? (
-                <p className="text-xs text-gray-400">
-                  {completed} of {total} complete
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-400">
+                    {completed} of {total} complete
+                  </p>
+                  {templateInfo?.framework && templateInfo?.analyzedBy && (
+                    <p className="text-xs text-purple-300/80">
+                      {templateInfo.framework} • Selected by {templateInfo.analyzedBy}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <p className="text-xs text-gray-400">
                   {completed} of {total} complete • Click to expand

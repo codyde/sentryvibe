@@ -19,11 +19,21 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
 
   if (context.isNewProject) {
-    sections.push(`## Template Selection and Setup
+    // NEW: Check if template was pre-selected by frontend
+    if (context.templateMetadata) {
+      sections.push(`## Template Already Selected
+
+- Template: ${context.templateName ?? 'Selected template'}
+- The template has been chosen based on your analysis of the user's request.
+- After cloning, run all commands from inside the ${context.projectName} directory.
+- Follow the setup instructions exactly before implementing the request.`);
+    } else {
+      sections.push(`## Template Selection and Setup
 
 - Codex selects the appropriate template using the provided catalog.
 - After cloning, run all commands from inside the ${context.projectName} directory.
 - Follow the setup instructions exactly before implementing the request.`);
+    }
   } else {
     sections.push(`## Existing Project Context
 
@@ -40,7 +50,8 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - Narrate key steps in the chat stream.
 - Include the mandatory todo list JSON in every response.`);
 
-  if (context.templateSelectionContext) {
+  // NEW: Only include template catalog if template wasn't pre-selected
+  if (context.templateSelectionContext && !context.templateMetadata) {
     sections.push(buildCodexTemplateCatalogSection(context.templateSelectionContext));
   }
 
@@ -52,6 +63,27 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
     return basePrompt;
   }
 
+  // NEW: If template was pre-selected by frontend, provide specific clone command
+  if (context.templateMetadata) {
+    const { repository, branch } = context.templateMetadata;
+    return `USER REQUEST: ${basePrompt}
+
+SETUP STEPS (complete before implementation):
+1. Clone the template: npx degit ${repository}#${branch} ${context.projectName}
+2. cd ${context.projectName}
+3. Create .npmrc with required settings.
+4. Update package.json "name" field to "${context.projectName}".
+
+IMPLEMENTATION STEPS:
+- Modify template files to deliver the requested MVP.
+- Install dependencies as needed.
+- Confirm the core flow works end-to-end.
+
+COMPLETION SIGNAL:
+When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
+  }
+
+  // Fallback: Old catalog-based selection (backward compatibility)
   return `USER REQUEST: ${basePrompt}
 
 SETUP STEPS (complete before implementation):
