@@ -1156,15 +1156,9 @@ export function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
-        // Sentry.startSpan({
-        //   name: "start-build",
-        //   attributes: {
-        //     projectId: command.projectId,
-        //     projectSlug: command.payload.projectSlug,
-        //     projectName: command.payload.projectName,
-        //   },
-        // }, async (span) => {
-        try {
+        // Each build is a discrete unit of work - create a new trace for proper isolation and sampling
+        await Sentry.startNewTrace(async () => {
+          try {
           loggedFirstChunk = false;
           if (!command.payload?.prompt || !command.payload?.operationType) {
             throw new Error("Invalid build payload");
@@ -1517,10 +1511,10 @@ export function startRunner(options: RunnerOptions = {}) {
           // span.end();
         } catch (error) {
           console.error("Failed to run build", error);
-          // span.setStatus({
-          //   code: 2,
-          //   message: "Build failed",
-          // });
+          Sentry.getActiveSpan()?.setStatus({
+            code: 2,
+            message: "Build failed",
+          });
           sendEvent({
             type: "build-failed",
             ...buildEventBase(command.projectId, command.id),
@@ -1528,9 +1522,8 @@ export function startRunner(options: RunnerOptions = {}) {
               error instanceof Error ? error.message : "Failed to run build",
             stack: error instanceof Error ? error.stack : undefined,
           });
-          // span.end();
         }
-        // });
+      });
         break;
       }
       default:
