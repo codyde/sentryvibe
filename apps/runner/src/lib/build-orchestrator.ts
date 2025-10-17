@@ -153,7 +153,22 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
           repository: providedTemplate.repository,
           branch: providedTemplate.branch,
         };
+        strategyContext.templateName = providedTemplate.name;
+        strategyContext.templateFramework = providedTemplate.framework;
       }
+
+      // BOTH AGENTS: Emit template-selected event for consistent UI
+      templateEvents.push({
+        type: 'template-selected',
+        data: {
+          templateId: providedTemplate.id,
+          templateName: providedTemplate.name,
+          framework: providedTemplate.framework,
+          repository: providedTemplate.repository,
+          selectedBy: 'frontend-analysis',
+        },
+      });
+      console.log('[orchestrator]    ✅ Emitted template-selected event for UI');
     } else {
       // No template provided - use auto-selection
       const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
