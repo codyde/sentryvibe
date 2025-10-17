@@ -21,7 +21,7 @@ interface ElementCommentProps {
   position: { x: number; y: number };
   onSubmit: (prompt: string) => void;
   onClose: () => void;
-  status?: 'pending' | 'processing' | 'completed';
+  status?: 'pending' | 'processing' | 'completed' | 'failed';
 }
 
 export default function ElementComment({

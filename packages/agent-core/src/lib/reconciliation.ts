@@ -69,14 +69,14 @@ export async function reconcileProjectsWithFilesystem(): Promise<ReconciliationR
         id: project.id,
         name: project.name,
         slug: project.slug,
-        path: project.path,
+        path: project.path || '',
       });
     } else {
       result.inDbNotFs.push({
         id: project.id,
         name: project.name,
         slug: project.slug,
-        path: project.path,
+        path: project.path || '',
       });
     }
   }

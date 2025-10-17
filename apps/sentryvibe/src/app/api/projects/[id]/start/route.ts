@@ -73,6 +73,10 @@ export async function POST(
       console.log(`📝 Run command: ${enforcedCommand}`);
       const env = buildEnvForFramework(framework, reservedPort);
 
+      if (!proj.path) {
+        throw new Error('Project path is not set');
+      }
+
       const runnerCommand: StartDevServerCommand = {
         id: randomUUID(),
         type: 'start-dev-server',

@@ -5,11 +5,8 @@ import { projects } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 // Note: This route uses Haiku for metadata extraction only (no filesystem access)
-// cwd is set to process.cwd() since we don't need workspace access here
 const query = Sentry.createInstrumentedClaudeQuery({
-  default: {
-    cwd: process.cwd(),
-  },
+  name: 'metadata-extraction',
 });
 
 // GET /api/projects - List all projects from database
@@ -68,9 +65,10 @@ Output ONLY this JSON (no text before or after):
         }, 8000);
 
         for await (const message of metadataStream) {
-          if (message.type === 'assistant' && message.message?.content) {
-            for (const block of message.message.content) {
-              if (block.type === 'text' && block.text) {
+          const msgAny = message as any;
+          if (msgAny.type === 'assistant' && msgAny.message?.content) {
+            for (const block of msgAny.message.content) {
+              if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
                 jsonResponse += block.text;
               }
             }
