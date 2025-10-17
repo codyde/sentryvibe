@@ -14,8 +14,7 @@ import ProcessManagerModal from '@/components/ProcessManagerModal';
 import ToolCallCard from '@/components/ToolCallCard';
 import SummaryCard from '@/components/SummaryCard';
 import CodeBlock from '@/components/CodeBlock';
-import GenerationProgress from '@/components/GenerationProgress';
-import CodexBuildExperience from '@/components/CodexBuildExperience';
+import BuildProgress from '@/components/BuildProgress';
 import { AppSidebar } from '@/components/app-sidebar';
 import AgentSelector from '@/components/AgentSelector';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
@@ -2041,26 +2040,8 @@ function HomeContent() {
                       {/* Active Build - Always show if active */}
                       {generationState?.isActive && (
                         <div>
-                          {isCodexSession ? (
-                            generationState.todos && generationState.todos.length > 0 ? (
-                              <CodexBuildExperience
-                                codex={generationState.codex}
-                                projectName={generationState.projectName}
-                                isActive
-                                todos={generationState.todos}
-                                onViewFiles={() => {
-                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                                }}
-                                onStartServer={startDevServer}
-                              />
-                            ) : (
-                              <InitializingCard
-                                projectName={generationState.projectName}
-                                message="Analyzing your request and planning MVP features..."
-                              />
-                            )
-                          ) : generationState.todos && generationState.todos.length > 0 ? (
-                            <GenerationProgress
+                          {generationState.todos && generationState.todos.length > 0 ? (
+                            <BuildProgress
                               state={generationState}
                               templateInfo={selectedTemplate}
                               onClose={() => updateGenerationState(null)}
@@ -2102,7 +2083,7 @@ function HomeContent() {
                       {!generationState?.isActive && generationState && generationState.todos && generationState.todos.length > 0 && (
                         <div>
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
-                          <GenerationProgress
+                          <BuildProgress
                             state={generationState}
                             templateInfo={selectedTemplate}
                             defaultCollapsed={true}
@@ -2121,7 +2102,7 @@ function HomeContent() {
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Previous Builds ({buildHistory.length})</h3>
                           <div className="space-y-4">
                             {buildHistory.map((build) => (
-                              <GenerationProgress
+                              <BuildProgress
                                 key={build.id}
                                 state={build}
                                 defaultCollapsed={true}
