@@ -78,8 +78,8 @@ if [ -z "$TAG_NAME" ] || [[ "$TAG_NAME" != *"cli"* ]]; then
         echo -e "${GREEN}✓${NC} Found version ${NPM_VERSION} on npm"
         TAG_NAME="cli-v${NPM_VERSION}"
     else
-        echo -e "${YELLOW}!${NC} Using fallback version: cli-v0.3.6"
-        TAG_NAME="cli-v0.3.6"
+        echo -e "${YELLOW}!${NC} Using fallback version: cli-v0.3.7"
+        TAG_NAME="cli-v0.3.7"
     fi
 fi
 
