@@ -6,7 +6,7 @@
 import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
 import { join } from 'path';
-import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config.js';
+import { selectTemplateFromPrompt, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';
 import { type AgentId } from '@sentryvibe/agent-core/types/agent';
@@ -123,57 +123,37 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   const SKIP_TEMPLATES = process.env.SKIP_TEMPLATES === 'true';
   strategyContext.skipTemplates = SKIP_TEMPLATES;
 
-  let templateSelectionContext: string | undefined;
-
-  // NEW: Handle frontend-provided template OR fallback to auto-selection
+  // UNIFIED: Handle template download for both agents (simplified logic)
   if (isNewProject && !SKIP_TEMPLATES) {
     if (providedTemplate) {
-      // Frontend provided a template - use it!
+      // Frontend provided a template - use it for both agents
       buildLogger.orchestrator.templateSelecting('auto');
 
-      const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
-      if (shouldDownload) {
-        // Claude path: Download the template
-        buildLogger.log('info', 'orchestrator', 'Claude agent: Downloading frontend-selected template...');
-
-        // selectedTemplate should already be set from the earlier block (lines 74-91)
-        // But if it's not (template not in templates.json), we need to handle that
-        if (!selectedTemplate) {
-          buildLogger.orchestrator.error(
-            `selectedTemplate is null but shouldDownloadTemplate is true for ${providedTemplate.id}`,
-            new Error('Template not found in templates.json')
-          );
-          throw new Error(`Template ${providedTemplate.id} not found in runner's templates.json. Cannot download.`);
-        }
-
-        buildLogger.orchestrator.templateDownloading(
-          selectedTemplate.name,
-          selectedTemplate.repository,
-          workingDirectory
+      if (!selectedTemplate) {
+        buildLogger.orchestrator.error(
+          `selectedTemplate is null for ${providedTemplate.id}`,
+          new Error('Template not found in templates.json')
         );
-        const downloadedPath = await downloadTemplate(selectedTemplate, workingDirectory);
-        fileTree = await getProjectFileTree(downloadedPath);
-        buildLogger.orchestrator.templateDownloaded(
-          selectedTemplate.name,
-          downloadedPath,
-          fileTree.length
-        );
-      } else {
-        // Codex path: Don't download, agent will clone it
-        buildLogger.log('info', 'orchestrator', 'Codex agent: Will clone template during execution');
-        fileTree = '';
-
-        // Store template metadata in strategy context for Codex prompt
-        strategyContext.templateMetadata = {
-          id: providedTemplate.id,
-          repository: providedTemplate.repository,
-          branch: providedTemplate.branch,
-        };
-        strategyContext.templateName = providedTemplate.name;
-        strategyContext.templateFramework = providedTemplate.framework;
+        throw new Error(`Template ${providedTemplate.id} not found in runner's templates.json. Cannot download.`);
       }
 
-      // BOTH AGENTS: Emit template-selected event for consistent UI
+      buildLogger.log('info', 'orchestrator', `UNIFIED: Downloading frontend-selected template for ${agent}...`);
+      buildLogger.orchestrator.templateDownloading(
+        selectedTemplate.name,
+        selectedTemplate.repository,
+        workingDirectory
+      );
+
+      const downloadedPath = await downloadTemplate(selectedTemplate, workingDirectory);
+      fileTree = await getProjectFileTree(downloadedPath);
+
+      buildLogger.orchestrator.templateDownloaded(
+        selectedTemplate.name,
+        downloadedPath,
+        fileTree.length
+      );
+
+      // Emit template-selected event for UI
       templateEvents.push({
         type: 'template-selected',
         data: {
@@ -184,21 +164,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
           selectedBy: 'frontend-analysis',
         },
       });
-      buildLogger.log('info', 'orchestrator', 'Emitted template-selected event for UI');
     } else {
-      // No template provided - use auto-selection
-      const shouldDownload = strategy.shouldDownloadTemplate(strategyContext);
-      if (!shouldDownload) {
-        buildLogger.orchestrator.templateSelecting('agent-managed');
-        templateSelectionContext = typeof strategy.getTemplateSelectionContext === 'function'
-          ? await strategy.getTemplateSelectionContext(strategyContext)
-          : await getTemplateSelectionContext();
-        if (templateSelectionContext) {
-          buildLogger.orchestrator.catalogPrepared(templateSelectionContext.length);
-        }
-        fileTree = '';
-      } else {
-        buildLogger.log('info', 'orchestrator', 'NEW PROJECT (Claude) - Orchestrator downloads template...');
+      // No template provided - auto-select and download for both agents
+      buildLogger.log('info', 'orchestrator', `UNIFIED: Auto-selecting and downloading template for ${agent}...`);
 
       // Send initial setup todos
       templateEvents.push({
@@ -216,7 +184,6 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
       });
 
       // Auto-select template
-      buildLogger.log('info', 'orchestrator', 'Auto-selecting template based on prompt...');
       selectedTemplate = await selectTemplateFromPrompt(prompt);
       buildLogger.orchestrator.templateSelected(selectedTemplate.name, selectedTemplate.id);
 
@@ -241,13 +208,13 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         workingDirectory
       );
 
-      // Download template to project directory (pass exact path, not just name)
       const downloadedPath = await downloadTemplate(selectedTemplate, workingDirectory);
-      const fileTreeTemp = await getProjectFileTree(downloadedPath);
+      fileTree = await getProjectFileTree(downloadedPath);
+
       buildLogger.orchestrator.templateDownloaded(
         selectedTemplate.name,
         downloadedPath,
-        fileTreeTemp.length
+        fileTree.length
       );
 
       // Update todo: template downloaded
@@ -287,17 +254,12 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
           output: `Template downloaded to ${downloadedPath}`,
         },
       });
-
-        // Get file tree
-        fileTree = await getProjectFileTree(downloadedPath);
-      }
     }
   } else {
     buildLogger.log('info', 'orchestrator', 'EXISTING PROJECT - Skipping template download');
     fileTree = await getProjectFileTree(workingDirectory);
   }
 
-  strategyContext.templateSelectionContext = templateSelectionContext;
   strategyContext.fileTree = fileTree;
   strategyContext.templateName = selectedTemplate?.name;
   strategyContext.templateFramework = selectedTemplate?.tech.framework;
@@ -324,18 +286,12 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     isNewProject,
     template: selectedTemplate?.name || 'none',
     fileTreeSize: fileTree.length,
-    hasTemplateCatalog: !!templateSelectionContext
   });
 
   const systemPromptSections = await strategy.buildSystemPromptSections(strategyContext);
   const systemPrompt = systemPromptSections.join('\n\n');
 
   buildLogger.orchestrator.systemPromptGenerated(systemPrompt.length);
-
-  // Log template catalog section if present
-  if (templateSelectionContext) {
-    buildLogger.orchestrator.catalogPrepared(templateSelectionContext.length);
-  }
 
   const fullPrompt = await strategy.buildFullPrompt(strategyContext, prompt);
 

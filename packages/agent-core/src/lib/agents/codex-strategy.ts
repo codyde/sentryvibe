@@ -1,59 +1,47 @@
-import { buildCodexTemplateCatalogSection } from './codex/template-catalog';
 import type { AgentStrategy, AgentStrategyContext } from './strategy';
 import { processCodexEvent } from './codex/events';
 import type { CodexSessionState } from '@/types/generation';
-import { loadTemplateSelectionContext } from '../templates/load-template-context';
-
-function getParentDirectory(filePath: string): string {
-  if (!filePath) return filePath;
-  const normalized = filePath.replace(/\\/g, '/');
-  const trimmed = normalized.replace(/\/+$|\/+$|\/*$/, '');
-  const lastSlash = trimmed.lastIndexOf('/');
-  if (lastSlash <= 0) {
-    return '/';
-  }
-  return trimmed.slice(0, lastSlash);
-}
 
 function buildCodexSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
 
   if (context.isNewProject) {
-    // NEW: Check if template was pre-selected by frontend
-    if (context.templateMetadata) {
-      sections.push(`## Template Already Selected
+    // UNIFIED: Template is always pre-downloaded like Claude
+    sections.push(`## New Project: Template Prepared
 
-- Template: ${context.templateName ?? 'Selected template'}
-- The template has been chosen based on your analysis of the user's request.
-- After cloning, run all commands from inside the ${context.projectName} directory.
-- Follow the setup instructions exactly before implementing the request.`);
-    } else {
-      sections.push(`## Template Selection and Setup
+- Project name: ${context.projectName}
+- Location: ${context.workingDirectory}
+- Operation type: ${context.operationType}
 
-- Codex selects the appropriate template using the provided catalog.
-- After cloning, run all commands from inside the ${context.projectName} directory.
-- Follow the setup instructions exactly before implementing the request.`);
-    }
+The template has already been downloaded and is ready in your workspace. Install dependencies and customize the scaffold to satisfy the request.`);
   } else {
     sections.push(`## Existing Project Context
 
 - Project location: ${context.workingDirectory}
-- Modify the existing codebase to satisfy the request.`);
+- Operation type: ${context.operationType}
+
+Review the current codebase and apply the requested changes without re-scaffolding.`);
   }
 
   sections.push(`## Workspace Rules
-- Operate inside the workspace directory.
-- Use relative paths only.
-- Provide complete file contents for every modification.`);
+- Use relative paths within the project.
+- Work inside the existing project structure.
+- Provide complete updates without placeholders.`);
+
+  if (context.fileTree) {
+    sections.push(`## Project Structure Snapshot
+${context.fileTree}`);
+  }
+
+  if (context.templateName) {
+    sections.push(`## Template Details
+- Template: ${context.templateName}
+- Framework: ${context.templateFramework ?? 'unknown'}`);
+  }
 
   sections.push(`## Quality Expectations
 - Narrate key steps in the chat stream.
 - Include the mandatory todo list JSON in every response.`);
-
-  // NEW: Only include template catalog if template wasn't pre-selected
-  if (context.templateSelectionContext && !context.templateMetadata) {
-    sections.push(buildCodexTemplateCatalogSection(context.templateSelectionContext));
-  }
 
   return sections;
 }
@@ -63,39 +51,17 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
     return basePrompt;
   }
 
-  // NEW: If template was pre-selected by frontend, provide specific clone command
-  if (context.templateMetadata) {
-    const { repository, branch } = context.templateMetadata;
-    return `USER REQUEST: ${basePrompt}
+  // UNIFIED: Template is pre-downloaded like Claude
+  return `${basePrompt}
 
-SETUP STEPS (complete before implementation):
-1. Clone the template: npx degit ${repository}#${branch} ${context.projectName}
-2. cd ${context.projectName}
-3. Create .npmrc with required settings.
-4. Update package.json "name" field to "${context.projectName}".
+CRITICAL: The template has already been prepared in ${context.workingDirectory}. Do not scaffold a new project or clone templates.
 
 IMPLEMENTATION STEPS:
-- Modify template files to deliver the requested MVP.
-- Install dependencies as needed.
-- Confirm the core flow works end-to-end.
-
-COMPLETION SIGNAL:
-When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
-  }
-
-  // Fallback: Old catalog-based selection (backward compatibility)
-  return `USER REQUEST: ${basePrompt}
-
-SETUP STEPS (complete before implementation):
-1. Clone the chosen template (see catalog for commands).
-2. cd ${context.projectName}
-3. Create .npmrc with required settings.
-4. Update package.json "name" field to "${context.projectName}".
-
-IMPLEMENTATION STEPS:
-- Modify template files to deliver the requested MVP.
-- Install dependencies as needed.
-- Confirm the core flow works end-to-end.
+1. Review the existing template structure
+2. Install dependencies (npm install or pnpm install)
+3. Modify template files to deliver the requested MVP
+4. Test that the dev server starts successfully
+5. Confirm the core flow works end-to-end
 
 COMPLETION SIGNAL:
 When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
@@ -104,17 +70,15 @@ When the MVP is finished, respond with "Implementation complete" plus a brief su
 const codexStrategy: AgentStrategy = {
   buildSystemPromptSections: buildCodexSections,
   buildFullPrompt,
-  shouldDownloadTemplate() {
-    return false;
+  shouldDownloadTemplate(context) {
+    // UNIFIED: Download templates upfront like Claude (faster, more reliable)
+    return context.isNewProject && !context.skipTemplates;
   },
-  resolveWorkingDirectory(context) {
-    if (!context.isNewProject) {
-      return context.workingDirectory;
-    }
-    return getParentDirectory(context.workingDirectory);
-  },
-  async getTemplateSelectionContext(context) {
-    return loadTemplateSelectionContext(context);
+  postTemplateSelected(context, template) {
+    // Store template info after download (matching Claude behavior)
+    context.templateName = template.name;
+    context.templateFramework = template.framework;
+    context.fileTree = template.fileTree;
   },
   processRunnerEvent<State>(state: State, event) {
     if (!state || typeof state !== 'object') {
