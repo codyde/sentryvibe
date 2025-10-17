@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import type { GenerationState } from '@/types/generation';
-import { BuildHeader } from './BuildHeader';
+import { BuildHeader, type ViewMode } from './BuildHeader';
 import { TodoList } from './TodoList';
+import { ActivityFeed } from './ActivityFeed';
 
 interface BuildProgressProps {
   state: GenerationState;
@@ -31,11 +32,13 @@ export default function BuildProgress({
   // ALWAYS call hooks first (React rules!)
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
+  const [viewMode, setViewMode] = useState<ViewMode>('todos');
 
   const completed = state?.todos?.filter((t) => t.status === 'completed').length || 0;
   const total = state?.todos?.length || 0;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
+  const hasTimeline = !!state?.timeline && state.timeline.length > 0;
 
   // Debug logging for toolsByTodo
   useEffect(() => {
@@ -96,8 +99,8 @@ export default function BuildProgress({
     );
   }
 
-  // Show initializing state if no todos yet
-  if (total === 0 && state.isActive) {
+  // Show initializing state if no todos AND no timeline yet
+  if (total === 0 && !hasTimeline && state.isActive) {
     return (
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -114,6 +117,13 @@ export default function BuildProgress({
       </motion.div>
     );
   }
+
+  // Auto-switch to activity view if no todos but has timeline
+  useEffect(() => {
+    if (total === 0 && hasTimeline && viewMode === 'todos') {
+      setViewMode('activity');
+    }
+  }, [total, hasTimeline, viewMode]);
 
   const toggleTodo = (index: number) => {
     setExpandedTodos((prev) => {
@@ -150,21 +160,34 @@ export default function BuildProgress({
         onToggleExpand={() => setIsCardExpanded(!isCardExpanded)}
         onClose={onClose}
         templateInfo={templateInfo}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        hasTimeline={hasTimeline}
       />
 
-      {/* Todo list with nested tools - Only show when expanded */}
+      {/* Content - Only show when expanded */}
       {isCardExpanded && (
-        <TodoList
-          todos={state.todos}
-          toolsByTodo={state.toolsByTodo}
-          textByTodo={state.textByTodo}
-          activeTodoIndex={state.activeTodoIndex}
-          expandedTodos={expandedTodos}
-          onToggleTodo={toggleTodo}
-          allTodosCompleted={allTodosCompleted}
-          onViewFiles={onViewFiles}
-          onStartServer={onStartServer}
-        />
+        <>
+          {viewMode === 'todos' && total > 0 && (
+            <TodoList
+              todos={state.todos}
+              toolsByTodo={state.toolsByTodo}
+              textByTodo={state.textByTodo}
+              activeTodoIndex={state.activeTodoIndex}
+              expandedTodos={expandedTodos}
+              onToggleTodo={toggleTodo}
+              allTodosCompleted={allTodosCompleted}
+              onViewFiles={onViewFiles}
+              onStartServer={onStartServer}
+            />
+          )}
+          {viewMode === 'activity' && hasTimeline && (
+            <ActivityFeed
+              timeline={state.timeline!}
+              isActive={state.isActive}
+            />
+          )}
+        </>
       )}
     </motion.div>
   );
