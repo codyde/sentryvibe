@@ -19,8 +19,8 @@ import {
   type RunnerEvent,
   type AgentId,
   setTemplatesPath,
-  buildLogger,
 } from "@sentryvibe/agent-core";
+import { buildLogger } from "@sentryvibe/agent-core";
 import { createBuildStream } from "./lib/build/engine.js";
 
 // Configure templates.json path for this runner app
