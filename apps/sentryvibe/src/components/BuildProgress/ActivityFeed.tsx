@@ -5,11 +5,13 @@ import { CheckCircle2, Circle, Loader2, Terminal, FileEdit, FileText, FileSearch
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { TimelineEvent, ToolCall, TodoItem, TextMessage } from '@/types/generation';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface ActivityFeedProps {
   timeline: TimelineEvent[];
   isActive: boolean;
+  toolsByTodo?: Record<number, ToolCall[]>;
+  textByTodo?: Record<number, TextMessage[]>;
 }
 
 // Get icon for tool name
@@ -199,8 +201,51 @@ function ActivityFeedItem({ event, index }: { event: TimelineEvent; index: numbe
   return null;
 }
 
-export function ActivityFeed({ timeline, isActive }: ActivityFeedProps) {
-  if (!timeline || timeline.length === 0) {
+export function ActivityFeed({ timeline, isActive, toolsByTodo, textByTodo }: ActivityFeedProps) {
+  // Build timeline on-the-fly if not provided
+  const effectiveTimeline = useMemo(() => {
+    if (timeline && timeline.length > 0) {
+      return timeline;
+    }
+
+    // Build from toolsByTodo and textByTodo if available
+    const events: TimelineEvent[] = [];
+
+    if (toolsByTodo) {
+      Object.entries(toolsByTodo).forEach(([todoIndexStr, tools]) => {
+        tools.forEach(tool => {
+          events.push({
+            id: tool.id,
+            timestamp: tool.startTime,
+            type: 'tool',
+            todoIndex: parseInt(todoIndexStr),
+            data: tool,
+          });
+        });
+      });
+    }
+
+    if (textByTodo) {
+      Object.entries(textByTodo).forEach(([todoIndexStr, texts]) => {
+        texts.forEach(text => {
+          events.push({
+            id: text.id,
+            timestamp: text.timestamp,
+            type: 'text',
+            todoIndex: parseInt(todoIndexStr),
+            data: text,
+          });
+        });
+      });
+    }
+
+    // Sort chronologically
+    events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    return events;
+  }, [timeline, toolsByTodo, textByTodo]);
+
+  if (!effectiveTimeline || effectiveTimeline.length === 0) {
     return (
       <div className="p-6 text-center">
         <div className="flex items-center justify-center gap-2 text-gray-400">
@@ -220,7 +265,7 @@ export function ActivityFeed({ timeline, isActive }: ActivityFeedProps) {
   return (
     <div className="p-3 space-y-2">
       <AnimatePresence mode="popLayout">
-        {timeline.map((event, index) => (
+        {effectiveTimeline.map((event, index) => (
           <ActivityFeedItem key={event.id} event={event} index={index} />
         ))}
       </AnimatePresence>

@@ -40,15 +40,32 @@ export default function BuildProgress({
   const isComplete = progress === 100 && !state?.isActive;
   const hasTimeline = !!state?.timeline && state.timeline.length > 0;
 
-  // Debug logging for toolsByTodo
+  // Check if we have ANY activity (tools, text, etc.) even without todos
+  const hasAnyActivity = useMemo(() => {
+    if (hasTimeline) return true;
+    const toolsCount = Object.values(state?.toolsByTodo || {}).reduce((sum, tools) => sum + tools.length, 0);
+    const textCount = Object.values(state?.textByTodo || {}).reduce((sum, texts) => sum + texts.length, 0);
+    return toolsCount > 0 || textCount > 0;
+  }, [hasTimeline, state?.toolsByTodo, state?.textByTodo]);
+
+  // Debug logging for state
   useEffect(() => {
+    console.log('🔍 BuildProgress state update:', {
+      todosLength: state?.todos?.length || 0,
+      hasTimeline,
+      timelineLength: state?.timeline?.length || 0,
+      hasAnyActivity,
+      viewMode,
+      isActive: state?.isActive,
+    });
+
     if (state?.toolsByTodo) {
       const toolCounts = Object.keys(state.toolsByTodo)
         .map((idx) => `todo${idx}: ${state.toolsByTodo[Number(idx)]?.length || 0} tools`)
         .join(', ');
-      console.log('📊 BuildProgress toolsByTodo:', toolCounts || 'empty');
+      console.log('   📊 toolsByTodo:', toolCounts || 'empty');
     }
-  }, [state?.toolsByTodo]);
+  }, [state, hasTimeline, hasAnyActivity, viewMode]);
 
   // Auto-collapse card when build completes (only if not defaultCollapsed)
   useEffect(() => {
@@ -99,8 +116,8 @@ export default function BuildProgress({
     );
   }
 
-  // Show initializing state if no todos AND no timeline yet
-  if (total === 0 && !hasTimeline && state.isActive) {
+  // Show initializing state ONLY if no activity at all
+  if (!hasAnyActivity && state.isActive) {
     return (
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -118,12 +135,13 @@ export default function BuildProgress({
     );
   }
 
-  // Auto-switch to activity view if no todos but has timeline
+  // Auto-switch to activity view if no todos but has activity
   useEffect(() => {
-    if (total === 0 && hasTimeline && viewMode === 'todos') {
+    if (total === 0 && (hasTimeline || hasAnyActivity) && viewMode === 'todos') {
+      console.log('🔄 Auto-switching to Activity Feed (no todos but has activity)');
       setViewMode('activity');
     }
-  }, [total, hasTimeline, viewMode]);
+  }, [total, hasTimeline, hasAnyActivity, viewMode]);
 
   const toggleTodo = (index: number) => {
     setExpandedTodos((prev) => {
@@ -181,11 +199,19 @@ export default function BuildProgress({
               onStartServer={onStartServer}
             />
           )}
-          {viewMode === 'activity' && hasTimeline && (
+          {viewMode === 'activity' && (hasTimeline || hasAnyActivity) && (
             <ActivityFeed
-              timeline={state.timeline!}
+              timeline={state.timeline || []}
               isActive={state.isActive}
+              toolsByTodo={state.toolsByTodo}
+              textByTodo={state.textByTodo}
             />
+          )}
+          {/* Fallback: Show message if no content at all */}
+          {!hasAnyActivity && total === 0 && (
+            <div className="p-6 text-center text-gray-400 text-sm">
+              Waiting for build to start...
+            </div>
           )}
         </>
       )}
