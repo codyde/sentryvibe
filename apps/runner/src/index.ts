@@ -19,6 +19,7 @@ import {
   type RunnerEvent,
   type AgentId,
   setTemplatesPath,
+  buildLogger,
 } from "@sentryvibe/agent-core";
 import { createBuildStream } from "./lib/build/engine.js";
 
@@ -346,22 +347,10 @@ function createClaudeQuery(): BuildQueryFn {
  */
 function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
-    console.log(
-      `[codex-query] ═══════════════════════════════════════════════`
-    );
-    console.log(`[codex-query] BUILDING CODEX PROMPT`);
-    console.log(`[codex-query]   workingDirectory: ${workingDirectory}`);
-    console.log(
-      `[codex-query]   CODEX_SYSTEM_PROMPT length: ${CODEX_SYSTEM_PROMPT.length} chars`
-    );
-    console.log(
-      `[codex-query]   orchestrator systemPrompt length: ${
-        systemPrompt?.length || 0
-      } chars`
-    );
-    console.log(`[codex-query]   user prompt length: ${prompt.length} chars`);
-    console.log(
-      `[codex-query] ═══════════════════════════════════════════════`
+    buildLogger.codexQuery.promptBuilding(
+      workingDirectory,
+      CODEX_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
+      prompt.length
     );
 
     const codex = await createInstrumentedCodex({
@@ -376,17 +365,6 @@ function createCodexQuery(): BuildQueryFn {
 
     const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
 
-    console.log(`[codex-query] 📨 FINAL COMBINED PROMPT TO CODEX:`);
-    console.log(`[codex-query]   Total length: ${combinedPrompt.length} chars`);
-    console.log(`[codex-query]   First 1000 chars of systemPrompt sections:`);
-    console.log(
-      `[codex-query]   ${systemParts.join("\n\n").substring(0, 1000)}...`
-    );
-    console.log(`[codex-query]   User prompt: "${prompt}"`);
-    console.log(
-      `[codex-query] ═══════════════════════════════════════════════`
-    );
-
     const thread = codex.startThread({
       sandboxMode: "danger-full-access",
       model: CODEX_MODEL,
@@ -394,9 +372,7 @@ function createCodexQuery(): BuildQueryFn {
       skipGitRepoCheck: true,
     });
 
-    console.log(
-      `[codex-query] Starting Codex thread (multi-turn on same thread)`
-    );
+    buildLogger.codexQuery.threadStarting();
 
     // Multi-turn pattern from SDK docs: call runStreamed() repeatedly on same thread
     const MAX_TURNS = 50;
@@ -406,20 +382,14 @@ function createCodexQuery(): BuildQueryFn {
 
     while (turnCount < MAX_TURNS) {
       turnCount++;
-      console.log(`[codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
-      console.log(
-        `[codex-query]   nextPrompt length: ${nextPrompt.length} chars`
-      );
-      console.log(
-        `[codex-query]   First 200 chars: ${nextPrompt.substring(0, 200)}`
-      );
+      buildLogger.codexQuery.turnStarted(turnCount, MAX_TURNS, nextPrompt.length);
 
       let events;
       try {
         const result = await thread.runStreamed(nextPrompt);
         events = result.events;
       } catch (error) {
-        console.error(`[codex-query] ❌ ERROR in thread.runStreamed():`, error);
+        buildLogger.codexQuery.error('ERROR in thread.runStreamed()', error);
         throw error;
       }
 
@@ -449,7 +419,7 @@ function createCodexQuery(): BuildQueryFn {
               const newTodoList = todoMatch[1].trim();
               if (newTodoList !== todoList) {
                 todoList = newTodoList;
-                console.log(`[codex-query] 📋 Task list extracted and updated`);
+                buildLogger.codexQuery.taskListExtracted();
                 try {
                   const tasks = JSON.parse(todoList);
                   if (Array.isArray(tasks)) {
@@ -462,9 +432,8 @@ function createCodexQuery(): BuildQueryFn {
                     const pending = tasks.filter(
                       (t: { status: string }) => t.status === "pending"
                     ).length;
-                    console.log(
-                      `[codex-query]    ✅ ${completed} completed | ⏳ ${inProgress} in_progress | ⭕ ${pending} pending (total: ${tasks.length})`
-                    );
+
+                    buildLogger.codexQuery.taskListStatus(completed, inProgress, pending, tasks.length);
 
                     // Log each task for visibility
                     tasks.forEach((task: { status: string; content: string }, idx: number) => {
@@ -474,30 +443,15 @@ function createCodexQuery(): BuildQueryFn {
                           : task.status === "in_progress"
                           ? "⏳"
                           : "⭕";
-                      console.log(
-                        `[codex-query]      ${statusIcon} ${idx + 1}. ${
-                          task.content
-                        }`
-                      );
+                      buildLogger.codexQuery.taskListTask(idx, task.content, task.status, statusIcon);
                     });
                   }
                 } catch (e) {
-                  console.error(
-                    `[codex-query]    ❌ PARSE ERROR: Could not parse task list JSON:`,
-                    e
-                  );
-                  console.error(
-                    `[codex-query]    Raw content: ${todoList.substring(
-                      0,
-                      200
-                    )}...`
-                  );
+                  buildLogger.codexQuery.taskListParseError(e, todoList);
                 }
               }
             } else if (turnCount > 1) {
-              console.warn(
-                `[codex-query] ⚠️  WARNING: No <start-todolist> tags found in Turn ${turnCount} response!`
-              );
+              buildLogger.codexQuery.taskListMissing(turnCount);
             }
           }
         }
@@ -513,13 +467,7 @@ function createCodexQuery(): BuildQueryFn {
         }
       }
 
-      console.log(
-        `[codex-query] Turn ${turnCount} complete. Tool calls: ${hadToolCalls}`
-      );
-      console.log(
-        `[codex-query]   lastMessage length: ${lastMessage.length} chars`
-      );
-      console.log(`[codex-query]   todoList present: ${!!todoList}`);
+      buildLogger.codexQuery.turnComplete(turnCount, hadToolCalls, lastMessage.length);
 
       // Check if all tasks are complete by parsing todolist
       let allTasksComplete = false;
@@ -530,10 +478,9 @@ function createCodexQuery(): BuildQueryFn {
             allTasksComplete = tasks.every(
               (task: { status: string }) => task.status === "completed"
             );
-            console.log(
-              `[codex-query] Task status: ${
-                tasks.filter((t: { status: string }) => t.status === "completed").length
-              }/${tasks.length} completed`
+            buildLogger.codexQuery.tasksComplete(
+              tasks.filter((t: { status: string }) => t.status === "completed").length,
+              tasks.length
             );
           }
         } catch (e) {
@@ -541,13 +488,8 @@ function createCodexQuery(): BuildQueryFn {
         }
       }
 
-      // Decide if we should continue
-      console.log(`[codex-query] Decision time:`);
-      console.log(`[codex-query]   allTasksComplete: ${allTasksComplete}`);
-      console.log(`[codex-query]   hadToolCalls: ${hadToolCalls}`);
-
       if (allTasksComplete) {
-        console.log(`[codex-query] ✅ All MVP tasks complete!`);
+        buildLogger.codexQuery.allComplete();
         break;
       } else if (!hadToolCalls) {
         // No tools used - check if task is complete via message text
@@ -562,14 +504,10 @@ function createCodexQuery(): BuildQueryFn {
         );
 
         if (isDone) {
-          console.log(
-            `[codex-query] ✅ Task complete (detected completion signal)`
-          );
+          buildLogger.codexQuery.taskCompleteDetected();
           break;
         } else {
-          console.log(
-            `[codex-query] ⚠️ No tools used but not done - prompting to continue`
-          );
+          buildLogger.codexQuery.continuePrompting('no tools used but not done');
           nextPrompt = todoList
             ? `Continue the MVP. Current progress:
 
@@ -582,9 +520,7 @@ Work on the next incomplete task and update the list.`
         }
       } else {
         // Had tool calls - continue with task list
-        console.log(
-          `[codex-query] ⏭️  Continuing to next turn (had tool calls)`
-        );
+        buildLogger.codexQuery.continuing();
         if (todoList) {
           nextPrompt = `Continue towards MVP completion. Latest progress:
 
@@ -593,35 +529,20 @@ ${todoList}
 <end-todolist>
 
 Next: Work on the next incomplete task. After each action, provide an update with the task list showing updated statuses. When ALL tasks are complete, signal completion.`;
-          console.log(
-            `[codex-query]   Set nextPrompt with todoList (${nextPrompt.length} chars)`
-          );
         } else {
           nextPrompt = `Continue working.
 
 CRITICAL: Include your task list in EVERY response using:
 
 <start-todolist>
-[{title: "Task", description: "Details", status: "not-done", result: null}]
-<end-todolist>`;
-          console.log(
-            `[codex-query]   Set nextPrompt without todoList (${nextPrompt.length} chars)`
-          );
+[{"content": "Task", "activeForm": "Doing task", "status": "pending"}]
+</start-todolist>`;
         }
       }
     }
 
-    console.log(
-      `[codex-query] ═══════════════════════════════════════════════`
-    );
-    console.log(`[codex-query] EXITED WHILE LOOP`);
-    console.log(`[codex-query]   turnCount: ${turnCount}`);
-    console.log(`[codex-query]   MAX_TURNS: ${MAX_TURNS}`);
-    console.log(
-      `[codex-query] ═══════════════════════════════════════════════`
-    );
-
-    console.log(`[codex-query] Session complete after ${turnCount} turns`);
+    buildLogger.codexQuery.loopExited(turnCount, MAX_TURNS);
+    buildLogger.codexQuery.sessionComplete(turnCount);
   };
 }
 

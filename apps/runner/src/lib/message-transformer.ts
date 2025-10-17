@@ -3,6 +3,8 @@
  * Includes message lifecycle tracking and path violation detection
  */
 
+import { buildLogger } from '@sentryvibe/agent-core';
+
 interface SSEEvent {
   type: string;
   [key: string]: any;
@@ -54,16 +56,13 @@ function detectPathViolations(toolName: string, input: any, expectedCwd?: string
       const isWithinWorkspace = pathToCheck.startsWith(expectedCwd) || pathToCheck.startsWith(workspaceRoot);
 
       if (!isWithinWorkspace) {
-        console.warn('⚠️  Path outside workspace:');
-        console.warn(`   Tool: ${toolName}`);
-        console.warn(`   Path: ${pathToCheck}`);
-        console.warn(`   Workspace: ${workspaceRoot}`);
+        buildLogger.transformer.pathViolationWarning(toolName, pathToCheck, workspaceRoot);
       }
     }
 
     // Always warn about Desktop paths (hallucination indicator)
     if (pathToCheck.includes('/Desktop/')) {
-      console.error('🚨 DESKTOP PATH DETECTED - Likely hallucinated:', pathToCheck);
+      buildLogger.transformer.desktopPathDetected(pathToCheck);
     }
   }
 }
@@ -139,7 +138,7 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
           const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
           if (todoMatch) {
             const todoListJson = todoMatch[1].trim();
-            console.log('[transformer] 📋 Found Codex task list, parsing...');
+            buildLogger.transformer.todoListFound();
             try {
               const todos = JSON.parse(todoListJson);
               if (Array.isArray(todos)) {
@@ -151,13 +150,17 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
                 );
 
                 if (!isValidFormat) {
-                  console.error('[transformer] ❌ Invalid todo format from Codex!');
-                  console.error('[transformer]    Expected: {content, activeForm, status}');
-                  console.error('[transformer]    Got:', todos[0]);
+                  buildLogger.transformer.todoListInvalidFormat(
+                    '{content, activeForm, status}',
+                    todos[0]
+                  );
                 } else {
                   const toolCallId = `codex-todo-${Date.now()}`;
-                  console.log(`[transformer] ✅ Parsed ${todos.length} tasks, sending TodoWrite event`);
-                  console.log(`[transformer]    ${todos.filter((t: any) => t.status === 'completed').length} completed, ${todos.filter((t: any) => t.status === 'in_progress').length} in_progress, ${todos.filter((t: any) => t.status === 'pending').length} pending`);
+                  const completed = todos.filter((t: any) => t.status === 'completed').length;
+                  const inProgress = todos.filter((t: any) => t.status === 'in_progress').length;
+                  const pending = todos.filter((t: any) => t.status === 'pending').length;
+
+                  buildLogger.transformer.todoListParsed(todos.length, completed, inProgress, pending);
 
                   events.push({
                     type: 'tool-input-available',
@@ -168,13 +171,12 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
                 }
               }
             } catch (e) {
-              console.error('[transformer] ❌ Failed to parse Codex todolist:', e);
-              console.error('[transformer]    Raw JSON:', todoListJson.substring(0, 300));
+              buildLogger.transformer.todoListParseError(e, todoListJson);
             }
 
             // Remove task list from displayed text
             text = text.replace(/<start-todolist>[\s\S]*?<end-todolist>/g, '').trim();
-            console.log('[transformer] 📝 Removed task list from chat text');
+            buildLogger.transformer.todoListRemoved();
           }
 
           const trimmed = text.trim();
