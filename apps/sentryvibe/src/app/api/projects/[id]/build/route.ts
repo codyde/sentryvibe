@@ -21,6 +21,28 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 
+async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 2): Promise<T | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isTimeout = error?.code === 'ETIMEDOUT' || error?.errno === -60;
+      const isLastAttempt = attempt === retries;
+
+      if (isTimeout && !isLastAttempt) {
+        console.warn(`[build-route] DB timeout on attempt ${attempt + 1}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+        continue;
+      }
+
+      if (!isTimeout || isLastAttempt) {
+        throw error;
+      }
+    }
+  }
+  return null;
+}
+
 export const maxDuration = 30;
 
 interface TemplateConfig {
@@ -410,30 +432,6 @@ export async function POST(
     const persistEvent = async (eventData: any) => {
       if (!eventData || !sessionId) return;
       const timestamp = new Date();
-
-      // Helper to retry DB operations on timeout
-      const retryOnTimeout = async <T>(fn: () => Promise<T>, retries = 2): Promise<T | null> => {
-        for (let attempt = 0; attempt <= retries; attempt++) {
-          try {
-            return await fn();
-          } catch (error: any) {
-            const isTimeout = error?.code === 'ETIMEDOUT' || error?.errno === -60;
-            const isLastAttempt = attempt === retries;
-
-            if (isTimeout && !isLastAttempt) {
-              console.warn(`[build-route] DB timeout on attempt ${attempt + 1}, retrying...`);
-              await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1))); // Exponential backoff
-              continue;
-            }
-
-            // If not timeout or last attempt, throw
-            if (!isTimeout || isLastAttempt) {
-              throw error;
-            }
-          }
-        }
-        return null;
-      };
 
       switch (eventData.type) {
         case 'start':
