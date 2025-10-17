@@ -22,8 +22,9 @@ const replacements = {
   '@sentry/node': '^10.17.0',
   '@sentry/node-core': '^10.17.0',
   '@sentry/nextjs': '^10.17.0',
-  '@sentryvibe/agent-core': '^0.1.0',
 };
+
+const bundledVendors = ['@sentryvibe/agent-core'];
 
 let modified = false;
 
@@ -32,6 +33,19 @@ for (const [pkg, version] of Object.entries(replacements)) {
     console.log(`  Replacing ${pkg}: ${packageJson.dependencies[pkg]} → ${version}`);
     packageJson.dependencies[pkg] = version;
     modified = true;
+  }
+}
+
+for (const pkg of bundledVendors) {
+  if (packageJson.dependencies[pkg] && packageJson.dependencies[pkg].startsWith('file:')) {
+    console.log(`  Removing ${pkg} from dependencies (bundled via vendor tarball)`);
+    delete packageJson.dependencies[pkg];
+    modified = true;
+
+    packageJson.bundleDependencies = packageJson.bundleDependencies || [];
+    if (!packageJson.bundleDependencies.includes(pkg)) {
+      packageJson.bundleDependencies.push(pkg);
+    }
   }
 }
 
