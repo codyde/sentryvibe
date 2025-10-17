@@ -64,6 +64,22 @@ try {
     console.log(`  ✓ @sentry/${name}`);
   }
 
+  // Also install agent-core from vendor if present
+  const agentCoreTarball = path.join(vendorDir, 'sentryvibe-agent-core-0.1.0.tgz');
+  if (existsSync(agentCoreTarball)) {
+    const agentCoreDestination = path.join(nodeModules, '@sentryvibe', 'agent-core');
+    rmSync(agentCoreDestination, { recursive: true, force: true });
+    mkdirSync(agentCoreDestination, { recursive: true });
+
+    execFileSync(
+      'tar',
+      ['-xzf', agentCoreTarball, '--strip-components', '1', '-C', agentCoreDestination],
+      { stdio: 'pipe' },
+    );
+
+    console.log(`  ✓ @sentryvibe/agent-core`);
+  }
+
   console.log('✓ Vendor packages installed successfully');
 } catch (error) {
   console.warn('Warning: Could not install vendor packages, using published versions');
