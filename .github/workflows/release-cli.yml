@@ -30,15 +30,90 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build and pack agent-core
+        run: |
+          echo "Building @sentryvibe/agent-core..."
+          cd packages/agent-core
+          pnpm build
+          pnpm pack
+
+          # Move to vendor directory
+          echo "Moving agent-core package to vendor..."
+          mkdir -p ../../vendor
+          mv *.tgz ../../vendor/sentryvibe-agent-core-0.1.0.tgz
+
+          echo "✓ Agent core packaged and moved to vendor/"
+
+      - name: Verify vendor packages
+        run: |
+          echo "Checking vendor packages in apps/runner/vendor/..."
+          ls -la apps/runner/vendor/
+
+          # Ensure vendor directory exists and has required files
+          if [ ! -d "apps/runner/vendor" ]; then
+            echo "ERROR: apps/runner/vendor/ directory not found!"
+            exit 1
+          fi
+
+          # Check for required files
+          REQUIRED_FILES=(
+            "sentry-core-LOCAL.tgz"
+            "sentry-node-LOCAL.tgz"
+            "sentry-node-core-LOCAL.tgz"
+            "sentry-nextjs-LOCAL.tgz"
+          )
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "apps/runner/vendor/$file" ]; then
+              echo "WARNING: apps/runner/vendor/$file not found - postinstall may use published versions"
+            else
+              echo "✓ Found $file"
+            fi
+          done
+
+          # Check for agent-core (required)
+          if [ ! -f "vendor/sentryvibe-agent-core-0.1.0.tgz" ]; then
+            echo "ERROR: vendor/sentryvibe-agent-core-0.1.0.tgz not found!"
+            echo "Build agent-core step may have failed."
+            exit 1
+          fi
+
+          echo "✓ Agent core package found"
+
+          # Copy agent-core from root vendor to runner vendor
+          echo "Copying agent-core to runner vendor directory..."
+          cp vendor/sentryvibe-agent-core-0.1.0.tgz apps/runner/vendor/
+          echo "✓ All vendor packages ready"
+
       - name: Build CLI
         run: pnpm run build:cli
 
-      - name: Create tarball (includes vendor/ and node_modules/@sentry/)
+      - name: Create tarball (includes vendor/ and dist/)
         run: |
           cd apps/runner
+
+          echo "Contents of vendor/ directory:"
+          ls -la vendor/
+
+          echo ""
+          echo "Packing CLI with npm pack..."
           # npm pack will include files listed in package.json "files" array
           npm pack
+
+          echo ""
+          echo "Created tarball:"
+          ls -la *.tgz
+
+          # Rename to standard name
           mv *.tgz sentryvibe-cli.tgz
+
+          echo ""
+          echo "Final package: sentryvibe-cli.tgz"
+
+          # Verify vendor files are in the tarball
+          echo ""
+          echo "Verifying tarball contents (checking for vendor/)..."
+          tar -tzf sentryvibe-cli.tgz | grep vendor/ || echo "WARNING: No vendor/ files found in tarball!"
 
       - name: Extract version from tag
         id: version
