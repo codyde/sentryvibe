@@ -224,6 +224,15 @@ class BuildLogger {
         messageLength,
       }),
 
+    tasksComplete: (completed: number, total: number) =>
+      this.log('info', 'codex-query', `Task status: ${completed}/${total} completed`, {
+        completed,
+        total,
+      }),
+
+    allComplete: () =>
+      this.log('info', 'codex-query', '✅ All MVP tasks complete!'),
+
     allTasksComplete: () =>
       this.log('info', 'codex-query', '✅ All MVP tasks complete!'),
 
