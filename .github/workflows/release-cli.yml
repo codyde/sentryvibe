@@ -30,68 +30,56 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build and pack agent-core
-        run: |
-          echo "Building @sentryvibe/agent-core..."
-          cd packages/agent-core
-          pnpm build
-          pnpm pack
-
-          # Move to ROOT vendor directory (use dynamic naming)
-          echo "Moving agent-core package to vendor..."
-          mkdir -p ../../vendor
-          # Find the generated tarball (it will have the version from package.json)
-          AGENT_CORE_TGZ=$(ls -1 sentryvibe-agent-core-*.tgz | head -1)
-          if [ -z "$AGENT_CORE_TGZ" ]; then
-            echo "ERROR: Could not find agent-core tarball!"
-            exit 1
-          fi
-          mv "$AGENT_CORE_TGZ" ../../vendor/sentryvibe-agent-core-0.1.0.tgz
-
-          echo "✓ Agent core packaged and moved to root vendor/"
-
-      - name: Build CLI
-        run: pnpm run build:cli
-
-      - name: Prepare vendor packages for CLI (AFTER build)
+      - name: Verify vendor packages (now committed to git)
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Preparing vendor packages for CLI tarball"
+          echo "Verifying vendor packages in apps/runner/vendor/"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          echo ""
-          echo "1. Checking root vendor/ for agent-core:"
-          if [ ! -f "vendor/sentryvibe-agent-core-0.1.0.tgz" ]; then
-            echo "ERROR: vendor/sentryvibe-agent-core-0.1.0.tgz not found!"
-            ls -la vendor/
+          if [ ! -d "apps/runner/vendor" ]; then
+            echo "ERROR: apps/runner/vendor/ directory not found!"
             exit 1
           fi
-          ls -lh vendor/sentryvibe-agent-core-0.1.0.tgz
-          echo "  ✓ Agent core found in root vendor/"
 
           echo ""
-          echo "2. Copying agent-core to apps/runner/vendor/:"
-          mkdir -p apps/runner/vendor
-          cp -v vendor/sentryvibe-agent-core-0.1.0.tgz apps/runner/vendor/
-
-          echo ""
-          echo "3. Final apps/runner/vendor/ contents:"
+          echo "Vendor files (should all be committed to git):"
           ls -lh apps/runner/vendor/
 
           # Count vendor files
           VENDOR_COUNT=$(ls -1 apps/runner/vendor/*.tgz 2>/dev/null | wc -l | tr -d ' ')
-          echo "  Total .tgz files in vendor/: $VENDOR_COUNT"
+          echo ""
+          echo "Total .tgz files: $VENDOR_COUNT"
+
+          # Check for all required files
+          REQUIRED_FILES=(
+            "sentry-core-LOCAL.tgz"
+            "sentry-node-LOCAL.tgz"
+            "sentry-node-core-LOCAL.tgz"
+            "sentry-nextjs-LOCAL.tgz"
+            "sentryvibe-agent-core-0.1.0.tgz"
+          )
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "apps/runner/vendor/$file" ]; then
+              echo "❌ MISSING: $file"
+              echo "ERROR: Required vendor file not found!"
+              exit 1
+            else
+              echo "✓ Found: $file"
+            fi
+          done
 
           if [ "$VENDOR_COUNT" -ne 5 ]; then
+            echo ""
             echo "ERROR: Expected 5 vendor files, found $VENDOR_COUNT"
-            echo "Missing files:"
-            echo "  Expected: sentry-core, sentry-node, sentry-node-core, sentry-nextjs, agent-core"
-            echo "  Found:"
-            ls -1 apps/runner/vendor/
             exit 1
           fi
 
-          echo "  ✓ All 5 required vendor packages present"
+          echo ""
+          echo "✓ All 5 required vendor packages verified"
+
+      - name: Build CLI
+        run: pnpm run build:cli
 
       - name: Create tarball (includes vendor/ and dist/)
         run: |
