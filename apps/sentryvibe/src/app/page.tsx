@@ -1050,21 +1050,20 @@ function HomeContent() {
             }
 
             if (currentMessage?.id) {
-              // Rebuild parts array from all text blocks in order
               const textParts = Array.from(textBlocksMap.values());
+              const filteredParts = currentMessage.parts.filter(p => !p.type.startsWith('text'));
+              const updatedMessage: Message = {
+                ...currentMessage,
+                parts: [ ...textParts, ...filteredParts ],
+              };
 
-              // Replace or add text parts
-              currentMessage.parts = currentMessage.parts.filter(p => !p.type.startsWith('text'));
-              currentMessage.parts.unshift(...textParts);
+              currentMessage = updatedMessage;
 
-              // Trigger re-render
-              setMessages(prev => {
-                const existing = prev.find(m => m.id === currentMessage!.id);
-                if (existing) {
-                  return prev.map(m => m.id === currentMessage!.id ? { ...currentMessage! } : m);
-                }
-                return [...prev, { ...currentMessage! }];
-              });
+              setMessages(prev =>
+                prev.some(m => m.id === updatedMessage.id)
+                  ? prev.map(m => (m.id === updatedMessage.id ? updatedMessage : m))
+                  : [...prev, updatedMessage]
+              );
             }
           } else if (data.type === 'text-end') {
             console.log('✅ Text block finished:', data.id);
@@ -1157,17 +1156,28 @@ function HomeContent() {
             }
 
             // Also add tools to current message for DB persistence
-            if (currentMessage && currentMessage.id && data.toolName !== 'TodoWrite') {
-              const messageId = currentMessage.id; // Capture to avoid race condition
-              currentMessage.parts.push({
-                type: `tool-${data.toolName}`,
-                toolCallId: data.toolCallId,
-                toolName: data.toolName,
-                input: data.input,
-                state: 'input-available',
-              });
-              const updatedMessage = { ...currentMessage };
-              setMessages(prev => prev.map(m => m.id === messageId ? updatedMessage : m));
+            if (currentMessage?.id && data.toolName !== 'TodoWrite') {
+              const updatedMessage: Message = {
+                ...currentMessage,
+                parts: [
+                  ...currentMessage.parts,
+                  {
+                    type: `tool-${data.toolName}`,
+                    toolCallId: data.toolCallId,
+                    toolName: data.toolName,
+                    input: data.input,
+                    state: 'input-available',
+                  },
+                ],
+              };
+
+              currentMessage = updatedMessage;
+
+              setMessages(prev =>
+                prev.some(m => m.id === updatedMessage.id)
+                  ? prev.map(m => (m.id === updatedMessage.id ? updatedMessage : m))
+                  : [...prev, updatedMessage]
+              );
             }
           } else if (data.type === 'tool-output-available') {
             // Update tool in generation state
@@ -1208,14 +1218,28 @@ function HomeContent() {
             });
 
             // Also update in message for DB persistence
-            if (currentMessage && currentMessage.id) {
-              const messageId = currentMessage.id; // Capture to avoid race condition
-              const toolPart = currentMessage.parts.find(p => p.toolCallId === data.toolCallId);
-              if (toolPart) {
-                toolPart.output = data.output;
-                toolPart.state = 'output-available';
-                const updatedMessage = { ...currentMessage };
-                setMessages(prev => prev.map(m => m.id === messageId ? updatedMessage : m));
+            if (currentMessage?.id) {
+              const toolPartIndex = currentMessage.parts.findIndex(p => p.toolCallId === data.toolCallId);
+              if (toolPartIndex >= 0) {
+                const updatedParts = [...currentMessage.parts];
+                updatedParts[toolPartIndex] = {
+                  ...updatedParts[toolPartIndex],
+                  output: data.output,
+                  state: 'output-available',
+                };
+
+                const updatedMessage: Message = {
+                  ...currentMessage,
+                  parts: updatedParts,
+                };
+
+                currentMessage = updatedMessage;
+
+                setMessages(prev =>
+                  prev.some(m => m.id === updatedMessage.id)
+                    ? prev.map(m => (m.id === updatedMessage.id ? updatedMessage : m))
+                    : [...prev, updatedMessage]
+                );
               }
             }
           } else if (data.type === 'data-reasoning' || data.type === 'reasoning') {
