@@ -38,6 +38,7 @@ interface ProjectContextType {
   isLoading: boolean;
   refetch: () => void;
   runnerOnline: boolean | null;
+  setActiveProjectId: (id: string | null) => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -47,24 +48,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [projectsRes, filesRes, runnerStatusRes] = await Promise.all([
-        fetch('/api/projects'),
-        fetch('/api/files'),
-        fetch('/api/runner/status'),
-      ]);
+      const projectsRes = await fetch('/api/projects');
+      const runnerStatusRes = await fetch('/api/runner/status');
 
-      const [projectsData, filesData, runnerStatusData] = await Promise.all([
-        projectsRes.json(),
-        filesRes.json(),
-        runnerStatusRes.json().catch(() => ({ connections: [] })),
-      ]);
+      const projectsData = await projectsRes.json();
+      const runnerStatusData = await runnerStatusRes.json().catch(() => ({ connections: [] }));
 
       setProjects(projectsData.projects || []);
-      setFiles(filesData.files || []);
       if (runnerStatusData && Array.isArray(runnerStatusData.connections)) {
         setRunnerOnline(runnerStatusData.connections.length > 0);
       } else {
@@ -78,10 +73,33 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Fetch on mount
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const fetchFilesForProject = async (projectId: string) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/files`);
+        if (!res.ok) {
+          setFiles([]);
+          return;
+        }
+
+        const data = await res.json();
+        setFiles(data.files || []);
+      } catch (error) {
+        console.error('Failed to fetch files for project:', error);
+        setFiles([]);
+      }
+    };
+
+    if (activeProjectId) {
+      fetchFilesForProject(activeProjectId);
+    } else {
+      setFiles([]);
+    }
+  }, [activeProjectId]);
 
   // Refetch when window regains focus (catches external changes like terminal commands)
   useEffect(() => {
@@ -107,7 +125,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ProjectContext.Provider value={{ projects, files, isLoading, refetch: fetchData, runnerOnline }}>
+    <ProjectContext.Provider
+      value={{ projects, files, isLoading, refetch: fetchData, runnerOnline, setActiveProjectId }}
+    >
       {children}
     </ProjectContext.Provider>
   );
