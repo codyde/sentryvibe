@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { RunnerEvent } from '@/shared/runner/messages';
-import { db } from '@/lib/db/client';
-import { projects } from '@/lib/db/schema';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { releasePortForProject, updatePortReservationForProject } from '@/lib/port-allocator';
-import { publishRunnerEvent } from '@/lib/runner/event-stream';
-import { appendRunnerLog, markRunnerLogExit } from '@/lib/runner/log-store';
+import { releasePortForProject, updatePortReservationForProject } from '@sentryvibe/agent-core/lib/port-allocator';
+import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
+import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');

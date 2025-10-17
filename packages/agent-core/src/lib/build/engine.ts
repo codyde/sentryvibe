@@ -1,13 +1,13 @@
 import { createUIMessageStream, type UIMessageStreamWriter } from 'ai';
-import { db } from '@/lib/db/client';
-import { projects, messages } from '@/lib/db/schema';
+import { db } from '../db/client';
+import { projects, messages } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
-import type { Template } from '@/lib/templates/config';
-import { getTemplateById, selectTemplateFromPrompt } from '@/lib/templates/config';
-import { downloadTemplate, getProjectFileTree } from '@/lib/templates/downloader';
-import type { BuildRequest } from '@/types/build';
+import type { Template } from '../templates/config';
+import { getTemplateById, selectTemplateFromPrompt } from '../templates/config';
+import { downloadTemplate, getProjectFileTree } from '../templates/downloader';
+import type { BuildRequest } from '../../types/build';
 import {
   reservePortForProject,
   releasePortForProject,
@@ -15,8 +15,8 @@ import {
   buildEnvForFramework,
   getRunCommand,
   withEnforcedPort,
-} from '@/lib/port-allocator';
-import { getWorkspaceRoot } from '@/lib/workspace';
+} from '../port-allocator';
+import { getWorkspaceRoot } from '../workspace';
 
 export interface AgentMessage {
   type: string;
@@ -35,9 +35,12 @@ export interface AgentMessage {
   };
   uuid?: string;
   error?: unknown;
+  result?: unknown;
+  usage?: unknown;
+  finalResponse?: unknown;
 }
 
-export type ClaudeQueryFn = (args: {
+export type AgentQueryFn = (args: {
   prompt: string;
   inputMessages: Array<{ role: string; content: string }>;
   options: Record<string, unknown>;
@@ -45,7 +48,7 @@ export type ClaudeQueryFn = (args: {
 
 export interface BuildStreamOptions extends BuildRequest {
   projectId: string;
-  query: ClaudeQueryFn;
+  query: AgentQueryFn;
 }
 
 interface ProjectMetadata {
@@ -172,7 +175,7 @@ function serializeMessageContent(content: unknown): string {
 interface BuildPipelineParams extends BuildRequest {
   projectId: string;
   writer: UIMessageStreamWriter;
-  query: ClaudeQueryFn;
+  query: AgentQueryFn;
 }
 
 async function runBuildPipeline(params: BuildPipelineParams) {
@@ -212,13 +215,13 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   switch (operationType) {
     case 'initial-build': {
       console.log('🆕 INITIAL BUILD - Starting pre-build phase...');
-      writer.write({ type: 'pre-build-start' });
+      writer.write({ type: 'pre-build-start' } as any);
 
       metadata = await extractProjectMetadata(prompt, query);
       writer.write({
         type: 'metadata-extracted',
         metadata,
-      });
+      } as any);
 
       selectedTemplate = metadata?.template
         ? await getTemplateById(metadata.template)
@@ -228,10 +231,10 @@ async function runBuildPipeline(params: BuildPipelineParams) {
         throw new Error('Unable to resolve template for build');
       }
 
-      writer.write({ type: 'template-selected', template: selectedTemplate });
+      writer.write({ type: 'template-selected', template: selectedTemplate } as any);
 
       const downloadResult = await downloadTemplate(selectedTemplate, projectName);
-      writer.write({ type: 'template-downloaded', path: downloadResult });
+      writer.write({ type: 'template-downloaded', path: downloadResult } as any);
 
       fileTree = await getProjectFileTree(downloadResult);
       systemPrompt = await buildInitialSystemPrompt({
@@ -341,14 +344,14 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   }
 }
 
-async function extractProjectMetadata(prompt: string, query: ClaudeQueryFn): Promise<ProjectMetadata> {
+async function extractProjectMetadata(prompt: string, query: AgentQueryFn): Promise<ProjectMetadata> {
   console.log('🤖 Extracting project metadata...');
 
   const metadataStream = await query({
     prompt: `Analyze this project request: "${prompt}"\n\nExtract metadata and select the best template.\n\nAvailable templates:\n- react-vite: React with Vite, TypeScript, Tailwind (fast SPA, client-side only)\n- nextjs-fullstack: Next.js with TypeScript, Tailwind (SSR, API routes, full-stack)\n- astro-static: Astro with TypeScript, Tailwind (static site generation, content-focused)\n\nOutput ONLY valid JSON (no markdown, no explanation):\n{\n  "slug": "short-kebab-case-name",\n  "friendlyName": "Friendly Display Name",\n  "description": "Brief description of what this builds",\n  "icon": "Package",\n  "template": "react-vite"\n}\n\nAvailable icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter\n\nRules:\n- slug must be lowercase, kebab-case, 2-4 words max\n- friendlyName should be concise (2-5 words)\n- description should explain what the app does\n- template must be one of: react-vite, nextjs-fullstack, astro-static\n\nTemplate Selection Logic (PRIORITY ORDER):\n1. If user explicitly mentions "vite" OR "react vite" → react-vite\n2. If user explicitly mentions "next" OR "nextjs" → nextjs-fullstack\n3. If user explicitly mentions "astro" → astro-static\n4. If user mentions backend needs (API, database, auth, server) → nextjs-fullstack\n5. If user mentions static content (blog, docs, markdown) → astro-static\n6. For simple landing pages with NO backend → react-vite (simpler/faster)\n7. For landing pages WITH backend/forms/API → nextjs-fullstack\n8. For interactive apps (todo, dashboard, calculator, game) → react-vite\n9. Default if unclear → react-vite (simplest option)\n\nCRITICAL: Pay attention to explicit technology mentions. If user says "vite landing page", use react-vite NOT nextjs!`,
     inputMessages: [],
     options: {
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claud-sonnet-4-5',
       maxTurns: 1,
       systemPrompt: 'You are a metadata extraction assistant. Output ONLY valid JSON. No markdown blocks. No explanations. Just raw JSON.',
     },
@@ -510,7 +513,7 @@ async function writeAgentMessagesToStream(
       writer.write({
         type: 'error',
         error: message.error instanceof Error ? message.error.message : String(message.error),
-      });
+      } as any);
     }
   }
 }
@@ -535,7 +538,7 @@ async function autoStartDevServer(projectId: string) {
     const command = withEnforcedPort(baseCommand, framework, reservedPort);
     const env = buildEnvForFramework(framework, reservedPort);
 
-    const { startDevServer } = await import('@/lib/process-manager');
+    const { startDevServer } = await import('../process-manager');
 
     const { pid, emitter } = startDevServer({
       projectId,

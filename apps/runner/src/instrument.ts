@@ -2,7 +2,10 @@ import * as Sentry from "@sentry/node";
 
 type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
   dsn: string;
-  integrations?: Array<ReturnType<typeof Sentry.claudeCodeIntegration>>;
+  integrations?: Array<
+    | ReturnType<typeof Sentry.claudeCodeIntegration>
+    | ReturnType<typeof Sentry.openaiCodexIntegration>
+  >;
   tracesSampleRate?: number;
   debug?: boolean;
   enableLogs?: boolean;
@@ -16,11 +19,15 @@ const sentryOptions: RunnerSentryOptions = {
       recordInputs: true,
       recordOutputs: true,
     }),
+    Sentry.openaiCodexIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    }),
     Sentry.consoleLoggingIntegration(),
   ],
   tracesSampleRate: 1.0,
-  debug: false,
   enableLogs: true,
+  debug: false,
   sendDefaultPii: true,
 };
 

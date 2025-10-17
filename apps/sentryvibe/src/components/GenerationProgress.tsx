@@ -13,6 +13,11 @@ interface GenerationProgressProps {
   onClose?: () => void;
   onViewFiles?: () => void;
   onStartServer?: () => void;
+  templateInfo?: {
+    name: string;
+    framework: string;
+    analyzedBy: string;
+  } | null;
 }
 
 interface ToolCallMiniCardProps {
@@ -123,7 +128,7 @@ function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
   );
 }
 
-export default function GenerationProgress({ state, defaultCollapsed = false, onClose, onViewFiles, onStartServer }: GenerationProgressProps) {
+export default function GenerationProgress({ state, defaultCollapsed = false, onClose, onViewFiles, onStartServer, templateInfo }: GenerationProgressProps) {
   // ALWAYS call hooks first (React rules!)
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
@@ -132,6 +137,16 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
   const total = state?.todos?.length || 0;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
+
+  // Debug logging for toolsByTodo
+  useEffect(() => {
+    if (state?.toolsByTodo) {
+      const toolCounts = Object.keys(state.toolsByTodo).map(idx =>
+        `todo${idx}: ${state.toolsByTodo[Number(idx)]?.length || 0} tools`
+      ).join(', ');
+      console.log('📊 GenerationProgress toolsByTodo:', toolCounts || 'empty');
+    }
+  }, [state?.toolsByTodo]);
 
   // Auto-collapse card when build completes (only if not defaultCollapsed)
   useEffect(() => {
@@ -224,12 +239,12 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
       exit={{ opacity: 0, y: -20 }}
       className="w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95 shadow-2xl backdrop-blur-sm"
     >
-      {/* Header - Clickable when complete */}
+      {/* Header - Always clickable when there are todos */}
       <div
         className={`relative border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-4 py-3 ${
-          isComplete ? 'cursor-pointer hover:bg-purple-500/5 transition-colors' : ''
+          total > 0 ? 'cursor-pointer hover:bg-purple-500/5 transition-colors' : ''
         }`}
-        onClick={() => isComplete && setIsCardExpanded(!isCardExpanded)}
+        onClick={() => total > 0 && setIsCardExpanded(!isCardExpanded)}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
@@ -245,12 +260,19 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 {isComplete ? '✓ Build Complete!' : `Building ${state.projectName}`}
               </h3>
               {isCardExpanded ? (
-                <p className="text-xs text-gray-400">
-                  {completed} of {total} complete
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-400">
+                    {completed} of {total} complete
+                  </p>
+                  {templateInfo?.framework && templateInfo?.analyzedBy && (
+                    <p className="text-xs text-purple-300/80">
+                      {templateInfo.framework} • Selected by {templateInfo.analyzedBy}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <p className="text-xs text-gray-400">
-                  {total} tasks completed • Click to expand
+                  {completed} of {total} complete • Click to expand
                 </p>
               )}
             </div>
@@ -261,7 +283,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 {Math.round(progress)}%
               </div>
             </div>
-            {isComplete && (
+            {total > 0 && (
               <div className="ml-2">
                 {isCardExpanded ? (
                   <ChevronUp className="w-5 h-5 text-gray-400" />

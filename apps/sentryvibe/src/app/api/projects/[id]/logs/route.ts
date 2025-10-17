@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRunnerLogs, subscribeToRunnerLogs } from '@/lib/runner/log-store';
+import { getRunnerLogs, subscribeToRunnerLogs } from '@sentryvibe/agent-core/lib/runner/log-store';
 
 // GET /api/projects/:id/logs - Get dev server logs
 export async function GET(

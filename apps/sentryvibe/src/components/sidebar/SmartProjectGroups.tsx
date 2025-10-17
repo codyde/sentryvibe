@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, ChevronRight, Zap, Clock, FolderOpen } from "lucide-react"
 import { type Project } from "@/contexts/ProjectContext"
 import { RichProjectCard } from "./RichProjectCard"
-import { getIconComponent } from "@/lib/icon-mapper"
+import { getIconComponent } from "@sentryvibe/agent-core/lib/icon-mapper"
 
 interface SmartProjectGroupsProps {
   projects: Project[]

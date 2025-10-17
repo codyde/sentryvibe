@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-import "../instrument.js"
 import { Command } from 'commander';
 import updateNotifier from 'update-notifier';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { displayBanner } from './utils/banner.js';
-import * as Sentry from '@sentry/node';
 
 // Get package.json for version info
 const __filename = fileURLToPath(import.meta.url);
@@ -77,13 +75,8 @@ program
   .option('-s, --secret <secret>', 'Shared secret for authentication')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
-    // Sentry.startSpan({
-    //   op: "function",
-    //   name: "SentryVibe Runner",
-    // }, async () => {
     const { runCommand } = await import('./commands/run.js');
     await runCommand(options);
-  // });
   });
 
 

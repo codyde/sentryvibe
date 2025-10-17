@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findStaleProjects, markStaleProjectsAsFailed } from '@/lib/stale-projects';
+import { findStaleProjects, markStaleProjectsAsFailed } from '@sentryvibe/agent-core/lib/stale-projects';
 
 // GET /api/cleanup - Find stale projects
 export async function GET() {

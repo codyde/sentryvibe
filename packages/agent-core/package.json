@@ -2,8 +2,42 @@
   "name": "@sentryvibe/agent-core",
   "version": "0.1.0",
   "private": true,
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./lib/agents": {
+      "types": "./dist/lib/agents/index.d.ts",
+      "default": "./dist/lib/agents/index.js"
+    },
+    "./lib/*": {
+      "types": "./dist/lib/*.d.ts",
+      "default": "./dist/lib/*.js"
+    },
+    "./shared/runner/messages": {
+      "types": "./dist/shared/runner/messages.d.ts",
+      "default": "./dist/shared/runner/messages.js"
+    },
+    "./shared/*": {
+      "types": "./dist/shared/*.d.ts",
+      "default": "./dist/shared/*.js"
+    },
+    "./types/*": {
+      "types": "./dist/types/*.d.ts",
+      "default": "./dist/types/*.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
@@ -14,6 +48,7 @@
     "drizzle-orm": "^0.44.5",
     "lucide-react": "^0.544.0",
     "pg": "^8.13.1",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.3.1"
   }
 }

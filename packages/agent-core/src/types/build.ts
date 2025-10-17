@@ -2,11 +2,26 @@
  * Build operation types
  * Defines the semantic intent of each build request
  */
+import type { AgentId } from './agent';
+
 export type BuildOperationType =
   | 'initial-build'      // First time build, needs template download
   | 'enhancement'        // Follow-up chat for significant changes
   | 'focused-edit'       // Element selector or small targeted changes
   | 'continuation';      // Retry or continue a failed build
+
+/**
+ * Template metadata for frontend-selected templates
+ */
+export interface TemplateMetadata {
+  id: string;
+  name: string;
+  framework: string;
+  port: number;
+  runCommand: string;
+  repository: string;
+  branch: string;
+}
 
 /**
  * Build request payload
@@ -16,6 +31,8 @@ export interface BuildRequest {
   prompt: string;
   runnerId?: string; // Optional runner ID - falls back to RUNNER_DEFAULT_ID
   buildId?: string;
+  agent?: AgentId; // Selected coding agent provider (Claude Code, OpenAI Codex, etc.)
+  template?: TemplateMetadata; // Frontend-selected template (NEW: for parity improvements)
   context?: {
     elementSelector?: string;
     elementInfo?: {

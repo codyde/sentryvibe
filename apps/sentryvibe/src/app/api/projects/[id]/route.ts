@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
-import { projects } from '@/lib/db/schema';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { releasePortForProject } from '@/lib/port-allocator';
-import { sendCommandToRunner } from '@/lib/runner/broker-state';
+import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { randomUUID } from 'crypto';
 
 // GET /api/projects/:id - Get single project

@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/client';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
 import {
   messages,
   generationSessions,
   generationTodos,
   generationToolCalls,
   generationNotes,
-} from '@/lib/db/schema';
+} from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
-import { deserializeGenerationState } from '@/lib/generation-persistence';
+import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
 
 function serializeContent(content: unknown): string {

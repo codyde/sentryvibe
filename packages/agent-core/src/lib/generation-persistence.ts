@@ -9,6 +9,39 @@ export function serializeGenerationState(state: GenerationState): string {
     ...state,
     startTime: state.startTime.toISOString(),
     endTime: state.endTime?.toISOString(),
+    codex: state.codex
+      ? {
+          ...state.codex,
+          lastUpdatedAt: state.codex.lastUpdatedAt?.toISOString(),
+          phases: state.codex.phases.map(phase => ({
+            ...phase,
+            startedAt: phase.startedAt?.toISOString(),
+            completedAt: phase.completedAt?.toISOString(),
+          })),
+          templateDecision: state.codex.templateDecision
+            ? {
+                ...state.codex.templateDecision,
+                decidedAt: state.codex.templateDecision.decidedAt?.toISOString(),
+              }
+            : undefined,
+          workspaceVerification: state.codex.workspaceVerification
+            ? {
+                ...state.codex.workspaceVerification,
+                verifiedAt: state.codex.workspaceVerification.verifiedAt?.toISOString(),
+              }
+            : undefined,
+          taskSummary: state.codex.taskSummary
+            ? {
+                ...state.codex.taskSummary,
+                capturedAt: state.codex.taskSummary.capturedAt.toISOString(),
+              }
+            : undefined,
+          executionInsights: state.codex.executionInsights?.map(insight => ({
+            ...insight,
+            timestamp: insight.timestamp.toISOString(),
+          })),
+        }
+      : undefined,
     toolsByTodo: Object.entries(state.toolsByTodo).reduce((acc, [key, tools]) => {
       acc[key] = tools.map(tool => ({
         ...tool,
@@ -58,6 +91,45 @@ export function deserializeGenerationState(json: string | null): GenerationState
         }));
         return acc;
       }, {} as Record<number, any[]>),
+      codex: parsed.codex
+        ? {
+            ...parsed.codex,
+            lastUpdatedAt: parsed.codex.lastUpdatedAt ? new Date(parsed.codex.lastUpdatedAt) : undefined,
+            phases: (parsed.codex.phases || []).map((phase: any) => ({
+              ...phase,
+              startedAt: phase.startedAt ? new Date(phase.startedAt) : undefined,
+              completedAt: phase.completedAt ? new Date(phase.completedAt) : undefined,
+            })),
+            templateDecision: parsed.codex.templateDecision
+              ? {
+                  ...parsed.codex.templateDecision,
+                  decidedAt: parsed.codex.templateDecision.decidedAt
+                    ? new Date(parsed.codex.templateDecision.decidedAt)
+                    : undefined,
+                }
+              : undefined,
+            workspaceVerification: parsed.codex.workspaceVerification
+              ? {
+                  ...parsed.codex.workspaceVerification,
+                  verifiedAt: parsed.codex.workspaceVerification.verifiedAt
+                    ? new Date(parsed.codex.workspaceVerification.verifiedAt)
+                    : undefined,
+                }
+              : undefined,
+            taskSummary: parsed.codex.taskSummary
+              ? {
+                  ...parsed.codex.taskSummary,
+                  capturedAt: parsed.codex.taskSummary.capturedAt
+                    ? new Date(parsed.codex.taskSummary.capturedAt)
+                    : new Date(),
+                }
+              : undefined,
+            executionInsights: parsed.codex.executionInsights?.map((insight: any) => ({
+              ...insight,
+              timestamp: insight.timestamp ? new Date(insight.timestamp) : new Date(),
+            })),
+          }
+        : undefined,
     };
   } catch (error) {
     console.error('Failed to deserialize generationState:', error);

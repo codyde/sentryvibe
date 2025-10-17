@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { reconcileProjectsWithFilesystem } from '@/lib/reconciliation';
+import { reconcileProjectsWithFilesystem } from '@sentryvibe/agent-core/lib/reconciliation';
 
 // GET /api/reconcile - Check DB vs filesystem sync status
 export async function GET() {

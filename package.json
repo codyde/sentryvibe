@@ -5,17 +5,21 @@
   "scripts": {
     "dev": "pnpm --filter sentryvibe dev",
     "build": "pnpm --filter sentryvibe build",
+    "build:all": "pnpm --filter sentryvibe build && pnpm --filter @sentryvibe/runner-cli build && pnpm --filter sentryvibe-broker build",
     "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
+    "build:agent-core": "cd packages/agent-core && pnpm build && pnpm pack && mv *.tgz ../../vendor/",
     "start": "pnpm --filter sentryvibe start",
     "lint": "pnpm --filter sentryvibe lint",
-    "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter sentryvibe-runner run dev",
+    "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter @sentryvibe/runner-cli run dev",
     "broker": "pnpm --filter sentryvibe-broker dev",
-    "runner": "pnpm --filter sentryvibe-runner dev"
+    "runner": "pnpm --filter @sentryvibe/runner-cli dev"
   },
   "pnpm": {
     "overrides": {
-      "@sentry/node": "file:./apps/sentryvibe/vendor/sentry-node-10.17.0.tgz",
-      "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-10.17.0.tgz"
+      "@sentry/core": "file:./apps/sentryvibe/vendor/sentry-core-LOCAL.tgz",
+      "@sentry/node": "file:./apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
+      "@sentry/node-core": "file:./apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz",
+      "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz"
     }
   }
 }

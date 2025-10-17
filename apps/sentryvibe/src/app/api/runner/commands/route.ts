@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sendCommandToRunner } from '@/lib/runner/broker-state';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import type { RunnerCommand } from '@/shared/runner/messages';
 
 export async function POST(request: Request) {

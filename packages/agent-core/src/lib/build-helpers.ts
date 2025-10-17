@@ -1,11 +1,13 @@
 import type { BuildOperationType } from '@/types/build';
-import type { Project } from '@/contexts/ProjectContext';
+import type { AgentId } from '@/types/agent';
+import type { CodexSessionState, GenerationState } from '@/types/generation';
+import type { ProjectSummary } from '@/types/project';
 
 /**
  * Detect the appropriate build operation type based on context
  */
 export function detectOperationType(params: {
-  project: Project;
+  project: ProjectSummary;
   isElementChange?: boolean;
   isRetry?: boolean;
 }): BuildOperationType {
@@ -37,7 +39,7 @@ export function detectOperationType(params: {
 /**
  * Detect operation type from project status
  */
-export function isNewProject(project: Project): boolean {
+export function isNewProject(project: ProjectSummary): boolean {
   return project.status === 'pending' || (!project.runCommand && !project.projectType);
 }
 
@@ -48,14 +50,16 @@ export function createFreshGenerationState(params: {
   projectId: string;
   projectName: string;
   operationType: BuildOperationType;
-}) {
+  agentId?: AgentId;
+}): GenerationState {
   const buildId = `build-${Date.now()}`;
 
-  return {
+  const baseState: GenerationState = {
     id: buildId,
     projectId: params.projectId,
     projectName: params.projectName,
     operationType: params.operationType,
+    agentId: params.agentId,
     todos: [],
     toolsByTodo: {},
     textByTodo: {},
@@ -63,6 +67,12 @@ export function createFreshGenerationState(params: {
     isActive: true,
     startTime: new Date(),
   };
+
+  if (params.agentId === 'openai-codex') {
+    baseState.codex = createInitialCodexSessionState();
+  }
+
+  return baseState;
 }
 
 /**
@@ -73,4 +83,50 @@ export function validateGenerationState(state: any): boolean {
   if (!state.id || !state.projectId) return false;
   if (!Array.isArray(state.todos)) return false;
   return true;
+}
+
+export function createInitialCodexSessionState(): CodexSessionState {
+  const now = new Date();
+  return {
+    phases: [
+      {
+        id: 'prompt-analysis',
+        title: 'Analyze Prompt',
+        description: 'Reviewing your request and extracting build requirements.',
+        status: 'active',
+        startedAt: now,
+      },
+      {
+        id: 'template-selection',
+        title: 'Select Template',
+        description: 'Choosing the best starter template to clone.',
+        status: 'pending',
+      },
+      {
+        id: 'template-clone',
+        title: 'Clone Template',
+        description: 'Cloning the project template with degit.',
+        status: 'pending',
+      },
+      {
+        id: 'workspace-verification',
+        title: 'Verify Workspace',
+        description: 'Ensuring the cloned project exists in the workspace.',
+        status: 'pending',
+      },
+      {
+        id: 'task-synthesis',
+        title: 'Summarize Tasks',
+        description: 'Translating the prompt into concrete tasks.',
+        status: 'pending',
+      },
+      {
+        id: 'execution',
+        title: 'Execute Build',
+        description: 'Implementing features and producing code updates.',
+        status: 'pending',
+      },
+    ],
+    lastUpdatedAt: now,
+  };
 }

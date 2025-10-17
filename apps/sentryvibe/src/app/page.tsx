@@ -14,15 +14,24 @@ import ProcessManagerModal from '@/components/ProcessManagerModal';
 import ToolCallCard from '@/components/ToolCallCard';
 import SummaryCard from '@/components/SummaryCard';
 import CodeBlock from '@/components/CodeBlock';
-import TodoVibe, { type TodoItem } from '@/components/TodoVibe';
 import GenerationProgress from '@/components/GenerationProgress';
+import CodexBuildExperience from '@/components/CodexBuildExperience';
 import { AppSidebar } from '@/components/app-sidebar';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import AgentSelector from '@/components/AgentSelector';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
-import type { GenerationState, ToolCall, BuildOperationType } from '@/types/generation';
-import { saveGenerationState, deserializeGenerationState } from '@/lib/generation-persistence';
-import { detectOperationType, createFreshGenerationState, validateGenerationState } from '@/lib/build-helpers';
+import { useAgent } from '@/contexts/AgentContext';
+import type {
+  GenerationState,
+  ToolCall,
+  BuildOperationType,
+  CodexSessionState,
+  TodoItem,
+} from '@/types/generation';
+import { saveGenerationState, deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
+import { detectOperationType, createFreshGenerationState, validateGenerationState, createInitialCodexSessionState } from '@sentryvibe/agent-core/lib/build-helpers';
+import { processCodexEvent } from '@sentryvibe/agent-core/lib/agents/codex/events';
 import ElementChangeCard from '@/components/ElementChangeCard';
 import InitializingCard from '@/components/InitializingCard';
 
@@ -44,8 +53,8 @@ interface ElementChange {
   status: 'processing' | 'completed' | 'failed';
   toolCalls: Array<{
     name: string;
-    input?: any;
-    output?: any;
+    input?: Record<string, unknown>;
+    output?: Record<string, unknown>;
     status: 'running' | 'completed' | 'failed';
   }>;
   error?: string;
@@ -64,8 +73,9 @@ function HomeContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<{name: string; framework: string; analyzedBy: string} | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
-  const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<number | null>(null);
   const [generationState, setGenerationState] = useState<GenerationState | null>(null);
@@ -112,10 +122,10 @@ function HomeContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const selectedProjectSlug = searchParams.get('project');
-  const shouldGenerate = searchParams.get('generate') === 'true';
+  const selectedProjectSlug = searchParams?.get('project') ?? null;
   const { projects, refetch, runnerOnline } = useProjects();
   const { selectedRunnerId } = useRunner();
+  const { selectedAgentId } = useAgent();
 
   // Restore view preference from sessionStorage after mount (avoids hydration error)
   useEffect(() => {
@@ -131,6 +141,11 @@ function HomeContent() {
   }, [generationState]);
 
   const ensureGenerationState = useCallback((prevState: GenerationState | null): GenerationState | null => {
+    // Capture values BEFORE any type narrowing/early returns
+    const existingState = prevState || generationStateRef.current || generationState;
+    const previousOperationType = existingState?.operationType;
+    const previousAgentId = existingState?.agentId;
+
     if (prevState) return prevState;
     if (generationStateRef.current) return generationStateRef.current;
     if (generationState) return generationState;
@@ -138,18 +153,60 @@ function HomeContent() {
       return createFreshGenerationState({
         projectId: currentProject.id,
         projectName: currentProject.name,
-        operationType: generationStateRef.current?.operationType ?? 'initial-build',
+        operationType: previousOperationType ?? 'initial-build',
+        agentId: previousAgentId ?? selectedAgentId,
       });
     }
     return null;
-  }, [generationState, currentProject]);
+  }, [generationState, currentProject, selectedAgentId]);
+
+  const updateCodexState = useCallback(
+    (mutator: (state: CodexSessionState) => CodexSessionState) => {
+      updateGenerationState(prev => {
+        const baseState = ensureGenerationState(prev);
+        if (!baseState) return prev;
+
+        const existingCodex = baseState.codex ?? createInitialCodexSessionState();
+        const workingCodex: CodexSessionState = {
+          ...existingCodex,
+          phases: existingCodex.phases.map(phase => ({ ...phase })),
+          executionInsights: existingCodex.executionInsights
+            ? existingCodex.executionInsights.map(insight => ({ ...insight }))
+            : [],
+        };
+
+        const nextCodex = mutator(workingCodex);
+        const updated: GenerationState = {
+          ...baseState,
+          agentId: baseState.agentId ?? 'openai-codex',
+          codex: {
+            ...nextCodex,
+            phases: nextCodex.phases.map(phase => ({ ...phase })),
+            executionInsights: nextCodex.executionInsights
+              ? nextCodex.executionInsights.map(insight => ({ ...insight }))
+              : [],
+            lastUpdatedAt: new Date(),
+          },
+        };
+
+        console.log('🌀 Codex state updated:', {
+          phases: updated.codex?.phases.map(p => `${p.id}:${p.status}`),
+        });
+
+        saveGenerationState(updated.projectId, updated);
+        return updated;
+      });
+    },
+    [ensureGenerationState, updateGenerationState]
+  );
 
   // Use ref to access latest projects without triggering effects
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
 
   const isLoading = isCreatingProject || isGenerating;
-  const activeProject = selectedProjectSlug || selectedDirectory;
+  const activeAgentId = generationState?.agentId ?? selectedAgentId;
+  const isCodexSession = activeAgentId === 'openai-codex';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -235,6 +292,10 @@ function HomeContent() {
 
   // Auto-switch to Build when todos first populate
   const previousTodoCountRef = useRef(0);
+  const codexAutoSwitchRef = useRef(false);
+  useEffect(() => {
+    codexAutoSwitchRef.current = false;
+  }, [generationState?.id]);
   useEffect(() => {
     const currentTodoCount = generationState?.todos?.length || 0;
 
@@ -254,22 +315,45 @@ function HomeContent() {
     previousTodoCountRef.current = currentTodoCount;
   }, [generationState?.todos?.length]);
 
+  useEffect(() => {
+    const isCodex = (generationState?.agentId ?? selectedAgentId) === 'openai-codex';
+    if (!isCodex) {
+      codexAutoSwitchRef.current = false;
+      return;
+    }
+    if (!generationState?.codex?.lastUpdatedAt) return;
+    if (codexAutoSwitchRef.current) return;
+    console.log('🌀 Codex activity detected, switching to Build tab');
+    switchTab('build');
+    codexAutoSwitchRef.current = true;
+  }, [generationState?.codex?.lastUpdatedAt, generationState?.agentId, selectedAgentId]);
+
   // Archive completed builds to history (per project)
   useEffect(() => {
-    if (generationState && !generationState.isActive && generationState.todos && generationState.todos.length > 0 && currentProject) {
-      const projectHistory = buildHistoryByProject.get(currentProject.id) || [];
-      const alreadyArchived = projectHistory.some(b => b.id === generationState.id);
-
-      if (!alreadyArchived) {
-        console.log('📚 Archiving completed build to history:', generationState.id);
-        setBuildHistoryByProject(prev => {
-          const newMap = new Map(prev);
-          newMap.set(currentProject.id, [generationState, ...projectHistory]);
-          return newMap;
-        });
-      }
+    if (!generationState || generationState.isActive || !currentProject) {
+      return;
     }
-  }, [generationState?.isActive, generationState?.id, generationState?.todos?.length, currentProject?.id, buildHistoryByProject]);
+
+    const isCodexBuildState = (generationState.agentId ?? selectedAgentId) === 'openai-codex';
+    const hasCodexData = isCodexBuildState && !!generationState.codex;
+    const hasTodoHistory = Array.isArray(generationState.todos) && generationState.todos.length > 0;
+
+    if (!hasCodexData && !hasTodoHistory) {
+      return;
+    }
+
+    const projectHistory = buildHistoryByProject.get(currentProject.id) || [];
+    const alreadyArchived = projectHistory.some(b => b.id === generationState.id);
+
+    if (!alreadyArchived) {
+      console.log('📚 Archiving completed build to history:', generationState.id);
+      setBuildHistoryByProject(prev => {
+        const newMap = new Map(prev);
+        newMap.set(currentProject.id, [generationState, ...projectHistory]);
+        return newMap;
+      });
+    }
+  }, [generationState, currentProject?.id, buildHistoryByProject, selectedAgentId]);
 
   // Calculate badge values
   const buildProgress = generationState ?
@@ -842,6 +926,7 @@ function HomeContent() {
       projectId: project.id,
       projectName: project.name,
       operationType,
+      agentId: selectedAgentId,
     });
 
     console.log('✅ Created fresh generationState:', freshState.id);
@@ -866,6 +951,7 @@ function HomeContent() {
           prompt,
           buildId: existingBuildId,
           runnerId: selectedRunnerId,
+          agent: selectedAgentId,
           context: isElementChange ? {
             elementSelector: 'unknown', // Will be enhanced later
             elementInfo: {},
@@ -980,8 +1066,12 @@ function HomeContent() {
             }
           } else if (data.type === 'text-end') {
             console.log('✅ Text block finished:', data.id);
+          } else if (data.type?.startsWith('codex-')) {
+            updateCodexState(codex => processCodexEvent(codex, data as any));
           } else if (data.type === 'tool-input-available') {
-            console.log('🧰 Tool event detected:', data.toolName);
+            console.log('🧰 Tool event detected:', data.toolName, 'toolCallId:', data.toolCallId);
+            console.log('   Current activeTodoIndex:', generationStateRef.current?.activeTodoIndex);
+            console.log('   Current todos count:', generationStateRef.current?.todos?.length);
             // Route TodoWrite to separate generation state
             if (data.toolName === 'TodoWrite') {
               const inputData = data.input as { todos?: TodoItem[] };
@@ -991,6 +1081,10 @@ function HomeContent() {
               console.log('   Todos count:', todos.length);
               console.log('   Current generationState exists?', !!generationState);
               console.log('   Current todos in state:', generationState?.todos?.length);
+
+              // Find the active todo index (first in_progress, or -1 if none)
+              const activeIndex = todos.findIndex(t => t.status === 'in_progress');
+              console.log('   Active todo index:', activeIndex);
               console.log('   Incoming todos:', todos.map(t => `${t.status}:${t.content}`).join(' | '));
 
               updateGenerationState(prev => {
@@ -999,8 +1093,6 @@ function HomeContent() {
                   console.error('❌ Cannot update todos - generationState is null!');
                   return prev;
                 }
-
-                const activeIndex = todos.findIndex(t => t.status === 'in_progress');
 
                 const updated = {
                   ...baseState,
@@ -1042,7 +1134,7 @@ function HomeContent() {
                 const activeIndex = baseState.activeTodoIndex >= 0 ? baseState.activeTodoIndex : 0;
                 const existing = baseState.toolsByTodo[activeIndex] || [];
 
-                console.log('   ✅ Nesting under todo', activeIndex);
+                console.log('   ✅ Nesting under todo', activeIndex, 'Current tools for this todo:', existing.length);
 
                 const updated = {
                   ...baseState,
@@ -1051,6 +1143,8 @@ function HomeContent() {
                     [activeIndex]: [...existing, tool],
                   },
                 };
+
+                console.log('   📊 Updated toolsByTodo:', Object.keys(updated.toolsByTodo).map(idx => `todo${idx}: ${updated.toolsByTodo[Number(idx)].length} tools`).join(', '));
 
                 // Save to DB using projectId from state
                 console.log('💾 Saving tool addition, projectId:', updated.projectId);
@@ -1153,17 +1247,35 @@ function HomeContent() {
               });
             }
           } else if (data.type === 'data-metadata-extracted' || data.type === 'metadata-extracted') {
-            const metadata = (data.data as any)?.metadata;
+            const metadata = (data.data as Record<string, unknown>)?.metadata;
             console.log('📋 Metadata extracted:', metadata);
             // Could show this in UI if desired
           } else if (data.type === 'data-template-selected' || data.type === 'template-selected') {
-            const template = (data.data as any)?.template;
+            const template = (data.data as Record<string, unknown>)?.template;
             console.log('🎯 Template selected:', template?.name);
             // Could show this in UI if desired
           } else if (data.type === 'data-template-downloaded' || data.type === 'template-downloaded') {
             const path = (data.data as any)?.path;
             console.log('📦 Template downloaded to:', path);
             // Could show this in UI if desired
+          } else if (data.type === 'project-metadata') {
+            // NEW: Handle project metadata event (includes template info)
+            const metadata = data.payload || data.data || data;
+            console.log('🎯 Project metadata received:', metadata);
+            console.log(`   Framework: ${metadata.projectType}`);
+            console.log(`   Run command: ${metadata.runCommand}`);
+            console.log(`   Port: ${metadata.port}`);
+
+            // Store for UI display
+            if (metadata.projectType && metadata.projectType !== 'unknown') {
+              const agentName = selectedAgentId === 'claude-code' ? 'Claude Sonnet 4.5' : 'GPT-5 Codex';
+              setSelectedTemplate({
+                name: metadata.projectType,
+                framework: metadata.projectType,
+                analyzedBy: agentName,
+              });
+              console.log(`✅ Template selected by ${agentName}: ${metadata.projectType}`);
+            }
           } else if (data.type === 'finish') {
             currentMessage = null;
             textBlocksMap.clear(); // Clear for next message
@@ -1332,12 +1444,13 @@ function HomeContent() {
     // If no project selected, create new project
     if (!currentProject) {
       setIsCreatingProject(true);
+      setIsAnalyzingTemplate(true);
 
       try {
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: userPrompt }),
+          body: JSON.stringify({ prompt: userPrompt, agent: selectedAgentId }),
         });
 
         if (!res.ok) throw new Error('Failed to create project');
@@ -1346,6 +1459,10 @@ function HomeContent() {
         const project = data.project;
 
         console.log('✅ Project created:', project.slug);
+
+        // Template analysis happens automatically in the build API route
+        // We'll see the results in the build metadata event
+        setIsAnalyzingTemplate(false);
 
         // LOCK generation mode FIRST (before anything else!)
         isGeneratingRef.current = true;
@@ -1357,6 +1474,7 @@ function HomeContent() {
           projectId: project.id,
           projectName: project.name,
           operationType: 'initial-build',
+          agentId: selectedAgentId,
         });
 
         console.log('✅ Fresh state created:', {
@@ -1651,6 +1769,9 @@ function HomeContent() {
                         </svg>
                       </button>
                     </div>
+                    <div className="mt-3 flex justify-start">
+                      <AgentSelector className="w-full sm:w-64" />
+                    </div>
                   </form>
                 </div>
               </motion.div>
@@ -1827,8 +1948,31 @@ function HomeContent() {
 
                         {/* Loading text */}
                         <div className="space-y-2">
-                          <h3 className="text-2xl font-semibold text-white">Preparing Your Project</h3>
-                          <p className="text-gray-400">Setting up the perfect environment...</p>
+                          <h3 className="text-2xl font-semibold text-white">
+                            {isAnalyzingTemplate ? 'Analyzing Your Request' : 'Preparing Your Project'}
+                          </h3>
+                          <p className="text-gray-400">
+                            {isAnalyzingTemplate
+                              ? `${selectedAgentId === 'claude-code' ? 'Claude Sonnet 4.5' : 'GPT-5 Codex'} is selecting the best template...`
+                              : 'Setting up the perfect environment...'
+                            }
+                          </p>
+
+                          {/* Show selected template if available */}
+                          {selectedTemplate && !isAnalyzingTemplate && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20"
+                            >
+                              <p className="text-sm text-purple-300 font-medium">
+                                ✓ Template: {selectedTemplate.name}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Selected by {selectedTemplate.analyzedBy}
+                              </p>
+                            </motion.div>
+                          )}
                         </div>
 
                         {/* Animated progress dots */}
@@ -1857,20 +2001,42 @@ function HomeContent() {
                   {!isCreatingProject && activeView === 'build' && (
                     <div className="space-y-6">
                       {/* Debug info */}
-                      {console.log('🔍 Build View Render:', {
-                        hasGenerationState: !!generationState,
-                        todosLength: generationState?.todos?.length,
-                        isActive: generationState?.isActive,
-                        historyLength: buildHistory.length,
-                        activeView,
-                      })}
+                      {(() => {
+                        console.log('🔍 Build View Render:', {
+                          hasGenerationState: !!generationState,
+                          todosLength: generationState?.todos?.length,
+                          isActive: generationState?.isActive,
+                          historyLength: buildHistory.length,
+                          activeView,
+                        });
+                        return null;
+                      })()}
 
                       {/* Active Build - Always show if active */}
                       {generationState?.isActive && (
                         <div>
-                          {generationState.todos && generationState.todos.length > 0 ? (
+                          {isCodexSession ? (
+                            generationState.todos && generationState.todos.length > 0 ? (
+                              <CodexBuildExperience
+                                codex={generationState.codex}
+                                projectName={generationState.projectName}
+                                isActive
+                                todos={generationState.todos}
+                                onViewFiles={() => {
+                                  window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                                }}
+                                onStartServer={startDevServer}
+                              />
+                            ) : (
+                              <InitializingCard
+                                projectName={generationState.projectName}
+                                message="Analyzing your request and planning MVP features..."
+                              />
+                            )
+                          ) : generationState.todos && generationState.todos.length > 0 ? (
                             <GenerationProgress
                               state={generationState}
+                              templateInfo={selectedTemplate}
                               onClose={() => updateGenerationState(null)}
                               onViewFiles={() => {
                                 window.dispatchEvent(new CustomEvent('switch-to-editor'));
@@ -1912,6 +2078,7 @@ function HomeContent() {
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
                           <GenerationProgress
                             state={generationState}
+                            templateInfo={selectedTemplate}
                             defaultCollapsed={true}
                             onClose={() => updateGenerationState(null)}
                             onViewFiles={() => {
@@ -1927,7 +2094,7 @@ function HomeContent() {
                         <div>
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Previous Builds ({buildHistory.length})</h3>
                           <div className="space-y-4">
-                            {buildHistory.map((build, idx) => (
+                            {buildHistory.map((build) => (
                               <GenerationProgress
                                 key={build.id}
                                 state={build}
@@ -1947,7 +2114,7 @@ function HomeContent() {
                         <div>
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Element Changes ({elementChangeHistory.length})</h3>
                           <div className="space-y-3">
-                            {elementChangeHistory.map((change, idx) => (
+                            {elementChangeHistory.map((change) => (
                               <ElementChangeCard
                                 key={change.id}
                                 elementSelector={change.elementSelector}
@@ -2159,6 +2326,9 @@ function HomeContent() {
                       </button>
                     </div>
                   </form>
+                  <div className="mt-3 flex justify-start">
+                    <AgentSelector className="w-full md:w-64" />
+                  </div>
                 </div>
               </div>
             </motion.div>

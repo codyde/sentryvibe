@@ -1,37 +1,65 @@
-import * as Sentry from '@sentry/node';
-/**
- * Build engine for creating and streaming build responses
- * This is a simplified version for the runner MVP
- */
-
 import { existsSync, mkdirSync } from 'fs';
+import path from 'path';
+import type { AgentId } from '@sentryvibe/agent-core/types/agent';
+import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
+
+type BuildQueryFn = (
+  prompt: string,
+  workingDirectory: string,
+  systemPrompt: string,
+  agent?: AgentId
+) => AsyncGenerator<unknown, void, unknown>;
 
 interface BuildStreamOptions {
   projectId: string;
+  projectName: string;
   prompt: string;
   operationType: string;
   context?: Record<string, unknown>;
-  query: (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>;
+  query: BuildQueryFn;
   workingDirectory: string;
   systemPrompt: string;
+  agent: AgentId;
+  isNewProject?: boolean;
 }
 
 /**
  * Create a build stream that executes the Claude query and returns a stream
  */
 export async function createBuildStream(options: BuildStreamOptions): Promise<ReadableStream> {
-  const { prompt, query, context, workingDirectory, systemPrompt } = options;
+  const { prompt, query, context, workingDirectory, systemPrompt, agent, isNewProject } = options;
 
-  // Ensure the working directory exists
-  if (!existsSync(workingDirectory)) {
+  // For Codex on NEW projects, use parent directory as CWD (Codex will create the project dir)
+  // For everything else, use the project directory
+  const strategy = await resolveAgentStrategy(agent);
+  const projectName = options.projectName || path.basename(workingDirectory);
+  const strategyContext = {
+    projectId: options.projectId,
+    projectName,
+    prompt,
+    workingDirectory,
+    operationType: options.operationType,
+    isNewProject: !!isNewProject,
+  };
+
+  const resolvedDir = strategy.resolveWorkingDirectory?.(strategyContext);
+  const actualWorkingDir = resolvedDir ?? workingDirectory;
+
+  if (resolvedDir) {
+    console.log(`[engine] Strategy adjusted CWD to: ${actualWorkingDir}`);
+  } else if (!existsSync(workingDirectory)) {
     mkdirSync(workingDirectory, { recursive: true });
+  }
+
+  if (!resolvedDir) {
+    console.log(`[engine] Using project directory as CWD: ${actualWorkingDir}`);
   }
 
   // Store the original CWD to restore it later
   const originalCwd = process.cwd();
 
-  // Change to the project directory
-  process.chdir(workingDirectory);
+  // Change to the appropriate directory
+  process.chdir(actualWorkingDir);
 
   // Build the full prompt with context
   let fullPrompt = prompt;
@@ -42,8 +70,9 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
 
   // Pass prompt, working directory, and system prompt to the query function
   // The buildQuery wrapper will configure the SDK with all options
-  
-  const generator = query(fullPrompt, workingDirectory, systemPrompt);
+  // Use actualWorkingDir so the query function gets the correct CWD
+
+  const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent);
 
 
   // Create a ReadableStream from the AsyncGenerator

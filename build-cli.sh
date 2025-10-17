@@ -17,6 +17,11 @@ if [ ! -d "node_modules" ]; then
   echo ""
 fi
 
+# Rebuild agent-core to ensure latest changes
+echo "🔄 Rebuilding agent-core package..."
+./scripts/update-agent-core.sh
+echo ""
+
 # Build the CLI
 echo "🔧 Building CLI package..."
 pnpm run build:cli
