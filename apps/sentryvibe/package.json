@@ -27,6 +27,7 @@
     "@sentry/nextjs": "file:./vendor/sentry-nextjs-LOCAL.tgz",
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
+    "@sentry/opentelemetry": "file:./vendor/sentry-opentelemetry-LOCAL.tgz",
     "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
     "ai": "^5.0.57",
     "ai-sdk-provider-claude-code": "^1.1.4",

@@ -21,10 +21,12 @@ const packages = [
   // { name: 'nextjs', tarball: 'sentry-nextjs-10.17.0.tgz' },
   // { name: 'core', tarball: 'sentry-core-10.17.0.tgz' },
   // { name: 'node-core', tarball: 'sentry-node-core-10.17.0.tgz' },
+  // { name: 'opentelemetry', tarball: 'sentry-opentelemetry-10.17.0.tgz' },
   { name: 'core', tarball: 'sentry-core-LOCAL.tgz' },
   { name: 'node', tarball: 'sentry-node-LOCAL.tgz' },
   { name: 'node-core', tarball: 'sentry-node-core-LOCAL.tgz' },
   { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz' },
+  { name: 'opentelemetry', tarball: 'sentry-opentelemetry-LOCAL.tgz' },
 ];
 
 console.log('Installing vendor Sentry packages...');

@@ -1,4 +1,4 @@
-// import "./instrument.js"
+import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { createInstrumentedCodex } from "@sentry/node";
 import { config as loadEnv } from "dotenv";
