@@ -37,7 +37,7 @@ export interface OrchestrationResult {
   systemPrompt: string;
   fullPrompt: string;
   projectPath: string;
-  templateEvents: Array<{type: string; data: any}>; // Events to send to UI
+  templateEvents: Array<{type: string; data: Record<string, unknown>}>; // Events to send to UI
   projectMetadata?: {
     path: string;
     projectType: string;
@@ -55,10 +55,10 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
 
   // Check if this is a NEW project or EXISTING project
   // Use operationType as the source of truth - 'initial-build' ALWAYS means new project
-  let isNewProject = operationType === 'initial-build';
+  const isNewProject = operationType === 'initial-build';
   let selectedTemplate: Template | null = null;
   let fileTree = '';
-  const templateEvents: Array<{type: string; data: any}> = [];
+  const templateEvents: Array<{type: string; data: Record<string, unknown>}> = [];
   const strategy = await resolveAgentStrategy(agent);
   const strategyContext: AgentStrategyContext = {
     projectId,

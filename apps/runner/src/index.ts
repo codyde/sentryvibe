@@ -1190,10 +1190,8 @@ export function startRunner(options: RunnerOptions = {}) {
           log("orchestrating build...");
 
           // Log template if provided
-          if (command.payload.template) {
-            log("template provided by frontend:", command.payload.template.name);
-            log("  framework:", command.payload.template.framework);
-            log("  repository:", command.payload.template.repository);
+          if (command.payload.templateId) {
+            log("template provided by frontend:", command.payload.templateId);
           }
 
           const orchestration = await orchestrateBuild({

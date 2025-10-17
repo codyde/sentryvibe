@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ChevronDown } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import TabbedPreview from '@/components/TabbedPreview';
 import TerminalOutput from '@/components/TerminalOutput';
 import ProcessManagerModal from '@/components/ProcessManagerModal';
@@ -15,10 +15,10 @@ import ToolCallCard from '@/components/ToolCallCard';
 import SummaryCard from '@/components/SummaryCard';
 import CodeBlock from '@/components/CodeBlock';
 import GenerationProgress from '@/components/GenerationProgress';
-import CodexBuildExperience, { CodexPhaseStrip } from '@/components/CodexBuildExperience';
+import CodexBuildExperience from '@/components/CodexBuildExperience';
 import { AppSidebar } from '@/components/app-sidebar';
 import AgentSelector from '@/components/AgentSelector';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useProjects, type Project } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
 import { useAgent } from '@/contexts/AgentContext';
@@ -27,8 +27,6 @@ import type {
   ToolCall,
   BuildOperationType,
   CodexSessionState,
-  CodexPhaseId,
-  CodexPhase,
   TodoItem,
 } from '@/types/generation';
 import { saveGenerationState, deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
@@ -36,28 +34,6 @@ import { detectOperationType, createFreshGenerationState, validateGenerationStat
 import { processCodexEvent } from '@sentryvibe/agent-core/lib/agents/codex/events';
 import ElementChangeCard from '@/components/ElementChangeCard';
 import InitializingCard from '@/components/InitializingCard';
-
-const CODEX_PHASE_ORDER: CodexPhaseId[] = [
-  'prompt-analysis',
-  'template-selection',
-  'template-clone',
-  'workspace-verification',
-  'task-synthesis',
-  'execution',
-];
-
-function sortCodexPhases(phases: CodexPhase[]): CodexPhase[] {
-  return [...phases].sort((a, b) => {
-    const idxA = CODEX_PHASE_ORDER.indexOf(a.id as CodexPhaseId);
-    const idxB = CODEX_PHASE_ORDER.indexOf(b.id as CodexPhaseId);
-    const safeA = idxA === -1 ? CODEX_PHASE_ORDER.length + 1 : idxA;
-    const safeB = idxB === -1 ? CODEX_PHASE_ORDER.length + 1 : idxB;
-    if (safeA === safeB) {
-      return a.title.localeCompare(b.title);
-    }
-    return safeA - safeB;
-  });
-}
 
 interface MessagePart {
   type: string;
@@ -77,8 +53,8 @@ interface ElementChange {
   status: 'processing' | 'completed' | 'failed';
   toolCalls: Array<{
     name: string;
-    input?: any;
-    output?: any;
+    input?: Record<string, unknown>;
+    output?: Record<string, unknown>;
     status: 'running' | 'completed' | 'failed';
   }>;
   error?: string;
@@ -100,7 +76,6 @@ function HomeContent() {
   const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<{name: string; framework: string; analyzedBy: string} | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
-  const [selectedDirectory, setSelectedDirectory] = useState<string | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<number | null>(null);
   const [generationState, setGenerationState] = useState<GenerationState | null>(null);
@@ -147,8 +122,7 @@ function HomeContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const selectedProjectSlug = searchParams.get('project');
-  const shouldGenerate = searchParams.get('generate') === 'true';
+  const selectedProjectSlug = searchParams?.get('project') ?? null;
   const { projects, refetch, runnerOnline } = useProjects();
   const { selectedRunnerId } = useRunner();
   const { selectedAgentId } = useAgent();
@@ -167,6 +141,11 @@ function HomeContent() {
   }, [generationState]);
 
   const ensureGenerationState = useCallback((prevState: GenerationState | null): GenerationState | null => {
+    // Capture values BEFORE any type narrowing/early returns
+    const existingState = prevState || generationStateRef.current || generationState;
+    const previousOperationType = existingState?.operationType;
+    const previousAgentId = existingState?.agentId;
+
     if (prevState) return prevState;
     if (generationStateRef.current) return generationStateRef.current;
     if (generationState) return generationState;
@@ -174,8 +153,8 @@ function HomeContent() {
       return createFreshGenerationState({
         projectId: currentProject.id,
         projectName: currentProject.name,
-        operationType: generationStateRef.current?.operationType ?? 'initial-build',
-        agentId: generationStateRef.current?.agentId ?? selectedAgentId,
+        operationType: previousOperationType ?? 'initial-build',
+        agentId: previousAgentId ?? selectedAgentId,
       });
     }
     return null;
@@ -226,7 +205,6 @@ function HomeContent() {
   projectsRef.current = projects;
 
   const isLoading = isCreatingProject || isGenerating;
-  const activeProject = selectedProjectSlug || selectedDirectory;
   const activeAgentId = generationState?.agentId ?? selectedAgentId;
   const isCodexSession = activeAgentId === 'openai-codex';
 
@@ -1269,11 +1247,11 @@ function HomeContent() {
               });
             }
           } else if (data.type === 'data-metadata-extracted' || data.type === 'metadata-extracted') {
-            const metadata = (data.data as any)?.metadata;
+            const metadata = (data.data as Record<string, unknown>)?.metadata;
             console.log('📋 Metadata extracted:', metadata);
             // Could show this in UI if desired
           } else if (data.type === 'data-template-selected' || data.type === 'template-selected') {
-            const template = (data.data as any)?.template;
+            const template = (data.data as Record<string, unknown>)?.template;
             console.log('🎯 Template selected:', template?.name);
             // Could show this in UI if desired
           } else if (data.type === 'data-template-downloaded' || data.type === 'template-downloaded') {
@@ -2023,13 +2001,16 @@ function HomeContent() {
                   {!isCreatingProject && activeView === 'build' && (
                     <div className="space-y-6">
                       {/* Debug info */}
-                      {console.log('🔍 Build View Render:', {
-                        hasGenerationState: !!generationState,
-                        todosLength: generationState?.todos?.length,
-                        isActive: generationState?.isActive,
-                        historyLength: buildHistory.length,
-                        activeView,
-                      })}
+                      {(() => {
+                        console.log('🔍 Build View Render:', {
+                          hasGenerationState: !!generationState,
+                          todosLength: generationState?.todos?.length,
+                          isActive: generationState?.isActive,
+                          historyLength: buildHistory.length,
+                          activeView,
+                        });
+                        return null;
+                      })()}
 
                       {/* Active Build - Always show if active */}
                       {generationState?.isActive && (
@@ -2113,7 +2094,7 @@ function HomeContent() {
                         <div>
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Previous Builds ({buildHistory.length})</h3>
                           <div className="space-y-4">
-                            {buildHistory.map((build, idx) => (
+                            {buildHistory.map((build) => (
                               <GenerationProgress
                                 key={build.id}
                                 state={build}
@@ -2133,7 +2114,7 @@ function HomeContent() {
                         <div>
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Element Changes ({elementChangeHistory.length})</h3>
                           <div className="space-y-3">
-                            {elementChangeHistory.map((change, idx) => (
+                            {elementChangeHistory.map((change) => (
                               <ElementChangeCard
                                 key={change.id}
                                 elementSelector={change.elementSelector}

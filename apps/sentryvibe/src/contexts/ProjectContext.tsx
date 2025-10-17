@@ -17,6 +17,7 @@ export interface Project {
   devServerPid: number | null;
   devServerPort: number | null;
   devServerStatus: 'stopped' | 'starting' | 'running' | 'failed' | null;
+  tunnelUrl: string | null;
   generationState: string | null; // Serialized JSON of GenerationState
   lastActivityAt: Date | null;
   errorMessage: string | null;
