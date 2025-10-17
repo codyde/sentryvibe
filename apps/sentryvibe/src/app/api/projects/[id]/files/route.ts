@@ -79,6 +79,10 @@ export async function GET(
 
     const proj = project[0];
 
+    if (!proj.path) {
+      return NextResponse.json({ files: [] });
+    }
+
     // Check if project directory exists
     try {
       await stat(proj.path);

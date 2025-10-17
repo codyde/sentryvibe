@@ -23,7 +23,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   let commandId: string | undefined;
-  let cleanup: (() => void) | null = null;
+  let cleanup: (() => void) | undefined;
   try {
     const { id } = await params;
     const body = (await req.json()) as BuildRequest;
@@ -49,7 +49,7 @@ export async function POST(
     const encoder = new TextEncoder();
 
     // Track messages for DB persistence
-    let currentMessageParts: Array<{type: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown}> = [];
+    let currentMessageParts: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}> = [];
     let currentMessageId: string | null = null;
     const completedMessages: Array<{role: 'assistant'; content: any[]}> = [];
 
@@ -467,7 +467,7 @@ export async function POST(
           controller.enqueue(encoder.encode(normalized));
         };
 
-        const unsubscribe = addRunnerEventSubscriber(commandId, async (event: RunnerEvent) => {
+        const unsubscribe = addRunnerEventSubscriber(commandId!, async (event: RunnerEvent) => {
           switch (event.type) {
             case 'build-stream':
               if (typeof event.data === 'string') {

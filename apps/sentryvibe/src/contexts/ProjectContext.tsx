@@ -20,6 +20,7 @@ export interface Project {
   generationState: string | null; // Serialized JSON of GenerationState
   lastActivityAt: Date | null;
   errorMessage: string | null;
+  tunnelUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -138,7 +138,7 @@ function HomeContent() {
       return createFreshGenerationState({
         projectId: currentProject.id,
         projectName: currentProject.name,
-        operationType: generationStateRef.current?.operationType ?? 'initial-build',
+        operationType: 'initial-build' as const,
       });
     }
     return null;
@@ -1856,15 +1856,6 @@ function HomeContent() {
                   {/* Build View - Shows active build + history */}
                   {!isCreatingProject && activeView === 'build' && (
                     <div className="space-y-6">
-                      {/* Debug info */}
-                      {console.log('🔍 Build View Render:', {
-                        hasGenerationState: !!generationState,
-                        todosLength: generationState?.todos?.length,
-                        isActive: generationState?.isActive,
-                        historyLength: buildHistory.length,
-                        activeView,
-                      })}
-
                       {/* Active Build - Always show if active */}
                       {generationState?.isActive && (
                         <div>
