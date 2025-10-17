@@ -671,7 +671,7 @@ function HomeContent() {
   const startElementChange = async (
     projectId: string,
     prompt: string,
-    element: any,
+    element: Record<string, unknown>,
     changeId: string
   ) => {
     try {

@@ -9,11 +9,9 @@ import { join } from 'path';
 import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';
-import { type AgentId } from '@sentryvibe/agent-core';
+import { type AgentId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy, type AgentStrategyContext } from '@sentryvibe/agent-core/lib/agents';
-// Use namespace import for buildLogger to work around CommonJS/ESM interop
-import * as AgentCore from '@sentryvibe/agent-core';
-const { buildLogger } = AgentCore;
+import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
 
 export interface BuildContext {
   projectId: string;
