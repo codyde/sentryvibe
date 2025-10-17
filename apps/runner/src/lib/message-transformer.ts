@@ -3,7 +3,8 @@
  * Includes message lifecycle tracking and path violation detection
  */
 
-import { buildLogger } from '@sentryvibe/agent-core';
+// Use dynamic import for buildLogger to work around CommonJS/ESM interop
+const { buildLogger } = await import('@sentryvibe/agent-core');
 
 interface SSEEvent {
   type: string;

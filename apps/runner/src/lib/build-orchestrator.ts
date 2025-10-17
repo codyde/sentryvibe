@@ -9,8 +9,10 @@ import { join } from 'path';
 import { selectTemplateFromPrompt, getTemplateSelectionContext, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';
-import { type AgentId, buildLogger } from '@sentryvibe/agent-core';
+import { type AgentId } from '@sentryvibe/agent-core';
 import { resolveAgentStrategy, type AgentStrategyContext } from '@sentryvibe/agent-core/lib/agents';
+// Use dynamic import for buildLogger to work around CommonJS/ESM interop
+const { buildLogger } = await import('@sentryvibe/agent-core');
 
 export interface BuildContext {
   projectId: string;
@@ -382,7 +384,6 @@ async function generateSystemPrompt(context: {
     workspaceRoot,
     fileTree,
     agent,
-    templateSelectionContext,
   } = context;
 
   const sections: string[] = [];
