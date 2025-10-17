@@ -453,30 +453,30 @@ function createCodexQuery(): BuildQueryFn {
                 try {
                   const tasks = JSON.parse(todoList);
                   if (Array.isArray(tasks)) {
-                    const complete = tasks.filter(
-                      (t: { status: string }) => t.status === "complete"
+                    const completed = tasks.filter(
+                      (t: { status: string }) => t.status === "completed"
                     ).length;
                     const inProgress = tasks.filter(
-                      (t: { status: string }) => t.status === "in-progress"
+                      (t: { status: string }) => t.status === "in_progress"
                     ).length;
-                    const notDone = tasks.filter(
-                      (t: { status: string }) => t.status === "not-done"
+                    const pending = tasks.filter(
+                      (t: { status: string }) => t.status === "pending"
                     ).length;
                     console.log(
-                      `[codex-query]    ✅ ${complete} complete | ⏳ ${inProgress} in-progress | ⭕ ${notDone} not-done (total: ${tasks.length})`
+                      `[codex-query]    ✅ ${completed} completed | ⏳ ${inProgress} in_progress | ⭕ ${pending} pending (total: ${tasks.length})`
                     );
 
                     // Log each task for visibility
-                    tasks.forEach((task: { status: string; title: string }, idx: number) => {
+                    tasks.forEach((task: { status: string; content: string }, idx: number) => {
                       const statusIcon =
-                        task.status === "complete"
+                        task.status === "completed"
                           ? "✅"
-                          : task.status === "in-progress"
+                          : task.status === "in_progress"
                           ? "⏳"
                           : "⭕";
                       console.log(
                         `[codex-query]      ${statusIcon} ${idx + 1}. ${
-                          task.title
+                          task.content
                         }`
                       );
                     });
@@ -526,14 +526,14 @@ function createCodexQuery(): BuildQueryFn {
       if (todoList) {
         try {
           const tasks = JSON.parse(todoList);
-          if (Array.isArray(tasks)) {
+          if (Array.isArray(tasks) && tasks.length > 0) {
             allTasksComplete = tasks.every(
-              (task: { status: string }) => task.status === "complete"
+              (task: { status: string }) => task.status === "completed"
             );
             console.log(
               `[codex-query] Task status: ${
-                tasks.filter((t: { status: string }) => t.status === "complete").length
-              }/${tasks.length} complete`
+                tasks.filter((t: { status: string }) => t.status === "completed").length
+              }/${tasks.length} completed`
             );
           }
         } catch (e) {

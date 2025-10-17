@@ -141,27 +141,31 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
             const todoListJson = todoMatch[1].trim();
             console.log('[transformer] 📋 Found Codex task list, parsing...');
             try {
-              const tasks = JSON.parse(todoListJson);
-              if (Array.isArray(tasks)) {
-                // Send task list as TodoWrite event for UI
-                const toolCallId = `codex-todo-${Date.now()}`;
-                const todoItems = tasks.map((t: any) => ({
-                  content: t.title,
-                  activeForm: t.description,
-                  status: t.status === 'complete' ? 'completed' : t.status === 'in-progress' ? 'in_progress' : 'pending',
-                }));
+              const todos = JSON.parse(todoListJson);
+              if (Array.isArray(todos)) {
+                // Validate format matches Claude's TodoWrite
+                const isValidFormat = todos.every((t: any) =>
+                  typeof t.content === 'string' &&
+                  typeof t.activeForm === 'string' &&
+                  ['pending', 'in_progress', 'completed'].includes(t.status)
+                );
 
-                console.log(`[transformer] ✅ Parsed ${tasks.length} tasks, sending TodoWrite event`);
-                console.log(`[transformer]    ${tasks.filter((t: any) => t.status === 'complete').length} complete, ${tasks.filter((t: any) => t.status === 'in-progress').length} in-progress, ${tasks.filter((t: any) => t.status === 'not-done').length} not-done`);
+                if (!isValidFormat) {
+                  console.error('[transformer] ❌ Invalid todo format from Codex!');
+                  console.error('[transformer]    Expected: {content, activeForm, status}');
+                  console.error('[transformer]    Got:', todos[0]);
+                } else {
+                  const toolCallId = `codex-todo-${Date.now()}`;
+                  console.log(`[transformer] ✅ Parsed ${todos.length} tasks, sending TodoWrite event`);
+                  console.log(`[transformer]    ${todos.filter((t: any) => t.status === 'completed').length} completed, ${todos.filter((t: any) => t.status === 'in_progress').length} in_progress, ${todos.filter((t: any) => t.status === 'pending').length} pending`);
 
-                events.push({
-                  type: 'tool-input-available',
-                  toolCallId,
-                  toolName: 'TodoWrite',
-                  input: {
-                    todos: todoItems,
-                  },
-                });
+                  events.push({
+                    type: 'tool-input-available',
+                    toolCallId,
+                    toolName: 'TodoWrite',
+                    input: { todos },  // Direct pass-through, no transformation needed!
+                  });
+                }
               }
             } catch (e) {
               console.error('[transformer] ❌ Failed to parse Codex todolist:', e);
