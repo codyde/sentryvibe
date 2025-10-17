@@ -28,6 +28,12 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@/types/*": [
+        "../../packages/agent-core/src/types/*"
+      ],
+      "@/lib/*": [
+        "../../packages/agent-core/src/lib/*"
       ]
     },
     "strictNullChecks": true
