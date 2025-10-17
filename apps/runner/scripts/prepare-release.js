@@ -24,8 +24,6 @@ const replacements = {
   '@sentry/nextjs': '^10.17.0',
 };
 
-const bundledVendors = ['@sentryvibe/agent-core'];
-
 let modified = false;
 
 for (const [pkg, version] of Object.entries(replacements)) {
@@ -36,16 +34,19 @@ for (const [pkg, version] of Object.entries(replacements)) {
   }
 }
 
-for (const pkg of bundledVendors) {
-  if (packageJson.dependencies[pkg] && packageJson.dependencies[pkg].startsWith('file:')) {
-    console.log(`  Removing ${pkg} from dependencies (bundled via vendor tarball)`);
-    delete packageJson.dependencies[pkg];
-    modified = true;
+const agentCoreKey = '@sentryvibe/agent-core';
+const agentCoreEntry = packageJson.dependencies?.[agentCoreKey];
+if (agentCoreEntry && agentCoreEntry.startsWith('file:')) {
+  const tarballPath = agentCoreEntry.replace(/^file:\.\//, '');
+  const tarballName = tarballPath.split('/').pop();
 
-    packageJson.bundleDependencies = packageJson.bundleDependencies || [];
-    if (!packageJson.bundleDependencies.includes(pkg)) {
-      packageJson.bundleDependencies.push(pkg);
-    }
+  if (tarballName) {
+    const remoteUrl = `https://raw.githubusercontent.com/codyde/sentryvibe/main/apps/runner/vendor/${tarballName}`;
+    console.log(`  Replacing ${agentCoreKey}: ${agentCoreEntry} → ${remoteUrl}`);
+    packageJson.dependencies[agentCoreKey] = remoteUrl;
+    modified = true;
+  } else {
+    console.warn(`  ⚠️  Could not determine tarball name for ${agentCoreKey}, leaving dependency unchanged.`);
   }
 }
 

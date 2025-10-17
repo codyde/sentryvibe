@@ -123,7 +123,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedProjectSlug = searchParams?.get('project') ?? null;
-  const { projects, refetch, runnerOnline } = useProjects();
+  const { projects, refetch, runnerOnline, setActiveProjectId } = useProjects();
   const { selectedRunnerId } = useRunner();
   const { selectedAgentId } = useAgent();
 
@@ -555,6 +555,7 @@ function HomeContent() {
         console.log('   Currently generating?', isGeneratingRef.current);
         console.log('   Has generationState in DB?', !!project.generationState);
         setCurrentProject(project);
+        setActiveProjectId(project.id);
 
         // CRITICAL: Don't touch generationState if we're actively generating!
         if (isGeneratingRef.current) {
@@ -587,6 +588,7 @@ function HomeContent() {
       }
 
       setCurrentProject(null);
+      setActiveProjectId(null);
       setMessages([]);
       updateGenerationState(null);
       setActiveElementChanges([]);
