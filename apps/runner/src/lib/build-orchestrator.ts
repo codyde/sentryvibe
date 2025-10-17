@@ -11,8 +11,9 @@ import { downloadTemplate, getProjectFileTree } from './templates/downloader.js'
 import { getWorkspaceRoot } from './workspace.js';
 import { type AgentId } from '@sentryvibe/agent-core';
 import { resolveAgentStrategy, type AgentStrategyContext } from '@sentryvibe/agent-core/lib/agents';
-// Use dynamic import for buildLogger to work around CommonJS/ESM interop
-const { buildLogger } = await import('@sentryvibe/agent-core');
+// Use namespace import for buildLogger to work around CommonJS/ESM interop
+import * as AgentCore from '@sentryvibe/agent-core';
+const { buildLogger } = AgentCore;
 
 export interface BuildContext {
   projectId: string;

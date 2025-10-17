@@ -20,8 +20,9 @@ import {
   type AgentId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
-// Use dynamic import for buildLogger to work around CommonJS/ESM interop
-const { buildLogger } = await import("@sentryvibe/agent-core");
+// Use namespace import for buildLogger to work around CommonJS/ESM interop
+import * as AgentCore from "@sentryvibe/agent-core";
+const { buildLogger } = AgentCore;
 import { createBuildStream } from "./lib/build/engine.js";
 
 // Configure templates.json path for this runner app
