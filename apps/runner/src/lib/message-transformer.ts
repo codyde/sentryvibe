@@ -134,11 +134,21 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
       for (const block of message.content) {
         if (block.type === 'text' && block.text) {
           let text = String(block.text);
+
+          // DEBUG: Log if we see task list markers
+          if (text.includes('<start-todolist>')) {
+            console.log('🔍 [transformer] Found <start-todolist> in text');
+            console.log('   Text length:', text.length);
+            console.log('   Preview:', text.substring(0, 200));
+          }
+
           text = processTodoWriteMarkers(text);
 
           // Extract Codex task list and send as separate event
           const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
           if (todoMatch) {
+            console.log('✅ [transformer] Task list regex matched!');
+            console.log('   Extracted JSON:', todoMatch[1].substring(0, 200));
             const todoListJson = todoMatch[1].trim();
             buildLogger.transformer.todoListFound();
             try {
