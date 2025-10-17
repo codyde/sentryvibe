@@ -2094,21 +2094,15 @@ function HomeContent() {
 
                       {/* Active Build - Always show if active */}
                       {generationState?.isActive && (
-                        <div>
-                          {generationState.todos && generationState.todos.length > 0 ? (
-                            <BuildProgress
-                              state={generationState}
-                              templateInfo={selectedTemplate}
-                              onClose={() => updateGenerationState(null)}
-                              onViewFiles={() => {
-                                window.dispatchEvent(new CustomEvent('switch-to-editor'));
-                              }}
-                              onStartServer={startDevServer}
-                            />
-                          ) : (
-                            <InitializingCard projectName={generationState.projectName} />
-                          )}
-                        </div>
+                        <BuildProgress
+                          state={generationState}
+                          templateInfo={selectedTemplate}
+                          onClose={() => updateGenerationState(null)}
+                          onViewFiles={() => {
+                            window.dispatchEvent(new CustomEvent('switch-to-editor'));
+                          }}
+                          onStartServer={startDevServer}
+                        />
                       )}
 
                       {/* Active Element Changes */}
@@ -2135,7 +2129,7 @@ function HomeContent() {
                       )}
 
                       {/* Completed Build (most recent) - Collapsed by default */}
-                      {!generationState?.isActive && generationState && generationState.todos && generationState.todos.length > 0 && (
+                      {!generationState?.isActive && generationState && (
                         <div>
                           <h3 className="text-sm font-semibold text-gray-400 mb-3">Most Recent Build</h3>
                           <BuildProgress
