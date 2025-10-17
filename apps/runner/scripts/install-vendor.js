@@ -26,7 +26,6 @@ const packages = [
   { name: 'node', tarball: 'sentry-node-LOCAL.tgz' },
   { name: 'node-core', tarball: 'sentry-node-core-LOCAL.tgz' },
   { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz' },
-  { name: 'opentelemetry', tarball: 'sentry-opentelemetry-LOCAL.tgz' },
 ];
 
 console.log('Installing vendor Sentry packages...');

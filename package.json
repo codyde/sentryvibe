@@ -20,7 +20,6 @@
       "@sentry/node": "file:./apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
       "@sentry/node-core": "file:./apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz",
       "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz",
-      "@sentry/opentelemetry": "file:./apps/sentryvibe/vendor/sentry-opentelemetry-LOCAL.tgz"
     }
   }
 }
