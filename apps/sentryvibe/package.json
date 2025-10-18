@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "clean": "rm -rf .next && rm -rf node_modules/.cache && echo '✅ Next.js cache cleared'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.21",
