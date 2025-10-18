@@ -69,8 +69,8 @@ importers:
         specifier: ^10.17.0
         version: 10.17.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentryvibe/agent-core':
-        specifier: workspace:*
-        version: link:../../packages/agent-core
+        specifier: file:./vendor/sentryvibe-agent-core-0.1.0.tgz
+        version: file:apps/runner/vendor/sentryvibe-agent-core-0.1.0.tgz(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(react@19.1.0)(zod@4.1.12)
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -301,6 +301,10 @@ importers:
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.3.1
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -2107,6 +2111,10 @@ packages:
     engines: {node: '>= 14'}
     peerDependencies:
       webpack: '>=4.40.0'
+
+  '@sentryvibe/agent-core@file:apps/runner/vendor/sentryvibe-agent-core-0.1.0.tgz':
+    resolution: {integrity: sha512-KPd5+J6IJdSebgUd5Q/qJ8zqT/HvTmj4199HT9xabdXfHXVJrMSnaVbbR3IHF4MxoCh3u7aLBgmmuRrQoHWTUg==, tarball: file:apps/runner/vendor/sentryvibe-agent-core-0.1.0.tgz}
+    version: 0.1.0
 
   '@sentryvibe/agent-core@file:vendor/sentryvibe-agent-core-0.1.0.tgz':
     resolution: {integrity: sha512-wtA9sXGD1kZlSvbhXyG1XFZFcfTOn+hHCbksI+FDQFAzJrTwW1A51rFcEz3QWaevuqk8li7HQtC4SBbbnK9z2w==, tarball: file:vendor/sentryvibe-agent-core-0.1.0.tgz}
@@ -6986,6 +6994,49 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+
+  '@sentryvibe/agent-core@file:apps/runner/vendor/sentryvibe-agent-core-0.1.0.tgz(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(react@19.1.0)(zod@4.1.12)':
+    dependencies:
+      ai: 5.0.70(zod@4.1.12)
+      ai-sdk-provider-claude-code: 1.2.0(zod@4.1.12)
+      clsx: 2.1.1
+      drizzle-orm: 0.44.6(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(pg@8.16.3)
+      lucide-react: 0.544.0(react@19.1.0)
+      pg: 8.16.3
+      server-only: 0.0.1
+      tailwind-merge: 3.3.1
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg-native
+      - postgres
+      - prisma
+      - react
+      - sql.js
+      - sqlite3
+      - zod
 
   '@sentryvibe/agent-core@file:vendor/sentryvibe-agent-core-0.1.0.tgz(@opentelemetry/api@1.9.0)(@types/pg@8.15.5)(react@19.1.0)(zod@4.1.12)':
     dependencies:

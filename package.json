@@ -7,7 +7,7 @@
     "build": "pnpm --filter sentryvibe build",
     "build:all": "pnpm --filter sentryvibe build && pnpm --filter @sentryvibe/runner-cli build && pnpm --filter sentryvibe-broker build",
     "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
-    "build:agent-core": "cd packages/agent-core && pnpm build && pnpm pack && mv *.tgz ../../vendor/",
+    "build:agent-core": "cd packages/agent-core && pnpm build && pnpm pack && mv *.tgz ../../apps/runner/vendor/",
     "start": "pnpm --filter sentryvibe start",
     "lint": "pnpm --filter sentryvibe lint",
     "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter @sentryvibe/runner-cli run dev",

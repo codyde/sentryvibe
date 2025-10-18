@@ -14,7 +14,8 @@
     "templates/",
     "vendor/",
     "scripts/",
-    "templates.json"
+    "templates.json",
+    ".npmrc"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -54,7 +55,7 @@
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentry/opentelemetry": "^10.17.0",
-    "@sentryvibe/agent-core": "workspace:*",
+    "@sentryvibe/agent-core": "file:./vendor/sentryvibe-agent-core-0.1.0.tgz",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",
