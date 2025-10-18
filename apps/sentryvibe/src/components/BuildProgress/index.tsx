@@ -106,6 +106,23 @@ export default function BuildProgress({
     }
   }, [total, hasTimeline, hasAnyActivity, viewMode]);
 
+  // ALL useMemo/useCallback MUST be before early returns
+  const allTodosCompleted = useMemo(() => {
+    return state.todos?.length ? state.todos.every((todo) => todo.status === 'completed') : false;
+  }, [state.todos]);
+
+  const toggleTodo = (index: number) => {
+    setExpandedTodos((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   // Validate state AFTER ALL hooks
   if (!state || !state.todos || !Array.isArray(state.todos)) {
     console.error('⚠️ Invalid generation state:', state);
@@ -142,22 +159,6 @@ export default function BuildProgress({
       </motion.div>
     );
   }
-
-  const toggleTodo = (index: number) => {
-    setExpandedTodos((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  };
-
-  const allTodosCompleted = useMemo(() => {
-    return state.todos?.length ? state.todos.every((todo) => todo.status === 'completed') : false;
-  }, [state.todos]);
 
   return (
     <motion.div
