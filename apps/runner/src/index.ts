@@ -20,6 +20,7 @@ import {
   type AgentId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
+import type { TodoItem } from "@sentryvibe/agent-core/types/generation";
 // Use dynamic import for buildLogger to work around CommonJS/ESM interop
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
@@ -35,8 +36,6 @@ import {
 } from "./lib/message-transformer.js";
 import {
   createSmartTracker,
-  handleToolCompletion,
-  syncWithAI,
   isComplete as isTrackerComplete,
   getCurrentTask,
   type SmartTodoTracker,
@@ -428,7 +427,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
         status: "in_progress" as const,
       };
 
-      const allTasks = [gettingStartedTask, ...taskPlan.todos.map(t => ({
+      const allTasks = [gettingStartedTask, ...taskPlan.todos.map((t: TodoItem) => ({
         ...t,
         status: 'pending' as const, // All real tasks start as pending
       }))];
@@ -447,7 +446,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
       );
 
       // Log each task (including synthetic)
-      allTasks.forEach((task: any, idx: number) => {
+      allTasks.forEach((task: TodoItem, idx: number) => {
         const icon = task.status === 'in_progress' ? '⏳' : '⭕';
         const label = idx === 0 ? '🌟 (Synthetic)' : '';
         console.log(`   ${icon} Task ${idx + 1}: ${task.content} ${label}`);
@@ -503,23 +502,6 @@ All tasks should start as "pending" except the first one which should be "in_pro
         if (allTasksComplete) {
           const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
           buildLogger.codexQuery.tasksComplete(completed, smartTracker.todos.length);
-        }
-      } else if (todoList) {
-        // Fallback if no smart tracker yet
-        try {
-          const parsed = JSON.parse(todoList);
-          const tasks = parsed.todos || parsed;
-          if (Array.isArray(tasks) && tasks.length > 0) {
-            allTasksComplete = tasks.every(
-              (task: { status: string }) => task.status === "completed"
-            );
-            buildLogger.codexQuery.tasksComplete(
-              tasks.filter((t: { status: string }) => t.status === "completed").length,
-              tasks.length
-            );
-          }
-        } catch (e) {
-          // Couldn't parse todolist, fall back to text detection
         }
       }
 
@@ -805,7 +787,6 @@ export function startRunner(options: RunnerOptions = {}) {
             runCommand: runCmd,
             workingDirectory,
             env = {},
-            preferredPort,
             framework,
           } = command.payload;
 
@@ -1000,7 +981,6 @@ export function startRunner(options: RunnerOptions = {}) {
 
           // Use multiple strategies for robust deletion
           const { spawn } = await import("child_process");
-          const { promisify } = await import("util");
 
           // Strategy 1: Try using /bin/rm -rf with full path to rm binary
           try {
@@ -1032,6 +1012,7 @@ export function startRunner(options: RunnerOptions = {}) {
             console.warn(
               `[runner] ⚠️  rm -rf failed, trying fs.rm with maxRetries...`
             );
+            console.warn(`[runner]   Error:`, rmError instanceof Error ? rmError.message : String(rmError));
 
             // Strategy 2: Fall back to fs.rm with maxRetries option
             const { rm } = await import("fs/promises");
@@ -1373,11 +1354,10 @@ export function startRunner(options: RunnerOptions = {}) {
 
             // Log generation and tool usage
             if (typeof agentMessage === "object" && agentMessage !== null) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const msg = agentMessage as any;
+              const msg = agentMessage as Record<string, unknown>;
 
               // The actual message is nested in a 'message' property
-              const actualMessage = msg.message || msg;
+              const actualMessage = (msg.message as Record<string, unknown>) || msg;
 
               // Handle assistant messages (conversation turn format)
               if (
@@ -1438,10 +1418,9 @@ export function startRunner(options: RunnerOptions = {}) {
                       content = block.content;
                     } else if (Array.isArray(block.content)) {
                       // Content might be an array of content blocks
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      content = block.content
-                        .map((c: { type: string; text: string }) => {
-                          if (c.type === "text") return c.text;
+                      content = (block.content as Array<{ type: string; text?: string }>)
+                        .map((c) => {
+                          if (c.type === "text" && c.text) return c.text;
                           return JSON.stringify(c);
                         })
                         .join("\n");
