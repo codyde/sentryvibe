@@ -266,7 +266,7 @@ export function ActivityFeed({ timeline, isActive, toolsByTodo, textByTodo }: Ac
     <div className="p-3 space-y-2">
       <AnimatePresence mode="popLayout">
         {effectiveTimeline.map((event, index) => (
-          <ActivityFeedItem key={event.id} event={event} index={index} />
+          <ActivityFeedItem key={`${event.type}-${event.id}-${index}`} event={event} index={index} />
         ))}
       </AnimatePresence>
     </div>
