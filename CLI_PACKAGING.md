@@ -4,6 +4,38 @@
 
 The SentryVibe CLI (`@sentryvibe/runner-cli`) is a standalone package that needs to be properly built and packaged before publishing or releasing.
 
+## 🔄 Development vs Production Modes
+
+### **Development Mode** (Default - Fast Iteration)
+```json
+"@sentryvibe/agent-core": "workspace:*"
+```
+- ✅ Changes to `packages/agent-core` picked up on restart
+- ✅ No tarball rebuilds needed
+- ✅ Fast iteration
+- ⚠️ **Don't ship this way!**
+
+### **Production Mode** (For CLI Distribution)
+```json
+"@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz"
+```
+- ✅ Self-contained package
+- ✅ No workspace dependencies
+- ✅ Works when installed globally
+- ✅ **Ready to ship!**
+
+### **Switching Modes**
+
+```bash
+# Development mode (currently active)
+./scripts/toggle-dev-mode.sh dev
+
+# Production mode (before packaging CLI)
+./scripts/toggle-dev-mode.sh prod
+```
+
+**IMPORTANT:** Always run `./scripts/toggle-dev-mode.sh prod` before packaging the CLI!
+
 ---
 
 ## Package Structure
@@ -226,7 +258,7 @@ pnpm pack
 
 ## Complete Release Checklist
 
-- [ ] Build agent-core: `pnpm run build:agent-core`
+- [ ] **Switch to production mode**: `./scripts/toggle-dev-mode.sh prod`
 - [ ] Verify vendor/ has 5 .tgz files (4 sentry + 1 agent-core)
 - [ ] Build runner CLI: `cd apps/runner && pnpm build`
 - [ ] Bump version in `apps/runner/package.json`
@@ -238,6 +270,7 @@ pnpm pack
 - [ ] Create GitHub release with .tgz file (rename to `sentryvibe-cli.tgz`)
 - [ ] Test install script: `curl ... | bash`
 - [ ] Optional: Publish to npm: `npm publish`
+- [ ] **Switch back to dev mode**: `./scripts/toggle-dev-mode.sh dev`
 
 ---
 

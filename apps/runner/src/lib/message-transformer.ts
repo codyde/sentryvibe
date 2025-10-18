@@ -3,6 +3,10 @@
  * Includes message lifecycle tracking and path violation detection
  */
 
+// Use namespace import for buildLogger to work around CommonJS/ESM interop
+import * as AgentCore from '@sentryvibe/agent-core';
+const { buildLogger } = AgentCore;
+
 interface SSEEvent {
   type: string;
   [key: string]: any;
@@ -54,16 +58,13 @@ function detectPathViolations(toolName: string, input: any, expectedCwd?: string
       const isWithinWorkspace = pathToCheck.startsWith(expectedCwd) || pathToCheck.startsWith(workspaceRoot);
 
       if (!isWithinWorkspace) {
-        console.warn('⚠️  Path outside workspace:');
-        console.warn(`   Tool: ${toolName}`);
-        console.warn(`   Path: ${pathToCheck}`);
-        console.warn(`   Workspace: ${workspaceRoot}`);
+        buildLogger.transformer.pathViolationWarning(toolName, pathToCheck, workspaceRoot);
       }
     }
 
     // Always warn about Desktop paths (hallucination indicator)
     if (pathToCheck.includes('/Desktop/')) {
-      console.error('🚨 DESKTOP PATH DETECTED - Likely hallucinated:', pathToCheck);
+      buildLogger.transformer.desktopPathDetected(pathToCheck);
     }
   }
 }
@@ -133,45 +134,23 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
       for (const block of message.content) {
         if (block.type === 'text' && block.text) {
           let text = String(block.text);
+
+          // CRITICAL: Remove ALL task status formats from text BEFORE processing
+          // We handle task status via synthetic TodoWrite events in the runner
+          // Any task status in the text should be ignored to prevent conflicts
+
           text = processTodoWriteMarkers(text);
 
-          // Extract Codex task list and send as separate event
-          const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
-          if (todoMatch) {
-            const todoListJson = todoMatch[1].trim();
-            console.log('[transformer] 📋 Found Codex task list, parsing...');
-            try {
-              const tasks = JSON.parse(todoListJson);
-              if (Array.isArray(tasks)) {
-                // Send task list as TodoWrite event for UI
-                const toolCallId = `codex-todo-${Date.now()}`;
-                const todoItems = tasks.map((t: any) => ({
-                  content: t.title,
-                  activeForm: t.description,
-                  status: t.status === 'complete' ? 'completed' : t.status === 'in-progress' ? 'in_progress' : 'pending',
-                }));
+          // Remove old XML format completely
+          text = text.replace(/<start-todolist>[\s\S]*?<\/start-todolist>/g, '').trim();
+          text = text.replace(/<end-todolist>/g, '').trim();
 
-                console.log(`[transformer] ✅ Parsed ${tasks.length} tasks, sending TodoWrite event`);
-                console.log(`[transformer]    ${tasks.filter((t: any) => t.status === 'complete').length} complete, ${tasks.filter((t: any) => t.status === 'in-progress').length} in-progress, ${tasks.filter((t: any) => t.status === 'not-done').length} not-done`);
+          // Remove new structured format completely
+          text = text.replace(/---TASK_STATUS---[\s\S]*?---END_TASK_STATUS---/g, '').trim();
 
-                events.push({
-                  type: 'tool-input-available',
-                  toolCallId,
-                  toolName: 'TodoWrite',
-                  input: {
-                    todos: todoItems,
-                  },
-                });
-              }
-            } catch (e) {
-              console.error('[transformer] ❌ Failed to parse Codex todolist:', e);
-              console.error('[transformer]    Raw JSON:', todoListJson.substring(0, 300));
-            }
-
-            // Remove task list from displayed text
-            text = text.replace(/<start-todolist>[\s\S]*?<end-todolist>/g, '').trim();
-            console.log('[transformer] 📝 Removed task list from chat text');
-          }
+          // DO NOT PARSE TASK STATUS FROM TEXT
+          // The runner sends synthetic TodoWrite events with the authoritative state
+          // Parsing from text causes stale/incorrect data
 
           const trimmed = text.trim();
           if (trimmed.length === 0) {

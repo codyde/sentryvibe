@@ -5,13 +5,12 @@
  * so the CLI always runs with the patched builds even when installed offline.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, lstatSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const packageRoot = path.join(__dirname, '..');
 const vendorDir = path.join(packageRoot, 'vendor');
 const nodeModules = path.join(packageRoot, 'node_modules');
@@ -51,14 +50,11 @@ try {
   for (const { name, tarball } of packages) {
     const source = path.join(vendorDir, tarball);
     const destination = path.join(nodeModules, '@sentry', name);
-
-    // Replace any existing installation to guarantee the patched build is used.
-    rmSync(destination, { recursive: true, force: true });
-    mkdirSync(destination, { recursive: true });
+    const extractTarget = resolveExtractionTarget(destination);
 
     execFileSync(
       'tar',
-      ['-xzf', source, '--strip-components', '1', '-C', destination],
+      ['-xzf', source, '--strip-components', '1', '-C', extractTarget],
       { stdio: 'pipe' },
     );
 
@@ -69,12 +65,11 @@ try {
   const agentCoreTarball = path.join(vendorDir, 'sentryvibe-agent-core-0.1.0.tgz');
   if (existsSync(agentCoreTarball)) {
     const agentCoreDestination = path.join(nodeModules, '@sentryvibe', 'agent-core');
-    rmSync(agentCoreDestination, { recursive: true, force: true });
-    mkdirSync(agentCoreDestination, { recursive: true });
+    const agentCoreExtractTarget = resolveExtractionTarget(agentCoreDestination);
 
     execFileSync(
       'tar',
-      ['-xzf', agentCoreTarball, '--strip-components', '1', '-C', agentCoreDestination],
+      ['-xzf', agentCoreTarball, '--strip-components', '1', '-C', agentCoreExtractTarget],
       { stdio: 'pipe' },
     );
 
@@ -85,4 +80,20 @@ try {
 } catch (error) {
   console.warn('Warning: Could not install vendor packages, using published versions');
   console.warn(error instanceof Error ? error.message : String(error));
+}
+
+function resolveExtractionTarget(destination) {
+  try {
+    const stat = lstatSync(destination);
+    if (stat.isSymbolicLink()) {
+      const linkTarget = readlinkSync(destination);
+      return path.resolve(path.dirname(destination), linkTarget);
+    }
+  } catch (error) {
+    // Path does not exist yet.
+  }
+
+  rmSync(destination, { recursive: true, force: true });
+  mkdirSync(destination, { recursive: true });
+  return destination;
 }
