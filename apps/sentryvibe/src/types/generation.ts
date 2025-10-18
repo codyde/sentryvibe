@@ -14,4 +14,6 @@ export type {
   CodexSessionState,
   GenerationState,
   GenerationEvent,
+  TimelineEvent,
+  TimelineEventType,
 } from '@sentryvibe/agent-core/types/generation';

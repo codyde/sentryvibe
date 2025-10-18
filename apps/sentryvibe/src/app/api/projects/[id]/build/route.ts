@@ -13,7 +13,7 @@ import {
   generationNotes,
 } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/types/generation';
+import type { TodoItem, ToolCall, GenerationState, TextMessage, TimelineEvent } from '@sentryvibe/agent-core/types/generation';
 import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/types/agent';
 import { analyzePromptForTemplate } from '@/services/template-analysis';
@@ -254,6 +254,61 @@ export async function POST(
         }
       }
 
+      // Build timeline: chronological list of all events
+      const timeline: TimelineEvent[] = [];
+
+      // Add todos to timeline
+      todoRows.forEach((todo, index) => {
+        timeline.push({
+          id: `todo-${index}`,
+          timestamp: todo.createdAt ?? new Date(),
+          type: 'todo',
+          todoIndex: index,
+          data: {
+            content: todo.content,
+            status: (todo.status as TodoItem['status']) ?? 'pending',
+            activeForm: todo.activeForm ?? todo.content,
+          },
+        });
+      });
+
+      // Add tools to timeline
+      toolRows.forEach((tool) => {
+        timeline.push({
+          id: tool.toolCallId ?? tool.id,
+          timestamp: tool.startedAt ?? new Date(),
+          type: 'tool',
+          todoIndex: tool.todoIndex ?? undefined,
+          data: {
+            id: tool.toolCallId ?? tool.id,
+            name: tool.name,
+            input: tool.input ?? undefined,
+            output: tool.output ?? undefined,
+            state: tool.state as ToolCall['state'],
+            startTime: tool.startedAt ?? sessionRow.startedAt ?? new Date(),
+            endTime: tool.endedAt ?? undefined,
+          },
+        });
+      });
+
+      // Add text/reasoning notes to timeline
+      noteRows.forEach((note) => {
+        timeline.push({
+          id: note.textId ?? note.id,
+          timestamp: note.createdAt ?? new Date(),
+          type: note.kind === 'reasoning' ? 'reasoning' : 'text',
+          todoIndex: note.todoIndex ?? undefined,
+          data: {
+            id: note.textId ?? note.id,
+            text: note.content,
+            timestamp: note.createdAt ?? new Date(),
+          },
+        });
+      });
+
+      // Sort timeline chronologically
+      timeline.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
       const snapshot: GenerationState = {
         id: sessionRow.buildId,
         projectId: sessionRow.projectId,
@@ -263,6 +318,7 @@ export async function POST(
         todos: todosSnapshot,
         toolsByTodo,
         textByTodo,
+        timeline, // NEW: Add timeline data
         activeTodoIndex: activeIndex,
         isActive: sessionRow.status === 'active',
         startTime: sessionRow.startedAt ?? now,
@@ -453,14 +509,27 @@ export async function POST(
 
           if (eventData.toolName === 'TodoWrite') {
             const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
+
+            // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
             await Promise.all(todos.map((todo: any, index: number) => persistTodo(todo, index)));
 
             // Update active todo index for subsequent events
             currentActiveTodoIndex = todos.findIndex((t: any) => t.status === 'in_progress');
             console.log(`[build-route] Updated activeTodoIndex to ${currentActiveTodoIndex}`);
 
-            // Also persist TodoWrite as a tool call for completeness
+            // Persist TodoWrite as a tool call
             await persistToolCall(eventData, 'input-available');
+
+            // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
+            await refreshRawState();
+            console.log(`[build-route] ✅ Todos persisted and state refreshed, activeTodoIndex=${currentActiveTodoIndex}`);
+
+            // Give frontend 50ms to process the TodoWrite update before tools arrive
+            await new Promise(resolve => setTimeout(resolve, 50));
+            console.log(`[build-route] ⏱️  Waited for frontend to process TodoWrite`);
+
+            // Don't call refreshRawState again at the end - we already did it
+            return;
           } else if (eventData.toolName) {
             // Inject active todo index into tool event before persisting
             if (!eventData.todoIndex && currentActiveTodoIndex >= 0) {
@@ -469,7 +538,11 @@ export async function POST(
             }
             await persistToolCall(eventData, 'input-available');
           }
-          await refreshRawState();
+
+          // Only refresh if we didn't already refresh for TodoWrite
+          if (eventData.toolName !== 'TodoWrite') {
+            await refreshRawState();
+          }
           break;
         case 'tool-output-available':
           // Try to restore toolName from map if missing

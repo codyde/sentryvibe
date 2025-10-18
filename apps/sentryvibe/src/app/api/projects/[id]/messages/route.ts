@@ -9,7 +9,7 @@ import {
 } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
-import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
+import type { GenerationState, ToolCall, TextMessage, TodoItem, TimelineEvent } from '@/types/generation';
 
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') {
@@ -116,6 +116,61 @@ export async function GET(
       }
 
       if (!hydratedState) {
+        // Build timeline: chronological list of all events
+        const timeline: TimelineEvent[] = [];
+
+        // Add todos to timeline
+        sessionTodos.forEach((todo, index) => {
+          timeline.push({
+            id: `todo-${index}`,
+            timestamp: todo.createdAt ?? new Date(),
+            type: 'todo',
+            todoIndex: index,
+            data: {
+              content: todo.content,
+              status: todo.status as TodoItem['status'],
+              activeForm: todo.activeForm ?? todo.content,
+            },
+          });
+        });
+
+        // Add tools to timeline
+        sessionTools.forEach((tool) => {
+          timeline.push({
+            id: tool.toolCallId ?? tool.id,
+            timestamp: tool.startedAt ?? new Date(),
+            type: 'tool',
+            todoIndex: tool.todoIndex ?? undefined,
+            data: {
+              id: tool.toolCallId ?? tool.id,
+              name: tool.name,
+              input: tool.input ?? undefined,
+              output: tool.output ?? undefined,
+              state: tool.state as ToolCall['state'],
+              startTime: tool.startedAt ?? new Date(),
+              endTime: tool.endedAt ?? undefined,
+            },
+          });
+        });
+
+        // Add text/reasoning notes to timeline
+        sessionNotes.forEach((note) => {
+          timeline.push({
+            id: note.textId ?? note.id,
+            timestamp: note.createdAt ?? new Date(),
+            type: note.kind === 'reasoning' ? 'reasoning' : 'text',
+            todoIndex: note.todoIndex ?? undefined,
+            data: {
+              id: note.textId ?? note.id,
+              text: note.content,
+              timestamp: note.createdAt ?? new Date(),
+            },
+          });
+        });
+
+        // Sort timeline chronologically
+        timeline.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
         hydratedState = {
           id: session.buildId,
           projectId: session.projectId,
@@ -152,6 +207,7 @@ export async function GET(
             }
             return acc;
           }, {} as Record<number, TextMessage[]>),
+          timeline, // Add timeline data
           activeTodoIndex: sessionTodos.findIndex(todo => todo.status === 'in_progress'),
           isActive: session.status === 'active',
           startTime: session.startedAt ?? new Date(),

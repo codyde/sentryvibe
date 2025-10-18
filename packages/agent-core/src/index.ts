@@ -9,3 +9,6 @@ export type { AgentStrategy, AgentStrategyContext } from './lib/agents';
 
 // Template configuration (server-only)
 export { setTemplatesPath } from './lib/templates/config.server';
+
+// Unified logging system
+export { buildLogger } from './lib/logging/build-logger';

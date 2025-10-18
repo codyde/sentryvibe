@@ -54,7 +54,7 @@
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentry/opentelemetry": "^10.17.0",
-    "@sentryvibe/agent-core": "file:./vendor/sentryvibe-agent-core-0.1.0.tgz",
+    "@sentryvibe/agent-core": "workspace:*",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",
@@ -63,7 +63,9 @@
     "ora": "^9.0.0",
     "simple-git": "^3.28.0",
     "update-notifier": "^7.3.1",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.1.12",
+    "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
     "@types/node": "^20",
