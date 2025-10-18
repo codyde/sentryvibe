@@ -98,7 +98,15 @@ export default function BuildProgress({
     });
   }, [state?.activeTodoIndex, state?.todos]);
 
-  // Validate state AFTER hooks
+  // Auto-switch to activity view if no todos but has activity (MUST be before early returns!)
+  useEffect(() => {
+    if (total === 0 && (hasTimeline || hasAnyActivity) && viewMode === 'todos') {
+      console.log('🔄 Auto-switching to Activity Feed (no todos but has activity)');
+      setViewMode('activity');
+    }
+  }, [total, hasTimeline, hasAnyActivity, viewMode]);
+
+  // Validate state AFTER ALL hooks
   if (!state || !state.todos || !Array.isArray(state.todos)) {
     console.error('⚠️ Invalid generation state:', state);
     return (
@@ -134,14 +142,6 @@ export default function BuildProgress({
       </motion.div>
     );
   }
-
-  // Auto-switch to activity view if no todos but has activity
-  useEffect(() => {
-    if (total === 0 && (hasTimeline || hasAnyActivity) && viewMode === 'todos') {
-      console.log('🔄 Auto-switching to Activity Feed (no todos but has activity)');
-      setViewMode('activity');
-    }
-  }, [total, hasTimeline, hasAnyActivity, viewMode]);
 
   const toggleTodo = (index: number) => {
     setExpandedTodos((prev) => {
