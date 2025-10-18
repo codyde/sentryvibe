@@ -319,13 +319,11 @@ function HomeContent() {
     const isCodex = (generationState?.agentId ?? selectedAgentId) === 'openai-codex';
     if (!isCodex) {
       codexAutoSwitchRef.current = false;
-      return;
+    } else if (generationState?.codex?.lastUpdatedAt && !codexAutoSwitchRef.current) {
+      console.log('🌀 Codex activity detected, switching to Build tab');
+      switchTab('build');
+      codexAutoSwitchRef.current = true;
     }
-    if (!generationState?.codex?.lastUpdatedAt) return;
-    if (codexAutoSwitchRef.current) return;
-    console.log('🌀 Codex activity detected, switching to Build tab');
-    switchTab('build');
-    codexAutoSwitchRef.current = true;
   }, [generationState?.codex?.lastUpdatedAt, generationState?.agentId, selectedAgentId]);
 
   // Archive completed builds to history (per project)
