@@ -133,10 +133,23 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
 
-  const completed = state?.todos?.filter(t => t.status === 'completed').length || 0;
-  const total = state?.todos?.length || 0;
+  // Defensive checks to prevent ReferenceErrors
+  const safeState = state || {};
+  const safeTodos = Array.isArray(safeState.todos) ? safeState.todos : [];
+  
+  const completed = safeTodos.filter(t => t?.status === 'completed').length;
+  const total = safeTodos.length;
   const progress = total > 0 ? (completed / total) * 100 : 0;
-  const isComplete = progress === 100 && !state?.isActive;
+  const isComplete = progress === 100 && !safeState?.isActive;
+  
+  // Check if there's any activity (todos, tools, or text messages)
+  const hasAnyActivity = useMemo(() => {
+    if (!state) return false;
+    const hasTodos = (state.todos?.length || 0) > 0;
+    const hasTools = state.toolsByTodo ? Object.values(state.toolsByTodo).some(tools => tools && tools.length > 0) : false;
+    const hasText = state.textByTodo ? Object.values(state.textByTodo).some(texts => texts && texts.length > 0) : false;
+    return hasTodos || hasTools || hasText;
+  }, [state?.todos, state?.toolsByTodo, state?.textByTodo]);
 
   // Debug logging for toolsByTodo
   useEffect(() => {
@@ -197,8 +210,8 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
     );
   }
 
-  // Show initializing state if no todos yet
-  if (total === 0 && state.isActive) {
+  // Show initializing state ONLY if no activity at all
+  if (!hasAnyActivity && state?.isActive) {
     return (
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -209,7 +222,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
           <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
           <div>
             <h3 className="text-base font-semibold text-white">Initializing Build...</h3>
-            <p className="text-xs text-gray-400">Setting up {state.projectName}</p>
+            <p className="text-xs text-gray-400">Setting up {state?.projectName || 'project'}</p>
           </div>
         </div>
       </motion.div>
@@ -229,8 +242,8 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
   };
 
   const allTodosCompleted = useMemo(() => {
-    return state.todos?.length ? state.todos.every(todo => todo.status === 'completed') : false;
-  }, [state.todos]);
+    return safeTodos.length > 0 ? safeTodos.every(todo => todo?.status === 'completed') : false;
+  }, [safeTodos]);
 
   return (
     <motion.div
@@ -257,7 +270,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
             </div>
             <div>
               <h3 className="text-base font-semibold text-white">
-                {isComplete ? '✓ Build Complete!' : `Building ${state.projectName}`}
+                {isComplete ? '✓ Build Complete!' : `Building ${state?.projectName || 'project'}`}
               </h3>
               {isCardExpanded ? (
                 <div className="space-y-1">
@@ -292,7 +305,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 )}
               </div>
             )}
-            {!state.isActive && onClose && (
+            {!state?.isActive && onClose && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -322,18 +335,18 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
       {isCardExpanded && (
         <div className="p-3">
           <AnimatePresence mode="popLayout">
-            {state.todos.map((todo, index) => {
-            const tools = state.toolsByTodo[index] || [];
-            const textMessages = state.textByTodo[index] || [];
+            {safeTodos.map((todo, index) => {
+            const tools = state?.toolsByTodo?.[index] || [];
+            const textMessages = state?.textByTodo?.[index] || [];
             const isExpanded = expandedTodos.has(index);
-            const isActive = index === state.activeTodoIndex;
+            const isActive = index === state?.activeTodoIndex;
             const hasContent = tools.length > 0 || textMessages.length > 0;
-            const isLastTodo = index === state.todos.length - 1;
+            const isLastTodo = index === safeTodos.length - 1;
             const isFinalSummary = isLastTodo && allTodosCompleted;
 
             return (
               <motion.div
-                key={`${todo.content}-${index}`}
+                key={`${todo?.content || 'todo'}-${index}`}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
@@ -344,16 +357,16 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                 <button
                   onClick={() => toggleTodo(index)}
                   className={`w-full flex items-center gap-2 rounded-lg border px-3 py-2 transition-all text-left ${
-                    todo.status === 'completed'
+                    todo?.status === 'completed'
                       ? 'border-green-500/30 bg-green-950/20'
-                      : todo.status === 'in_progress'
+                      : todo?.status === 'in_progress'
                         ? 'border-purple-500/30 bg-purple-950/20 shadow-lg shadow-purple-500/10'
                         : 'border-gray-700/50 bg-gray-800/30'
                   }`}
                 >
                   {/* Status icon */}
                   <div className="flex-shrink-0">
-                    {todo.status === 'completed' ? (
+                    {todo?.status === 'completed' ? (
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
@@ -361,7 +374,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                       >
                         <CheckCircle2 className="h-4 w-4 text-green-400" />
                       </motion.div>
-                    ) : todo.status === 'in_progress' ? (
+                    ) : todo?.status === 'in_progress' ? (
                       <motion.div
                         animate={{ rotate: 360 }}
                         transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -377,14 +390,14 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <p
                       className={`text-sm font-medium truncate ${
-                        todo.status === 'completed'
+                        todo?.status === 'completed'
                           ? 'text-gray-400 line-through'
-                          : todo.status === 'in_progress'
+                          : todo?.status === 'in_progress'
                             ? 'text-white'
                             : 'text-gray-300'
                       }`}
                     >
-                      {todo.status === 'in_progress' ? todo.activeForm : todo.content}
+                      {todo?.status === 'in_progress' ? (todo?.activeForm || todo?.content) : (todo?.content || '')}
                     </p>
 
                     {/* Content count indicator */}
@@ -434,7 +447,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
                       ))}
 
                       {/* Final Summary Actions */}
-                      {isFinalSummary && todo.status === 'completed' && (
+                      {isFinalSummary && todo?.status === 'completed' && (
                         <div className="ml-8 mt-3 flex gap-3">
                           <button
                             onClick={onViewFiles}
