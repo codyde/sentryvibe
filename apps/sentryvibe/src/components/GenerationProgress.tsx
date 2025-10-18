@@ -179,6 +179,11 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
     });
   }, [state?.activeTodoIndex, state?.todos]);
 
+  // Compute allTodosCompleted - must be before early returns
+  const allTodosCompleted = useMemo(() => {
+    return state.todos?.length ? state.todos.every(todo => todo.status === 'completed') : false;
+  }, [state.todos]);
+
   // Validate state AFTER hooks
   if (!state || !state.todos || !Array.isArray(state.todos)) {
     console.error('⚠️ Invalid generation state:', state);
@@ -227,10 +232,6 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
       return next;
     });
   };
-
-  const allTodosCompleted = useMemo(() => {
-    return state.todos?.length ? state.todos.every(todo => todo.status === 'completed') : false;
-  }, [state.todos]);
 
   return (
     <motion.div
