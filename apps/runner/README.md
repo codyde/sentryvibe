@@ -843,6 +843,70 @@ git push origin v0.1.1
 
 ### Common Issues
 
+#### Development Environment: Stale HMR/Cache Issues
+
+**Problem:** Encountering errors like `ReferenceError: [variable] is not defined` during development with Next.js Hot Module Replacement (HMR), especially after code refactoring or Fast Refresh cycles.
+
+**Root Cause:** This occurs when:
+- Old compiled JavaScript is cached in the browser
+- Next.js build artifacts contain outdated references
+- Fast Refresh creates a race condition between old and new code bundles
+
+**Solutions:**
+
+1. **Clear browser cache and force refresh:**
+   - Chrome/Edge: `Ctrl+Shift+R` (Windows/Linux) or `Cmd+Shift+R` (Mac)
+   - Firefox: `Ctrl+F5` (Windows/Linux) or `Cmd+Shift+R` (Mac)
+   - Safari: Hold `Shift` and click the reload button
+
+2. **Clean Next.js build artifacts:**
+   ```bash
+   # Navigate to the sentryvibe app directory
+   cd apps/sentryvibe
+   
+   # Use the clean script
+   npm run clean
+   
+   # Or manually remove build artifacts
+   rm -rf .next
+   rm -rf node_modules/.cache
+   ```
+
+3. **Full clean and restart:**
+   ```bash
+   # Navigate to the sentryvibe app directory
+   cd apps/sentryvibe
+   
+   # Clean everything
+   npm run clean
+   
+   # Restart the dev server
+   npm run dev
+   ```
+
+4. **Nuclear option (if issues persist):**
+   ```bash
+   cd apps/sentryvibe
+   
+   # Remove all dependencies and build artifacts
+   rm -rf node_modules
+   rm -rf .next
+   rm -rf node_modules/.cache
+   
+   # Reinstall dependencies
+   npm install
+   
+   # Start fresh
+   npm run dev
+   ```
+
+**Prevention:**
+- Close and reopen browser tabs after major refactoring
+- Restart the Next.js dev server when seeing unusual behavior
+- Use hard refresh after pulling code changes
+
+---
+
 #### "Runner not initialized"
 
 **Problem:** Running `sentryvibe runner` before `init`.
