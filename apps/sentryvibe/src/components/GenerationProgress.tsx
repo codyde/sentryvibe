@@ -137,6 +137,7 @@ export default function GenerationProgress({ state, defaultCollapsed = false, on
   const total = state?.todos?.length || 0;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
+  const hasAnyActivity = total > 0 || state.activeTodoIndex >= 0;
 
   // Debug logging for toolsByTodo
   useEffect(() => {
