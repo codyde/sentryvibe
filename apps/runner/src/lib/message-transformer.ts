@@ -139,7 +139,23 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
           if (text.includes('<start-todolist>')) {
             console.log('🔍 [transformer] Found <start-todolist> in text');
             console.log('   Text length:', text.length);
-            console.log('   Preview:', text.substring(0, 200));
+            console.log('   Has end tag?', text.includes('</start-todolist>'));
+            console.log('   Has end tag (alt)?', text.includes('<end-todolist>'));
+
+            // Find positions
+            const startPos = text.indexOf('<start-todolist>');
+            const endPos = text.indexOf('</start-todolist>');
+            const endPosAlt = text.indexOf('<end-todolist>');
+            console.log('   Start position:', startPos);
+            console.log('   End position (</start...>):', endPos);
+            console.log('   End position (<end...>):', endPosAlt);
+
+            // Show the area around the tags
+            if (startPos >= 0) {
+              const contextStart = Math.max(0, startPos - 50);
+              const contextEnd = Math.min(text.length, startPos + 300);
+              console.log('   Context around start tag:', text.substring(contextStart, contextEnd));
+            }
           }
 
           text = processTodoWriteMarkers(text);
