@@ -148,8 +148,16 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
           const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
           if (todoMatch) {
             console.log('✅ [transformer] Task list regex matched!');
-            console.log('   Extracted JSON:', todoMatch[1].substring(0, 200));
             const todoListJson = todoMatch[1].trim();
+            console.log('   Full JSON length:', todoListJson.length);
+            console.log('   First 200 chars:', todoListJson.substring(0, 200));
+            console.log('   Last 100 chars:', todoListJson.substring(Math.max(0, todoListJson.length - 100)));
+
+            // Check if JSON looks complete
+            if (!todoListJson.endsWith(']')) {
+              console.log('⚠️  [transformer] JSON doesn\'t end with ] - might be incomplete');
+            }
+
             buildLogger.transformer.todoListFound();
             try {
               const todos = JSON.parse(todoListJson);
