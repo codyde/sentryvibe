@@ -14,7 +14,8 @@
     "templates/",
     "vendor/",
     "scripts/",
-    "templates.json"
+    "templates.json",
+    ".npmrc"
   ],
   "engines": {
     "node": ">=18.0.0"
