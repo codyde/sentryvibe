@@ -24,6 +24,43 @@ interface PreviewPanelProps {
 
 type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
+const PreviewLoadingAnimation = ({ title, subtitle }: { title: string; subtitle: string }) => (
+  <div className="flex flex-col items-center gap-6 text-center">
+    <div className="relative flex items-center justify-center">
+      <motion.span
+        className="absolute w-48 h-48 rounded-full bg-gradient-to-br from-[#7553FF]/35 via-[#FF45A8]/30 to-transparent blur-3xl"
+        animate={{ scale: [1, 1.12, 1], opacity: [0.7, 1, 0.7] }}
+        transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="relative w-36 h-36 rounded-full bg-gradient-to-tr from-[#7553FF] via-[#FF45A8] to-[#92DD00] shadow-[0_0_30px_rgba(117,83,255,0.45)]"
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 14, ease: 'linear' }}
+      >
+        <motion.div
+          className="absolute inset-4 rounded-full border border-white/20"
+          animate={{ rotate: -360 }}
+          transition={{ repeat: Infinity, duration: 10, ease: 'linear' }}
+        />
+        <motion.span
+          className="absolute top-3 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-white shadow-[0_0_18px_rgba(255,255,255,0.7)]"
+          animate={{ y: [0, 10, 0], scale: [1, 1.2, 1] }}
+          transition={{ repeat: Infinity, duration: 2.8, ease: 'easeInOut' }}
+        />
+        <motion.span
+          className="absolute bottom-6 right-8 h-2 w-2 rounded-full bg-white/70 shadow-[0_0_14px_rgba(255,255,255,0.6)]"
+          animate={{ scale: [1, 1.6, 1], opacity: [0.6, 1, 0.6] }}
+          transition={{ repeat: Infinity, duration: 3.4, ease: 'easeInOut' }}
+        />
+      </motion.div>
+    </div>
+    <div className="space-y-2">
+      <h3 className="text-lg font-semibold text-white tracking-wide">{title}</h3>
+      <p className="text-sm text-gray-300/90 max-w-xs mx-auto leading-relaxed">{subtitle}</p>
+    </div>
+  </div>
+);
+
 export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel }: PreviewPanelProps) {
   const { projects } = useProjects();
   const [key, setKey] = useState(0);
@@ -522,15 +559,16 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            {isChecking ? (
-              <div className="text-center space-y-3">
-                <div className="flex items-center gap-2 justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                </div>
-                <p>Waiting for server to be ready...</p>
-              </div>
+            {project?.devServerStatus === 'starting' || isStartingServer ? (
+              <PreviewLoadingAnimation
+                title="Spinning up your workspace"
+                subtitle="Warming caches, allocating a port, and preparing the dev server."
+              />
+            ) : isChecking ? (
+              <PreviewLoadingAnimation
+                title="Linking to the preview"
+                subtitle="Verifying that the dev server is responding before we stream it here."
+              />
             ) : healthCheckFailed && project?.devServerStatus === 'running' && !project?.tunnelUrl ? (
               <div className="text-center space-y-4 max-w-md px-6">
                 <div className="flex items-center justify-center">
@@ -557,7 +595,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 </button>
               </div>
             ) : project?.devServerStatus === 'running' ? (
-              <p>Waiting for dev server...</p>
+              <PreviewLoadingAnimation
+                title="Preparing live preview"
+                subtitle="Almost ready—waiting for the latest build output to stream into the sandbox."
+              />
             ) : project?.status === 'completed' && project?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">
                 <div className="flex items-center justify-center">

@@ -135,85 +135,22 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
         if (block.type === 'text' && block.text) {
           let text = String(block.text);
 
-          // DEBUG: Log if we see task list markers
-          if (text.includes('<start-todolist>')) {
-            console.log('🔍 [transformer] Found <start-todolist> in text');
-            console.log('   Text length:', text.length);
-            console.log('   Has end tag?', text.includes('</start-todolist>'));
-            console.log('   Has end tag (alt)?', text.includes('<end-todolist>'));
-
-            // Find positions
-            const startPos = text.indexOf('<start-todolist>');
-            const endPos = text.indexOf('</start-todolist>');
-            const endPosAlt = text.indexOf('<end-todolist>');
-            console.log('   Start position:', startPos);
-            console.log('   End position (</start...>):', endPos);
-            console.log('   End position (<end...>):', endPosAlt);
-
-            // Show the area around the tags
-            if (startPos >= 0) {
-              const contextStart = Math.max(0, startPos - 50);
-              const contextEnd = Math.min(text.length, startPos + 300);
-              console.log('   Context around start tag:', text.substring(contextStart, contextEnd));
-            }
-          }
+          // CRITICAL: Remove ALL task status formats from text BEFORE processing
+          // We handle task status via synthetic TodoWrite events in the runner
+          // Any task status in the text should be ignored to prevent conflicts
 
           text = processTodoWriteMarkers(text);
 
-          // Extract Codex task list and send as separate event
-          const todoMatch = text.match(/<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/);
-          if (todoMatch) {
-            console.log('✅ [transformer] Task list regex matched!');
-            const todoListJson = todoMatch[1].trim();
-            console.log('   Full JSON length:', todoListJson.length);
-            console.log('   First 200 chars:', todoListJson.substring(0, 200));
-            console.log('   Last 100 chars:', todoListJson.substring(Math.max(0, todoListJson.length - 100)));
+          // Remove old XML format completely
+          text = text.replace(/<start-todolist>[\s\S]*?<\/start-todolist>/g, '').trim();
+          text = text.replace(/<end-todolist>/g, '').trim();
 
-            // Check if JSON looks complete
-            if (!todoListJson.endsWith(']')) {
-              console.log('⚠️  [transformer] JSON doesn\'t end with ] - might be incomplete');
-            }
+          // Remove new structured format completely
+          text = text.replace(/---TASK_STATUS---[\s\S]*?---END_TASK_STATUS---/g, '').trim();
 
-            buildLogger.transformer.todoListFound();
-            try {
-              const todos = JSON.parse(todoListJson);
-              if (Array.isArray(todos)) {
-                // Validate format matches Claude's TodoWrite
-                const isValidFormat = todos.every((t: any) =>
-                  typeof t.content === 'string' &&
-                  typeof t.activeForm === 'string' &&
-                  ['pending', 'in_progress', 'completed'].includes(t.status)
-                );
-
-                if (!isValidFormat) {
-                  buildLogger.transformer.todoListInvalidFormat(
-                    '{content, activeForm, status}',
-                    todos[0]
-                  );
-                } else {
-                  const toolCallId = `codex-todo-${Date.now()}`;
-                  const completed = todos.filter((t: any) => t.status === 'completed').length;
-                  const inProgress = todos.filter((t: any) => t.status === 'in_progress').length;
-                  const pending = todos.filter((t: any) => t.status === 'pending').length;
-
-                  buildLogger.transformer.todoListParsed(todos.length, completed, inProgress, pending);
-
-                  events.push({
-                    type: 'tool-input-available',
-                    toolCallId,
-                    toolName: 'TodoWrite',
-                    input: { todos },  // Direct pass-through, no transformation needed!
-                  });
-                }
-              }
-            } catch (e) {
-              buildLogger.transformer.todoListParseError(e, todoListJson);
-            }
-
-            // Remove task list from displayed text
-            text = text.replace(/<start-todolist>[\s\S]*?<end-todolist>/g, '').trim();
-            buildLogger.transformer.todoListRemoved();
-          }
+          // DO NOT PARSE TASK STATUS FROM TEXT
+          // The runner sends synthetic TodoWrite events with the authoritative state
+          // Parsing from text causes stale/incorrect data
 
           const trimmed = text.trim();
           if (trimmed.length === 0) {

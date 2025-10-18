@@ -88,16 +88,6 @@ export interface CodexSessionState {
   lastUpdatedAt?: Date;
 }
 
-export type TimelineEventType = 'todo' | 'tool' | 'text' | 'reasoning';
-
-export interface TimelineEvent {
-  id: string;
-  timestamp: Date;
-  type: TimelineEventType;
-  todoIndex?: number; // Optional link to parent todo
-  data: TodoItem | ToolCall | TextMessage;
-}
-
 export interface GenerationState {
   id: string; // Unique ID for this generation session
   projectId: string;
@@ -107,7 +97,6 @@ export interface GenerationState {
   todos: TodoItem[];
   toolsByTodo: Record<number, ToolCall[]>; // Tools nested under each todo index
   textByTodo: Record<number, TextMessage[]>; // Text messages nested under each todo
-  timeline?: TimelineEvent[]; // NEW: Chronological list of all events (optional for backward compatibility)
   activeTodoIndex: number; // Which todo is currently in progress
   isActive: boolean;
   startTime: Date;

@@ -2,11 +2,10 @@
 
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { GenerationState } from '@/types/generation';
-import { BuildHeader, type ViewMode } from './BuildHeader';
+import { BuildHeader } from './BuildHeader';
 import { TodoList } from './TodoList';
-import { ActivityFeed } from './ActivityFeed';
 
 interface BuildProgressProps {
   state: GenerationState;
@@ -32,31 +31,20 @@ export default function BuildProgress({
   // ALWAYS call hooks first (React rules!)
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
-  const [viewMode, setViewMode] = useState<ViewMode>('todos');
+  const todoListRef = useRef<HTMLDivElement>(null);
+  const activeTodoRef = useRef<HTMLDivElement>(null);
 
   const completed = state?.todos?.filter((t) => t.status === 'completed').length || 0;
   const total = state?.todos?.length || 0;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
-  const hasTimeline = !!state?.timeline && state.timeline.length > 0;
-
-  // Check if we have ANY activity (tools, text, etc.) even without todos
-  const hasAnyActivity = useMemo(() => {
-    if (hasTimeline) return true;
-    const toolsCount = Object.values(state?.toolsByTodo || {}).reduce((sum, tools) => sum + tools.length, 0);
-    const textCount = Object.values(state?.textByTodo || {}).reduce((sum, texts) => sum + texts.length, 0);
-    return toolsCount > 0 || textCount > 0;
-  }, [hasTimeline, state?.toolsByTodo, state?.textByTodo]);
 
   // Debug logging for state
   useEffect(() => {
     console.log('🔍 BuildProgress state update:', {
       todosLength: state?.todos?.length || 0,
-      hasTimeline,
-      timelineLength: state?.timeline?.length || 0,
-      hasAnyActivity,
-      viewMode,
       isActive: state?.isActive,
+      activeTodoIndex: state?.activeTodoIndex,
     });
 
     if (state?.toolsByTodo) {
@@ -65,7 +53,7 @@ export default function BuildProgress({
         .join(', ');
       console.log('   📊 toolsByTodo:', toolCounts || 'empty');
     }
-  }, [state, hasTimeline, hasAnyActivity, viewMode]);
+  }, [state]);
 
   // Auto-collapse card when build completes (only if not defaultCollapsed)
   useEffect(() => {
@@ -82,14 +70,15 @@ export default function BuildProgress({
     setExpandedTodos((prev) => {
       const next = new Set(prev);
 
-      // Expand active todo
-      if (state.activeTodoIndex >= 0) {
-        next.add(state.activeTodoIndex);
-      }
-
-      // Collapse completed todos automatically
+      // Expand ONLY the active todo
       state.todos.forEach((todo, index) => {
-        if (todo.status === 'completed' && next.has(index)) {
+        if (index === state.activeTodoIndex && todo.status === 'in_progress') {
+          next.add(index);
+        } else if (todo.status === 'completed') {
+          // Auto-collapse completed todos
+          next.delete(index);
+        } else if (todo.status === 'pending') {
+          // Keep pending todos collapsed
           next.delete(index);
         }
       });
@@ -98,13 +87,27 @@ export default function BuildProgress({
     });
   }, [state?.activeTodoIndex, state?.todos]);
 
-  // Auto-switch to activity view if no todos but has activity (MUST be before early returns!)
+  // Auto-scroll to active todo when it changes
   useEffect(() => {
-    if (total === 0 && (hasTimeline || hasAnyActivity) && viewMode === 'todos') {
-      console.log('🔄 Auto-switching to Activity Feed (no todos but has activity)');
-      setViewMode('activity');
-    }
-  }, [total, hasTimeline, hasAnyActivity, viewMode]);
+    if (!state?.isActive || state.activeTodoIndex < 0) return;
+
+    // Small delay to let the DOM update
+    const timer = setTimeout(() => {
+      const activeElement = document.querySelector(`[data-todo-index="${state.activeTodoIndex}"]`);
+      if (activeElement && todoListRef.current) {
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'nearest',
+        });
+        console.log(`📜 Auto-scrolled to active todo: ${state.activeTodoIndex}`);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [state?.activeTodoIndex, state?.isActive]);
+
+  // Removed auto-switch logic - ONLY todo view now!
 
   // ALL useMemo/useCallback MUST be before early returns
   const allTodosCompleted = useMemo(() => {
@@ -141,8 +144,8 @@ export default function BuildProgress({
     );
   }
 
-  // Show initializing state ONLY if no activity at all
-  if (!hasAnyActivity && state.isActive) {
+  // Show initializing state ONLY if no todos yet
+  if (total === 0 && state.isActive) {
     return (
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -179,39 +182,28 @@ export default function BuildProgress({
         onToggleExpand={() => setIsCardExpanded(!isCardExpanded)}
         onClose={onClose}
         templateInfo={templateInfo}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        hasTimeline={hasTimeline}
       />
 
       {/* Content - Only show when expanded */}
       {isCardExpanded && (
         <>
-          {viewMode === 'todos' && total > 0 && (
-            <TodoList
-              todos={state.todos}
-              toolsByTodo={state.toolsByTodo}
-              textByTodo={state.textByTodo}
-              activeTodoIndex={state.activeTodoIndex}
-              expandedTodos={expandedTodos}
-              onToggleTodo={toggleTodo}
-              allTodosCompleted={allTodosCompleted}
-              onViewFiles={onViewFiles}
-              onStartServer={onStartServer}
-            />
-          )}
-          {viewMode === 'activity' && (hasTimeline || hasAnyActivity) && (
-            <ActivityFeed
-              timeline={state.timeline || []}
-              isActive={state.isActive}
-              toolsByTodo={state.toolsByTodo}
-              textByTodo={state.textByTodo}
-            />
-          )}
-          {/* Fallback: Show message if no content at all */}
-          {!hasAnyActivity && total === 0 && (
+          {total > 0 ? (
+            <div ref={todoListRef}>
+              <TodoList
+                todos={state.todos}
+                toolsByTodo={state.toolsByTodo}
+                textByTodo={state.textByTodo}
+                activeTodoIndex={state.activeTodoIndex}
+                expandedTodos={expandedTodos}
+                onToggleTodo={toggleTodo}
+                allTodosCompleted={allTodosCompleted}
+                onViewFiles={onViewFiles}
+                onStartServer={onStartServer}
+              />
+            </div>
+          ) : (
             <div className="p-6 text-center text-gray-400 text-sm">
-              Waiting for build to start...
+              {state.isActive ? 'Initializing build...' : 'No tasks to display'}
             </div>
           )}
         </>

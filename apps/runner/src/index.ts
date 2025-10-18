@@ -33,6 +33,15 @@ import {
   resetTransformerState,
   setExpectedCwd,
 } from "./lib/message-transformer.js";
+import {
+  createSmartTracker,
+  handleToolCompletion,
+  syncWithAI,
+  isComplete as isTrackerComplete,
+  getCurrentTask,
+  type SmartTodoTracker,
+} from "./lib/smart-todo-tracker.js";
+import { getTaskPlanJsonSchema } from "./lib/codex-task-schema.js";
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
@@ -375,106 +384,131 @@ function createCodexQuery(): BuildQueryFn {
 
     buildLogger.codexQuery.threadStarting();
 
-    // Multi-turn pattern from SDK docs: call runStreamed() repeatedly on same thread
+    // TASK-DRIVEN EXECUTION PATTERN
+    // Phase 1: Get initial task list
+    // Phase 2: Loop through each task and explicitly prompt Codex to work on it
+
     const MAX_TURNS = 50;
     let turnCount = 0;
-    let nextPrompt = combinedPrompt;
-    let todoList: string | null = null;
+    let smartTracker: SmartTodoTracker | null = null;
+
+    // ========================================
+    // PHASE 1: STRUCTURED TASK PLANNING
+    // ========================================
+    console.log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
+    turnCount++;
+
+    const planningPrompt = `${combinedPrompt}
+
+Analyze this request and create a task plan. Break it into 3-8 high-level tasks focusing on USER-FACING FEATURES.
+
+Return your response as JSON with:
+- analysis: Brief overview of what you'll build (2-3 sentences)
+- todos: Array of tasks with content, activeForm, and status
+
+All tasks should start as "pending" except the first one which should be "in_progress".`;
+
+    let taskPlan;
+    try {
+      console.log('📋 [codex-query] Requesting structured task plan...');
+      const planningTurn = await thread.run(planningPrompt, {
+        outputSchema: getTaskPlanJsonSchema(),
+      });
+
+      taskPlan = JSON.parse(planningTurn.finalResponse);
+      console.log('✅ [codex-query] Got structured task plan!');
+      console.log(`   Analysis: ${taskPlan.analysis}`);
+      console.log(`   Tasks: ${taskPlan.todos.length}`);
+
+      // ADD SYNTHETIC "GETTING STARTED" TASK AT INDEX 0
+      // This catches all the initial exploration commands (ls, cat, etc.)
+      const gettingStartedTask = {
+        content: "Getting started and exploring workspace",
+        activeForm: "Getting started and exploring workspace",
+        status: "in_progress" as const,
+      };
+
+      const allTasks = [gettingStartedTask, ...taskPlan.todos.map(t => ({
+        ...t,
+        status: 'pending' as const, // All real tasks start as pending
+      }))];
+
+      console.log('✅ [codex-query] Added synthetic "Getting Started" task at index 0');
+      console.log(`   Total tasks: ${allTasks.length} (1 synthetic + ${taskPlan.todos.length} real)`);
+
+      // Initialize smart tracker with all tasks (including synthetic)
+      smartTracker = createSmartTracker(allTasks);
+
+      buildLogger.codexQuery.taskListStatus(
+        0,
+        1, // Getting Started is in_progress
+        allTasks.length - 1, // All others pending
+        allTasks.length
+      );
+
+      // Log each task (including synthetic)
+      allTasks.forEach((task: any, idx: number) => {
+        const icon = task.status === 'in_progress' ? '⏳' : '⭕';
+        const label = idx === 0 ? '🌟 (Synthetic)' : '';
+        console.log(`   ${icon} Task ${idx + 1}: ${task.content} ${label}`);
+      });
+
+      // Send task plan to UI via synthetic TodoWrite event
+      yield {
+        type: 'assistant',
+        message: {
+          id: `planning-${Date.now()}`,
+          content: [{
+            type: 'text',
+            text: taskPlan.analysis,
+          }],
+        },
+      };
+
+      // Send TodoWrite event with ALL tasks (including synthetic Getting Started)
+      console.log('📤 [codex-query] Sending initial TodoWrite to UI with Getting Started task...');
+      const todoWriteEvent = {
+        type: 'assistant',
+        message: {
+          id: `todo-init-${Date.now()}`,
+          content: [{
+            type: 'tool_use',
+            id: `todo-${Date.now()}`,
+            name: 'TodoWrite',
+            input: { todos: allTasks }, // Include Getting Started!
+          }],
+        },
+      };
+
+      // Stream it directly
+      yield todoWriteEvent;
+
+    } catch (error) {
+      buildLogger.codexQuery.error('ERROR in structured planning', error);
+      throw error;
+    }
+
+    console.log(`🔍 [codex-query] Smart tracker initialized with ${smartTracker?.todos.length} tasks`);
+
+    // ========================================
+    // PHASE 2: TASK EXECUTION LOOP
+    // ========================================
+    console.log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
 
     while (turnCount < MAX_TURNS) {
-      turnCount++;
-      buildLogger.codexQuery.turnStarted(turnCount, MAX_TURNS, nextPrompt.length);
-
-      let events;
-      try {
-        const result = await thread.runStreamed(nextPrompt);
-        events = result.events;
-      } catch (error) {
-        buildLogger.codexQuery.error('ERROR in thread.runStreamed()', error);
-        throw error;
-      }
-
-      let hadToolCalls = false;
-      let lastMessage = "";
-
-      for await (const rawEvent of events) {
-        // Track what happened in this turn
-        const event = rawEvent as CodexEvent;
-        if (event.type === "item.completed") {
-          const itemType = resolveCodexItemType(event.item as Record<string, unknown>);
-          if (
-            itemType === "command_execution" ||
-            itemType === "tool_call" ||
-            itemType === "mcp_tool_call" ||
-            itemType === "file_change"
-          ) {
-            hadToolCalls = true;
-          } else if (itemType === "agent_message") {
-            lastMessage = (event.item as { text: string })?.text || "";
-
-            // Extract todolist from message using XML-style tags
-            const todoMatch = lastMessage.match(
-              /<start-todolist>\s*([\s\S]*?)\s*<end-todolist>/
-            );
-            if (todoMatch) {
-              const newTodoList = todoMatch[1].trim();
-              if (newTodoList !== todoList) {
-                todoList = newTodoList;
-                buildLogger.codexQuery.taskListExtracted();
-                try {
-                  const tasks = JSON.parse(todoList);
-                  if (Array.isArray(tasks)) {
-                    const completed = tasks.filter(
-                      (t: { status: string }) => t.status === "completed"
-                    ).length;
-                    const inProgress = tasks.filter(
-                      (t: { status: string }) => t.status === "in_progress"
-                    ).length;
-                    const pending = tasks.filter(
-                      (t: { status: string }) => t.status === "pending"
-                    ).length;
-
-                    buildLogger.codexQuery.taskListStatus(completed, inProgress, pending, tasks.length);
-
-                    // Log each task for visibility
-                    tasks.forEach((task: { status: string; content: string }, idx: number) => {
-                      const statusIcon =
-                        task.status === "completed"
-                          ? "✅"
-                          : task.status === "in_progress"
-                          ? "⏳"
-                          : "⭕";
-                      buildLogger.codexQuery.taskListTask(idx, task.content, task.status, statusIcon);
-                    });
-                  }
-                } catch (e) {
-                  buildLogger.codexQuery.taskListParseError(e, todoList);
-                }
-              }
-            } else if (turnCount > 1) {
-              buildLogger.codexQuery.taskListMissing(turnCount);
-            }
-          }
-        }
-
-        // Convert and yield to stream (create async iterable from single event)
-        async function* singleEvent() {
-          yield rawEvent;
-        }
-        for await (const agentMessage of convertCodexEventsToAgentMessages(
-          singleEvent()
-        )) {
-          yield agentMessage;
-        }
-      }
-
-      buildLogger.codexQuery.turnComplete(turnCount, hadToolCalls, lastMessage.length);
-
-      // Check if all tasks are complete by parsing todolist
+      // Check if all tasks are complete
       let allTasksComplete = false;
-      if (todoList) {
+      if (smartTracker) {
+        allTasksComplete = isTrackerComplete(smartTracker);
+        if (allTasksComplete) {
+          const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
+          buildLogger.codexQuery.tasksComplete(completed, smartTracker.todos.length);
+        }
+      } else if (todoList) {
+        // Fallback if no smart tracker yet
         try {
-          const tasks = JSON.parse(todoList);
+          const parsed = JSON.parse(todoList);
+          const tasks = parsed.todos || parsed;
           if (Array.isArray(tasks) && tasks.length > 0) {
             allTasksComplete = tasks.every(
               (task: { status: string }) => task.status === "completed"
@@ -492,53 +526,144 @@ function createCodexQuery(): BuildQueryFn {
       if (allTasksComplete) {
         buildLogger.codexQuery.allComplete();
         break;
-      } else if (!hadToolCalls) {
-        // No tools used - check if task is complete via message text
-        const completionSignals = [
-          "implementation complete",
-          "all mvp tasks finished",
-          "summary:",
-          "ready to use",
-        ];
-        const isDone = completionSignals.some((signal) =>
-          lastMessage.toLowerCase().includes(signal)
-        );
+      }
 
-        if (isDone) {
-          buildLogger.codexQuery.taskCompleteDetected();
-          break;
-        } else {
-          buildLogger.codexQuery.continuePrompting('no tools used but not done');
-          nextPrompt = todoList
-            ? `Continue the MVP. Current progress:
+      // Determine next prompt - explicitly drive the current task
+      const currentTask = smartTracker ? getCurrentTask(smartTracker) : null;
 
-<start-todolist>
-${todoList}
-<end-todolist>
+      if (!smartTracker || !currentTask) {
+        console.error('❌ [codex-query] No tracker or current task - cannot continue');
+        break;
+      }
 
-Work on the next incomplete task and update the list.`
-            : "Please continue with the next MVP step and include your task list.";
+      console.log(`🚀 [codex-query] Next task: ${currentTask.content}`);
+
+      // PRE-SET active todo index BEFORE executing turn
+      // This ensures tool calls get associated with the right todo!
+      const currentTaskIndex = smartTracker.currentIndex;
+      console.log(`📍 [codex-query] Setting active todo index to: ${currentTaskIndex}`);
+
+      // Send synthetic TodoWrite to update active task BEFORE tools execute
+      console.log(`📤 [codex-query] Sending pre-task TodoWrite (task ${currentTaskIndex} active)...`);
+      const preTaskUpdate = {
+        type: 'assistant',
+        message: {
+          id: `pre-task-${Date.now()}`,
+          content: [{
+            type: 'tool_use',
+            id: `pre-todo-${Date.now()}`,
+            name: 'TodoWrite',
+            input: { todos: smartTracker.todos },
+          }],
+        },
+      };
+
+      // Send directly
+      yield preTaskUpdate;
+
+      const nextPrompt = `Work on this specific task NOW: "${currentTask.content}"
+
+Execute ALL necessary file operations and commands to fully complete this task.
+Don't just plan - TAKE ACTION and create/modify files.
+
+After completing the work, provide a brief 2-3 sentence update ONLY.
+
+DO NOT INCLUDE ANY TASK STATUS - THE SYSTEM WILL HANDLE THAT.`;
+
+      // ========================================
+      // EXECUTE NEXT TURN
+      // ========================================
+      turnCount++;
+      console.log(`🚀 [codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
+      console.log(`📝 [codex-query] Prompt: ${nextPrompt.substring(0, 150)}...`);
+
+      buildLogger.codexQuery.turnStarted(turnCount, MAX_TURNS, nextPrompt.length);
+
+      let turnEvents;
+      try {
+        const result = await thread.runStreamed(nextPrompt);
+        turnEvents = result.events;
+      } catch (error) {
+        buildLogger.codexQuery.error(`ERROR in turn ${turnCount}`, error);
+        throw error;
+      }
+
+      // Process this turn's events
+      let hadToolCallsThisTurn = false;
+      let lastMessageThisTurn = "";
+
+      for await (const rawEvent of turnEvents) {
+        const event = rawEvent as CodexEvent;
+
+        if (event.type === "item.completed") {
+          const itemType = resolveCodexItemType(event.item as Record<string, unknown>);
+
+          if (
+            itemType === "command_execution" ||
+            itemType === "tool_call" ||
+            itemType === "mcp_tool_call" ||
+            itemType === "file_change"
+          ) {
+            hadToolCallsThisTurn = true;
+          } else if (itemType === "agent_message") {
+            lastMessageThisTurn = (event.item as { text: string })?.text || "";
+            // Don't parse task status - we handle it automatically
+          }
         }
-      } else {
-        // Had tool calls - continue with task list
-        buildLogger.codexQuery.continuing();
-        if (todoList) {
-          nextPrompt = `Continue towards MVP completion. Latest progress:
 
-<start-todolist>
-${todoList}
-<end-todolist>
-
-Next: Work on the next incomplete task. After each action, provide an update with the task list showing updated statuses. When ALL tasks are complete, signal completion.`;
-        } else {
-          nextPrompt = `Continue working.
-
-CRITICAL: Include your task list in EVERY response using:
-
-<start-todolist>
-[{"content": "Task", "activeForm": "Doing task", "status": "pending"}]
-</start-todolist>`;
+        // Forward event to stream
+        async function* singleEvent() {
+          yield rawEvent;
         }
+        for await (const agentMessage of convertCodexEventsToAgentMessages(singleEvent())) {
+          yield agentMessage;
+        }
+      }
+
+      buildLogger.codexQuery.turnComplete(turnCount, hadToolCallsThisTurn, lastMessageThisTurn.length);
+
+      // AUTO-ADVANCE: Mark current task complete, move to next
+      if (smartTracker && currentTaskIndex < smartTracker.todos.length) {
+        smartTracker.todos[currentTaskIndex].status = 'completed';
+
+        const taskName = smartTracker.todos[currentTaskIndex].content;
+        const isSyntheticTask = currentTaskIndex === 0 && taskName.includes('Getting started');
+
+        if (isSyntheticTask) {
+          console.log(`✅ [codex-query] Completed synthetic "Getting Started" task`);
+          console.log(`🚀 [codex-query] Now starting real work...`);
+        } else {
+          console.log(`✅ [codex-query] Marked task ${currentTaskIndex} as completed: ${taskName}`);
+        }
+
+        if (currentTaskIndex + 1 < smartTracker.todos.length) {
+          smartTracker.currentIndex = currentTaskIndex + 1;
+          smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
+
+          const nextTaskName = smartTracker.todos[currentTaskIndex + 1].content;
+          console.log(`⏳ [codex-query] Advanced to task ${currentTaskIndex + 1}: ${nextTaskName}`);
+        }
+
+        // Send updated todos to UI
+        console.log(`📤 [codex-query] Sending post-task TodoWrite (task ${currentTaskIndex} done, task ${currentTaskIndex + 1} active)...`);
+        const postTaskUpdate = {
+          type: 'assistant',
+          message: {
+            id: `post-task-${Date.now()}`,
+            content: [{
+              type: 'tool_use',
+              id: `post-todo-${Date.now()}`,
+              name: 'TodoWrite',
+              input: { todos: smartTracker.todos },
+            }],
+          },
+        };
+
+        // Send directly
+        yield postTaskUpdate;
+
+        const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
+        console.log(`📊 [codex-query] Progress: ${completed}/${smartTracker.todos.length} tasks complete`);
       }
     }
 

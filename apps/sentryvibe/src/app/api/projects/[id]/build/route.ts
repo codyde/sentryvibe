@@ -509,14 +509,27 @@ export async function POST(
 
           if (eventData.toolName === 'TodoWrite') {
             const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
+
+            // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
             await Promise.all(todos.map((todo: any, index: number) => persistTodo(todo, index)));
 
             // Update active todo index for subsequent events
             currentActiveTodoIndex = todos.findIndex((t: any) => t.status === 'in_progress');
             console.log(`[build-route] Updated activeTodoIndex to ${currentActiveTodoIndex}`);
 
-            // Also persist TodoWrite as a tool call for completeness
+            // Persist TodoWrite as a tool call
             await persistToolCall(eventData, 'input-available');
+
+            // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
+            await refreshRawState();
+            console.log(`[build-route] ✅ Todos persisted and state refreshed, activeTodoIndex=${currentActiveTodoIndex}`);
+
+            // Give frontend 50ms to process the TodoWrite update before tools arrive
+            await new Promise(resolve => setTimeout(resolve, 50));
+            console.log(`[build-route] ⏱️  Waited for frontend to process TodoWrite`);
+
+            // Don't call refreshRawState again at the end - we already did it
+            return;
           } else if (eventData.toolName) {
             // Inject active todo index into tool event before persisting
             if (!eventData.todoIndex && currentActiveTodoIndex >= 0) {
@@ -525,7 +538,11 @@ export async function POST(
             }
             await persistToolCall(eventData, 'input-available');
           }
-          await refreshRawState();
+
+          // Only refresh if we didn't already refresh for TodoWrite
+          if (eventData.toolName !== 'TodoWrite') {
+            await refreshRawState();
+          }
           break;
         case 'tool-output-available':
           // Try to restore toolName from map if missing

@@ -1178,6 +1178,12 @@ function HomeContent() {
                 const baseState = ensureGenerationState(prev);
                 if (!baseState) return prev;
 
+                // CRITICAL: Don't nest if we don't have todos yet!
+                if (!baseState.todos || baseState.todos.length === 0) {
+                  console.log('⚠️  No todos yet, skipping tool nesting (will re-associate from DB later)');
+                  return prev;
+                }
+
                 const tool: ToolCall = {
                   id: data.toolCallId,
                   name: data.toolName,
@@ -1209,30 +1215,9 @@ function HomeContent() {
               });
             }
 
-            // Also add tools to current message for DB persistence
-            if (currentMessage?.id && data.toolName !== 'TodoWrite') {
-              const updatedMessage: Message = {
-                ...currentMessage,
-                parts: [
-                  ...currentMessage.parts,
-                  {
-                    type: `tool-${data.toolName}`,
-                    toolCallId: data.toolCallId,
-                    toolName: data.toolName,
-                    input: data.input,
-                    state: 'input-available',
-                  },
-                ],
-              };
-
-              currentMessage = updatedMessage;
-
-              setMessages(prev =>
-                prev.some(m => m.id === updatedMessage.id)
-                  ? prev.map(m => (m.id === updatedMessage.id ? updatedMessage : m))
-                  : [...prev, updatedMessage]
-              );
-            }
+            // SKIP: Don't add tools to messages - they belong ONLY in BuildProgress!
+            // Tools are tracked via toolsByTodo and rendered in BuildProgress component
+            // No need to update messages for tools
           } else if (data.type === 'tool-output-available') {
             // Update tool in generation state
             updateGenerationState(prev => {
@@ -1953,54 +1938,26 @@ function HomeContent() {
                   </div>
                 )}
 
-                {/* View Tabs - Only show when we have content */}
-                {(generationState || messages.length > 0 || buildHistory.length > 0) && !isCreatingProject && (
-                  <div className="border-b border-white/10 px-6 py-3 flex items-center gap-2">
-                    {/* Chat Tab */}
-                    <button
-                      onClick={() => switchTab('chat')}
-                      className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        activeView === 'chat'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      {hasUnreadChatMessages && activeView !== 'chat' && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full animate-pulse shadow-lg shadow-purple-500/50" />
+                {/* Unified View Header - Simple status bar */}
+                {(generationState || messages.length > 0) && !isCreatingProject && (
+                  <div className="border-b border-white/10 px-6 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-sm font-semibold text-white">Conversation</h3>
+                      {generationState?.isActive && (
+                        <span className="flex items-center gap-2 text-xs text-purple-300 bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30">
+                          <span className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
+                          Build in progress ({buildProgress}%)
+                        </span>
                       )}
-                      Chat {chatMessageCount > 0 && `(${chatMessageCount})`}
-                    </button>
-
-                    {/* Build Tab - Show badge based on state */}
-                    <button
-                      onClick={() => switchTab('build')}
-                      className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        activeView === 'build'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      {/* Activity indicator dot - top right corner */}
-                      {generationState?.isActive && activeView !== 'build' && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse shadow-lg shadow-yellow-400/50" />
-                      )}
-                      Build {
-                        generationState?.isActive ? (
-                          buildProgress > 0 && `(${buildProgress}%)`
-                        ) : buildProgress === 100 ? (
-                          <span className="text-green-400">✓</span>
-                        ) : null
-                      }
-                    </button>
-
-                    <div className="ml-auto text-xs text-gray-500">
-                      ⌘1 Chat • ⌘2 Build
                     </div>
+                    {messages.length > 0 && (
+                      <span className="text-xs text-gray-500">{messages.length} messages</span>
+                    )}
                   </div>
                 )}
 
-                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 min-h-0">
-                  {/* Beautiful loading OR Generation Progress */}
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 min-h-0 space-y-4">
+                  {/* Beautiful loading */}
                   {isCreatingProject && (
                     <motion.div
                       key="creating-project"
@@ -2077,22 +2034,36 @@ function HomeContent() {
                     </motion.div>
                   )}
 
-                  {/* Build View - Shows active build + history */}
-                  {!isCreatingProject && activeView === 'build' && (
-                    <div className="space-y-6">
-                      {/* Debug info */}
-                      {(() => {
-                        console.log('🔍 Build View Render:', {
-                          hasGenerationState: !!generationState,
-                          todosLength: generationState?.todos?.length,
-                          isActive: generationState?.isActive,
-                          historyLength: buildHistory.length,
-                          activeView,
-                        });
-                        return null;
-                      })()}
+                  {/* UNIFIED VIEW - Chat messages with BuildProgress inline */}
+                  {!isCreatingProject && (
+                    <div className="space-y-4">
+                      {/* Chat messages (filtered to text only, no tools) */}
+                      {messages.map((message) => {
+                        // Skip element changes
+                        if (message.elementChange) return null;
 
-                      {/* Active Build - Always show if active */}
+                        // Only show text content in conversation
+                        const textParts = message.parts.filter(part => part.type === 'text' && part.text);
+                        if (textParts.length === 0) return null;
+
+                        return (
+                          <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] rounded-lg p-4 shadow-lg ${
+                              message.role === 'user'
+                                ? 'bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30'
+                                : 'bg-white/5 border border-white/10 text-white'
+                            }`}>
+                              {textParts.map((part, i) => (
+                                <div key={i} className="prose prose-invert max-w-none text-sm">
+                                  {part.text}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Active Build - Inline in conversation */}
                       {generationState?.isActive && (
                         <BuildProgress
                           state={generationState}
@@ -2186,25 +2157,20 @@ function HomeContent() {
                       )}
 
                       {/* Empty state */}
-                      {!generationState && activeElementChanges.length === 0 && buildHistory.length === 0 && elementChangeHistory.length === 0 && (
+                      {messages.length === 0 && !generationState && (
                         <div className="flex items-center justify-center min-h-[400px]">
                           <div className="text-center space-y-3 text-gray-400">
                             <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                            <p>No builds to display</p>
-                            <button
-                              onClick={() => switchTab('chat')}
-                              className="text-purple-400 hover:text-purple-300 underline text-sm"
-                            >
-                              Switch to Chat view
-                            </button>
+                            <p className="text-lg">Start a conversation</p>
+                            <p className="text-sm">Enter a prompt below to begin building</p>
                           </div>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* Chat View - Show all messages (excluding element changes) */}
-                  {activeView === 'chat' && (
+                  {/* OLD DUPLICATE CHAT VIEW - DISABLED */}
+                  {false && activeView === 'chat' && (
                     <div className="space-y-6">
                       {messages.map((message) => {
                         // Skip element change messages (they're in Build tab now)
@@ -2317,19 +2283,9 @@ function HomeContent() {
                         return null;
                       }
 
-                      // Handle dynamic tool parts with accordion
+                      // SKIP: Don't render tools in messages - they're in BuildProgress!
                       if (part.type.startsWith('tool-')) {
-                        const toolName = part.toolName || part.type.replace('tool-', '');
-
-                        return (
-                          <ToolCallCard
-                            key={i}
-                            toolName={toolName}
-                            input={part.input}
-                            output={part.output}
-                            state={part.state as any}
-                          />
-                        );
+                        return null; // Tools are rendered in BuildProgress via toolsByTodo
                       }
 
                       return null;

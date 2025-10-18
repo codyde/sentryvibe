@@ -1,10 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { CheckCircle2, Sparkles, ChevronDown, ChevronUp, X, List, Activity } from 'lucide-react';
+import { CheckCircle2, Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
-
-export type ViewMode = 'todos' | 'activity';
 
 interface BuildHeaderProps {
   projectName: string;
@@ -22,9 +20,6 @@ interface BuildHeaderProps {
     framework: string;
     analyzedBy?: string;
   } | null;
-  viewMode?: ViewMode;
-  onViewModeChange?: (mode: ViewMode) => void;
-  hasTimeline?: boolean;
 }
 
 export function BuildHeader({
@@ -39,9 +34,6 @@ export function BuildHeader({
   onToggleExpand,
   onClose,
   templateInfo,
-  viewMode = 'todos',
-  onViewModeChange,
-  hasTimeline = false,
 }: BuildHeaderProps) {
   const agentLabel = agentId === 'openai-codex' ? 'Codex' : 'Claude Code';
 
@@ -91,39 +83,6 @@ export function BuildHeader({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* View mode toggle (only show if timeline data is available) */}
-            {hasTimeline && onViewModeChange && isCardExpanded && (
-              <div className="flex items-center gap-1 mr-2 p-1 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onViewModeChange('todos');
-                  }}
-                  className={`p-1.5 rounded transition-all ${
-                    viewMode === 'todos'
-                      ? 'bg-purple-500/20 text-purple-300'
-                      : 'text-gray-400 hover:text-gray-300'
-                  }`}
-                  title="Todo View"
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onViewModeChange('activity');
-                  }}
-                  className={`p-1.5 rounded transition-all ${
-                    viewMode === 'activity'
-                      ? 'bg-purple-500/20 text-purple-300'
-                      : 'text-gray-400 hover:text-gray-300'
-                  }`}
-                  title="Activity Feed"
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
             <div className="text-right">
               <div className={`text-xl font-bold ${isComplete ? 'text-green-400' : 'text-purple-400'}`}>
                 {Math.round(progress)}%

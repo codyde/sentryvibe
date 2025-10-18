@@ -35,16 +35,16 @@ export function TodoList({
       <AnimatePresence mode="popLayout">
         {todos.map((todo, index) => {
           const tools = toolsByTodo[index] || [];
-          const textMessages = textByTodo[index] || [];
           const isExpanded = expandedTodos.has(index);
           const isActive = index === activeTodoIndex;
-          const hasContent = tools.length > 0 || textMessages.length > 0;
+          const hasContent = tools.length > 0; // Only tools, no text messages
           const isLastTodo = index === todos.length - 1;
           const isFinalSummary = isLastTodo && allTodosCompleted;
 
           return (
             <motion.div
               key={`${todo.content}-${index}`}
+              data-todo-index={index}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
@@ -99,10 +99,9 @@ export function TodoList({
                   </p>
 
                   {/* Content count indicator */}
-                  {hasContent && (
+                  {hasContent && !isExpanded && (
                     <span className="text-xs text-gray-500 whitespace-nowrap">
-                      ({tools.length} {tools.length === 1 ? 'tool' : 'tools'}
-                      {textMessages.length > 0 && `, ${textMessages.length} msg`})
+                      ({tools.length} {tools.length === 1 ? 'tool' : 'tools'})
                     </span>
                   )}
                 </div>
@@ -128,18 +127,7 @@ export function TodoList({
                     exit={{ height: 0, opacity: 0 }}
                     className="mt-2 space-y-2"
                   >
-                    {/* Text messages */}
-                    {textMessages.map((textMsg) => (
-                      <div key={textMsg.id} className="ml-8 p-3 bg-gray-800/50 border border-gray-700/50 rounded-lg">
-                        <div className="text-sm text-gray-300 prose prose-invert prose-sm max-w-none">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {textMsg.text}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Tools */}
+                    {/* Tools only - no text messages */}
                     {tools.map((tool) => (
                       <ToolCallMiniCard key={tool.id} tool={tool} />
                     ))}
