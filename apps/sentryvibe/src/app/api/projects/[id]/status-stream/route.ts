@@ -81,11 +81,56 @@ export async function GET(
         // Subscribe to project events
         projectEvents.onProjectUpdate(id, handleProjectUpdate);
 
+        // Hybrid approach: Event-driven with periodic safety check
+        // This handles race conditions and missed events
+        let lastSentState: string | null = null;
+
+        const sendLatestState = async () => {
+          try {
+            const latestProject = await db.select()
+              .from(projects)
+              .where(eq(projects.id, id))
+              .limit(1);
+
+            if (latestProject.length > 0) {
+              const proj = latestProject[0];
+              const currentState = JSON.stringify({
+                status: proj.status,
+                devServerStatus: proj.devServerStatus,
+                devServerPort: proj.devServerPort,
+                tunnelUrl: proj.tunnelUrl,
+              });
+
+              // Only send if state actually changed
+              if (currentState !== lastSentState) {
+                console.log(`🔄 Sending state update for ${id} (periodic check)`);
+                lastSentState = currentState;
+                const data = `data: ${JSON.stringify({
+                  type: 'status-update',
+                  project: proj,
+                })}\n\n`;
+                controller.enqueue(encoder.encode(data));
+              }
+            }
+          } catch (err) {
+            console.error(`   Failed to send state update for ${id}:`, err);
+          }
+        };
+
+        // Initial fallback after 1 second
+        setTimeout(sendLatestState, 1000);
+
+        // Periodic safety check every 5 seconds
+        const periodicCheck = setInterval(sendLatestState, 5000);
+
         // Cleanup on connection close
         req.signal.addEventListener('abort', () => {
           console.log(`🔌 Client disconnected from status stream for ${id}`);
           if (keepaliveInterval) {
             clearInterval(keepaliveInterval);
+          }
+          if (periodicCheck) {
+            clearInterval(periodicCheck);
           }
           projectEvents.offProjectUpdate(id, handleProjectUpdate);
           controller.close();
