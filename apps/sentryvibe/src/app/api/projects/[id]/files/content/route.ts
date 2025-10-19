@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { sendCommandToRunner } from '@/lib/runner/broker-state';
-import { addRunnerEventSubscriber } from '@/lib/runner/event-stream';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import type { ReadFileCommand, WriteFileCommand, RunnerEvent } from '@/shared/runner/messages';
 import { randomUUID } from 'crypto';
 

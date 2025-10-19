@@ -117,9 +117,10 @@ async function analyzeWithClaude(
 
   // Collect the response
   for await (const message of generator) {
-    if (message.type === 'assistant' && message.message?.content) {
-      for (const block of message.message.content) {
-        if (block.type === 'text' && block.text) {
+    const msgAny = message as any;
+    if (msgAny.type === 'assistant' && msgAny.message?.content) {
+      for (const block of msgAny.message.content) {
+        if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
           finalResponse += block.text;
         }
       }

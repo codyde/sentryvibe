@@ -30,7 +30,7 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
   const { projects, refetch, isLoading } = useProjects();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentProjectSlug = searchParams.get('project');
+  const currentProjectSlug = searchParams?.get('project') ?? null;
   const [renamingProject, setRenamingProject] = React.useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = React.useState<{ id: string; name: string; slug: string } | null>(null);
 

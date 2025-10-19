@@ -105,55 +105,6 @@ function HomeContent() {
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
 
-  // Helper to rebuild timeline from current state data
-  const rebuildTimeline = useCallback(
-    (state: GenerationState): GenerationState => {
-      const timeline: TimelineEvent[] = [];
-
-      // Add todos
-      state.todos.forEach((todo, index) => {
-        timeline.push({
-          id: `todo-${index}`,
-          timestamp: new Date(), // Use approximate time
-          type: "todo",
-          todoIndex: index,
-          data: todo,
-        });
-      });
-
-      // Add tools
-      Object.entries(state.toolsByTodo).forEach(([todoIndexStr, tools]) => {
-        tools.forEach((tool) => {
-          timeline.push({
-            id: tool.id,
-            timestamp: tool.startTime,
-            type: "tool",
-            todoIndex: parseInt(todoIndexStr),
-            data: tool,
-          });
-        });
-      });
-
-      // Add text messages
-      Object.entries(state.textByTodo).forEach(([todoIndexStr, messages]) => {
-        messages.forEach((msg) => {
-          timeline.push({
-            id: msg.id,
-            timestamp: msg.timestamp,
-            type: "text",
-            todoIndex: parseInt(todoIndexStr),
-            data: msg,
-          });
-        });
-      });
-
-      // Sort chronologically
-      timeline.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      return { ...state, timeline } as GenerationState;
-    },
-    []
-  );
 
   const updateGenerationState = useCallback(
     (
@@ -163,7 +114,7 @@ function HomeContent() {
         | null
     ) => {
       setGenerationState((prev) => {
-        let next =
+        const next =
           typeof updater === "function"
             ? (
                 updater as (
@@ -172,17 +123,12 @@ function HomeContent() {
               )(prev)
             : updater;
 
-        // Rebuild timeline if state exists
-        if (next) {
-          next = rebuildTimeline(next);
-        }
-
         generationStateRef.current = next;
         setGenerationRevision((rev) => rev + 1);
         return next;
       });
     },
-    [rebuildTimeline]
+    []
   );
 
   // Element changes tracked separately for Build tab
