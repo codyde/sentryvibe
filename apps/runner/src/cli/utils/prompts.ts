@@ -5,6 +5,7 @@ import { join } from 'path';
 export interface InitPromptAnswers {
   workspace: string;
   brokerUrl: string;
+  apiUrl: string;
   secret: string;
   runnerId: string;
 }
@@ -43,6 +44,18 @@ export class Prompts {
           }
           if (!input.startsWith('ws://') && !input.startsWith('wss://')) {
             return 'Broker URL must start with ws:// or wss://';
+          }
+          return true;
+        },
+      },
+      {
+        type: 'input',
+        name: 'apiUrl',
+        message: 'API base URL (frontend URL):',
+        default: 'http://localhost:3000', // Default to local
+        validate: (input: string) => {
+          if (!input || input.trim() === '') {
+            return 'API URL is required';
           }
           return true;
         },

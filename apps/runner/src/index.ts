@@ -70,6 +70,7 @@ import { createProjectScopedPermissionHandler } from "./lib/permissions/project-
 
 export interface RunnerOptions {
   brokerUrl?: string;
+  apiUrl?: string;
   sharedSecret?: string;
   runnerId?: string;
   workspace?: string;
@@ -830,8 +831,9 @@ export function startRunner(options: RunnerOptions = {}) {
     options.sharedSecret || process.env.RUNNER_SHARED_SECRET;
   const HEARTBEAT_INTERVAL_MS = options.heartbeatInterval || 15_000;
 
-  // Derive API base URL from broker URL (same host, http/https protocol)
-  const apiBaseUrl = process.env.API_BASE_URL || (() => {
+  // Get API URL from options, env, or fallback to deriving from broker
+  const apiBaseUrl = options.apiUrl || process.env.API_BASE_URL || (() => {
+    // Fallback: derive from broker URL (same host, http/https protocol)
     const brokerUrl = new URL(BROKER_URL);
     const protocol = brokerUrl.protocol === 'wss:' ? 'https:' : 'http:';
     return `${protocol}//${brokerUrl.host}`;

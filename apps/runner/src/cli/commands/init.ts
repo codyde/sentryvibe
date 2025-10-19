@@ -12,9 +12,24 @@ import { cloneRepository, installDependencies, isPnpmInstalled } from '../utils/
 import { setupDatabase, pushDatabaseSchema, connectManualDatabase } from '../utils/database-setup.js';
 import { displaySetupComplete } from '../utils/banner.js';
 
+/**
+ * Normalize URL by adding https:// if protocol is missing
+ */
+function normalizeUrl(url: string): string {
+  if (!url) return url;
+
+  // If no protocol, add https://
+  if (!url.match(/^https?:\/\//i)) {
+    return `https://${url}`;
+  }
+
+  return url;
+}
+
 interface InitOptions {
   workspace?: string;
   broker?: string;
+  url?: string;
   secret?: string;
   branch?: string;
   database?: boolean;
@@ -179,6 +194,7 @@ export async function initCommand(options: InitOptions) {
     answers = {
       workspace: options.workspace || configManager.get('workspace'),
       brokerUrl: options.broker || configManager.get('broker').url,
+      apiUrl: normalizeUrl(options.url || 'http://localhost:3000'),
       secret: options.secret || '',
       runnerId: configManager.get('runner').id,
     };
@@ -191,6 +207,10 @@ export async function initCommand(options: InitOptions) {
     // Interactive mode
     logger.info('Let\'s configure your runner...\n');
     answers = await prompts.promptInit();
+    // Normalize API URL if provided
+    if (answers.apiUrl) {
+      answers.apiUrl = normalizeUrl(answers.apiUrl);
+    }
   }
 
   // Create workspace directory
@@ -275,6 +295,7 @@ export async function initCommand(options: InitOptions) {
     if (databaseUrl) {
       configManager.set('databaseUrl', databaseUrl);
     }
+    configManager.set('apiUrl', answers.apiUrl || 'http://localhost:3000');
     configManager.set('broker', {
       url: answers.brokerUrl,
       secret: answers.secret,

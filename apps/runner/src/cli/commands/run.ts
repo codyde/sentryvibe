@@ -3,8 +3,23 @@ import { logger } from '../utils/logger.js';
 import { configManager } from '../utils/config-manager.js';
 import { startRunner } from '../../index.js';
 
+/**
+ * Normalize URL by adding https:// if protocol is missing
+ */
+function normalizeUrl(url: string): string {
+  if (!url) return url;
+
+  // If no protocol, add https://
+  if (!url.match(/^https?:\/\//i)) {
+    return `https://${url}`;
+  }
+
+  return url;
+}
+
 interface RunOptions {
   broker?: string;
+  url?: string;
   workspace?: string;
   runnerId?: string;
   secret?: string;
@@ -16,14 +31,17 @@ export async function runCommand(options: RunOptions) {
   if (!configManager.isInitialized() && !options.secret) {
     logger.error('Runner not initialized. Please run: sentryvibe-cli init');
     logger.info('Or provide all required options:');
-    logger.info('  sentryvibe-cli run --broker <url> --secret <secret>');
+    logger.info('  sentryvibe-cli run --broker <url> --url <api-url> --secret <secret>');
     process.exit(1);
   }
 
   // Build runner options from CLI flags or config
   const config = configManager.get();
+  const apiUrl = options.url || config.apiUrl || 'http://localhost:3000';
+
   const runnerOptions = {
     brokerUrl: options.broker || config.broker?.url,
+    apiUrl: normalizeUrl(apiUrl),
     sharedSecret: options.secret || config.broker?.secret,
     runnerId: options.runnerId || config.runner?.id,
     workspace: options.workspace || config.workspace,
@@ -43,6 +61,7 @@ export async function runCommand(options: RunOptions) {
   // Display startup info
   logger.section('Starting SentryVibe Runner');
   logger.info(`Broker: ${chalk.cyan(runnerOptions.brokerUrl)}`);
+  logger.info(`API URL: ${chalk.cyan(runnerOptions.apiUrl)}`);
   logger.info(`Runner ID: ${chalk.cyan(runnerOptions.runnerId)}`);
   logger.info(`Workspace: ${chalk.cyan(runnerOptions.workspace)}`);
   logger.log('');
