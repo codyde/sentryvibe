@@ -14,6 +14,7 @@ import ProcessManagerModal from "@/components/ProcessManagerModal";
 import SummaryCard from "@/components/SummaryCard";
 import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
+import ChatUpdate from "@/components/ChatUpdate";
 import { AppSidebar } from "@/components/app-sidebar";
 import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -2861,6 +2862,17 @@ function HomeContent() {
                                                 currentProject?.devServerStatus ===
                                                 "starting"
                                               }
+                                            />
+                                          );
+                                        }
+
+                                        // Use ChatUpdate card for assistant text messages
+                                        if (message.role === "assistant" && part.text) {
+                                          return (
+                                            <ChatUpdate
+                                              key={i}
+                                              content={part.text}
+                                              defaultCollapsed={true}
                                             />
                                           );
                                         }
