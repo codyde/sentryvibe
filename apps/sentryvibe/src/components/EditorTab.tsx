@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { loader } from '@monaco-editor/react';
 import { Folder, File, ChevronRight, ChevronDown, FileText } from 'lucide-react';
 
 interface FileNode {
@@ -21,16 +22,68 @@ export default function EditorTab({ projectId }: EditorTabProps) {
   const [fileContent, setFileContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  // Fetch file tree
+  // Configure Monaco TypeScript settings once on component mount
   useEffect(() => {
-    if (projectId) {
-      fetchFileTree();
-    }
-  }, [projectId]);
+    loader.init().then((monaco) => {
+      // Shared compiler options for TypeScript
+      const tsCompilerOptions = {
+        target: monaco.languages.typescript.ScriptTarget.ES2020,
+        allowNonTsExtensions: true,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
+        noEmit: true,
+        esModuleInterop: true,
+        jsx: monaco.languages.typescript.JsxEmit.React,
+        reactNamespace: 'React',
+        allowJs: true,
+        typeRoots: ['node_modules/@types'],
+        // Relaxed type checking to reduce red squiggles
+        strict: false,
+        noImplicitAny: false,
+        strictNullChecks: false,
+        strictFunctionTypes: false,
+        strictPropertyInitialization: false,
+        noImplicitThis: false,
+        alwaysStrict: false,
+        skipLibCheck: true,
+        skipDefaultLibCheck: true,
+      };
 
-  const fetchFileTree = async () => {
+      // Shared diagnostics options
+      const diagnosticsOptions = {
+        noSemanticValidation: false,
+        noSyntaxValidation: false,
+        diagnosticCodesToIgnore: [
+          // Ignore common false positives
+          2307, // Cannot find module
+          2304, // Cannot find name
+          2339, // Property does not exist
+          6133, // Variable is declared but never used
+          7016, // Try `npm install @types/...`
+          8006, // 'type' modifier cannot be used in TypeScript files
+          8010, // Type annotations can only be used in TypeScript files
+        ],
+      };
+
+      // Configure TypeScript (.ts and .tsx files)
+      monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsCompilerOptions);
+      monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+
+      // Configure JavaScript files (.js and .jsx files)
+      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ES2020,
+        allowNonTsExtensions: true,
+        allowJs: true,
+        checkJs: false,
+        jsx: monaco.languages.typescript.JsxEmit.React,
+      });
+      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+    });
+  }, []);
+
+  const fetchFileTree = useCallback(async () => {
     if (!projectId) return;
 
     try {
@@ -40,7 +93,14 @@ export default function EditorTab({ projectId }: EditorTabProps) {
     } catch (error) {
       console.error('Failed to fetch file tree:', error);
     }
-  };
+  }, [projectId]);
+
+  // Fetch file tree
+  useEffect(() => {
+    if (projectId) {
+      fetchFileTree();
+    }
+  }, [projectId, fetchFileTree]);
 
   const fetchFileContent = async (path: string) => {
     if (!projectId) return;

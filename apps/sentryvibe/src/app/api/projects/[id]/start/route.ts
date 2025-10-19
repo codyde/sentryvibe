@@ -42,6 +42,12 @@ export async function POST(
       }, { status: 400 });
     }
 
+    if (!proj.path) {
+      return NextResponse.json({
+        error: 'Project path is not set'
+      }, { status: 400 });
+    }
+
     try {
       // No port reservation - let framework auto-increment if needed
       console.log(`🚀 Starting dev server for ${proj.name}`);
@@ -69,7 +75,6 @@ export async function POST(
           workingDirectory: proj.path,
           env: {}, // No port enforcement
           preferredPort: null,
-          framework: null,
         },
       };
 

@@ -7,11 +7,8 @@ import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 
 // Note: This route extracts metadata via Claude (Sonnet) by default and can fall back to Codex.
-// cwd is set to process.cwd() since we don't need workspace access here
 const claudeMetadataQuery = Sentry.createInstrumentedClaudeQuery({
-  default: {
-    cwd: process.cwd(),
-  },
+  name: 'metadata-extraction',
 });
 
 const CODEX_MODEL = 'gpt-5-codex';
@@ -139,9 +136,10 @@ export async function POST(req: Request) {
           }, 8000);
 
           for await (const message of metadataStream) {
-            if (message.type === 'assistant' && message.message?.content) {
-              for (const block of message.message.content) {
-                if (block.type === 'text' && block.text) {
+            const msgAny = message as any;
+            if (msgAny.type === 'assistant' && msgAny.message?.content) {
+              for (const block of msgAny.message.content) {
+                if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
                   jsonResponse += block.text;
                 }
               }

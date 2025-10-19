@@ -27,7 +27,6 @@ import type {
   BuildOperationType,
   CodexSessionState,
   TodoItem,
-  TimelineEvent,
 } from "@/types/generation";
 import {
   saveGenerationState,
