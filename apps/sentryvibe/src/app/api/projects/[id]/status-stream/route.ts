@@ -20,6 +20,7 @@ export async function GET(
 
   const encoder = new TextEncoder();
   let keepaliveInterval: NodeJS.Timeout | null = null;
+  let pollTimeout: NodeJS.Timeout | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -68,7 +69,6 @@ export async function GET(
         });
 
         let currentPollInterval = 2000; // Start with 2s
-        let pollTimeout: NodeJS.Timeout | null = null;
         let stableCount = 0; // Track how long state has been stable
 
         const doPoll = async () => {
