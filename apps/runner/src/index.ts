@@ -684,6 +684,149 @@ function createBuildQuery(agent: AgentId): BuildQueryFn {
 }
 
 /**
+ * Cleanup orphaned processes on startup
+ */
+async function cleanupOrphanedProcesses() {
+  console.log('🧹 Cleaning up orphaned processes from previous runs...');
+
+  const { db } = await import('@sentryvibe/agent-core/lib/db/client');
+  const { runningProcesses, projects } = await import('@sentryvibe/agent-core/lib/db/schema');
+  const { eq } = await import('drizzle-orm');
+
+  try {
+    const rows = await db.select().from(runningProcesses);
+    console.log(`   Found ${rows.length} processes in database`);
+
+    for (const row of rows) {
+      try {
+        // Check if process still exists (signal 0 = check existence, doesn't actually kill)
+        process.kill(row.pid, 0);
+        console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
+      } catch (err) {
+        // Process doesn't exist - orphaned
+        console.log(`   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(0, 8)}), cleaning up`);
+
+        // Remove from running_processes table
+        await db.delete(runningProcesses)
+          .where(eq(runningProcesses.projectId, row.projectId));
+
+        // Update project status
+        await db.update(projects)
+          .set({
+            devServerStatus: 'stopped',
+            devServerPid: null,
+            devServerPort: null,
+          })
+          .where(eq(projects.id, row.projectId));
+      }
+    }
+
+    console.log('✅ Orphaned process cleanup complete');
+  } catch (error) {
+    console.error('❌ Error during cleanup:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if a port is in use
+ */
+async function checkPortInUse(port: number): Promise<boolean> {
+  const net = await import('net');
+
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once('error', () => {
+        // Port in use (EADDRINUSE) = good, server is running
+        resolve(true);
+      })
+      .once('listening', () => {
+        // Port available = bad, server died
+        tester.close();
+        resolve(false);
+      })
+      .listen(port);
+  });
+}
+
+/**
+ * Start periodic health checks for running processes
+ */
+function startPeriodicHealthChecks() {
+  console.log('🏥 Starting periodic port health checks (every 30s)...');
+
+  setInterval(async () => {
+    const { db } = await import('@sentryvibe/agent-core/lib/db/client');
+    const { runningProcesses, projects } = await import('@sentryvibe/agent-core/lib/db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    try {
+      const rows = await db.select().from(runningProcesses);
+
+      for (const row of rows) {
+        if (!row.port) continue; // Skip if no port detected yet
+
+        const isListening = await checkPortInUse(row.port);
+
+        if (!isListening) {
+          // Port not in use - server may have crashed
+          const newFailCount = (row.healthCheckFailCount || 0) + 1;
+
+          if (newFailCount >= 3) {
+            // Failed 3 times - cleanup
+            console.log(`   ❌ Port ${row.port} not in use after 3 checks, cleaning up project ${row.projectId.slice(0, 8)}`);
+
+            // Stop the process if it still exists
+            try {
+              process.kill(row.pid, 'SIGTERM');
+              console.log(`      Sent SIGTERM to PID ${row.pid}`);
+            } catch (err) {
+              // Process already dead
+            }
+
+            // Remove from database
+            await db.delete(runningProcesses)
+              .where(eq(runningProcesses.projectId, row.projectId));
+
+            // Update project status
+            await db.update(projects)
+              .set({
+                devServerStatus: 'failed',
+                devServerPort: null,
+              })
+              .where(eq(projects.id, row.projectId));
+          } else {
+            // Increment fail count
+            await db.update(runningProcesses)
+              .set({ healthCheckFailCount: newFailCount })
+              .where(eq(runningProcesses.projectId, row.projectId));
+
+            console.log(`   ⚠️  Port ${row.port} not in use (fail ${newFailCount}/3) for project ${row.projectId.slice(0, 8)}`);
+          }
+        } else {
+          // Port is in use - server healthy, reset fail count
+          if (row.healthCheckFailCount > 0) {
+            await db.update(runningProcesses)
+              .set({
+                healthCheckFailCount: 0,
+                lastHealthCheck: new Date(),
+              })
+              .where(eq(runningProcesses.projectId, row.projectId));
+          } else {
+            // Just update last health check
+            await db.update(runningProcesses)
+              .set({ lastHealthCheck: new Date() })
+              .where(eq(runningProcesses.projectId, row.projectId));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error during health check:', error);
+    }
+  }, 30000); // Every 30 seconds
+}
+
+/**
  * Start the runner with the given options
  */
 export function startRunner(options: RunnerOptions = {}) {
@@ -703,6 +846,11 @@ export function startRunner(options: RunnerOptions = {}) {
     console.error("RUNNER_SHARED_SECRET is required");
     throw new Error("RUNNER_SHARED_SECRET is required");
   }
+
+  // Cleanup orphaned processes on startup
+  cleanupOrphanedProcesses().catch((err) => {
+    console.error('❌ Failed to cleanup orphaned processes on startup:', err);
+  });
 
   let socket: WebSocket | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;

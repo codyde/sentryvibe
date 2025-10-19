@@ -3,13 +3,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import {
-  reservePortForProject,
-  releasePortForProject,
-  buildEnvForFramework,
-  getRunCommand,
-  withEnforcedPort,
-} from '@sentryvibe/agent-core/lib/port-allocator';
+import { getRunCommand } from '@sentryvibe/agent-core/lib/port-allocator';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import type { StartDevServerCommand } from '@/shared/runner/messages';
 
@@ -49,29 +43,21 @@ export async function POST(
     }
 
     try {
-      const { port: reservedPort, framework } = await reservePortForProject({
-        projectId: id,
-        projectType: proj.projectType,
-        runCommand: proj.runCommand,
-        preferredPort: proj.port || undefined,
-      });
-
-      console.log(`🔍 Reserved port ${reservedPort} for ${proj.name} (${framework})`);
+      // No port reservation - let framework auto-increment if needed
+      console.log(`🚀 Starting dev server for ${proj.name}`);
 
       // Update status to starting and clear any previous errors
       await db.update(projects)
         .set({
           devServerStatus: 'starting',
-          devServerPort: reservedPort,
+          devServerPort: null, // Will be detected from stdout
           errorMessage: null,
           lastActivityAt: new Date(),
         })
         .where(eq(projects.id, id));
 
       const baseCommand = getRunCommand(proj.runCommand);
-      const enforcedCommand = withEnforcedPort(baseCommand, framework, reservedPort);
-      console.log(`📝 Run command: ${enforcedCommand}`);
-      const env = buildEnvForFramework(framework, reservedPort);
+      console.log(`📝 Run command: ${baseCommand}`);
 
       const runnerCommand: StartDevServerCommand = {
         id: randomUUID(),
@@ -79,11 +65,11 @@ export async function POST(
         projectId: id,
         timestamp: new Date().toISOString(),
         payload: {
-          runCommand: enforcedCommand,
+          runCommand: baseCommand,
           workingDirectory: proj.path,
-          env,
-          preferredPort: reservedPort,
-          framework,
+          env: {}, // No port enforcement
+          preferredPort: null,
+          framework: null,
         },
       };
 
@@ -91,7 +77,6 @@ export async function POST(
 
       return NextResponse.json({
         message: 'Dev server start requested',
-        port: reservedPort,
       }, { status: 202 });
 
     } catch (error) {
@@ -103,8 +88,6 @@ export async function POST(
           errorMessage: error instanceof Error ? error.message : 'Failed to start dev server',
         })
         .where(eq(projects.id, id));
-
-      await releasePortForProject(id);
 
       throw error;
     }

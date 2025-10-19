@@ -8,14 +8,6 @@ import type { Template } from '../templates/config';
 import { getTemplateById, selectTemplateFromPrompt } from '../templates/config';
 import { downloadTemplate, getProjectFileTree } from '../templates/downloader';
 import type { BuildRequest } from '../../types/build';
-import {
-  reservePortForProject,
-  releasePortForProject,
-  updatePortReservationForProject,
-  buildEnvForFramework,
-  getRunCommand,
-  withEnforcedPort,
-} from '../port-allocator';
 import { getWorkspaceRoot } from '../workspace';
 
 export interface AgentMessage {
@@ -519,70 +511,11 @@ async function writeAgentMessagesToStream(
 }
 
 async function autoStartDevServer(projectId: string) {
-  try {
-    const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-
-    if (project.length === 0) return;
-    const proj = project[0];
-
-    if (!proj.runCommand) return;
-
-    const { port: reservedPort, framework } = await reservePortForProject({
-      projectId,
-      projectType: proj.projectType,
-      runCommand: proj.runCommand,
-      preferredPort: proj.port || undefined,
-    });
-
-    const baseCommand = getRunCommand(proj.runCommand);
-    const command = withEnforcedPort(baseCommand, framework, reservedPort);
-    const env = buildEnvForFramework(framework, reservedPort);
-
-    const { startDevServer } = await import('../process-manager');
-
-    const { pid, emitter } = startDevServer({
-      projectId,
-      command,
-      cwd: proj.path,
-      env,
-    });
-
-    const finalPort = await new Promise<number>((resolve) => {
-      const timeout = setTimeout(() => resolve(reservedPort), 8000);
-      emitter.once('port', (p: number) => {
-        clearTimeout(timeout);
-        resolve(p);
-      });
-    });
-
-    if (finalPort !== reservedPort) {
-      await updatePortReservationForProject(projectId, finalPort);
-    }
-
-    await db.update(projects)
-      .set({
-        devServerPid: pid,
-        devServerPort: finalPort,
-        port: finalPort,
-        devServerStatus: 'running',
-        lastActivityAt: new Date(),
-      })
-      .where(eq(projects.id, projectId));
-
-    emitter.once('exit', async ({ code, signal }: { code: number | null; signal: NodeJS.Signals | null }) => {
-      await db.update(projects)
-        .set({
-          devServerPid: null,
-          devServerPort: null,
-          devServerStatus: code === 0 || signal === 'SIGTERM' || signal === 'SIGINT' ? 'stopped' : 'failed',
-        })
-        .where(eq(projects.id, projectId));
-      await releasePortForProject(projectId);
-    });
-  } catch (error) {
-    console.error('❌ Auto-start failed:', error);
-    await releasePortForProject(projectId);
-  }
+  // NOTE: This function is deprecated in favor of runner-based server management
+  // Auto-start is now handled by the frontend (page.tsx) which calls /api/projects/:id/start
+  // Keeping this as a no-op to avoid breaking existing code paths
+  console.log(`⚠️  autoStartDevServer called for ${projectId} - deprecated, skipping`);
+  console.log(`   Server should be started via /api/projects/:id/start endpoint instead`);
 }
 
 async function buildInitialSystemPrompt(params: {

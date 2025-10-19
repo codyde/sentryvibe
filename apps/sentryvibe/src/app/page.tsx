@@ -1684,11 +1684,12 @@ function HomeContent() {
             console.log(`   Port: ${metadata.port}`);
 
             // Store for UI display
+            const agentName =
+              selectedAgentId === "claude-code"
+                ? "Claude Sonnet 4.5"
+                : "GPT-5 Codex";
+
             if (metadata.projectType && metadata.projectType !== "unknown") {
-              const agentName =
-                selectedAgentId === "claude-code"
-                  ? "Claude Sonnet 4.5"
-                  : "GPT-5 Codex";
               setSelectedTemplate({
                 name: metadata.projectType,
                 framework: metadata.projectType,
@@ -1697,6 +1698,16 @@ function HomeContent() {
               console.log(
                 `✅ Template selected by ${agentName}: ${metadata.projectType}`
               );
+            } else if (templateProvisioningInfo?.templateName) {
+              // Fallback to provisioning info if metadata lacks framework
+              console.log(
+                `📦 Using provisioning info for template: ${templateProvisioningInfo.templateName}`
+              );
+              setSelectedTemplate({
+                name: templateProvisioningInfo.templateName,
+                framework: templateProvisioningInfo.framework || "Unknown",
+                analyzedBy: agentName,
+              });
             }
           } else if (data.type === "finish") {
             currentMessage = null;
