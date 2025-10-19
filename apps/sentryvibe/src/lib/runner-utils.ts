@@ -13,8 +13,8 @@ export async function getActiveRunnerId(): Promise<string | null> {
     return null;
   }
 
-  // Use first available runner
-  return connections[0].id;
+  // Use first available runner (connections have 'runnerId' not 'id')
+  return connections[0].runnerId;
 }
 
 /**
@@ -28,19 +28,26 @@ export async function getActiveRunnerId(): Promise<string | null> {
 export async function getProjectRunnerId(preferredRunnerId: string | null): Promise<string | null> {
   const connections = await listRunnerConnections();
 
+  console.log('🔍 [getProjectRunnerId] Connections:', connections);
+  console.log('🔍 [getProjectRunnerId] Preferred runner:', preferredRunnerId);
+
   if (connections.length === 0) {
+    console.warn('⚠️  [getProjectRunnerId] No connections found');
     return null;
   }
 
   // If project has a saved runnerId and that runner is connected, use it
+  // Note: connections have 'runnerId' property, not 'id'
   if (preferredRunnerId) {
-    const preferredConnection = connections.find(conn => conn.id === preferredRunnerId);
+    const preferredConnection = connections.find(conn => conn.runnerId === preferredRunnerId);
     if (preferredConnection) {
-      return preferredConnection.id;
+      console.log(`✅ [getProjectRunnerId] Using preferred runner: ${preferredConnection.runnerId}`);
+      return preferredConnection.runnerId;
     }
     console.warn(`⚠️  Project's runner '${preferredRunnerId}' not connected, using fallback`);
   }
 
   // Fallback to first available runner
-  return connections[0].id;
+  console.log(`✅ [getProjectRunnerId] Using fallback runner: ${connections[0].runnerId}`);
+  return connections[0].runnerId;
 }
