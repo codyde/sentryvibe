@@ -61,6 +61,7 @@ export async function GET(
 
         // Adaptive polling: fast during transitions, slow when stable
         let lastState = JSON.stringify({
+          status: initialProject[0].status,
           devServerStatus: initialProject[0].devServerStatus,
           devServerPort: initialProject[0].devServerPort,
           tunnelUrl: initialProject[0].tunnelUrl,
@@ -82,6 +83,7 @@ export async function GET(
 
               // Only send if status/port/tunnel changed
               const currentState = JSON.stringify({
+                status: proj.status,
                 devServerStatus: proj.devServerStatus,
                 devServerPort: proj.devServerPort,
                 tunnelUrl: proj.tunnelUrl,
