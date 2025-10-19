@@ -34,15 +34,10 @@ for (const [pkg, version] of Object.entries(replacements)) {
   }
 }
 
-// Keep agent-core as file: dependency - don't replace with URL
-// The vendor/ directory is included in the tarball, so the file will be present
-// This avoids issues with pnpm's content-addressable store where postinstall
-// can't overwrite packages that were installed from URLs
-const agentCoreKey = '@sentryvibe/agent-core';
-const agentCoreEntry = packageJson.dependencies?.[agentCoreKey];
-if (agentCoreEntry && agentCoreEntry.startsWith('file:')) {
-  console.log(`  Keeping ${agentCoreKey}: ${agentCoreEntry} (vendor tarball included in package)`);
-}
+// Note: @sentryvibe/agent-core is NOT in dependencies
+// It's extracted from vendor/ by the postinstall script
+// This avoids pnpm path resolution issues with file: dependencies in global installs
+console.log('  Note: @sentryvibe/agent-core installed via postinstall from vendor/');
 
 if (modified) {
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
