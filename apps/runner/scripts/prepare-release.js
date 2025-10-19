@@ -34,20 +34,14 @@ for (const [pkg, version] of Object.entries(replacements)) {
   }
 }
 
+// Keep agent-core as file: dependency - don't replace with URL
+// The vendor/ directory is included in the tarball, so the file will be present
+// This avoids issues with pnpm's content-addressable store where postinstall
+// can't overwrite packages that were installed from URLs
 const agentCoreKey = '@sentryvibe/agent-core';
 const agentCoreEntry = packageJson.dependencies?.[agentCoreKey];
 if (agentCoreEntry && agentCoreEntry.startsWith('file:')) {
-  const tarballPath = agentCoreEntry.replace(/^file:\.\//, '');
-  const tarballName = tarballPath.split('/').pop();
-
-  if (tarballName) {
-    const remoteUrl = `https://raw.githubusercontent.com/codyde/sentryvibe/main/apps/runner/vendor/${tarballName}`;
-    console.log(`  Replacing ${agentCoreKey}: ${agentCoreEntry} → ${remoteUrl}`);
-    packageJson.dependencies[agentCoreKey] = remoteUrl;
-    modified = true;
-  } else {
-    console.warn(`  ⚠️  Could not determine tarball name for ${agentCoreKey}, leaving dependency unchanged.`);
-  }
+  console.log(`  Keeping ${agentCoreKey}: ${agentCoreEntry} (vendor tarball included in package)`);
 }
 
 if (modified) {
