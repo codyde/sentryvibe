@@ -142,6 +142,7 @@ async function analyzeWithOpenAI(
   const thread = codex.startThread({
     sandboxMode: 'workspace-write', // Workspace-write mode for template analysis
     model,
+    skipGitRepoCheck: true, // Skip git repo check since we're only analyzing templates, not working with a git repository
   });
 
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}\n\nSelect the best template for you to build and explain why.`;
