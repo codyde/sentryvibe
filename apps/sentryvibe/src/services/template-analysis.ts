@@ -71,7 +71,21 @@ export async function analyzePromptForTemplate(
     cleanedResponse = codeBlockMatch[1].trim();
   }
 
-  const result = JSON.parse(cleanedResponse);
+  // Try to extract JSON object from response (in case Claude added text before/after)
+  const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    cleanedResponse = jsonMatch[0];
+  }
+
+  let result;
+  try {
+    result = JSON.parse(cleanedResponse);
+  } catch (error) {
+    console.error('[template-analysis] Failed to parse JSON response');
+    console.error('[template-analysis] Raw response:', analysisResponse.substring(0, 200));
+    console.error('[template-analysis] Cleaned response:', cleanedResponse.substring(0, 200));
+    throw new Error(`Invalid JSON from template analysis: ${error instanceof Error ? error.message : 'Parse failed'}`);
+  }
 
   // Find full template metadata
   const template = templates.find(t => t.id === result.templateId);
@@ -99,9 +113,12 @@ async function analyzeWithClaude(
   model: string
 ): Promise<string> {
   // Use Sentry instrumented Claude Code SDK (same as runner)
-  const query = Sentry.createInstrumentedClaudeQuery();
+  const query = Sentry.createInstrumentedClaudeQuery({
+    name: 'template-analysis',
+  });
 
-  const combinedPrompt = `User's build request: ${userPrompt}\n\nSelect the best template for you to build and explain why.`;
+  // Just pass the user's request - system prompt already explains what to do
+  const combinedPrompt = `User's build request: ${userPrompt}`;
 
   // Run single-turn query for template selection
   const generator = query({
@@ -117,9 +134,10 @@ async function analyzeWithClaude(
 
   // Collect the response
   for await (const message of generator) {
-    if (message.type === 'assistant' && message.message?.content) {
-      for (const block of message.message.content) {
-        if (block.type === 'text' && block.text) {
+    const msgAny = message as any;
+    if (msgAny.type === 'assistant' && msgAny.message?.content) {
+      for (const block of msgAny.message.content) {
+        if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
           finalResponse += block.text;
         }
       }
@@ -144,7 +162,8 @@ async function analyzeWithOpenAI(
     model,
   });
 
-  const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}\n\nSelect the best template for you to build and explain why.`;
+  // Just pass the user's request - system prompt already explains what to do
+  const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
   const result = await thread.run(combinedPrompt);
 
@@ -206,5 +225,5 @@ Return EXACTLY this structure with no additional formatting:
 
 VALID templateId values: ${templates.map(t => t.id).join(', ')}
 
-Respond now with ONLY the JSON object, nothing else.`;
+CRITICAL: Your response must START with { and END with }. No explanations, no thoughts, no "I'll", no "Let me", just the JSON object.`;
 }

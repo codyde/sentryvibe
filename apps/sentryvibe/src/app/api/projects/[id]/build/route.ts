@@ -62,7 +62,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   let commandId: string | undefined;
-  let cleanup: (() => void) | null = null;
+  let cleanup: (() => void) | undefined;
   try {
     const { id } = await params;
     const body = (await req.json()) as BuildRequest;
@@ -122,7 +122,7 @@ export async function POST(
     const encoder = new TextEncoder();
 
     // Track messages for DB persistence
-    let currentMessageParts: Array<{type: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown}> = [];
+    let currentMessageParts: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}> = [];
     let currentMessageId: string | null = null;
     const completedMessages: Array<{role: 'assistant'; content: any[]}> = [];
 
@@ -138,6 +138,13 @@ export async function POST(
       role: 'user',
       content: JSON.stringify([{ type: 'text', text: body.prompt }]),
     });
+
+    // Update project with runnerId if not already set (for existing projects)
+    if (!project[0].runnerId) {
+      await db.update(projects)
+        .set({ runnerId: runnerId })
+        .where(eq(projects.id, id));
+    }
 
     const buildId = body.buildId ?? `build-${Date.now()}`;
 
@@ -542,6 +549,39 @@ export async function POST(
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false;
+        let unsubscribe: () => void;
+
+        const finish = async () => {
+          if (closed) return;
+          closed = true;
+
+          // Save all completed messages to DB
+          for (const msg of completedMessages) {
+            try {
+              await db.insert(messages).values({
+                projectId: id,
+                role: msg.role,
+                content: JSON.stringify(msg.content),
+              });
+            } catch (error) {
+              console.error('[build-route] Failed to save message:', error);
+            }
+          }
+
+          // Messages saved to DB
+
+          unsubscribe();
+
+          // Safely close controller - it may already be closed
+          try {
+            controller.close();
+          } catch (err) {
+            // Controller already closed - this is fine
+            if ((err as any).code !== 'ERR_INVALID_STATE') {
+              console.warn('[build-route] Unexpected error closing controller:', err);
+            }
+          }
+        };
 
         const writeChunk = async (chunk: string) => {
           if (closed) return;
@@ -614,7 +654,7 @@ export async function POST(
           controller.enqueue(encoder.encode(normalized));
         };
 
-        const unsubscribe = addRunnerEventSubscriber(commandId, async (event: RunnerEvent) => {
+        unsubscribe = addRunnerEventSubscriber(commandId!, async (event: RunnerEvent) => {
           switch (event.type) {
             case 'build-stream':
               if (typeof event.data === 'string') {
@@ -642,38 +682,6 @@ export async function POST(
               break;
           }
         });
-
-        const finish = async () => {
-          if (closed) return;
-          closed = true;
-
-          // Save all completed messages to DB
-          for (const msg of completedMessages) {
-            try {
-              await db.insert(messages).values({
-                projectId: id,
-                role: msg.role,
-                content: JSON.stringify(msg.content),
-              });
-            } catch (error) {
-              console.error('[build-route] Failed to save message:', error);
-            }
-          }
-
-          // Messages saved to DB
-
-          unsubscribe();
-
-          // Safely close controller - it may already be closed
-          try {
-            controller.close();
-          } catch (err) {
-            // Controller already closed - this is fine
-            if ((err as any).code !== 'ERR_INVALID_STATE') {
-              console.warn('[build-route] Unexpected error closing controller:', err);
-            }
-          }
-        };
 
         cleanup = finish;
 

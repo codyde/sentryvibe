@@ -101,9 +101,13 @@ export function TodoList({
         {todos.map((todo, index) => {
           const tools = toolsByTodo[index] || [];
           const textMessages = textByTodo[index] || [];
+          // Filter out TodoWrite system messages from display
+          const displayableTextMessages = textMessages.filter(
+            (textMsg) => !textMsg.text.trim().startsWith('TodoWrite(')
+          );
           const isExpanded = expandedTodos.has(index);
           const isActive = index === activeTodoIndex;
-          const hasContent = tools.length > 0 || textMessages.length > 0;
+          const hasContent = tools.length > 0 || displayableTextMessages.length > 0;
           const isLastTodo = index === todos.length - 1;
           const isFinalSummary = isLastTodo && allTodosCompleted;
 
@@ -194,7 +198,7 @@ export function TodoList({
                     className="mt-2 space-y-2"
                   >
                     {/* Text Messages - Collapsible Cards */}
-                    {textMessages.map((textMsg) => (
+                    {displayableTextMessages.map((textMsg) => (
                       <TextUpdateCard key={textMsg.id} message={textMsg} />
                     ))}
 

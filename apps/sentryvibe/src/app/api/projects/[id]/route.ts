@@ -3,6 +3,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { getProjectRunnerId } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
 
 // GET /api/projects/:id - Get single project
@@ -37,7 +38,7 @@ export async function PATCH(
     // Validate allowed fields
     const allowedFields = [
       'name', 'description', 'originalPrompt', 'icon', 'status', 'projectType', 'runCommand',
-      'port', 'devServerPid', 'devServerPort', 'devServerStatus', 'generationState',
+      'port', 'devServerPid', 'devServerPort', 'devServerStatus', 'runnerId', 'generationState',
       'lastActivityAt', 'errorMessage'
     ];
 
@@ -100,23 +101,29 @@ export async function DELETE(
     // Optionally delete filesystem - delegate to runner
     if (deleteFiles && project[0].slug) {
       try {
-        const runnerId = process.env.RUNNER_DEFAULT_ID ?? 'default';
+        // Try to use project's saved runner, fallback to any available runner
+        const runnerId = await getProjectRunnerId(project[0].runnerId);
 
-        console.log(`🗑️  Sending delete-project-files command to runner: ${runnerId}`);
-        console.log(`   Project slug: ${project[0].slug}`);
+        if (!runnerId) {
+          console.warn(`⚠️  No runners connected - skipping file deletion`);
+          console.warn(`   Files in workspace may need manual cleanup: ${project[0].slug}`);
+        } else {
+          console.log(`🗑️  Sending delete-project-files command to runner: ${runnerId}`);
+          console.log(`   Project slug: ${project[0].slug}`);
 
-        // Send command to runner - it will delete files from its workspace
-        await sendCommandToRunner(runnerId, {
-          id: randomUUID(),
-          type: 'delete-project-files',
-          projectId: id,
-          timestamp: new Date().toISOString(),
-          payload: {
-            slug: project[0].slug,
-          },
-        });
+          // Send command to runner - it will delete files from its workspace
+          await sendCommandToRunner(runnerId, {
+            id: randomUUID(),
+            type: 'delete-project-files',
+            projectId: id,
+            timestamp: new Date().toISOString(),
+            payload: {
+              slug: project[0].slug,
+            },
+          });
 
-        console.log(`✅ Delete command sent to runner successfully`);
+          console.log(`✅ Delete command sent to runner successfully`);
+        }
       } catch (error) {
         console.warn('⚠️  Failed to send delete command to runner:', error);
         // Don't fail the request - project is already deleted from DB

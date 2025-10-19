@@ -68,7 +68,7 @@ export async function GET() {
 // POST /api/projects - Create new project with Sonnet metadata extraction
 export async function POST(req: Request) {
   try {
-    const { prompt, agent } = (await req.json()) as { prompt?: string; agent?: AgentId };
+    const { prompt, agent, runnerId } = (await req.json()) as { prompt?: string; agent?: AgentId; runnerId?: string };
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -244,6 +244,7 @@ export async function POST(req: Request) {
       originalPrompt: prompt, // Store the original user prompt
       icon: metadata.icon || 'Folder',
       status: 'pending',
+      runnerId: runnerId || null, // Track which runner will manage this project
       // path is deprecated - calculated from slug when needed
     }).returning();
 

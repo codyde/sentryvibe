@@ -91,7 +91,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Real-time status updates via SSE
   useEffect(() => {
     if (!project?.id) {
-      setLiveProject(null);
+      setLiveProject(undefined);
       return;
     }
 

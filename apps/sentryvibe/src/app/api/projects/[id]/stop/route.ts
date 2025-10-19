@@ -4,6 +4,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { StopDevServerCommand } from '@/shared/runner/messages';
 
 // POST /api/projects/:id/stop - Stop dev server
@@ -13,14 +14,22 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const body = await req.json().catch(() => ({}));
-    const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
 
     // Get project from DB
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
     if (project.length === 0) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Try to use project's saved runner, fallback to any available runner
+    const runnerId = await getProjectRunnerId(project[0].runnerId);
+
+    if (!runnerId) {
+      return NextResponse.json(
+        { error: 'No runners connected' },
+        { status: 503 }
+      );
     }
 
     await db.update(projects)
