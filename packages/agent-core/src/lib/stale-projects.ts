@@ -1,6 +1,7 @@
 import { db } from './db/client';
 import { projects } from './db/schema';
 import { eq } from 'drizzle-orm';
+import { projectCache } from './cache/project-cache';
 
 const STALE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -54,6 +55,9 @@ export async function markStaleProjectsAsFailed(): Promise<number> {
         devServerPort: null,
       })
       .where(eq(projects.id, stale.id));
+
+    // Invalidate cache since project status changed
+    projectCache.invalidate(stale.id);
 
     console.log(`⏰ Marked stale project as failed: ${stale.name} (${stale.minutesStale}m idle)`);
     count++;

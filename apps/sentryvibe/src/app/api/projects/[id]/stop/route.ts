@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import type { StopDevServerCommand } from '@/shared/runner/messages';
+import { projectCache } from '@sentryvibe/agent-core/lib/cache/project-cache';
 
 // POST /api/projects/:id/stop - Stop dev server
 export async function POST(
@@ -29,6 +30,9 @@ export async function POST(
         lastActivityAt: new Date(),
       })
       .where(eq(projects.id, id));
+
+    // Invalidate cache since project status changed
+    projectCache.invalidate(id);
 
     const command: StopDevServerCommand = {
       id: randomUUID(),

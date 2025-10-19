@@ -1,6 +1,7 @@
 import { db } from './db/client';
 import { projects } from './db/schema';
 import { eq, or } from 'drizzle-orm';
+import { projectCache } from './cache/project-cache';
 
 export async function cleanupOrphanedProcesses() {
   console.log('🧹 Cleaning up orphaned dev server processes...');
@@ -49,6 +50,9 @@ export async function cleanupOrphanedProcesses() {
           devServerStatus: 'stopped',
         })
         .where(eq(projects.id, project.id));
+
+      // Invalidate cache since project status changed
+      projectCache.invalidate(project.id);
     }
 
     console.log(`✅ Cleanup complete. Terminated ${cleanedCount} orphaned processes.`);

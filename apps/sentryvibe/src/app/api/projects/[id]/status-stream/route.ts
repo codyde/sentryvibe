@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { projectCache } from '@sentryvibe/agent-core/lib/cache/project-cache';
+import type { Project } from '@sentryvibe/agent-core/lib/db/schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +24,29 @@ export async function GET(
   let keepaliveInterval: NodeJS.Timeout | null = null;
   let pollTimeout: NodeJS.Timeout | null = null;
 
+  // Helper function to get project with cache-first strategy
+  const getProject = async (): Promise<Project | null> => {
+    // Try cache first
+    const cached = projectCache.get(id);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - query database
+    const result = await db.select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1);
+
+    if (result.length > 0) {
+      // Cache with short TTL (2 seconds) to reduce query load
+      projectCache.set(id, result[0], 2000);
+      return result[0];
+    }
+
+    return null;
+  };
+
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -29,15 +54,12 @@ export async function GET(
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`));
 
         // Send initial project state immediately
-        const initialProject = await db.select()
-          .from(projects)
-          .where(eq(projects.id, id))
-          .limit(1);
+        const initialProject = await getProject();
 
-        if (initialProject.length > 0) {
+        if (initialProject) {
           const data = `data: ${JSON.stringify({
             type: 'status-update',
-            project: initialProject[0],
+            project: initialProject,
           })}\n\n`;
           controller.enqueue(encoder.encode(data));
           console.log(`✅ Sent initial status for ${id}`);
@@ -62,10 +84,10 @@ export async function GET(
 
         // Adaptive polling: fast during transitions, slow when stable
         let lastState = JSON.stringify({
-          status: initialProject[0].status,
-          devServerStatus: initialProject[0].devServerStatus,
-          devServerPort: initialProject[0].devServerPort,
-          tunnelUrl: initialProject[0].tunnelUrl,
+          status: initialProject.status,
+          devServerStatus: initialProject.devServerStatus,
+          devServerPort: initialProject.devServerPort,
+          tunnelUrl: initialProject.tunnelUrl,
         });
 
         let currentPollInterval = 2000; // Start with 2s
@@ -73,13 +95,11 @@ export async function GET(
 
         const doPoll = async () => {
           try {
-            const updatedProject = await db.select()
-              .from(projects)
-              .where(eq(projects.id, id))
-              .limit(1);
+            // Use cache-first strategy to reduce database queries
+            const updatedProject = await getProject();
 
-            if (updatedProject.length > 0) {
-              const proj = updatedProject[0];
+            if (updatedProject) {
+              const proj = updatedProject;
 
               // Only send if status/port/tunnel changed
               const currentState = JSON.stringify({

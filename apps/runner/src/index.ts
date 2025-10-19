@@ -688,6 +688,7 @@ async function cleanupOrphanedProcesses() {
   const { db } = await import('@sentryvibe/agent-core/lib/db/client');
   const { runningProcesses, projects } = await import('@sentryvibe/agent-core/lib/db/schema');
   const { eq } = await import('drizzle-orm');
+  const { projectCache } = await import('@sentryvibe/agent-core/lib/cache/project-cache');
 
   try {
     const rows = await db.select().from(runningProcesses);
@@ -714,6 +715,9 @@ async function cleanupOrphanedProcesses() {
             devServerPort: null,
           })
           .where(eq(projects.id, row.projectId));
+
+        // Invalidate cache since project status changed
+        projectCache.invalidate(row.projectId);
       }
     }
 
@@ -755,6 +759,7 @@ function startPeriodicHealthChecks() {
     const { db } = await import('@sentryvibe/agent-core/lib/db/client');
     const { runningProcesses, projects } = await import('@sentryvibe/agent-core/lib/db/schema');
     const { eq } = await import('drizzle-orm');
+    const { projectCache } = await import('@sentryvibe/agent-core/lib/cache/project-cache');
 
     try {
       const rows = await db.select().from(runningProcesses);
@@ -791,6 +796,9 @@ function startPeriodicHealthChecks() {
                 devServerPort: null,
               })
               .where(eq(projects.id, row.projectId));
+
+            // Invalidate cache since project status changed
+            projectCache.invalidate(row.projectId);
           } else {
             // Increment fail count
             await db.update(runningProcesses)

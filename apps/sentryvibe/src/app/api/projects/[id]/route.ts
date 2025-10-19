@@ -4,6 +4,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { randomUUID } from 'crypto';
+import { projectCache } from '@sentryvibe/agent-core/lib/cache/project-cache';
 
 // GET /api/projects/:id - Get single project
 export async function GET(
@@ -60,6 +61,9 @@ export async function PATCH(
     if (updated.length === 0) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    // Invalidate cache since project was updated
+    projectCache.invalidate(id);
 
     return NextResponse.json({ project: updated[0] });
   } catch (error) {

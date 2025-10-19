@@ -9,6 +9,7 @@ import { getTemplateById, selectTemplateFromPrompt } from '../templates/config';
 import { downloadTemplate, getProjectFileTree } from '../templates/downloader';
 import type { BuildRequest } from '../../types/build';
 import { getWorkspaceRoot } from '../workspace';
+import { projectCache } from '../cache/project-cache';
 
 export interface AgentMessage {
   type: string;
@@ -183,6 +184,9 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     .set({ status: 'in_progress', lastActivityAt: new Date() })
     .where(eq(projects.id, id));
 
+  // Invalidate cache since project status changed
+  projectCache.invalidate(id);
+
   await db.insert(messages).values({
     projectId: id,
     role: 'user',
@@ -330,6 +334,9 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   await db.update(projects)
     .set(projectUpdates)
     .where(eq(projects.id, id));
+
+  // Invalidate cache since project was updated
+  projectCache.invalidate(id);
 
   if (operationType === 'initial-build') {
     await autoStartDevServer(id);

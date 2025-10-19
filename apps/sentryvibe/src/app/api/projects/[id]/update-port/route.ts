@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { projectCache } from '@sentryvibe/agent-core/lib/cache/project-cache';
 
 // PATCH /api/projects/:id/update-port - Update detected port
 export async function PATCH(
@@ -25,6 +26,9 @@ export async function PATCH(
         lastActivityAt: new Date(),
       })
       .where(eq(projects.id, id));
+
+    // Invalidate cache since project port changed
+    projectCache.invalidate(id);
 
     return NextResponse.json({ success: true, port });
   } catch (error) {

@@ -5,6 +5,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
+import { projectCache } from '@sentryvibe/agent-core/lib/cache/project-cache';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        // Invalidate cache since project status changed
+        projectCache.invalidate(event.projectId);
         // No port reservation - framework handles port selection
         break;
       }
@@ -68,6 +71,8 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        // Invalidate cache since tunnel URL changed
+        projectCache.invalidate(event.projectId);
         break;
       }
       case 'tunnel-closed': {
@@ -77,6 +82,8 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        // Invalidate cache since tunnel URL changed
+        projectCache.invalidate(event.projectId);
         break;
       }
       case 'process-exited': {
@@ -94,6 +101,8 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        // Invalidate cache since project status changed
+        projectCache.invalidate(event.projectId);
         // No port reservation cleanup needed
         break;
       }
@@ -110,6 +119,8 @@ export async function POST(request: Request) {
               lastActivityAt: new Date(),
             })
             .where(eq(projects.id, event.projectId));
+          // Invalidate cache since project metadata changed
+          projectCache.invalidate(event.projectId);
         }
         break;
       }
@@ -122,6 +133,8 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        // Invalidate cache since project status changed
+        projectCache.invalidate(event.projectId);
         break;
       }
       case 'build-failed':
@@ -136,6 +149,8 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        // Invalidate cache since project status changed
+        projectCache.invalidate(event.projectId);
         break;
       }
       default:

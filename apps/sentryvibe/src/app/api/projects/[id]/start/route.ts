@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { getRunCommand } from '@sentryvibe/agent-core/lib/port-allocator';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import type { StartDevServerCommand } from '@/shared/runner/messages';
+import { projectCache } from '@sentryvibe/agent-core/lib/cache/project-cache';
 
 // POST /api/projects/:id/start - Start dev server
 export async function POST(
@@ -62,6 +63,9 @@ export async function POST(
         })
         .where(eq(projects.id, id));
 
+      // Invalidate cache since project status changed
+      projectCache.invalidate(id);
+
       const baseCommand = getRunCommand(proj.runCommand);
       console.log(`📝 Run command: ${baseCommand}`);
 
@@ -93,6 +97,9 @@ export async function POST(
           errorMessage: error instanceof Error ? error.message : 'Failed to start dev server',
         })
         .where(eq(projects.id, id));
+
+      // Invalidate cache since project status changed
+      projectCache.invalidate(id);
 
       throw error;
     }
