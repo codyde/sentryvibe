@@ -85,7 +85,15 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // Real-time status updates via SSE
   useEffect(() => {
+    console.log('🔍 SSE useEffect triggered, project:', {
+      id: project?.id,
+      slug: project?.slug,
+      status: project?.status,
+      devServerStatus: project?.devServerStatus,
+    });
+
     if (!project?.id) {
+      console.log('⚠️  No project ID, skipping SSE connection');
       setLiveProject(undefined);
       return;
     }
@@ -93,12 +101,21 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     console.log(`📡 Connecting to status stream for project: ${project.id}`);
     const eventSource = new EventSource(`/api/projects/${project.id}/status-stream`);
 
+    eventSource.onopen = () => {
+      console.log(`✅ SSE connection opened for ${project.id}`);
+    };
+
     eventSource.onmessage = (event) => {
       // Ignore keepalive pings
-      if (event.data === ':keepalive') return;
+      if (event.data === ':keepalive') {
+        console.log(`💓 SSE keepalive received`);
+        return;
+      }
 
+      console.log(`📨 SSE status message received:`, event.data);
       try {
         const data = JSON.parse(event.data);
+        console.log(`📦 Parsed SSE data:`, data);
         if (data.type === 'status-update' && data.project) {
           console.log(`✅ SSE: Status update for ${project.id}`, {
             status: data.project.devServerStatus,
@@ -108,12 +125,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           setLiveProject(data.project);
         }
       } catch (err) {
-        console.error('Failed to parse SSE status event:', err);
+        console.error('Failed to parse SSE status event:', err, event.data);
       }
     };
 
-    eventSource.onerror = () => {
-      console.warn('SSE status connection error, will reconnect...');
+    eventSource.onerror = (err) => {
+      console.error('❌ SSE status connection error:', err);
+      console.log('SSE readyState:', eventSource.readyState);
       eventSource.close();
     };
 
@@ -161,6 +179,21 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     : (actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id
       ? `/api/projects/${currentProject.id}/proxy?path=/`
       : '');
+
+  // Debug logging for preview URL construction
+  useEffect(() => {
+    console.log('🔍 Preview URL calculation:', {
+      previewUrl,
+      actualPort,
+      terminalPort,
+      currentProjectPort: currentProject?.devServerPort,
+      currentProjectStatus: currentProject?.devServerStatus,
+      currentProjectId: currentProject?.id,
+      currentProjectTunnel: currentProject?.tunnelUrl,
+      liveProjectExists: !!liveProject,
+      projectExists: !!project,
+    });
+  }, [previewUrl, actualPort, currentProject?.devServerStatus, currentProject?.devServerPort]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
