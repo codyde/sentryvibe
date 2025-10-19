@@ -1365,7 +1365,9 @@ function HomeContent() {
               });
             }
 
-            if (currentMessage?.id) {
+            // During active builds, text messages go to textByTodo only (shown in BuildProgress)
+            // Only add text to main conversation when NOT in active build
+            if (currentMessage?.id && !generationStateRef.current?.isActive) {
               const textParts = Array.from(textBlocksMap.values());
               const filteredParts = currentMessage.parts.filter(
                 (p) => !p.type.startsWith("text")
