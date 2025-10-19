@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from './logger.js';
 import { spinner } from './spinner.js';
+import { prompts } from './prompts.js';
 
 /**
  * Read DATABASE_URL from .env file in monorepo root
@@ -212,5 +213,47 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
       resolve(false);
     });
   });
+}
+
+/**
+ * Connect to an existing database manually by prompting for connection string
+ */
+export async function connectManualDatabase(): Promise<string | null> {
+  logger.log('');
+
+  // Ask user what type of connection they want
+  const connectionType = await prompts.select(
+    'How would you like to connect your database?',
+    [
+      'Connect an existing Sentryvibe database',
+      'Provide a connection string directly',
+    ]
+  );
+
+  logger.log('');
+
+  // Prompt for the connection string
+  let message: string;
+  if (connectionType === 'Connect an existing Sentryvibe database') {
+    message = 'Enter your Sentryvibe database connection string:';
+  } else {
+    message = 'Enter your PostgreSQL connection string:';
+  }
+
+  const connectionString = await prompts.input(message);
+
+  // Basic validation
+  if (!connectionString || connectionString.trim() === '') {
+    logger.error('Connection string cannot be empty');
+    return null;
+  }
+
+  // Validate it looks like a PostgreSQL connection string
+  if (!connectionString.match(/^postgres(?:ql)?:\/\//)) {
+    logger.error('Connection string must start with postgres:// or postgresql://');
+    return null;
+  }
+
+  return connectionString.trim();
 }
 
