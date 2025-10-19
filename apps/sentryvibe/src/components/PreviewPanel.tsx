@@ -85,58 +85,32 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // Real-time status updates via SSE
   useEffect(() => {
-    console.log('🔍 SSE useEffect triggered, project:', {
-      id: project?.id,
-      slug: project?.slug,
-      status: project?.status,
-      devServerStatus: project?.devServerStatus,
-    });
-
     if (!project?.id) {
-      console.log('⚠️  No project ID, skipping SSE connection');
       setLiveProject(undefined);
       return;
     }
 
-    console.log(`📡 Connecting to status stream for project: ${project.id}`);
     const eventSource = new EventSource(`/api/projects/${project.id}/status-stream`);
-
-    eventSource.onopen = () => {
-      console.log(`✅ SSE connection opened for ${project.id}`);
-    };
 
     eventSource.onmessage = (event) => {
       // Ignore keepalive pings
-      if (event.data === ':keepalive') {
-        console.log(`💓 SSE keepalive received`);
-        return;
-      }
+      if (event.data === ':keepalive') return;
 
-      console.log(`📨 SSE status message received:`, event.data);
       try {
         const data = JSON.parse(event.data);
-        console.log(`📦 Parsed SSE data:`, data);
         if (data.type === 'status-update' && data.project) {
-          console.log(`✅ SSE: Status update for ${project.id}`, {
-            status: data.project.devServerStatus,
-            port: data.project.devServerPort,
-            tunnel: data.project.tunnelUrl,
-          });
           setLiveProject(data.project);
         }
       } catch (err) {
-        console.error('Failed to parse SSE status event:', err, event.data);
+        console.error('Failed to parse SSE status event:', err);
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('❌ SSE status connection error:', err);
-      console.log('SSE readyState:', eventSource.readyState);
+    eventSource.onerror = () => {
       eventSource.close();
     };
 
     return () => {
-      console.log(`🔌 Disconnecting status stream for ${project.id}`);
       eventSource.close();
     };
   }, [project?.id]);
@@ -150,14 +124,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
     if (!shouldPoll) return;
 
-    console.log('🔄 Starting fallback polling (SSE not working)');
     const interval = setInterval(() => {
-      console.log('🔄 Polling for updates...');
       refetch();
     }, 2000);
 
     return () => {
-      console.log('🛑 Stopping fallback polling');
       clearInterval(interval);
     };
   }, [isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
@@ -168,14 +139,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
     // Show loading while tunnel is being created
     if (isStartingTunnel) {
-      console.log('🔗 Tunnel starting, showing loading screen...');
       setIsTunnelLoading(true);
       return;
     }
 
     // Verify tunnel URL is resolvable in browser before showing iframe
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      console.log('🔗 Tunnel URL received, verifying browser can resolve DNS...');
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
 
@@ -186,8 +155,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
-            console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
-
             // Use no-cors mode to avoid CORS blocking the check
             // We just need to verify DNS resolves and connection succeeds
             await fetch(currentTunnelUrl, {
@@ -196,12 +163,18 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               cache: 'no-store', // Don't use cached responses
             });
 
-            console.log(`✅ Browser DNS verified in ${attempt} seconds`);
+            // Only log if it took a while (DNS propagation delay)
+            if (attempt > 3) {
+              console.log(`✅ Tunnel DNS resolved after ${attempt} attempts`);
+            }
             resolved = true;
             setIsTunnelLoading(false);
             return;
           } catch (error: any) {
-            console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
+            // Only log on last few attempts to reduce noise
+            if (attempt >= maxAttempts - 2) {
+              console.warn(`⏳ DNS check ${attempt}/${maxAttempts} failed`);
+            }
 
             // Wait 1 second between attempts
             if (attempt < maxAttempts) {
@@ -211,7 +184,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         }
 
         if (!resolved) {
-          console.warn(`⚠️  Browser DNS verification timeout after ${maxAttempts}s, showing anyway (may fail)`);
+          console.warn(`⚠️  Tunnel DNS verification timeout after ${maxAttempts}s`);
         }
         setIsTunnelLoading(false);
       })();
@@ -244,20 +217,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       ? `/api/projects/${currentProject.id}/proxy?path=/`
       : '');
 
-  // Debug logging for preview URL construction
-  useEffect(() => {
-    console.log('🔍 Preview URL calculation:', {
-      previewUrl,
-      actualPort,
-      terminalPort,
-      currentProjectPort: currentProject?.devServerPort,
-      currentProjectStatus: currentProject?.devServerStatus,
-      currentProjectId: currentProject?.id,
-      currentProjectTunnel: currentProject?.tunnelUrl,
-      liveProjectExists: !!liveProject,
-      projectExists: !!project,
-    });
-  }, [previewUrl, actualPort, currentProject?.devServerStatus, currentProject?.devServerPort]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -577,29 +536,23 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 title="Preview"
                 onLoad={(e) => {
                   setIsRefreshing(false);
-                  console.log('✅ Iframe onLoad fired for:', previewUrl);
 
-                  // Try to access iframe content for debugging
+                  // Check for error pages (only log if found)
                   const iframe = e.currentTarget;
                   setTimeout(() => {
                     try {
                       const doc = iframe.contentDocument || iframe.contentWindow?.document;
                       if (doc) {
                         const bodyText = doc.body?.innerText?.substring(0, 100);
-                        console.log('📄 Iframe body preview:', bodyText);
-
-                        // Check for common error pages
+                        // Only log if it's an error page
                         if (bodyText?.includes('Application error') || bodyText?.includes('502') || bodyText?.includes('503')) {
-                          console.error('🚨 Iframe loaded error page:', bodyText);
+                          console.error('🚨 Preview loaded error page:', bodyText);
                         }
                       }
                     } catch (err) {
-                      console.log('⚠️  Cannot access iframe content (cross-origin)');
+                      // Cross-origin - expected for tunnel URLs
                     }
                   }, 500);
-                }}
-                onError={(e) => {
-                  console.error('🚨 Iframe error event:', e);
                 }}
               />
 

@@ -36,12 +36,9 @@ interface SelectionModeProps {
 export default function SelectionMode({ isEnabled, onToggle, onElementSelected }: SelectionModeProps) {
   const hasProcessedRef = useRef<Set<string>>(new Set());
 
-  console.log('🎨 SelectionMode rendered, isEnabled:', isEnabled);
-
   // Listen for element selection from iframe
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      console.log('📨 PostMessage received:', e.data.type);
 
       if (e.data.type === 'sentryvibe:element-selected') {
         const element = e.data.data;
