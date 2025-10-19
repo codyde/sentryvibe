@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { sendCommandToRunner, listRunnerConnections } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { getActiveRunnerId } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
 
 // GET /api/projects/:id - Get single project
@@ -100,14 +101,10 @@ export async function DELETE(
     // Optionally delete filesystem - delegate to runner
     if (deleteFiles && project[0].slug) {
       try {
-        const runnerId = process.env.RUNNER_DEFAULT_ID ?? 'default';
+        const runnerId = await getActiveRunnerId();
 
-        // Check if runner is connected before trying to send command
-        const connections = await listRunnerConnections();
-        const runnerConnected = connections.some(conn => conn.id === runnerId);
-
-        if (!runnerConnected) {
-          console.warn(`⚠️  Runner '${runnerId}' not connected - skipping file deletion`);
+        if (!runnerId) {
+          console.warn(`⚠️  No runners connected - skipping file deletion`);
           console.warn(`   Files in workspace may need manual cleanup: ${project[0].slug}`);
         } else {
           console.log(`🗑️  Sending delete-project-files command to runner: ${runnerId}`);
