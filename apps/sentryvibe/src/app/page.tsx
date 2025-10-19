@@ -2630,32 +2630,12 @@ function HomeContent() {
                               </div>
                             )}
 
-                            {/* Completed Build (most recent) - Collapsed by default */}
-                            {!generationState?.isActive && generationState && (
-                              <div>
-                                <h3 className="text-sm font-semibold text-gray-400 mb-3">
-                                  Most Recent Build
-                                </h3>
-                                <BuildProgress
-                                  state={generationState}
-                                  templateInfo={selectedTemplate}
-                                  defaultCollapsed={true}
-                                  onClose={() => updateGenerationState(null)}
-                                  onViewFiles={() => {
-                                    window.dispatchEvent(
-                                      new CustomEvent("switch-to-editor")
-                                    );
-                                  }}
-                                  onStartServer={startDevServer}
-                                />
-                              </div>
-                            )}
-
+                           
                             {/* Build History - Collapsed by default */}
                             {buildHistory.length > 0 && (
                               <div>
                                 <h3 className="text-sm font-semibold text-gray-400 mb-3">
-                                  Previous Builds ({buildHistory.length})
+                                  Builds ({buildHistory.length})
                                 </h3>
                                 <div className="space-y-4">
                                   {buildHistory.map((build) => (
