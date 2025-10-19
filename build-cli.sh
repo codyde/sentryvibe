@@ -30,7 +30,16 @@ echo ""
 # Link globally
 echo "🔗 Linking CLI globally..."
 cd apps/runner
-npm link
+
+# Detect if pnpm is available, use it for linking (preferred)
+if command -v pnpm &> /dev/null; then
+  echo "   Using pnpm for global link..."
+  pnpm link --global
+else
+  echo "   Using npm for global link..."
+  npm link
+fi
+
 echo ""
 
 echo "✅ CLI built and linked successfully!"
@@ -41,5 +50,9 @@ echo "  sentryvibe --runner   # Start runner only"
 echo "  sentryvibe --help     # Show help"
 echo ""
 echo "To unlink later:"
-echo "  npm unlink -g @sentryvibe/runner-cli"
+if command -v pnpm &> /dev/null; then
+  echo "  pnpm remove -g @sentryvibe/runner-cli"
+else
+  echo "  npm unlink -g @sentryvibe/runner-cli"
+fi
 echo ""
