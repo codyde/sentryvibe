@@ -1,8 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as schema from './schema';
 
 declare global {
-  var __db: NodePgDatabase<typeof schema> | undefined;
+  var __db: NodePgDatabase<any> | undefined;
 }
 
 /**
@@ -10,15 +9,18 @@ declare global {
  * Only loads pg and creates connection when first accessed
  * This prevents 'Cannot find module pg' errors in environments without database
  */
-function createDbClient(): NodePgDatabase<typeof schema> {
+function createDbClient(): NodePgDatabase<any> {
   if (global.__db) {
     return global.__db;
   }
 
+  console.log('⚠️  [DB] Database client being initialized - this should only happen in frontend/broker, not runner!');
+  console.log('⚠️  [DB] Stack trace:', new Error().stack);
+
   // Dynamic imports to prevent loading pg unless actually needed
   const { drizzle } = require('drizzle-orm/node-postgres');
   const { Pool } = require('pg');
-  const schema = require('./schema');
+  const schemaModule = require('./schema');
 
   const connectionString = process.env.DATABASE_URL;
 
@@ -33,14 +35,14 @@ function createDbClient(): NodePgDatabase<typeof schema> {
       : { rejectUnauthorized: false },
   });
 
-  const client = drizzle(pool, { schema });
+  const client = drizzle(pool, { schema: schemaModule });
   global.__db = client;
 
   return client;
 }
 
 // Export a proxy that lazy-loads on first property access
-export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
+export const db = new Proxy({} as NodePgDatabase<any>, {
   get(target, prop) {
     const client = createDbClient();
     return (client as any)[prop];
