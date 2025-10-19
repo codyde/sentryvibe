@@ -2554,8 +2554,8 @@ function HomeContent() {
                         {/* UNIFIED VIEW - Chat messages with BuildProgress inline */}
                         {!isCreatingProject && (
                           <div className="space-y-4">
-                            {/* Chat messages (filtered to text only, no tools) */}
-                            {messages.map((message) => {
+                            {/* Chat messages - Only show if no generationState (prevents duplication) */}
+                            {!generationState && messages.map((message) => {
                               // Skip element changes
                               if (message.elementChange) return null;
 
@@ -2594,11 +2594,12 @@ function HomeContent() {
                               );
                             })}
 
-                            {/* Active Build - Inline in conversation */}
-                            {generationState?.isActive && (
+                            {/* Current Build (Active or Completed) */}
+                            {generationState && (
                               <BuildProgress
                                 state={generationState}
                                 templateInfo={selectedTemplate}
+                                defaultCollapsed={!generationState.isActive}
                                 onClose={() => updateGenerationState(null)}
                                 onViewFiles={() => {
                                   window.dispatchEvent(
