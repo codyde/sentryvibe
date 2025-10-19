@@ -176,11 +176,19 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
         // Ignore keepalive pings
         if (event.data === ':keepalive') return;
 
+        console.log('📨 Terminal SSE message received:', event.data.substring(0, 200));
+
         try {
           const data = JSON.parse(event.data);
+          console.log('   Parsed data type:', data.type);
+
           if (data.type === 'log' && data.data) {
+            console.log('   Log data length:', data.data.length);
             enqueueLogs(data.data);
+          } else if (data.type === 'connected') {
+            console.log('   ✅ Connection established');
           } else if (data.type === 'exit') {
+            console.log('   ⚠️  Process exited');
             setLogs((prev) => [...prev, '\n--- Process exited ---\n']);
             stopStreaming();
           }
@@ -293,11 +301,14 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
   };
 
   const enqueueLogs = (chunk: string) => {
+    console.log('📝 enqueueLogs called with chunk length:', chunk.length);
     const entries = parseLogChunk(chunk);
+    console.log('   Parsed entries:', entries.length);
     if (!entries.length) return;
 
     // Store for batched flush
     pendingLogsRef.current.push(...entries);
+    console.log('   Pending logs now:', pendingLogsRef.current.length);
 
     if (!flushScheduledRef.current) {
       flushScheduledRef.current = true;
@@ -311,8 +322,11 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
         setLogs((prev) => {
           if (pendingLogsRef.current.length === 0) {
+            console.log('   ⚠️  No pending logs to flush');
             return prev;
           }
+
+          console.log(`   Flushing ${pendingLogsRef.current.length} pending logs (prev array has ${prev.length} items)`);
 
           let next = [...prev];
           let changed = false;
@@ -342,6 +356,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
           pendingLogsRef.current = [];
 
           if (!changed) {
+            console.log('   ⚠️  No changes detected, returning prev');
             return prev;
           }
 
@@ -349,6 +364,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
             next = next.slice(next.length - MAX_LOG_ENTRIES);
           }
 
+          console.log(`   ✅ Updated logs array: ${prev.length} → ${next.length} items`);
           return next;
         });
       });
