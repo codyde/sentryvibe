@@ -710,23 +710,38 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
 }
 
 /**
- * Check if a port is in use
+ * Check if a port is in use by trying to connect to it
+ * This is more reliable than trying to bind
  */
 async function checkPortInUse(port: number): Promise<boolean> {
   const net = await import('net');
 
   return new Promise((resolve) => {
-    const tester = net.createServer()
-      .once('error', () => {
-        // Port in use (EADDRINUSE) = good, server is running
-        resolve(true);
-      })
-      .once('listening', () => {
-        // Port available = bad, server died
-        tester.close();
-        resolve(false);
-      })
-      .listen(port);
+    const socket = new net.Socket();
+
+    socket.setTimeout(2000);
+
+    socket.once('connect', () => {
+      // Successfully connected = server is running
+      console.log(`   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`);
+      socket.destroy();
+      resolve(true);
+    });
+
+    socket.once('error', (err: any) => {
+      // Connection failed = server not running
+      console.log(`   🔍 [Debug] Port ${port} check: ${err.code} → Server NOT running`);
+      resolve(false);
+    });
+
+    socket.once('timeout', () => {
+      // Timeout = server not responding
+      console.log(`   🔍 [Debug] Port ${port} check: Timeout → Server NOT running`);
+      socket.destroy();
+      resolve(false);
+    });
+
+    socket.connect(port, 'localhost');
   });
 }
 
@@ -736,7 +751,7 @@ async function checkPortInUse(port: number): Promise<boolean> {
 function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string) {
   console.log('🏥 Starting periodic port health checks (every 30s)...');
 
-  setInterval(async () => {
+  const doHealthCheck = async () => {
     try {
       // Get list of processes to health check from API
       const response = await fetch(`${apiBaseUrl}/api/runner/process/list`, {
@@ -757,6 +772,8 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
 
         // Check port locally (runner can access localhost)
         const isListening = await checkPortInUse(row.port);
+
+        console.log(`   🔍 Health check for port ${row.port}: ${isListening ? 'HEALTHY ✅' : 'UNHEALTHY ❌'}`);
 
         const newFailCount = isListening ? 0 : (row.healthCheckFailCount || 0) + 1;
 
@@ -794,7 +811,10 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
     } catch (error) {
       console.error('❌ Error during health check:', error);
     }
-  }, 30000); // Every 30 seconds
+  };
+
+  // Run health check every 30 seconds
+  setInterval(doHealthCheck, 30000);
 }
 
 /**
