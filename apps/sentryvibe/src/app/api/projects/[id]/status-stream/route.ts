@@ -2,13 +2,14 @@ import { NextRequest } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { projectEvents } from '@/lib/project-events';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * SSE endpoint for real-time project status updates
- * Replaces polling with event-driven updates
+ * Uses event-driven architecture for instant updates (no polling!)
  */
 export async function GET(
   req: NextRequest,
@@ -20,7 +21,6 @@ export async function GET(
 
   const encoder = new TextEncoder();
   let keepaliveInterval: NodeJS.Timeout | null = null;
-  let pollTimeout: NodeJS.Timeout | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -60,73 +60,26 @@ export async function GET(
           }
         }, 15000);
 
-        // Adaptive polling: fast during transitions, slow when stable
-        let lastState = JSON.stringify({
-          status: initialProject[0].status,
-          devServerStatus: initialProject[0].devServerStatus,
-          devServerPort: initialProject[0].devServerPort,
-          tunnelUrl: initialProject[0].tunnelUrl,
-        });
-
-        let currentPollInterval = 2000; // Start with 2s
-        let stableCount = 0; // Track how long state has been stable
-
-        const doPoll = async () => {
+        // Event-driven updates: listen for project changes
+        const handleProjectUpdate = (project: any) => {
           try {
-            const updatedProject = await db.select()
-              .from(projects)
-              .where(eq(projects.id, id))
-              .limit(1);
-
-            if (updatedProject.length > 0) {
-              const proj = updatedProject[0];
-
-              // Only send if status/port/tunnel changed
-              const currentState = JSON.stringify({
-                status: proj.status,
-                devServerStatus: proj.devServerStatus,
-                devServerPort: proj.devServerPort,
-                tunnelUrl: proj.tunnelUrl,
-              });
-
-              if (currentState !== lastState) {
-                lastState = currentState;
-                stableCount = 0; // Reset stability counter
-
-                const data = `data: ${JSON.stringify({
-                  type: 'status-update',
-                  project: proj,
-                })}\n\n`;
-                controller.enqueue(encoder.encode(data));
-                console.log(`📤 Status changed for ${id}:`, proj.devServerStatus, proj.devServerPort);
-
-                // Adjust poll interval based on state
-                if (proj.devServerStatus === 'starting') {
-                  currentPollInterval = 1000; // 1s during startup (critical phase)
-                } else if (proj.devServerStatus === 'running') {
-                  currentPollInterval = 5000; // 5s when running (stable)
-                } else {
-                  currentPollInterval = 10000; // 10s when stopped/failed (rare changes)
-                }
-              } else {
-                stableCount++;
-
-                // If stable for 5 consecutive polls, slow down further
-                if (stableCount >= 5 && proj.devServerStatus === 'running') {
-                  currentPollInterval = 15000; // 15s when very stable
-                }
-              }
-            }
+            const data = `data: ${JSON.stringify({
+              type: 'status-update',
+              project,
+            })}\n\n`;
+            controller.enqueue(encoder.encode(data));
+            console.log(`📤 Event-driven update for ${id}:`, {
+              status: project.devServerStatus,
+              port: project.devServerPort,
+              tunnel: project.tunnelUrl,
+            });
           } catch (err) {
-            console.error(`   Failed to poll project ${id}:`, err);
+            console.error(`   Failed to send update for ${id}:`, err);
           }
-
-          // Schedule next poll with current interval
-          pollTimeout = setTimeout(doPoll, currentPollInterval);
         };
 
-        // Start polling
-        pollTimeout = setTimeout(doPoll, currentPollInterval);
+        // Subscribe to project events
+        projectEvents.onProjectUpdate(id, handleProjectUpdate);
 
         // Cleanup on connection close
         req.signal.addEventListener('abort', () => {
@@ -134,9 +87,7 @@ export async function GET(
           if (keepaliveInterval) {
             clearInterval(keepaliveInterval);
           }
-          if (pollTimeout) {
-            clearTimeout(pollTimeout);
-          }
+          projectEvents.offProjectUpdate(id, handleProjectUpdate);
           controller.close();
         });
       } catch (error) {
@@ -149,9 +100,6 @@ export async function GET(
       console.log(`🛑 Status stream cancelled for ${id}`);
       if (keepaliveInterval) {
         clearInterval(keepaliveInterval);
-      }
-      if (pollTimeout) {
-        clearTimeout(pollTimeout);
       }
     },
   });
