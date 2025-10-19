@@ -1,3 +1,5 @@
+'use client';
+
 import { Suspense } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
