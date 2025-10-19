@@ -1,12 +1,34 @@
+// IMPORTANT: Ensure vendor packages are extracted before any imports
+// pnpm postinstall doesn't always run reliably for global installs from URLs
+import { existsSync } from "fs";
+import { resolve, join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { execFileSync } from "child_process";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Check if agent-core is missing and extract from vendor if needed
+const nodeModulesDir = resolve(__dirname, "../../");
+const agentCorePath = join(nodeModulesDir, "@sentryvibe", "agent-core");
+if (!existsSync(agentCorePath)) {
+  console.log("🔧 Initializing vendor packages...");
+  try {
+    const installScript = resolve(__dirname, "../scripts/install-vendor.js");
+    execFileSync("node", [installScript], {
+      cwd: resolve(__dirname, ".."),
+      stdio: "inherit"
+    });
+  } catch (error) {
+    console.error("Failed to initialize vendor packages:", error);
+    process.exit(1);
+  }
+}
+
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { createInstrumentedCodex } from "@sentry/node";
 import { config as loadEnv } from "dotenv";
-import { resolve, join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 import WebSocket from "ws";
