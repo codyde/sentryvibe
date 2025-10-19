@@ -162,7 +162,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     };
   }, [isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
 
-  // Simplified tunnel loading: show while starting, hide when URL appears
+  // Tunnel loading with client-side DNS verification
   useEffect(() => {
     const currentTunnelUrl = currentProject?.tunnelUrl;
 
@@ -173,11 +173,49 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       return;
     }
 
-    // Hide loading once tunnel URL appears (backend has verified it's ready)
+    // Verify tunnel URL is resolvable in browser before showing iframe
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      console.log('✅ Tunnel URL received, ready to display');
+      console.log('🔗 Tunnel URL received, verifying browser can resolve DNS...');
       lastTunnelUrlRef.current = currentTunnelUrl;
-      setIsTunnelLoading(false);
+      setIsTunnelLoading(true);
+
+      // Verify browser can actually reach the tunnel
+      (async () => {
+        const maxAttempts = 20; // 20 attempts × 1s = 20 seconds max
+        let resolved = false;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
+
+            // Use no-cors mode to avoid CORS blocking the check
+            // We just need to verify DNS resolves and connection succeeds
+            await fetch(currentTunnelUrl, {
+              method: 'HEAD',
+              mode: 'no-cors',
+              cache: 'no-store', // Don't use cached responses
+            });
+
+            console.log(`✅ Browser DNS verified in ${attempt} seconds`);
+            resolved = true;
+            setIsTunnelLoading(false);
+            return;
+          } catch (error: any) {
+            console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
+
+            // Wait 1 second between attempts
+            if (attempt < maxAttempts) {
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+        }
+
+        if (!resolved) {
+          console.warn(`⚠️  Browser DNS verification timeout after ${maxAttempts}s, showing anyway (may fail)`);
+        }
+        setIsTunnelLoading(false);
+      })();
+
       return;
     }
 
@@ -537,7 +575,32 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   isolation: 'isolate',
                 }}
                 title="Preview"
-                onLoad={() => setIsRefreshing(false)}
+                onLoad={(e) => {
+                  setIsRefreshing(false);
+                  console.log('✅ Iframe onLoad fired for:', previewUrl);
+
+                  // Try to access iframe content for debugging
+                  const iframe = e.currentTarget;
+                  setTimeout(() => {
+                    try {
+                      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                      if (doc) {
+                        const bodyText = doc.body?.innerText?.substring(0, 100);
+                        console.log('📄 Iframe body preview:', bodyText);
+
+                        // Check for common error pages
+                        if (bodyText?.includes('Application error') || bodyText?.includes('502') || bodyText?.includes('503')) {
+                          console.error('🚨 Iframe loaded error page:', bodyText);
+                        }
+                      }
+                    } catch (err) {
+                      console.log('⚠️  Cannot access iframe content (cross-origin)');
+                    }
+                  }, 500);
+                }}
+                onError={(e) => {
+                  console.error('🚨 Iframe error event:', e);
+                }}
               />
 
             </div>
