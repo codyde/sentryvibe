@@ -2600,7 +2600,7 @@ function HomeContent() {
                                 state={generationState}
                                 templateInfo={selectedTemplate}
                                 defaultCollapsed={!generationState.isActive}
-                                onClose={() => updateGenerationState(null)}
+                                onClose={generationState.isActive ? () => updateGenerationState(null) : undefined}
                                 onViewFiles={() => {
                                   window.dispatchEvent(
                                     new CustomEvent("switch-to-editor")
