@@ -59,9 +59,18 @@ export async function GET(
           }
         }, 15000);
 
-        // Poll database for changes every 2 seconds
-        // (Lighter than 500ms polling, still responsive)
-        const pollInterval = setInterval(async () => {
+        // Adaptive polling: fast during transitions, slow when stable
+        let lastState = JSON.stringify({
+          devServerStatus: initialProject[0].devServerStatus,
+          devServerPort: initialProject[0].devServerPort,
+          tunnelUrl: initialProject[0].tunnelUrl,
+        });
+
+        let currentPollInterval = 2000; // Start with 2s
+        let pollTimeout: NodeJS.Timeout | null = null;
+        let stableCount = 0; // Track how long state has been stable
+
+        const doPoll = async () => {
           try {
             const updatedProject = await db.select()
               .from(projects)
@@ -69,16 +78,53 @@ export async function GET(
               .limit(1);
 
             if (updatedProject.length > 0) {
-              const data = `data: ${JSON.stringify({
-                type: 'status-update',
-                project: updatedProject[0],
-              })}\n\n`;
-              controller.enqueue(encoder.encode(data));
+              const proj = updatedProject[0];
+
+              // Only send if status/port/tunnel changed
+              const currentState = JSON.stringify({
+                devServerStatus: proj.devServerStatus,
+                devServerPort: proj.devServerPort,
+                tunnelUrl: proj.tunnelUrl,
+              });
+
+              if (currentState !== lastState) {
+                lastState = currentState;
+                stableCount = 0; // Reset stability counter
+
+                const data = `data: ${JSON.stringify({
+                  type: 'status-update',
+                  project: proj,
+                })}\n\n`;
+                controller.enqueue(encoder.encode(data));
+                console.log(`📤 Status changed for ${id}:`, proj.devServerStatus, proj.devServerPort);
+
+                // Adjust poll interval based on state
+                if (proj.devServerStatus === 'starting') {
+                  currentPollInterval = 1000; // 1s during startup (critical phase)
+                } else if (proj.devServerStatus === 'running') {
+                  currentPollInterval = 5000; // 5s when running (stable)
+                } else {
+                  currentPollInterval = 10000; // 10s when stopped/failed (rare changes)
+                }
+              } else {
+                stableCount++;
+
+                // If stable for 5 consecutive polls, slow down further
+                if (stableCount >= 5 && proj.devServerStatus === 'running') {
+                  currentPollInterval = 15000; // 15s when very stable
+                }
+              }
             }
           } catch (err) {
             console.error(`   Failed to poll project ${id}:`, err);
           }
-        }, 2000);
+
+          // Schedule next poll with current interval
+          pollTimeout = setTimeout(doPoll, currentPollInterval);
+        };
+
+        // Start polling
+        pollTimeout = setTimeout(doPoll, currentPollInterval);
 
         // Cleanup on connection close
         req.signal.addEventListener('abort', () => {
@@ -86,12 +132,11 @@ export async function GET(
           if (keepaliveInterval) {
             clearInterval(keepaliveInterval);
           }
-          clearInterval(pollInterval);
+          if (pollTimeout) {
+            clearTimeout(pollTimeout);
+          }
           controller.close();
         });
-
-        // Store intervals for cleanup
-        (controller as any)._intervals = { keepaliveInterval, pollInterval };
       } catch (error) {
         console.error(`❌ Error starting status stream for ${id}:`, error);
         controller.error(error);
@@ -102,6 +147,9 @@ export async function GET(
       console.log(`🛑 Status stream cancelled for ${id}`);
       if (keepaliveInterval) {
         clearInterval(keepaliveInterval);
+      }
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
       }
     },
   });
