@@ -1387,6 +1387,19 @@ function HomeContent() {
             }
           } else if (data.type === "text-end") {
             console.log("✅ Text block finished:", data.id);
+
+            // Add completed text block to messages array for conversation display
+            const textBlock = textBlocksMap.get(data.id);
+            if (textBlock && textBlock.text && textBlock.text.trim()) {
+              const textMessage: Message = {
+                id: `text-msg-${data.id}`,
+                role: "assistant",
+                parts: [{ type: "text", text: textBlock.text }],
+              };
+
+              setMessages((prev) => [...prev, textMessage]);
+              console.log("   📝 Added text block to conversation:", textBlock.text.substring(0, 80));
+            }
           } else if (data.type?.startsWith("codex-")) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             updateCodexState((codex) => processCodexEvent(codex, data as any));

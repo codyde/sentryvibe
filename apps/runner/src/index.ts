@@ -380,7 +380,7 @@ function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
-      CODEX_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
+      CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
       prompt.length
     );
 
@@ -389,7 +389,7 @@ function createCodexQuery(): BuildQueryFn {
       workingDirectory,
     });
 
-    const systemParts: string[] = [CODEX_SYSTEM_PROMPT.trim()];
+    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()];
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
@@ -568,11 +568,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
       const nextPrompt = `Work on this specific task NOW: "${currentTask.content}"
 
 Execute ALL necessary file operations and commands to fully complete this task.
-Don't just plan - TAKE ACTION and create/modify files.
-
-After completing the work, provide a brief 2-3 sentence update ONLY.
-
-DO NOT INCLUDE ANY TASK STATUS - THE SYSTEM WILL HANDLE THAT.`;
+Don't just plan - TAKE ACTION and create/modify files.`;
 
       // ========================================
       // EXECUTE NEXT TURN
