@@ -88,14 +88,14 @@ export class TunnelManager extends EventEmitter {
   }
 
   /**
-   * Verify tunnel is actually responding
-   * Uses active polling instead of blind wait
+   * Verify tunnel is actually responding (async, non-blocking)
+   * This runs in background and only logs results
    */
-  private async _verifyTunnelReady(url: string, maxWaitMs = 10000): Promise<boolean> {
+  private async _verifyTunnelReady(url: string, maxWaitMs = 15000): Promise<boolean> {
     const startTime = Date.now();
-    const checkInterval = 500; // Check every 500ms
+    const checkInterval = 1000; // Check every 1 second (less aggressive)
 
-    console.log(`🔍 Verifying tunnel is ready: ${url}`);
+    console.log(`🔍 [Background] Verifying tunnel is ready: ${url}`);
 
     while (Date.now() - startTime < maxWaitMs) {
       try {
@@ -113,19 +113,19 @@ export class TunnelManager extends EventEmitter {
         // We just need to verify it's resolving and routing
         if (response.status < 500 || response.ok) {
           const elapsed = Date.now() - startTime;
-          console.log(`✅ Tunnel verified ready in ${elapsed}ms`);
+          console.log(`✅ [Background] Tunnel verified in ${elapsed}ms`);
           return true;
         }
       } catch (error) {
         // Expected while DNS propagates or tunnel initializes
-        // Will keep retrying
+        // Will keep retrying silently
       }
 
       await new Promise(resolve => setTimeout(resolve, checkInterval));
     }
 
-    console.warn(`⚠️  Tunnel verification timeout after ${maxWaitMs}ms, but may still work`);
-    return false; // Timeout, but don't fail - tunnel might still work
+    console.log(`⏱️  [Background] Verification timeout after ${maxWaitMs}ms (tunnel may still work)`);
+    return false;
   }
 
   /**
@@ -178,10 +178,20 @@ export class TunnelManager extends EventEmitter {
 
           console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
 
-          // Actively verify tunnel is ready instead of blind wait
-          await this._verifyTunnelReady(url);
+          // Start async verification in background (don't wait)
+          // This logs results but doesn't block tunnel creation
+          this._verifyTunnelReady(url).then((verified) => {
+            if (verified) {
+              console.log(`✅ Tunnel verified working: ${url}`);
+            } else {
+              console.log(`⚠️  Tunnel verification timed out, but tunnel may still work: ${url}`);
+            }
+          }).catch((err) => {
+            console.log(`⚠️  Tunnel verification failed: ${err.message}`);
+          });
 
-          console.log(`✅ Tunnel ready: ${url}`);
+          // Return immediately - don't wait for verification
+          console.log(`✅ Tunnel ready (async verification in progress): ${url}`);
           resolve(url);
         }
       };
