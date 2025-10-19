@@ -1189,6 +1189,17 @@ function HomeContent() {
       return;
     }
 
+    // Initialize template info from existing project if available
+    if (project.projectType && project.projectType !== "unknown" && !selectedTemplate) {
+      const agentName = selectedAgentId === "claude-code" ? "Claude Sonnet 4.5" : "GPT-5 Codex";
+      setSelectedTemplate({
+        name: project.projectType,
+        framework: project.projectType,
+        analyzedBy: agentName,
+      });
+      console.log(`📦 Initialized template info from project: ${project.projectType}`);
+    }
+
     // Detect operation type
     const operationType = detectOperationType({
       project,

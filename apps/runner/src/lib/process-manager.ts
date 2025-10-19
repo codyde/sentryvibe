@@ -85,7 +85,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       .then(() => {
         console.log(`[process-manager] ✅ Persisted process to database: PID ${childProcess.pid}`);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(`[process-manager] ❌ Failed to persist process to database:`, err);
       });
   }
@@ -128,7 +128,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
                 .then(() => {
                   console.log(`[process-manager] ✅ Updated port ${port} in database`);
                 })
-                .catch((err) => {
+                .catch((err: unknown) => {
                   console.error(`[process-manager] ❌ Failed to update port in database:`, err);
                 });
             } else if (!ready) {
@@ -157,7 +157,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       .then(() => {
         console.log(`[process-manager] ✅ Removed process from database`);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(`[process-manager] ❌ Failed to remove process from database:`, err);
       });
   });

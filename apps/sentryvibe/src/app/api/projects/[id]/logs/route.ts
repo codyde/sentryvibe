@@ -20,6 +20,9 @@ export async function GET(
         start(controller) {
           console.log(`📤 SSE stream started for ${id}`);
 
+          // Send initial connected message to establish stream (fixes EventSource onopen not firing)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`));
+
           // Send existing logs
           const existingLogs = getRunnerLogs(id);
           console.log(`   Sending ${existingLogs.length} existing log entries (runner)`);

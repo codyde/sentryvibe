@@ -76,9 +76,17 @@ export function BuildHeader({
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-gray-400">
-                  {completed} of {total} complete • Click to expand
-                </p>
+                <div className="space-y-0.5">
+                  <p className="text-xs text-gray-400">
+                    {completed} of {total} complete • Click to expand
+                  </p>
+                  {templateInfo && (
+                    <p className="text-xs text-purple-300/70">
+                      {templateInfo.framework}
+                      {templateInfo.analyzedBy && ` • ${templateInfo.analyzedBy}`}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>

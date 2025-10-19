@@ -24,6 +24,9 @@ export async function GET(
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        // Send connected message first to establish stream
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`));
+
         // Send initial project state immediately
         const initialProject = await db.select()
           .from(projects)
