@@ -225,13 +225,24 @@ export async function initCommand(options: InitOptions) {
       databaseUrl = await setupDatabase(monorepoPath) || undefined;
     } else if (!isNonInteractive) {
       // User declined Neon setup - offer manual connection
-      const shouldConnectManually = await prompts.confirm(
-        'Would you like to connect an existing database?',
-        true  // Default to YES
-      );
+      try {
+        const shouldConnectManually = await prompts.confirm(
+          'Would you like to connect an existing database?',
+          true  // Default to YES
+        );
 
-      if (shouldConnectManually) {
-        databaseUrl = await connectManualDatabase() || undefined;
+        if (shouldConnectManually) {
+          databaseUrl = await connectManualDatabase() || undefined;
+        }
+      } catch (error) {
+        // Handle user cancellation (Ctrl+C) gracefully
+        if (error && typeof error === 'object' && 'name' in error && error.name === 'ExitPromptError') {
+          logger.log('');
+          logger.info('Database setup cancelled');
+        } else {
+          // Re-throw unexpected errors
+          throw error;
+        }
       }
     }
 
