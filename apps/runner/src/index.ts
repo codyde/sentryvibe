@@ -682,38 +682,40 @@ function createBuildQuery(agent: AgentId): BuildQueryFn {
 /**
  * Cleanup orphaned processes on startup
  */
-async function cleanupOrphanedProcesses() {
+async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string) {
   console.log('🧹 Cleaning up orphaned processes from previous runs...');
 
-  const { db } = await import('@sentryvibe/agent-core/lib/db/client');
-  const { runningProcesses, projects } = await import('@sentryvibe/agent-core/lib/db/schema');
-  const { eq } = await import('drizzle-orm');
-
   try {
-    const rows = await db.select().from(runningProcesses);
-    console.log(`   Found ${rows.length} processes in database`);
+    // Get list of processes from API
+    const response = await fetch(`${apiBaseUrl}/api/runner/process/list`, {
+      headers: {
+        'Authorization': `Bearer ${runnerSharedSecret}`,
+      },
+    });
 
-    for (const row of rows) {
+    if (!response.ok) {
+      console.error('❌ Failed to fetch process list for cleanup');
+      return;
+    }
+
+    const { processes } = await response.json();
+    console.log(`   Found ${processes.length} processes to check`);
+
+    for (const row of processes) {
       try {
-        // Check if process still exists (signal 0 = check existence, doesn't actually kill)
+        // Check if process still exists locally (signal 0 = check existence, doesn't kill)
         process.kill(row.pid, 0);
         console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
       } catch (err) {
-        // Process doesn't exist - orphaned
+        // Process doesn't exist - orphaned, unregister via API
         console.log(`   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(0, 8)}), cleaning up`);
 
-        // Remove from running_processes table
-        await db.delete(runningProcesses)
-          .where(eq(runningProcesses.projectId, row.projectId));
-
-        // Update project status
-        await db.update(projects)
-          .set({
-            devServerStatus: 'stopped',
-            devServerPid: null,
-            devServerPort: null,
-          })
-          .where(eq(projects.id, row.projectId));
+        await fetch(`${apiBaseUrl}/api/runner/process/${row.projectId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${runnerSharedSecret}`,
+          },
+        });
       }
     }
 
@@ -748,72 +750,62 @@ async function checkPortInUse(port: number): Promise<boolean> {
 /**
  * Start periodic health checks for running processes
  */
-function startPeriodicHealthChecks() {
+function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string) {
   console.log('🏥 Starting periodic port health checks (every 30s)...');
 
   setInterval(async () => {
-    const { db } = await import('@sentryvibe/agent-core/lib/db/client');
-    const { runningProcesses, projects } = await import('@sentryvibe/agent-core/lib/db/schema');
-    const { eq } = await import('drizzle-orm');
-
     try {
-      const rows = await db.select().from(runningProcesses);
+      // Get list of processes to health check from API
+      const response = await fetch(`${apiBaseUrl}/api/runner/process/list`, {
+        headers: {
+          'Authorization': `Bearer ${runnerSharedSecret}`,
+        },
+      });
 
-      for (const row of rows) {
+      if (!response.ok) {
+        console.error('❌ Failed to fetch process list for health check');
+        return;
+      }
+
+      const { processes } = await response.json();
+
+      for (const row of processes) {
         if (!row.port) continue; // Skip if no port detected yet
 
+        // Check port locally (runner can access localhost)
         const isListening = await checkPortInUse(row.port);
 
+        const newFailCount = isListening ? 0 : (row.healthCheckFailCount || 0) + 1;
+
+        if (!isListening && newFailCount >= 3) {
+          // Failed 3 times - kill the process locally and report to API
+          console.log(`   ❌ Port ${row.port} not in use after 3 checks, killing process for project ${row.projectId.slice(0, 8)}`);
+
+          // Stop the process if it still exists
+          try {
+            process.kill(row.pid, 'SIGTERM');
+            console.log(`      Sent SIGTERM to PID ${row.pid}`);
+          } catch (err) {
+            // Process already dead
+          }
+        }
+
+        // Report health status to API
+        await fetch(`${apiBaseUrl}/api/runner/process/${row.projectId}/health`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${runnerSharedSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            port: row.port,
+            status: isListening ? 'healthy' : 'unhealthy',
+            failCount: newFailCount,
+          }),
+        });
+
         if (!isListening) {
-          // Port not in use - server may have crashed
-          const newFailCount = (row.healthCheckFailCount || 0) + 1;
-
-          if (newFailCount >= 3) {
-            // Failed 3 times - cleanup
-            console.log(`   ❌ Port ${row.port} not in use after 3 checks, cleaning up project ${row.projectId.slice(0, 8)}`);
-
-            // Stop the process if it still exists
-            try {
-              process.kill(row.pid, 'SIGTERM');
-              console.log(`      Sent SIGTERM to PID ${row.pid}`);
-            } catch (err) {
-              // Process already dead
-            }
-
-            // Remove from database
-            await db.delete(runningProcesses)
-              .where(eq(runningProcesses.projectId, row.projectId));
-
-            // Update project status
-            await db.update(projects)
-              .set({
-                devServerStatus: 'failed',
-                devServerPort: null,
-              })
-              .where(eq(projects.id, row.projectId));
-          } else {
-            // Increment fail count
-            await db.update(runningProcesses)
-              .set({ healthCheckFailCount: newFailCount })
-              .where(eq(runningProcesses.projectId, row.projectId));
-
-            console.log(`   ⚠️  Port ${row.port} not in use (fail ${newFailCount}/3) for project ${row.projectId.slice(0, 8)}`);
-          }
-        } else {
-          // Port is in use - server healthy, reset fail count
-          if (row.healthCheckFailCount > 0) {
-            await db.update(runningProcesses)
-              .set({
-                healthCheckFailCount: 0,
-                lastHealthCheck: new Date(),
-              })
-              .where(eq(runningProcesses.projectId, row.projectId));
-          } else {
-            // Just update last health check
-            await db.update(runningProcesses)
-              .set({ lastHealthCheck: new Date() })
-              .where(eq(runningProcesses.projectId, row.projectId));
-          }
+          console.log(`   ⚠️  Port ${row.port} not in use (fail ${newFailCount}/3) for project ${row.projectId.slice(0, 8)}`);
         }
       }
     } catch (error) {
@@ -838,15 +830,33 @@ export function startRunner(options: RunnerOptions = {}) {
     options.sharedSecret || process.env.RUNNER_SHARED_SECRET;
   const HEARTBEAT_INTERVAL_MS = options.heartbeatInterval || 15_000;
 
+  // Derive API base URL from broker URL (same host, http/https protocol)
+  const apiBaseUrl = process.env.API_BASE_URL || (() => {
+    const brokerUrl = new URL(BROKER_URL);
+    const protocol = brokerUrl.protocol === 'wss:' ? 'https:' : 'http:';
+    return `${protocol}//${brokerUrl.host}`;
+  })();
+
   if (!SHARED_SECRET) {
     console.error("RUNNER_SHARED_SECRET is required");
     throw new Error("RUNNER_SHARED_SECRET is required");
   }
 
+  const runnerSharedSecret = SHARED_SECRET; // Guaranteed to be string after check
+
+  // Set environment variables for process-manager and other modules
+  process.env.API_BASE_URL = apiBaseUrl;
+  process.env.RUNNER_SHARED_SECRET = runnerSharedSecret;
+
+  log("api base url:", apiBaseUrl);
+
   // Cleanup orphaned processes on startup
-  cleanupOrphanedProcesses().catch((err) => {
+  cleanupOrphanedProcesses(apiBaseUrl, runnerSharedSecret).catch((err) => {
     console.error('❌ Failed to cleanup orphaned processes on startup:', err);
   });
+
+  // Start periodic health checks
+  startPeriodicHealthChecks(apiBaseUrl, runnerSharedSecret);
 
   let socket: WebSocket | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;

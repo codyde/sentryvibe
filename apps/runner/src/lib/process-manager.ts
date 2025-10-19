@@ -2,9 +2,36 @@ import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { isPortReady } from './port-checker.js';
-import { db } from '@sentryvibe/agent-core/lib/db/client';
-import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq } from 'drizzle-orm';
+
+// API configuration
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+const RUNNER_SECRET = process.env.RUNNER_SHARED_SECRET;
+
+/**
+ * Make authenticated API call to frontend
+ */
+async function callAPI(endpoint: string, options: RequestInit = {}) {
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${RUNNER_SECRET}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`API call failed (${response.status}): ${error}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`API call to ${endpoint} failed:`, error);
+    throw error;
+  }
+}
 
 interface DevServerOptions {
   projectId: string;
@@ -61,32 +88,22 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   activeProcesses.set(projectId, devProcess);
 
-  // Persist to database
+  // Register process with API
   if (childProcess.pid) {
-    db.insert(runningProcesses)
-      .values({
+    callAPI('/api/runner/process/register', {
+      method: 'POST',
+      body: JSON.stringify({
         projectId,
         pid: childProcess.pid,
         command,
-        port: null,
-        startedAt: new Date(),
-        healthCheckFailCount: 0,
-      })
-      .onConflictDoUpdate({
-        target: runningProcesses.projectId,
-        set: {
-          pid: childProcess.pid,
-          command,
-          port: null,
-          startedAt: new Date(),
-          healthCheckFailCount: 0,
-        },
-      })
+        startedAt: new Date().toISOString(),
+      }),
+    })
       .then(() => {
-        console.log(`[process-manager] ✅ Persisted process to database: PID ${childProcess.pid}`);
+        console.log(`[process-manager] ✅ Registered process via API: PID ${childProcess.pid}`);
       })
       .catch((err: unknown) => {
-        console.error(`[process-manager] ❌ Failed to persist process to database:`, err);
+        console.error(`[process-manager] ❌ Failed to register process via API:`, err);
       });
   }
 
@@ -118,18 +135,16 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
               console.log(`[process-manager] ✅ Verified port ${port} is listening`);
               emitter.emit('port', port);
 
-              // Update database with detected port
-              db.update(runningProcesses)
-                .set({
-                  port,
-                  lastHealthCheck: new Date(),
-                })
-                .where(eq(runningProcesses.projectId, projectId))
+              // Update port via API
+              callAPI(`/api/runner/process/${projectId}/port`, {
+                method: 'PATCH',
+                body: JSON.stringify({ port }),
+              })
                 .then(() => {
-                  console.log(`[process-manager] ✅ Updated port ${port} in database`);
+                  console.log(`[process-manager] ✅ Updated port ${port} via API`);
                 })
                 .catch((err: unknown) => {
-                  console.error(`[process-manager] ❌ Failed to update port in database:`, err);
+                  console.error(`[process-manager] ❌ Failed to update port via API:`, err);
                 });
             } else if (!ready) {
               console.log(`[process-manager] ⚠️  Port ${port} not ready, will retry on next output`);
@@ -151,14 +166,15 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     emitter.emit('exit', { code, signal });
     activeProcesses.delete(projectId);
 
-    // Remove from database
-    db.delete(runningProcesses)
-      .where(eq(runningProcesses.projectId, projectId))
+    // Unregister process via API
+    callAPI(`/api/runner/process/${projectId}`, {
+      method: 'DELETE',
+    })
       .then(() => {
-        console.log(`[process-manager] ✅ Removed process from database`);
+        console.log(`[process-manager] ✅ Unregistered process via API`);
       })
       .catch((err: unknown) => {
-        console.error(`[process-manager] ❌ Failed to remove process from database:`, err);
+        console.error(`[process-manager] ❌ Failed to unregister process via API:`, err);
       });
   });
 
