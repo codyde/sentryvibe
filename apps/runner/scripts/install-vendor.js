@@ -13,7 +13,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.join(__dirname, '..');
 const vendorDir = path.join(packageRoot, 'vendor');
-const nodeModules = path.join(packageRoot, 'node_modules');
+
+// Detect the correct node_modules location for both npm and pnpm
+// In pnpm global installs: packageRoot is .../node_modules/@sentryvibe/runner-cli/
+// We need to go up to the shared node_modules: .../node_modules/
+// In npm: similar structure but may vary, so we check both locations
+function findNodeModules() {
+  // Try going up two levels (works for pnpm: @sentryvibe/runner-cli -> @sentryvibe -> node_modules)
+  const pnpmStyle = path.join(packageRoot, '..', '..');
+
+  // Try one level up (packageRoot/node_modules)
+  const npmStyle = path.join(packageRoot, 'node_modules');
+
+  // Check if pnpmStyle has @sentryvibe directory (indicates it's the shared node_modules)
+  if (existsSync(path.join(pnpmStyle, '@sentryvibe')) ||
+      existsSync(path.join(pnpmStyle, '@sentry'))) {
+    return pnpmStyle;
+  }
+
+  // Fall back to npm style
+  return npmStyle;
+}
+
+const nodeModules = findNodeModules();
 
 const packages = [
   { name: 'core', tarball: 'sentry-core-LOCAL.tgz' },
@@ -23,6 +45,8 @@ const packages = [
 ];
 
 console.log('Installing vendor Sentry packages...');
+console.log(`  Vendor directory: ${vendorDir}`);
+console.log(`  Target node_modules: ${nodeModules}`);
 
 if (!existsSync(vendorDir)) {
   console.log('No vendor directory found, skipping...');
