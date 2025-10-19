@@ -1,11 +1,76 @@
 'use client';
 
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Circle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import type { TodoItem, ToolCall, TextMessage } from '@/types/generation';
 import { ToolCallMiniCard } from './ToolCallMiniCard';
+
+// Collapsible text update card component
+function TextUpdateCard({ message }: { message: TextMessage }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const previewText = message.text
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/#+ /g, '')
+    .replace(/\n/g, ' ')
+    .trim()
+    .substring(0, 60);
+
+  const needsEllipsis = message.text.length > 60;
+
+  return (
+    <div className="ml-6 rounded-md border border-purple-500/20 bg-purple-950/10 overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-3 py-2 flex items-center justify-between hover:bg-purple-500/5 transition-colors"
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <MessageSquare className="w-3 h-3 text-purple-400 flex-shrink-0" />
+          <p className="text-xs text-gray-300 truncate">
+            {previewText}{needsEllipsis && '...'}
+          </p>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="w-3 h-3 text-gray-400 flex-shrink-0" />
+        ) : (
+          <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+        )}
+      </button>
+
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 pb-2 pt-1 border-t border-purple-500/10 text-xs">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  p: ({ children }) => <p className="text-gray-300 leading-relaxed mb-1.5 last:mb-0">{children}</p>,
+                  strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+                  code: ({ children }) => <code className="px-1 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono text-xs">{children}</code>,
+                  ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 text-gray-300">{children}</ul>,
+                  li: ({ children }) => <li className="text-xs">{children}</li>,
+                }}
+              >
+                {message.text}
+              </ReactMarkdown>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 interface TodoListProps {
   todos: TodoItem[];
@@ -35,9 +100,10 @@ export function TodoList({
       <AnimatePresence mode="popLayout">
         {todos.map((todo, index) => {
           const tools = toolsByTodo[index] || [];
+          const textMessages = textByTodo[index] || [];
           const isExpanded = expandedTodos.has(index);
           const isActive = index === activeTodoIndex;
-          const hasContent = tools.length > 0; // Only tools, no text messages
+          const hasContent = tools.length > 0 || textMessages.length > 0;
           const isLastTodo = index === todos.length - 1;
           const isFinalSummary = isLastTodo && allTodosCompleted;
 
@@ -127,7 +193,12 @@ export function TodoList({
                     exit={{ height: 0, opacity: 0 }}
                     className="mt-2 space-y-2"
                   >
-                    {/* Tools only - no text messages */}
+                    {/* Text Messages - Collapsible Cards */}
+                    {textMessages.map((textMsg) => (
+                      <TextUpdateCard key={textMsg.id} message={textMsg} />
+                    ))}
+
+                    {/* Tool Calls */}
                     {tools.map((tool) => (
                       <ToolCallMiniCard key={tool.id} tool={tool} />
                     ))}

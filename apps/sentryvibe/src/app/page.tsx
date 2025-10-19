@@ -1387,19 +1387,8 @@ function HomeContent() {
             }
           } else if (data.type === "text-end") {
             console.log("✅ Text block finished:", data.id);
-
-            // Add completed text block to messages array for conversation display
-            const textBlock = textBlocksMap.get(data.id);
-            if (textBlock && textBlock.text && textBlock.text.trim()) {
-              const textMessage: Message = {
-                id: `text-msg-${data.id}`,
-                role: "assistant",
-                parts: [{ type: "text", text: textBlock.text }],
-              };
-
-              setMessages((prev) => [...prev, textMessage]);
-              console.log("   📝 Added text block to conversation:", textBlock.text.substring(0, 80));
-            }
+            // Text messages are stored in textByTodo and displayed inside BuildProgress
+            // Don't add to main conversation messages array
           } else if (data.type?.startsWith("codex-")) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             updateCodexState((codex) => processCodexEvent(codex, data as any));
@@ -2879,17 +2868,7 @@ function HomeContent() {
                                           );
                                         }
 
-                                        // Use ChatUpdate card for assistant text messages
-                                        if (message.role === "assistant" && part.text) {
-                                          return (
-                                            <ChatUpdate
-                                              key={i}
-                                              content={part.text}
-                                              defaultCollapsed={true}
-                                            />
-                                          );
-                                        }
-
+                                        // Regular text messages (not during active build)
                                         return (
                                           <div
                                             key={i}
