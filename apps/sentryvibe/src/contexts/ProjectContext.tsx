@@ -18,6 +18,7 @@ export interface Project {
   devServerPort: number | null;
   devServerStatus: 'stopped' | 'starting' | 'running' | 'failed' | null;
   tunnelUrl: string | null;
+  runnerId: string | null; // Runner that created/manages this project
   generationState: string | null; // Serialized JSON of GenerationState
   lastActivityAt: Date | null;
   errorMessage: string | null;

@@ -3,7 +3,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
-import { getActiveRunnerId } from '@/lib/runner-utils';
+import { getProjectRunnerId } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
 
 // GET /api/projects/:id - Get single project
@@ -38,7 +38,7 @@ export async function PATCH(
     // Validate allowed fields
     const allowedFields = [
       'name', 'description', 'originalPrompt', 'icon', 'status', 'projectType', 'runCommand',
-      'port', 'devServerPid', 'devServerPort', 'devServerStatus', 'generationState',
+      'port', 'devServerPid', 'devServerPort', 'devServerStatus', 'runnerId', 'generationState',
       'lastActivityAt', 'errorMessage'
     ];
 
@@ -101,7 +101,8 @@ export async function DELETE(
     // Optionally delete filesystem - delegate to runner
     if (deleteFiles && project[0].slug) {
       try {
-        const runnerId = await getActiveRunnerId();
+        // Try to use project's saved runner, fallback to any available runner
+        const runnerId = await getProjectRunnerId(project[0].runnerId);
 
         if (!runnerId) {
           console.warn(`⚠️  No runners connected - skipping file deletion`);

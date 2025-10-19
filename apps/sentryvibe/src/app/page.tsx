@@ -1859,7 +1859,11 @@ function HomeContent() {
         const res = await fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: userPrompt, agent: selectedAgentId }),
+          body: JSON.stringify({
+            prompt: userPrompt,
+            agent: selectedAgentId,
+            runnerId: selectedRunnerId,
+          }),
         });
 
         if (!res.ok) throw new Error("Failed to create project");

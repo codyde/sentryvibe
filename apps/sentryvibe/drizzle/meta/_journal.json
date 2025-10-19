@@ -36,6 +36,13 @@
       "when": 1760300000000,
       "tag": "0004_fix_tool_calls_unique_index",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1760400000000,
+      "tag": "0005_add_runner_id_to_projects",
+      "breakpoints": true
     }
   ]
 }

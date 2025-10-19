@@ -4,6 +4,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
+import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { ReadFileCommand, WriteFileCommand, RunnerEvent } from '@/shared/runner/messages';
 import { randomUUID } from 'crypto';
 
@@ -36,7 +37,16 @@ export async function GET(
     }
 
     const commandId = randomUUID();
-    const runnerId = process.env.RUNNER_DEFAULT_ID || 'default';
+
+    // Try to use project's saved runner, fallback to any available runner
+    const runnerId = await getProjectRunnerId(project.runnerId);
+
+    if (!runnerId) {
+      return NextResponse.json(
+        { error: 'No runners connected' },
+        { status: 503 }
+      );
+    }
 
     // Create a promise that will resolve when we get the file content
     const fileContentPromise = new Promise<{ content: string; size: number }>((resolve, reject) => {
@@ -120,7 +130,16 @@ export async function PUT(
     }
 
     const commandId = randomUUID();
-    const runnerId = process.env.RUNNER_DEFAULT_ID || 'default';
+
+    // Try to use project's saved runner, fallback to any available runner
+    const runnerId = await getProjectRunnerId(project.runnerId);
+
+    if (!runnerId) {
+      return NextResponse.json(
+        { error: 'No runners connected' },
+        { status: 503 }
+      );
+    }
 
     // Create a promise that will resolve when the file is written
     const fileWrittenPromise = new Promise<void>((resolve, reject) => {

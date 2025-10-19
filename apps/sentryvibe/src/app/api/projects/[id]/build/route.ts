@@ -139,6 +139,13 @@ export async function POST(
       content: JSON.stringify([{ type: 'text', text: body.prompt }]),
     });
 
+    // Update project with runnerId if not already set (for existing projects)
+    if (!project[0].runnerId) {
+      await db.update(projects)
+        .set({ runnerId: runnerId })
+        .where(eq(projects.id, id));
+    }
+
     const buildId = body.buildId ?? `build-${Date.now()}`;
 
     const existingSession = await db
