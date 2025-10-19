@@ -9,20 +9,28 @@ import { execFileSync } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Check if agent-core is missing and extract from vendor if needed
-const nodeModulesDir = resolve(__dirname, "../../");
-const agentCorePath = join(nodeModulesDir, "@sentryvibe", "agent-core");
-if (!existsSync(agentCorePath)) {
-  console.log("🔧 Initializing vendor packages...");
-  try {
-    const installScript = resolve(__dirname, "../../scripts/install-vendor.js");
-    execFileSync("node", [installScript], {
-      cwd: resolve(__dirname, "../.."),
-      stdio: "inherit"
-    });
-  } catch (error) {
-    console.error("Failed to initialize vendor packages:", error);
-    process.exit(1);
+// Check if running in development mode (linked via pnpm/npm link)
+// Skip vendor install if we're in the monorepo - dependencies are handled by pnpm
+const isLinkedDevelopment = __dirname.includes('/sentryvibe/apps/runner/dist');
+
+// Only run vendor install for production global installs
+if (!isLinkedDevelopment) {
+  // Check if agent-core is missing and extract from vendor if needed
+  const nodeModulesDir = resolve(__dirname, "../../");
+  const agentCorePath = join(nodeModulesDir, "@sentryvibe", "agent-core");
+
+  if (!existsSync(agentCorePath)) {
+    console.log("🔧 Initializing vendor packages...");
+    try {
+      const installScript = resolve(__dirname, "../../scripts/install-vendor.js");
+      execFileSync("node", [installScript], {
+        cwd: resolve(__dirname, "../.."),
+        stdio: "inherit"
+      });
+    } catch (error) {
+      console.error("Failed to initialize vendor packages:", error);
+      process.exit(1);
+    }
   }
 }
 
