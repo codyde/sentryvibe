@@ -41,6 +41,16 @@ export const portAllocations = pgTable('port_allocations', {
   reservedAt: timestamp('reserved_at').defaultNow(),
 });
 
+export const runningProcesses = pgTable('running_processes', {
+  projectId: uuid('project_id').primaryKey().notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  pid: integer('pid').notNull(),
+  port: integer('port'),
+  command: text('command'),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  lastHealthCheck: timestamp('last_health_check'),
+  healthCheckFailCount: integer('health_check_fail_count').notNull().default(0),
+});
+
 export const generationSessions = pgTable('generation_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),

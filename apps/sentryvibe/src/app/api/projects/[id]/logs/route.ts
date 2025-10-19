@@ -20,6 +20,9 @@ export async function GET(
         start(controller) {
           console.log(`📤 SSE stream started for ${id}`);
 
+          // Send initial connected message to establish stream (fixes EventSource onopen not firing)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`));
+
           // Send existing logs
           const existingLogs = getRunnerLogs(id);
           console.log(`   Sending ${existingLogs.length} existing log entries (runner)`);
@@ -27,6 +30,16 @@ export async function GET(
           for (const log of existingLogs) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'log', data: log.data, stream: log.type })}\n\n`));
           }
+
+          // Start keepalive pings every 15 seconds
+          const keepaliveInterval = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(':keepalive\n\n'));
+            } catch (err) {
+              console.log('   Keepalive failed, stream likely closed');
+              clearInterval(keepaliveInterval);
+            }
+          }, 15000);
 
           const unsubscribe = subscribeToRunnerLogs(id, (event) => {
             try {
@@ -46,17 +59,27 @@ export async function GET(
                     `data: ${JSON.stringify({ type: 'exit', payload: event.payload })}\n\n`
                   )
                 );
+                clearInterval(keepaliveInterval);
                 controller.close();
                 unsubscribe();
               }
             } catch (err) {
               console.error('   ❌ Failed to forward runner log event:', err);
+              clearInterval(keepaliveInterval);
               unsubscribe();
               controller.error(err);
             }
           });
 
+          // Cleanup on connection close
+          req.signal.addEventListener('abort', () => {
+            console.log(`🔌 Client disconnected from log stream for ${id}`);
+            clearInterval(keepaliveInterval);
+            unsubscribe();
+          });
+
           return () => {
+            clearInterval(keepaliveInterval);
             unsubscribe();
           };
         },

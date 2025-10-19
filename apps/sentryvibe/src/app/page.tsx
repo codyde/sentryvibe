@@ -14,6 +14,7 @@ import ProcessManagerModal from "@/components/ProcessManagerModal";
 import SummaryCard from "@/components/SummaryCard";
 import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
+import ChatUpdate from "@/components/ChatUpdate";
 import { AppSidebar } from "@/components/app-sidebar";
 import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -1189,6 +1190,17 @@ function HomeContent() {
       return;
     }
 
+    // Initialize template info from existing project if available
+    if (project.projectType && project.projectType !== "unknown" && !selectedTemplate) {
+      const agentName = selectedAgentId === "claude-code" ? "Claude Sonnet 4.5" : "GPT-5 Codex";
+      setSelectedTemplate({
+        name: project.projectType,
+        framework: project.projectType,
+        analyzedBy: agentName,
+      });
+      console.log(`📦 Initialized template info from project: ${project.projectType}`);
+    }
+
     // Detect operation type
     const operationType = detectOperationType({
       project,
@@ -1353,7 +1365,9 @@ function HomeContent() {
               });
             }
 
-            if (currentMessage?.id) {
+            // During active builds, text messages go to textByTodo only (shown in BuildProgress)
+            // Only add text to main conversation when NOT in active build
+            if (currentMessage?.id && !generationStateRef.current?.isActive) {
               const textParts = Array.from(textBlocksMap.values());
               const filteredParts = currentMessage.parts.filter(
                 (p) => !p.type.startsWith("text")
@@ -1375,6 +1389,8 @@ function HomeContent() {
             }
           } else if (data.type === "text-end") {
             console.log("✅ Text block finished:", data.id);
+            // Text messages are stored in textByTodo and displayed inside BuildProgress
+            // Don't add to main conversation messages array
           } else if (data.type?.startsWith("codex-")) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             updateCodexState((codex) => processCodexEvent(codex, data as any));
@@ -1684,11 +1700,12 @@ function HomeContent() {
             console.log(`   Port: ${metadata.port}`);
 
             // Store for UI display
+            const agentName =
+              selectedAgentId === "claude-code"
+                ? "Claude Sonnet 4.5"
+                : "GPT-5 Codex";
+
             if (metadata.projectType && metadata.projectType !== "unknown") {
-              const agentName =
-                selectedAgentId === "claude-code"
-                  ? "Claude Sonnet 4.5"
-                  : "GPT-5 Codex";
               setSelectedTemplate({
                 name: metadata.projectType,
                 framework: metadata.projectType,
@@ -1697,6 +1714,16 @@ function HomeContent() {
               console.log(
                 `✅ Template selected by ${agentName}: ${metadata.projectType}`
               );
+            } else if (templateProvisioningInfo?.templateName) {
+              // Fallback to provisioning info if metadata lacks framework
+              console.log(
+                `📦 Using provisioning info for template: ${templateProvisioningInfo.templateName}`
+              );
+              setSelectedTemplate({
+                name: templateProvisioningInfo.templateName,
+                framework: templateProvisioningInfo.framework || "Unknown",
+                analyzedBy: agentName,
+              });
             }
           } else if (data.type === "finish") {
             currentMessage = null;
@@ -2843,6 +2870,7 @@ function HomeContent() {
                                           );
                                         }
 
+                                        // Regular text messages (not during active build)
                                         return (
                                           <div
                                             key={i}

@@ -2,6 +2,9 @@ import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { isPortReady } from './port-checker.js';
+import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 interface DevServerOptions {
   projectId: string;
@@ -58,6 +61,35 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   activeProcesses.set(projectId, devProcess);
 
+  // Persist to database
+  if (childProcess.pid) {
+    db.insert(runningProcesses)
+      .values({
+        projectId,
+        pid: childProcess.pid,
+        command,
+        port: null,
+        startedAt: new Date(),
+        healthCheckFailCount: 0,
+      })
+      .onConflictDoUpdate({
+        target: runningProcesses.projectId,
+        set: {
+          pid: childProcess.pid,
+          command,
+          port: null,
+          startedAt: new Date(),
+          healthCheckFailCount: 0,
+        },
+      })
+      .then(() => {
+        console.log(`[process-manager] ✅ Persisted process to database: PID ${childProcess.pid}`);
+      })
+      .catch((err: unknown) => {
+        console.error(`[process-manager] ❌ Failed to persist process to database:`, err);
+      });
+  }
+
   // Track if we've already emitted a port for this process
   let portEmitted = false;
   let portVerificationInProgress = false;
@@ -85,6 +117,20 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
               portEmitted = true;
               console.log(`[process-manager] ✅ Verified port ${port} is listening`);
               emitter.emit('port', port);
+
+              // Update database with detected port
+              db.update(runningProcesses)
+                .set({
+                  port,
+                  lastHealthCheck: new Date(),
+                })
+                .where(eq(runningProcesses.projectId, projectId))
+                .then(() => {
+                  console.log(`[process-manager] ✅ Updated port ${port} in database`);
+                })
+                .catch((err: unknown) => {
+                  console.error(`[process-manager] ❌ Failed to update port in database:`, err);
+                });
             } else if (!ready) {
               console.log(`[process-manager] ⚠️  Port ${port} not ready, will retry on next output`);
               portVerificationInProgress = false;
@@ -104,6 +150,16 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
   childProcess.on('exit', (code, signal) => {
     emitter.emit('exit', { code, signal });
     activeProcesses.delete(projectId);
+
+    // Remove from database
+    db.delete(runningProcesses)
+      .where(eq(runningProcesses.projectId, projectId))
+      .then(() => {
+        console.log(`[process-manager] ✅ Removed process from database`);
+      })
+      .catch((err: unknown) => {
+        console.error(`[process-manager] ❌ Failed to remove process from database:`, err);
+      });
   });
 
   // Handle errors

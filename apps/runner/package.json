@@ -59,6 +59,7 @@
     "commander": "^14.0.1",
     "conf": "^15.0.2",
     "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.44.5",
     "inquirer": "^12.9.6",
     "ora": "^9.0.0",
     "simple-git": "^3.28.0",

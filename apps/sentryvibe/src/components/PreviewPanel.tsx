@@ -80,9 +80,53 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
+  const [liveProject, setLiveProject] = useState(project);
+
+  // Use live project data if available (from SSE), otherwise fall back to context
+  const currentProject = liveProject || project;
 
   // Use terminal-detected port if available, otherwise fall back to DB port
-  const actualPort = terminalPort || project?.devServerPort;
+  const actualPort = terminalPort || currentProject?.devServerPort;
+
+  // Real-time status updates via SSE
+  useEffect(() => {
+    if (!project?.id) {
+      setLiveProject(null);
+      return;
+    }
+
+    console.log(`📡 Connecting to status stream for project: ${project.id}`);
+    const eventSource = new EventSource(`/api/projects/${project.id}/status-stream`);
+
+    eventSource.onmessage = (event) => {
+      // Ignore keepalive pings
+      if (event.data === ':keepalive') return;
+
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'status-update' && data.project) {
+          console.log(`✅ SSE: Status update for ${project.id}`, {
+            status: data.project.devServerStatus,
+            port: data.project.devServerPort,
+            tunnel: data.project.tunnelUrl,
+          });
+          setLiveProject(data.project);
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE status event:', err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.warn('SSE status connection error, will reconnect...');
+      eventSource.close();
+    };
+
+    return () => {
+      console.log(`🔌 Disconnecting status stream for ${project.id}`);
+      eventSource.close();
+    };
+  }, [project?.id]);
 
   // Show loading screen immediately when tunnel starts, keep showing until ready
   useEffect(() => {
@@ -93,7 +137,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       return;
     }
 
-    const currentTunnelUrl = project?.tunnelUrl;
+    const currentTunnelUrl = currentProject?.tunnelUrl;
 
     // If tunnel URL just appeared (changed from null/undefined to a value)
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
@@ -119,13 +163,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     if (!isStartingTunnel && !currentTunnelUrl) {
       setIsTunnelLoading(false);
     }
-  }, [project?.tunnelUrl, isStartingTunnel]);
+  }, [currentProject?.tunnelUrl, isStartingTunnel]);
 
-  // Construct preview URL - prefer tunnel URL if available, otherwise use localhost directly (bypass proxy)
-  const previewUrl = project?.tunnelUrl && project?.devServerStatus === 'running'
-    ? project.tunnelUrl
-    : (actualPort && isServerReady
-      ? `http://localhost:${actualPort}`
+  // Construct preview URL - prefer tunnel URL if available, otherwise use proxy route to inject selection script
+  const previewUrl = currentProject?.tunnelUrl && currentProject?.devServerStatus === 'running'
+    ? currentProject.tunnelUrl
+    : (actualPort && isServerReady && currentProject?.id
+      ? `/api/projects/${currentProject.id}/proxy?path=/`
       : '');
 
   const checkServerHealth = useCallback(async (port: number): Promise<boolean> => {
@@ -153,7 +197,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // Health check when port changes (terminal or DB)
   useEffect(() => {
-    if (!actualPort || project?.devServerStatus !== 'running') {
+    if (!actualPort || currentProject?.devServerStatus !== 'running') {
       lastReadyPortRef.current = null;
       isCheckingRef.current = false;
       setIsServerReady(false);
@@ -220,7 +264,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       cancelled = true;
       isCheckingRef.current = false;
     };
-  }, [actualPort, project?.devServerStatus, checkServerHealth]);
+  }, [actualPort, currentProject?.devServerStatus, checkServerHealth]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -230,7 +274,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   };
 
   const handleCopyUrl = async () => {
-    const url = project?.tunnelUrl || `http://localhost:${actualPort}`;
+    const url = currentProject?.tunnelUrl || `http://localhost:${actualPort}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -257,8 +301,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   const handleOpenInNewTab = () => {
     // Open tunnel URL if available, otherwise localhost
-    if (project?.tunnelUrl) {
-      window.open(project.tunnelUrl, '_blank');
+    if (currentProject?.tunnelUrl) {
+      window.open(currentProject.tunnelUrl, '_blank');
     } else if (actualPort) {
       window.open(`http://localhost:${actualPort}`, '_blank');
     }
@@ -366,7 +410,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors">
                 <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 flex-shrink-0"></div>
                 <span className="text-xs font-mono text-gray-300 truncate">
-                  {project?.tunnelUrl || `http://localhost:${actualPort}`}
+                  {currentProject?.tunnelUrl || `http://localhost:${actualPort}`}
                 </span>
                 <button
                   onClick={handleCopyUrl}
@@ -437,12 +481,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         {/* Right controls - Server/Tunnel buttons - Always visible */}
         <div className="flex items-center gap-2 ml-auto">
-          {project?.runCommand && (
+          {currentProject?.runCommand && (
             <>
-              {project.devServerStatus === 'running' ? (
+              {currentProject.devServerStatus === 'running' ? (
                 <>
                   {/* Tunnel Controls */}
-                  {project.tunnelUrl ? (
+                  {currentProject.tunnelUrl ? (
                     <button
                       onClick={onStopTunnel}
                       disabled={isStoppingTunnel}
@@ -476,11 +520,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               ) : (
                 <button
                   onClick={onStartServer}
-                  disabled={project.devServerStatus === 'starting' || isStartingServer}
+                  disabled={currentProject.devServerStatus === 'starting' || isStartingServer}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Play className={`w-3.5 h-3.5 ${isStartingServer ? 'animate-pulse' : ''}`} />
-                  {project.devServerStatus === 'starting' || isStartingServer ? 'Starting...' : 'Start'}
+                  {currentProject.devServerStatus === 'starting' || isStartingServer ? 'Starting...' : 'Start'}
                 </button>
               )}
             </>

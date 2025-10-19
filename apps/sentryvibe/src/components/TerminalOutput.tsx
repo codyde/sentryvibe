@@ -145,105 +145,138 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
     lastStatusRef.current = currentStatus;
   }, [devServerStatus, projectId]);
 
+  const connectionAttemptRef = useRef(false);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
+
   const startStreaming = () => {
     if (!projectId) return;
 
-    // Don't create duplicate connections
-    if (eventSourceRef.current) {
-      console.log('   ⚠️  Stream already exists, skipping');
+    // Prevent duplicate connection attempts (atomic check-and-set)
+    if (connectionAttemptRef.current || eventSourceRef.current) {
+      console.log('   ⚠️  Connection attempt already in progress or stream exists, skipping');
       return;
     }
 
-    console.log('📡 Starting terminal stream for project:', projectId);
+    connectionAttemptRef.current = true;
+
+    console.log(`📡 Starting terminal stream for project: ${projectId} (attempt ${retryCountRef.current + 1})`);
 
     try {
       const url = `/api/projects/${projectId}/logs?stream=true`;
-      console.log('   URL:', url);
       const eventSource = new EventSource(url);
 
       eventSource.onopen = () => {
         console.log('✅ Terminal stream connected');
         setIsStreaming(true);
+        retryCountRef.current = 0; // Reset retry counter on successful connection
       };
 
       eventSource.onmessage = (event) => {
-        console.log('📨 Received log event:', event.data);
+        // Ignore keepalive pings
+        if (event.data === ':keepalive') return;
+
+        console.log('📨 Terminal SSE message received:', event.data.substring(0, 200));
+
         try {
           const data = JSON.parse(event.data);
+          console.log('   Parsed data type:', data.type);
+
           if (data.type === 'log' && data.data) {
+            console.log('   Log data length:', data.data.length);
             enqueueLogs(data.data);
+          } else if (data.type === 'connected') {
+            console.log('   ✅ Connection established');
           } else if (data.type === 'exit') {
+            console.log('   ⚠️  Process exited');
             setLogs((prev) => [...prev, '\n--- Process exited ---\n']);
             stopStreaming();
-          } else if (data.type === 'no-process') {
-            console.log('ℹ️  No process running');
-            if (currentProject?.devServerStatus === 'running') {
-              console.log('   Detected remote dev server; skipping local log retries');
-              return;
-            }
-            stopStreaming(false);
-            setTimeout(() => {
-              if (!eventSourceRef.current && projectId) {
-                console.log('🔁 Retrying terminal connection after no-process response');
-                startStreaming();
-              }
-            }, 1000);
           }
         } catch (e) {
           console.error('Failed to parse log event:', e);
         }
       };
 
-      eventSource.onerror = (error) => {
-        // EventSource errors are normal when server stops - don't spam console
+      eventSource.onerror = () => {
         const readyState = eventSource.readyState;
 
         if (readyState === EventSource.CLOSED) {
-          console.log('ℹ️  Terminal stream closed (server stopped or process ended)');
+          console.log('ℹ️  Terminal stream closed');
           stopStreaming(false);
-          setTimeout(() => {
-            if (!eventSourceRef.current && projectId) {
-              console.log('🔁 Retrying terminal connection after close');
-              startStreaming();
-            }
-          }, 1000);
+          scheduleRetry();
         } else if (readyState === EventSource.CONNECTING) {
           console.log('🔄 Terminal stream reconnecting...');
-        } else {
-          console.error('❌ EventSource error:', error);
-          console.error('   ReadyState:', readyState);
-          stopStreaming(false);
-          setTimeout(() => {
-            if (!eventSourceRef.current && projectId) {
-              console.log('🔁 Retrying terminal connection after error');
-              startStreaming();
-            }
-          }, 1500);
         }
       };
 
+      // Set ref AFTER creating EventSource to ensure atomic operation
       eventSourceRef.current = eventSource;
+      connectionAttemptRef.current = false;
     } catch (error) {
       console.error('Failed to start log streaming:', error);
+      connectionAttemptRef.current = false;
+      scheduleRetry();
     }
   };
 
+  const scheduleRetry = () => {
+    // Clear any pending retry
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
+    // Only retry if we have a project and dev server should be running
+    if (!projectId || devServerStatus === 'stopped' || devServerStatus === 'failed') {
+      console.log('   Skipping retry - no project or server stopped/failed');
+      return;
+    }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s (max)
+    const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 8000);
+    retryCountRef.current++;
+
+    console.log(`🔁 Scheduling retry in ${delay}ms (attempt ${retryCountRef.current})`);
+
+    retryTimeoutRef.current = setTimeout(() => {
+      retryTimeoutRef.current = null;
+      if (!eventSourceRef.current && projectId) {
+        startStreaming();
+      }
+    }, delay);
+  };
+
   const stopStreaming = (resetPort: boolean = true) => {
+    // Clear any pending retry
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
+    // Close EventSource
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+
+    // Reset connection state
+    connectionAttemptRef.current = false;
+
+    // Clear animation frames
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
     }
+
     flushScheduledRef.current = false;
     pendingLogsRef.current = [];
+
     if (resetPort) {
       detectedPortRef.current = null;
       lastNotifiedPortRef.current = null;
       setDetectedPort(null);
     }
+
     setIsStreaming(false);
   };
 
@@ -268,11 +301,14 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
   };
 
   const enqueueLogs = (chunk: string) => {
+    console.log('📝 enqueueLogs called with chunk length:', chunk.length);
     const entries = parseLogChunk(chunk);
+    console.log('   Parsed entries:', entries.length);
     if (!entries.length) return;
 
     // Store for batched flush
     pendingLogsRef.current.push(...entries);
+    console.log('   Pending logs now:', pendingLogsRef.current.length);
 
     if (!flushScheduledRef.current) {
       flushScheduledRef.current = true;
@@ -286,8 +322,11 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
         setLogs((prev) => {
           if (pendingLogsRef.current.length === 0) {
+            console.log('   ⚠️  No pending logs to flush');
             return prev;
           }
+
+          console.log(`   Flushing ${pendingLogsRef.current.length} pending logs (prev array has ${prev.length} items)`);
 
           let next = [...prev];
           let changed = false;
@@ -317,6 +356,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
           pendingLogsRef.current = [];
 
           if (!changed) {
+            console.log('   ⚠️  No changes detected, returning prev');
             return prev;
           }
 
@@ -324,6 +364,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
             next = next.slice(next.length - MAX_LOG_ENTRIES);
           }
 
+          console.log(`   ✅ Updated logs array: ${prev.length} → ${next.length} items`);
           return next;
         });
       });
