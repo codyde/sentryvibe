@@ -145,6 +145,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
     // Verify tunnel URL is resolvable in browser before showing iframe
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
+      console.log('🔗 Tunnel URL received, verifying browser DNS:', currentTunnelUrl);
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
 
@@ -155,6 +156,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
+            console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
+
             // Use no-cors mode to avoid CORS blocking the check
             // We just need to verify DNS resolves and connection succeeds
             await fetch(currentTunnelUrl, {
@@ -163,18 +166,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               cache: 'no-store', // Don't use cached responses
             });
 
-            // Only log if it took a while (DNS propagation delay)
-            if (attempt > 3) {
-              console.log(`✅ Tunnel DNS resolved after ${attempt} attempts`);
-            }
+            console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;
             setIsTunnelLoading(false);
             return;
           } catch (error: any) {
-            // Only log on last few attempts to reduce noise
-            if (attempt >= maxAttempts - 2) {
-              console.warn(`⏳ DNS check ${attempt}/${maxAttempts} failed`);
-            }
+            console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
 
             // Wait 1 second between attempts
             if (attempt < maxAttempts) {
@@ -184,7 +181,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         }
 
         if (!resolved) {
-          console.warn(`⚠️  Tunnel DNS verification timeout after ${maxAttempts}s`);
+          console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s - iframe may fail to load`);
         }
         setIsTunnelLoading(false);
       })();
@@ -536,23 +533,28 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 title="Preview"
                 onLoad={(e) => {
                   setIsRefreshing(false);
+                  console.log('✅ Iframe loaded:', previewUrl);
 
-                  // Check for error pages (only log if found)
+                  // Check for error pages
                   const iframe = e.currentTarget;
                   setTimeout(() => {
                     try {
                       const doc = iframe.contentDocument || iframe.contentWindow?.document;
                       if (doc) {
                         const bodyText = doc.body?.innerText?.substring(0, 100);
-                        // Only log if it's an error page
                         if (bodyText?.includes('Application error') || bodyText?.includes('502') || bodyText?.includes('503')) {
                           console.error('🚨 Preview loaded error page:', bodyText);
+                        } else {
+                          console.log('📄 Preview content loaded successfully');
                         }
                       }
                     } catch (err) {
-                      // Cross-origin - expected for tunnel URLs
+                      console.log('⚠️  Cross-origin iframe (cannot inspect content)');
                     }
                   }, 500);
+                }}
+                onError={(e) => {
+                  console.error('🚨 Iframe error event:', e);
                 }}
               />
 
