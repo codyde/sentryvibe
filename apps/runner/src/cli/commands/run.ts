@@ -4,17 +4,24 @@ import { configManager } from '../utils/config-manager.js';
 import { startRunner } from '../../index.js';
 
 /**
- * Normalize URL by adding https:// if protocol is missing
+ * Normalize URL by adding protocol if missing
+ * Uses http:// for localhost, https:// for everything else
  */
 function normalizeUrl(url: string): string {
   if (!url) return url;
 
-  // If no protocol, add https://
-  if (!url.match(/^https?:\/\//i)) {
-    return `https://${url}`;
+  // If protocol already present, return as-is
+  if (url.match(/^https?:\/\//i)) {
+    return url;
   }
 
-  return url;
+  // For localhost or 127.0.0.1, use http://
+  if (url.match(/^(localhost|127\.0\.0\.1)(:|\/|$)/i)) {
+    return `http://${url}`;
+  }
+
+  // For everything else, use https://
+  return `https://${url}`;
 }
 
 interface RunOptions {
