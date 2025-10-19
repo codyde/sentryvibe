@@ -62,7 +62,7 @@ const PreviewLoadingAnimation = ({ title, subtitle }: { title: string; subtitle:
 );
 
 export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel }: PreviewPanelProps) {
-  const { projects } = useProjects();
+  const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -140,6 +140,27 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       eventSource.close();
     };
   }, [project?.id]);
+
+  // Fallback polling when SSE fails: Poll during active operations
+  useEffect(() => {
+    // Poll every 2 seconds while server starting, tunnel starting, or server running without tunnel URL
+    const shouldPoll = isStartingServer || isStartingTunnel ||
+                      (currentProject?.devServerStatus === 'starting') ||
+                      (isStartingTunnel && !currentProject?.tunnelUrl);
+
+    if (!shouldPoll) return;
+
+    console.log('🔄 Starting fallback polling (SSE not working)');
+    const interval = setInterval(() => {
+      console.log('🔄 Polling for updates...');
+      refetch();
+    }, 2000);
+
+    return () => {
+      console.log('🛑 Stopping fallback polling');
+      clearInterval(interval);
+    };
+  }, [isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
 
   // Simplified tunnel loading: show while starting, hide when URL appears
   useEffect(() => {
