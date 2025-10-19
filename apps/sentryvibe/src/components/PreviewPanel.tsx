@@ -193,11 +193,16 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     }
   }, [currentProject?.tunnelUrl, isStartingTunnel]);
 
+  // Detect if server is running on a remote runner (not local machine)
+  // Remote runners typically have runnerId != 'local'
+  const isRemoteRunner = currentProject?.runnerId && currentProject.runnerId !== 'local';
+  const needsTunnel = isRemoteRunner && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
+
   // Construct preview URL - prefer tunnel URL if available, otherwise use proxy route
   // Backend verifies server is ready, so we trust devServerStatus
   const previewUrl = currentProject?.tunnelUrl && currentProject?.devServerStatus === 'running'
     ? currentProject.tunnelUrl
-    : (actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id
+    : (actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id && !isRemoteRunner
       ? `/api/projects/${currentProject.id}/proxy?path=/`
       : '');
 
@@ -558,6 +563,31 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 title="Spinning up your workspace"
                 subtitle="Warming caches, allocating a port, and preparing the dev server."
               />
+            ) : needsTunnel ? (
+              <div className="text-center space-y-4 max-w-md px-6">
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <Cloud className="w-8 h-8 text-blue-400" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-white">Server Running on Remote Runner</h3>
+                  <p className="text-gray-400 text-sm">
+                    Your dev server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> on runner <span className="font-mono text-blue-300">{currentProject.runnerId}</span>.
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Start a Cloudflare tunnel to connect:
+                  </p>
+                </div>
+                <button
+                  onClick={onStartTunnel}
+                  disabled={isStartingTunnel}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Cloud className={`w-5 h-5 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
+                  {isStartingTunnel ? 'Starting Tunnel...' : 'Start Cloudflare Tunnel'}
+                </button>
+              </div>
             ) : project?.status === 'completed' && project?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">
                 <div className="flex items-center justify-center">
