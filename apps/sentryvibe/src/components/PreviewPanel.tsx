@@ -72,6 +72,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
   const lastTunnelUrlRef = useRef<string | null>(null);
+  const [verifiedTunnelUrl, setVerifiedTunnelUrl] = useState<string | null>(null);
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
@@ -148,6 +149,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       console.log('🔗 Tunnel URL received, verifying browser DNS:', currentTunnelUrl);
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
+      setVerifiedTunnelUrl(null); // Clear old verified URL
 
       // Verify browser can actually reach the tunnel
       (async () => {
@@ -168,6 +170,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
             console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;
+            setVerifiedTunnelUrl(currentTunnelUrl); // Only set after verification!
             setIsTunnelLoading(false);
             return;
           } catch (error: any) {
@@ -181,7 +184,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         }
 
         if (!resolved) {
-          console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s - iframe may fail to load`);
+          console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s - showing anyway (may fail)`);
+          setVerifiedTunnelUrl(currentTunnelUrl); // Show anyway after timeout
         }
         setIsTunnelLoading(false);
       })();
@@ -189,9 +193,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       return;
     }
 
-    // Clear loading if tunnel was removed
+    // Clear verified URL if tunnel was removed
     if (!currentTunnelUrl && lastTunnelUrlRef.current) {
       lastTunnelUrlRef.current = null;
+      setVerifiedTunnelUrl(null);
       setIsTunnelLoading(false);
     }
 
@@ -206,10 +211,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const isRemoteRunner = currentProject?.runnerId && currentProject.runnerId !== 'local';
   const needsTunnel = isRemoteRunner && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
 
-  // Construct preview URL - prefer tunnel URL if available, otherwise use proxy route
-  // Backend verifies server is ready, so we trust devServerStatus
-  const previewUrl = currentProject?.tunnelUrl && currentProject?.devServerStatus === 'running'
-    ? currentProject.tunnelUrl
+  // Construct preview URL - prefer VERIFIED tunnel URL, otherwise use proxy route
+  // Use verifiedTunnelUrl (only set after DNS check passes) instead of currentProject.tunnelUrl
+  // This prevents iframe from loading before DNS propagates
+  const previewUrl = verifiedTunnelUrl && currentProject?.devServerStatus === 'running'
+    ? verifiedTunnelUrl
     : (actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id && !isRemoteRunner
       ? `/api/projects/${currentProject.id}/proxy?path=/`
       : '');
