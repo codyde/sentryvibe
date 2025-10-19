@@ -16,7 +16,7 @@ export class TunnelManager extends EventEmitter {
    * Create a tunnel for a specific port
    * Returns the public tunnel URL
    */
-  async createTunnel(port: number, retries = 3): Promise<string> {
+  async createTunnel(port: number, maxRetries = 5): Promise<string> {
     // Check if tunnel already exists for this port
     if (this.tunnels.has(port)) {
       const existing = this.tunnels.get(port)!;
@@ -29,25 +29,103 @@ export class TunnelManager extends EventEmitter {
       this.cloudflaredPath = await ensureCloudflared();
     }
 
-    // Try creating tunnel with retries
-    for (let attempt = 1; attempt <= retries; attempt++) {
+    // Try creating tunnel with smart retries
+    const errors: string[] = [];
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await this._createTunnelAttempt(port);
-      } catch (error) {
-        console.error(`Tunnel creation attempt ${attempt}/${retries} failed:`, error);
+      } catch (error: any) {
+        const errorMsg = error?.message || String(error);
+        errors.push(errorMsg);
+        console.error(`Tunnel creation attempt ${attempt}/${maxRetries} failed:`, errorMsg);
 
-        if (attempt === retries) {
-          throw new Error(`Failed to create tunnel after ${retries} attempts: ${error}`);
+        // Check if this is a permanent error (fail fast)
+        if (this._isPermanentError(errorMsg)) {
+          throw new Error(`Permanent failure: ${errorMsg}`);
         }
 
-        // Exponential backoff
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`Retrying in ${delay}ms...`);
+        if (attempt === maxRetries) {
+          throw new Error(`Failed to create tunnel after ${maxRetries} attempts: ${errors.join('; ')}`);
+        }
+
+        // Exponential backoff with jitter to prevent thundering herd
+        const baseDelay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s
+        const jitter = Math.random() * 1000; // 0-1s random jitter
+        const delay = baseDelay + jitter;
+        console.log(`Retrying in ${Math.round(delay)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
     throw new Error('Tunnel creation failed after all retries');
+  }
+
+  /**
+   * Check if an error is permanent (no point retrying)
+   */
+  private _isPermanentError(errorMsg: string): boolean {
+    const permanentErrors = [
+      'port already in use',
+      'cloudflared not found',
+      'permission denied',
+      'cannot find',
+      'enoent',
+      'eacces',
+    ];
+
+    const lowerMsg = errorMsg.toLowerCase();
+    return permanentErrors.some(err => lowerMsg.includes(err));
+  }
+
+  /**
+   * Extract tunnel URL from cloudflared output
+   */
+  private _extractTunnelUrl(output: string): string | null {
+    // Format: "Your quick Tunnel has been created! Visit it at: https://xxx.trycloudflare.com"
+    // Or just: "https://xxx.trycloudflare.com"
+    const match = output.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+    return match ? match[0] : null;
+  }
+
+  /**
+   * Verify tunnel is actually responding (async, non-blocking)
+   * This runs in background and only logs results
+   */
+  private async _verifyTunnelReady(url: string, maxWaitMs = 15000): Promise<boolean> {
+    const startTime = Date.now();
+    const checkInterval = 1000; // Check every 1 second (less aggressive)
+
+    console.log(`🔍 [Background] Verifying tunnel is ready: ${url}`);
+
+    while (Date.now() - startTime < maxWaitMs) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+        const response = await fetch(url, {
+          method: 'HEAD',
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Any response (even errors) means tunnel is connected
+        // We just need to verify it's resolving and routing
+        if (response.status < 500 || response.ok) {
+          const elapsed = Date.now() - startTime;
+          console.log(`✅ [Background] Tunnel verified in ${elapsed}ms`);
+          return true;
+        }
+      } catch (error) {
+        // Expected while DNS propagates or tunnel initializes
+        // Will keep retrying silently
+      }
+
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+    }
+
+    console.log(`⏱️  [Background] Verification timeout after ${maxWaitMs}ms (tunnel may still work)`);
+    return false;
   }
 
   /**
@@ -87,58 +165,49 @@ export class TunnelManager extends EventEmitter {
         }
       }, 30000);
 
-      proc.stdout.on('data', (data: Buffer) => {
+      // Shared handler for both stdout and stderr
+      const handleOutput = async (data: Buffer) => {
         const output = data.toString();
+        const url = this._extractTunnelUrl(output);
 
-        // Parse tunnel URL from output
-        // Format: "Your quick Tunnel has been created! Visit it at: https://xxx.trycloudflare.com"
-        // Or: "https://xxx.trycloudflare.com"
-        const match = output.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
-
-        if (match && !resolved) {
+        if (url && !resolved) {
           resolved = true;
           clearTimeout(timeout);
-          const url = match[0];
 
           this.tunnels.set(port, { url, port, process: proc });
 
           console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
-          console.log(`⏳ Waiting 5 seconds for tunnel to stabilize and DNS to propagate...`);
 
-          // Add a 5-second delay to ensure tunnel is fully established and DNS propagated
-          setTimeout(() => {
-            console.log(`✅ Tunnel ready: ${url}`);
-            resolve(url);
-          }, 5000);
+          // Start async verification in background (don't wait)
+          // This logs results but doesn't block tunnel creation
+          this._verifyTunnelReady(url).then((verified) => {
+            if (verified) {
+              console.log(`✅ Tunnel verified working: ${url}`);
+            } else {
+              console.log(`⚠️  Tunnel verification timed out, but tunnel may still work: ${url}`);
+            }
+          }).catch((err) => {
+            console.log(`⚠️  Tunnel verification failed: ${err.message}`);
+          });
+
+          // Return immediately - don't wait for verification
+          console.log(`✅ Tunnel ready (async verification in progress): ${url}`);
+          resolve(url);
         }
-      });
+      };
+
+      proc.stdout.on('data', handleOutput);
 
       proc.stderr.on('data', (data: Buffer) => {
         const output = data.toString();
 
-        // Log errors only (cloudflared uses stderr for all output)
+        // Log errors (cloudflared uses stderr for all output)
         if (output.toLowerCase().includes('error') || output.toLowerCase().includes('fatal')) {
           console.error(`[cloudflared:${port}] ${output.trim()}`);
         }
 
-        // Check stderr for tunnel URL (cloudflared outputs URL to stderr)
-        const match = output.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
-        if (match && !resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          const url = match[0];
-
-          this.tunnels.set(port, { url, port, process: proc });
-
-          console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
-          console.log(`⏳ Waiting 5 seconds for tunnel to stabilize and DNS to propagate...`);
-
-          // Add a 5-second delay to ensure tunnel is fully established and DNS propagated
-          setTimeout(() => {
-            console.log(`✅ Tunnel ready: ${url}`);
-            resolve(url);
-          }, 5000);
-        }
+        // Check for tunnel URL in stderr too
+        handleOutput(data);
       });
 
       proc.on('exit', (code, signal) => {

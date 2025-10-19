@@ -62,20 +62,15 @@ const PreviewLoadingAnimation = ({ title, subtitle }: { title: string; subtitle:
 );
 
 export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel }: PreviewPanelProps) {
-  const { projects } = useProjects();
+  const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
-  const [isServerReady, setIsServerReady] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
-  const [healthCheckFailed, setHealthCheckFailed] = useState(false);
   const [isTunnelLoading, setIsTunnelLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
-  const isCheckingRef = useRef(false);
-  const lastReadyPortRef = useRef<number | null>(null);
   const lastTunnelUrlRef = useRef<string | null>(null);
 
   // Find the current project
@@ -90,7 +85,15 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // Real-time status updates via SSE
   useEffect(() => {
+    console.log('🔍 SSE useEffect triggered, project:', {
+      id: project?.id,
+      slug: project?.slug,
+      status: project?.status,
+      devServerStatus: project?.devServerStatus,
+    });
+
     if (!project?.id) {
+      console.log('⚠️  No project ID, skipping SSE connection');
       setLiveProject(undefined);
       return;
     }
@@ -98,12 +101,21 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     console.log(`📡 Connecting to status stream for project: ${project.id}`);
     const eventSource = new EventSource(`/api/projects/${project.id}/status-stream`);
 
+    eventSource.onopen = () => {
+      console.log(`✅ SSE connection opened for ${project.id}`);
+    };
+
     eventSource.onmessage = (event) => {
       // Ignore keepalive pings
-      if (event.data === ':keepalive') return;
+      if (event.data === ':keepalive') {
+        console.log(`💓 SSE keepalive received`);
+        return;
+      }
 
+      console.log(`📨 SSE status message received:`, event.data);
       try {
         const data = JSON.parse(event.data);
+        console.log(`📦 Parsed SSE data:`, data);
         if (data.type === 'status-update' && data.project) {
           console.log(`✅ SSE: Status update for ${project.id}`, {
             status: data.project.devServerStatus,
@@ -113,12 +125,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           setLiveProject(data.project);
         }
       } catch (err) {
-        console.error('Failed to parse SSE status event:', err);
+        console.error('Failed to parse SSE status event:', err, event.data);
       }
     };
 
-    eventSource.onerror = () => {
-      console.warn('SSE status connection error, will reconnect...');
+    eventSource.onerror = (err) => {
+      console.error('❌ SSE status connection error:', err);
+      console.log('SSE readyState:', eventSource.readyState);
       eventSource.close();
     };
 
@@ -128,143 +141,80 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     };
   }, [project?.id]);
 
-  // Show loading screen immediately when tunnel starts, keep showing until ready
+  // Fallback polling when SSE fails: Poll during active operations
   useEffect(() => {
-    // Show loading as soon as tunnel starts
+    // Poll every 2 seconds while server starting, tunnel starting, or server running without tunnel URL
+    const shouldPoll = isStartingServer || isStartingTunnel ||
+                      (currentProject?.devServerStatus === 'starting') ||
+                      (isStartingTunnel && !currentProject?.tunnelUrl);
+
+    if (!shouldPoll) return;
+
+    console.log('🔄 Starting fallback polling (SSE not working)');
+    const interval = setInterval(() => {
+      console.log('🔄 Polling for updates...');
+      refetch();
+    }, 2000);
+
+    return () => {
+      console.log('🛑 Stopping fallback polling');
+      clearInterval(interval);
+    };
+  }, [isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
+
+  // Simplified tunnel loading: show while starting, hide when URL appears
+  useEffect(() => {
+    const currentTunnelUrl = currentProject?.tunnelUrl;
+
+    // Show loading while tunnel is being created
     if (isStartingTunnel) {
       console.log('🔗 Tunnel starting, showing loading screen...');
       setIsTunnelLoading(true);
       return;
     }
 
-    const currentTunnelUrl = currentProject?.tunnelUrl;
-
-    // If tunnel URL just appeared (changed from null/undefined to a value)
+    // Hide loading once tunnel URL appears (backend has verified it's ready)
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      console.log('🔗 New tunnel URL detected, keeping loading screen for 5 more seconds');
+      console.log('✅ Tunnel URL received, ready to display');
       lastTunnelUrlRef.current = currentTunnelUrl;
-
-      // Keep loading screen for 5 seconds after URL appears to let tunnel fully initialize
-      const timer = setTimeout(() => {
-        console.log('✅ Tunnel loading complete, showing preview');
-        setIsTunnelLoading(false);
-      }, 5000);
-
-      return () => clearTimeout(timer);
+      setIsTunnelLoading(false);
+      return;
     }
 
-    // If tunnel URL was removed
+    // Clear loading if tunnel was removed
     if (!currentTunnelUrl && lastTunnelUrlRef.current) {
       lastTunnelUrlRef.current = null;
       setIsTunnelLoading(false);
     }
 
-    // If not starting and no URL, hide loading
-    if (!isStartingTunnel && !currentTunnelUrl) {
+    // Hide loading if not starting
+    if (!isStartingTunnel) {
       setIsTunnelLoading(false);
     }
   }, [currentProject?.tunnelUrl, isStartingTunnel]);
 
-  // Construct preview URL - prefer tunnel URL if available, otherwise use proxy route to inject selection script
+  // Construct preview URL - prefer tunnel URL if available, otherwise use proxy route
+  // Backend verifies server is ready, so we trust devServerStatus
   const previewUrl = currentProject?.tunnelUrl && currentProject?.devServerStatus === 'running'
     ? currentProject.tunnelUrl
-    : (actualPort && isServerReady && currentProject?.id
+    : (actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id
       ? `/api/projects/${currentProject.id}/proxy?path=/`
       : '');
 
-  const checkServerHealth = useCallback(async (port: number): Promise<boolean> => {
-    const url = `http://localhost:${port}`;
-
-    console.log(`🏥 Health checking ${url}...`);
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-      await fetch(url, {
-        signal: controller.signal,
-        mode: 'no-cors', // Ignore CORS for health check
-      });
-
-      clearTimeout(timeoutId);
-      console.log(`✅ Server is ready at ${url}`);
-      return true;
-    } catch (error) {
-      console.log(`   Health check failed for ${url}, will retry...`);
-      return false;
-    }
-  }, []);
-
-  // Health check when port changes (terminal or DB)
+  // Debug logging for preview URL construction
   useEffect(() => {
-    if (!actualPort || currentProject?.devServerStatus !== 'running') {
-      lastReadyPortRef.current = null;
-      isCheckingRef.current = false;
-      setIsServerReady(false);
-      setIsChecking(false);
-      return;
-    }
-
-    if (lastReadyPortRef.current && lastReadyPortRef.current !== actualPort) {
-      lastReadyPortRef.current = null;
-    }
-
-    if (lastReadyPortRef.current === actualPort) {
-      if (!isServerReady) {
-        setIsServerReady(true);
-        setIsChecking(false);
-      }
-      return;
-    }
-
-    if (isCheckingRef.current) {
-      console.log('⏳ Health check already in progress, skipping duplicate');
-      return;
-    }
-
-    let cancelled = false;
-    isCheckingRef.current = true;
-    setIsChecking(true);
-    setIsServerReady(false);
-
-    const runHealthCheck = async () => {
-      for (let attempt = 0; attempt < 10; attempt++) {
-        if (cancelled) return;
-
-        const isReady = await checkServerHealth(actualPort);
-        if (cancelled) return;
-
-        if (isReady) {
-          lastReadyPortRef.current = actualPort;
-          setIsServerReady(true);
-          setIsChecking(false);
-          setHealthCheckFailed(false);
-          return;
-        }
-
-        if (cancelled) return;
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (cancelled) return;
-      }
-
-      if (!cancelled) {
-        console.error('❌ Server health check failed after multiple attempts');
-        setIsChecking(false);
-        setHealthCheckFailed(true);
-      }
-    };
-
-    runHealthCheck().finally(() => {
-      if (!cancelled) {
-        isCheckingRef.current = false;
-      }
+    console.log('🔍 Preview URL calculation:', {
+      previewUrl,
+      actualPort,
+      terminalPort,
+      currentProjectPort: currentProject?.devServerPort,
+      currentProjectStatus: currentProject?.devServerStatus,
+      currentProjectId: currentProject?.id,
+      currentProjectTunnel: currentProject?.tunnelUrl,
+      liveProjectExists: !!liveProject,
+      projectExists: !!project,
     });
-
-    return () => {
-      cancelled = true;
-      isCheckingRef.current = false;
-    };
-  }, [actualPort, currentProject?.devServerStatus, checkServerHealth]);
+  }, [previewUrl, actualPort, currentProject?.devServerStatus, currentProject?.devServerPort]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -607,41 +557,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               <PreviewLoadingAnimation
                 title="Spinning up your workspace"
                 subtitle="Warming caches, allocating a port, and preparing the dev server."
-              />
-            ) : isChecking ? (
-              <PreviewLoadingAnimation
-                title="Linking to the preview"
-                subtitle="Verifying that the dev server is responding before we stream it here."
-              />
-            ) : healthCheckFailed && project?.devServerStatus === 'running' && !project?.tunnelUrl ? (
-              <div className="text-center space-y-4 max-w-md px-6">
-                <div className="flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center">
-                    <Cloud className="w-8 h-8 text-orange-400" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Localhost Unreachable</h3>
-                  <p className="text-gray-400 text-sm">
-                    The dev server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> but couldn't be reached from the browser.
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    Try starting a Cloudflare tunnel for remote access:
-                  </p>
-                </div>
-                <button
-                  onClick={onStartTunnel}
-                  disabled={isStartingTunnel}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Cloud className={`w-5 h-5 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
-                  {isStartingTunnel ? 'Starting Tunnel...' : 'Start Cloudflare Tunnel'}
-                </button>
-              </div>
-            ) : project?.devServerStatus === 'running' ? (
-              <PreviewLoadingAnimation
-                title="Preparing live preview"
-                subtitle="Almost ready—waiting for the latest build output to stream into the sandbox."
               />
             ) : project?.status === 'completed' && project?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">

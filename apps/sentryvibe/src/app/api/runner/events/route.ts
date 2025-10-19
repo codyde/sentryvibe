@@ -5,6 +5,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
+import { projectEvents } from '@/lib/project-events';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -18,6 +19,25 @@ function ensureAuthorized(request: Request) {
     return false;
   }
   return true;
+}
+
+/**
+ * Emit project update event to SSE streams
+ * Provides instant updates without polling
+ */
+async function emitProjectUpdate(projectId: string) {
+  try {
+    const updatedProject = await db.select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+
+    if (updatedProject.length > 0) {
+      projectEvents.emitProjectUpdate(projectId, updatedProject[0]);
+    }
+  } catch (error) {
+    console.error(`Failed to emit project update for ${projectId}:`, error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -59,6 +79,7 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId));
         // No port reservation - framework handles port selection
+        await emitProjectUpdate(event.projectId);
         break;
       }
       case 'tunnel-created': {
@@ -68,6 +89,7 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        await emitProjectUpdate(event.projectId);
         break;
       }
       case 'tunnel-closed': {
@@ -77,6 +99,7 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        await emitProjectUpdate(event.projectId);
         break;
       }
       case 'process-exited': {
@@ -95,6 +118,7 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId));
         // No port reservation cleanup needed
+        await emitProjectUpdate(event.projectId);
         break;
       }
       case 'project-metadata': {
@@ -110,6 +134,7 @@ export async function POST(request: Request) {
               lastActivityAt: new Date(),
             })
             .where(eq(projects.id, event.projectId));
+          await emitProjectUpdate(event.projectId);
         }
         break;
       }
@@ -122,6 +147,7 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        await emitProjectUpdate(event.projectId);
         break;
       }
       case 'build-failed':
@@ -136,6 +162,7 @@ export async function POST(request: Request) {
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId));
+        await emitProjectUpdate(event.projectId);
         break;
       }
       default:
