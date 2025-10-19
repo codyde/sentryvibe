@@ -9,7 +9,7 @@ import { configManager } from '../utils/config-manager.js';
 import { spinner } from '../utils/spinner.js';
 import { isInsideMonorepo, findMonorepoRoot } from '../utils/repo-detector.js';
 import { cloneRepository, installDependencies, isPnpmInstalled } from '../utils/repo-cloner.js';
-import { setupDatabase, pushDatabaseSchema } from '../utils/database-setup.js';
+import { setupDatabase, pushDatabaseSchema, connectManualDatabase } from '../utils/database-setup.js';
 import { displaySetupComplete } from '../utils/banner.js';
 
 interface InitOptions {
@@ -223,21 +223,33 @@ export async function initCommand(options: InitOptions) {
     if (shouldSetupDb) {
       logger.log('');
       databaseUrl = await setupDatabase(monorepoPath) || undefined;
+    } else if (!isNonInteractive) {
+      // User declined Neon setup - offer manual connection
+      const shouldConnectManually = await prompts.confirm(
+        'Would you like to connect an existing database?',
+        true  // Default to YES
+      );
 
-      if (databaseUrl) {
-        // Auto-push schema (no prompt needed - it's required)
-        const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
-
-        if (!pushed) {
-          logger.warn('Schema push failed - you can try manually later');
-          logger.info(`  cd ${monorepoPath}/apps/sentryvibe`);
-          logger.info(`  DATABASE_URL="${databaseUrl}" npx drizzle-kit push --config=drizzle.config.ts`);
-        }
-      } else {
-        logger.warn('Database setup skipped or failed');
-        logger.info('You can set it later with: sentryvibe config set databaseUrl <url>');
-        logger.info('Or run: sentryvibe database');
+      if (shouldConnectManually) {
+        databaseUrl = await connectManualDatabase() || undefined;
       }
+    }
+
+    // If we have a database URL, push the schema
+    if (databaseUrl) {
+      logger.log('');
+      // Auto-push schema (no prompt needed - it's required)
+      const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
+
+      if (!pushed) {
+        logger.warn('Schema push failed - you can try manually later');
+        logger.info(`  cd ${monorepoPath}/apps/sentryvibe`);
+        logger.info(`  DATABASE_URL="${databaseUrl}" npx drizzle-kit push --config=drizzle.config.ts`);
+      }
+    } else {
+      logger.warn('Database setup skipped or failed');
+      logger.info('You can set it later with: sentryvibe config set databaseUrl <url>');
+      logger.info('Or run: sentryvibe database');
     }
   }
 
