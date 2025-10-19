@@ -3,19 +3,27 @@ import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { isPortReady } from './port-checker.js';
 
-// API configuration
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
-const RUNNER_SECRET = process.env.RUNNER_SHARED_SECRET;
+/**
+ * Get API configuration (evaluated at runtime, not module load time)
+ */
+function getAPIConfig() {
+  return {
+    apiBase: process.env.API_BASE_URL || 'http://localhost:3000',
+    secret: process.env.RUNNER_SHARED_SECRET,
+  };
+}
 
 /**
  * Make authenticated API call to frontend
  */
 async function callAPI(endpoint: string, options: RequestInit = {}) {
+  const { apiBase, secret } = getAPIConfig();
+
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${apiBase}${endpoint}`, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${RUNNER_SECRET}`,
+        'Authorization': `Bearer ${secret}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
