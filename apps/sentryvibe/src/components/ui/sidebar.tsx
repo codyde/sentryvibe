@@ -549,6 +549,12 @@ function SidebarMenuButton({
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot : "button"
   const { isMobile, state } = useSidebar()
+  const [mounted, setMounted] = React.useState(false)
+
+  // Ensure tooltip Portal only renders after component has mounted on client
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const button = (
     <Comp
@@ -569,6 +575,11 @@ function SidebarMenuButton({
     tooltip = {
       children: tooltip,
     }
+  }
+
+  // Don't render tooltip with Portal until mounted to prevent hydration race condition
+  if (!mounted) {
+    return button
   }
 
   return (
