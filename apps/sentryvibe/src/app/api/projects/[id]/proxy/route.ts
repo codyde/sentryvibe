@@ -187,6 +187,14 @@ export async function GET(
 
   } catch (error) {
     console.error('❌ Proxy error:', error);
-    return new NextResponse('Proxy failed', { status: 500 });
+    console.error('   Project:', id);
+    console.error('   Path:', url.searchParams.get('path'));
+    console.error('   Runner ID:', project[0]?.runnerId);
+    console.error('   Port:', project[0]?.devServerPort);
+    console.error('   Tunnel URL:', project[0]?.tunnelUrl);
+    return new NextResponse(
+      `Proxy failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { status: 500 }
+    );
   }
 }
