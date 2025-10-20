@@ -508,7 +508,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         </div>
       </div>
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
-        {previewUrl ? (
+        {previewUrl || isTunnelLoading ? (
           <>
             {/* Tunnel loading overlay with progress */}
             {isTunnelLoading && (
