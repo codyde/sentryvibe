@@ -2170,8 +2170,6 @@ function HomeContent() {
   return (
     <CommandPaletteProvider
       onOpenProcessModal={() => setShowProcessModal(true)}
-      onRenameProject={handleRenameProject}
-      onDeleteProject={handleDeleteProject}
     >
       <SidebarProvider defaultOpen={false}>
         <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
