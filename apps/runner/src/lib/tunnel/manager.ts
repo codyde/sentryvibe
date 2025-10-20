@@ -186,20 +186,24 @@ export class TunnelManager extends EventEmitter {
         if (tunnelUrl && !tunnelRegistered && output.includes('Registered tunnel connection')) {
           tunnelRegistered = true;
           console.log(`✅ Tunnel registered with Cloudflare edge (DNS propagating)`);
-        }
 
-        // Step 3: Return only after BOTH URL received AND tunnel registered
-        if (tunnelUrl && tunnelRegistered && !resolved) {
-          resolved = true;
-          clearTimeout(timeout);
+          // Wait 3 seconds after registration for DNS to propagate
+          console.log(`⏳ Waiting 3 seconds for DNS to fully propagate...`);
+          await new Promise(r => setTimeout(r, 3000));
 
-          console.log(`✅ Tunnel ready: ${tunnelUrl}`);
+          // Step 3: Return only after registration + 3 second buffer
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeout);
 
-          // Note: Backend verification skipped for localhost tunnels
-          // The tunnel connects localhost to Cloudflare - backend can't verify it
-          // Frontend will verify DNS before loading in iframe
+            console.log(`✅ Tunnel ready: ${tunnelUrl}`);
 
-          resolve(tunnelUrl);
+            // Note: Backend verification skipped for localhost tunnels
+            // The tunnel connects localhost to Cloudflare - backend can't verify it
+            // Frontend will verify DNS before loading in iframe
+
+            resolve(tunnelUrl);
+          }
         }
       };
 
