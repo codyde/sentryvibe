@@ -318,7 +318,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
             className="fixed left-1/2 top-1/3 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2"
             onClick={(e) => e.stopPropagation()}
           >
-            <Command className="rounded-xl border-2 border-purple-500/50 bg-black/95 shadow-2xl shadow-purple-500/20 overflow-hidden">
+            <Command shouldFilter={false} loop className="rounded-xl border-2 border-purple-500/50 bg-black/95 shadow-2xl shadow-purple-500/20 overflow-hidden">
               <div className="flex items-center border-b border-white/10 px-4">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
                 <Command.Input
@@ -339,12 +339,10 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
                 )}
               </div>
 
-              <Command.List className="max-h-[400px] overflow-y-auto p-2">
-                {filteredCommands.length === 0 && (
-                  <div className="py-6 text-center text-sm text-gray-500">
-                    No results found.
-                  </div>
-                )}
+              <Command.List className="max-h-[400px] overflow-y-auto overflow-x-hidden p-2 scroll-smooth">
+                <Command.Empty className="py-6 text-center text-sm text-gray-500">
+                  No results found.
+                </Command.Empty>
 
                 {groupedCommands.map(([group, items]) => (
                   <Command.Group
@@ -357,9 +355,9 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
                       return (
                         <Command.Item
                           key={command.id}
-                          value={command.label}
+                          value={`${command.id}-${command.label}`}
                           onSelect={() => handleSelect(command)}
-                          className="relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white hover:bg-white/10 aria-selected:bg-gradient-to-r aria-selected:from-purple-500/20 aria-selected:to-pink-500/20 aria-selected:border aria-selected:border-purple-500/30 transition-all"
+                          className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none hover:bg-white/10 aria-selected:bg-gradient-to-r aria-selected:from-purple-500/20 aria-selected:to-pink-500/20 aria-selected:border aria-selected:border-purple-500/30 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-all"
                         >
                           <Icon className="h-4 w-4 shrink-0 text-gray-400" />
                           <div className="flex-1 overflow-hidden">
