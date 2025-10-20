@@ -27,12 +27,20 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
+  // Track if component has mounted to prevent SSR hydration issues
+  const [isMounted, setIsMounted] = React.useState(false);
+  
   const { projects, refetch, isLoading } = useProjects();
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
   const [renamingProject, setRenamingProject] = React.useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = React.useState<{ id: string; name: string; slug: string } | null>(null);
+
+  // Set mounted state after first render to avoid SSR/hydration mismatches
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleStartServer = async (projectId: string) => {
     try {
@@ -58,7 +66,7 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
 
   return (
     <>
-      {renamingProject && (
+      {isMounted && renamingProject && (
         <RenameProjectModal
           isOpen={!!renamingProject}
           onClose={() => setRenamingProject(null)}
@@ -71,7 +79,7 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
         />
       )}
 
-      {deletingProject && (
+      {isMounted && deletingProject && (
         <DeleteProjectModal
           isOpen={!!deletingProject}
           onClose={() => setDeletingProject(null)}
