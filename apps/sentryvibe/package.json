@@ -7,7 +7,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "clean": "rm -rf .next",
+    "build": "rm -rf .next && next build",
     "start": "next start",
     "lint": "eslint"
   },

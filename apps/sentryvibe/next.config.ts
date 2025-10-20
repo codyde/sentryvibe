@@ -21,6 +21,9 @@ const nextConfig: NextConfig = {
       fullUrl: false,
     },
   },
+  // NOTE: Build cache is automatically cleared before each build (via package.json scripts)
+  // to prevent stale build artifacts from causing runtime errors with outdated transpiled code.
+  // If you encounter ReferenceError issues with undefined variables, run: npm run clean
 };
 
 export default withSentryConfig(nextConfig, {
