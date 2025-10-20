@@ -147,16 +147,17 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     }
 
     // Verify tunnel URL is resolvable in browser before showing iframe
+    // CRITICAL: Don't expose URL to DOM until verified to prevent Chrome DNS prefetch
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      console.log('🔗 Tunnel URL received, verifying browser DNS:', currentTunnelUrl);
+      console.log('🔗 Tunnel URL received, starting verification (URL hidden from DOM)');
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
-      setVerifiedTunnelUrl(null); // Clear old verified URL
+      setVerifiedTunnelUrl(null); // Clear old verified URL - keeps iframe blank
       setDnsVerificationProgress(0);
 
       // Verify browser can actually reach the tunnel
       (async () => {
-        const maxAttempts = 20; // 20 attempts × 1s = 20 seconds max
+        const maxAttempts = 30; // 30 attempts × 1s = 30 seconds max
         let resolved = false;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -164,23 +165,28 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
             setDnsVerificationProgress(Math.round((attempt / maxAttempts) * 100));
 
-            // Add cache-busting to verification request to bypass Chrome DNS cache
-            // This prevents Chrome from using cached NXDOMAIN from preemptive lookup
-            const verifyUrl = `${currentTunnelUrl}?verify=${Date.now()}`;
-
-            // Use no-cors mode to avoid CORS blocking the check
-            // We just need to verify DNS resolves and connection succeeds
-            await fetch(verifyUrl, {
+            // IMPORTANT: Use the actual URL (no cache-bust on verification)
+            // We want to know when the REAL URL resolves, not a cache-busted variant
+            await fetch(currentTunnelUrl, {
               method: 'HEAD',
               mode: 'no-cors',
-              cache: 'no-store', // Don't use cached responses
+              cache: 'no-store',
+              // Force DNS re-resolution on each attempt
+              headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+              },
             });
 
             console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;
 
-            // Use clean URL (no cache-bust needed once DNS verified)
-            console.log('✅ DNS verified, using clean URL for iframe');
+            // Wait an extra 2 seconds after DNS resolves to let Chrome's cache update
+            console.log('⏳ Waiting 2 extra seconds for Chrome DNS cache refresh...');
+            await new Promise(r => setTimeout(r, 2000));
+
+            // NOW expose the URL to the DOM
+            console.log('✅ Exposing verified URL to iframe');
             setVerifiedTunnelUrl(currentTunnelUrl);
             setDnsVerificationProgress(100);
             setIsTunnelLoading(false);
@@ -196,7 +202,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         }
 
         if (!resolved) {
-          console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s - showing anyway (may fail)`);
+          console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s`);
+          console.error('   This may be a Chrome DNS cache issue. Try: chrome://net-internals/#dns → Clear host cache');
           setVerifiedTunnelUrl(currentTunnelUrl); // Show anyway after timeout
         }
         setIsTunnelLoading(false);
