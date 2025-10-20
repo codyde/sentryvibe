@@ -187,11 +187,15 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             console.log('⏳ Waiting 2 extra seconds for Chrome DNS cache refresh...');
             await new Promise(r => setTimeout(r, 2000));
 
-            // NOW expose the URL to the DOM
+            // NOW expose the URL to the DOM and reload iframe
             console.log('✅ Exposing verified URL to iframe');
             setVerifiedTunnelUrl(currentTunnelUrl);
             setDnsVerificationAttempt(maxAttempts); // Show complete
             setIsTunnelLoading(false);
+
+            // Force iframe to reload with tunnel-proxied content
+            setKey(prev => prev + 1);
+            console.log('🔄 Reloading iframe with tunnel URL');
             return;
           } catch (error: any) {
             console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
