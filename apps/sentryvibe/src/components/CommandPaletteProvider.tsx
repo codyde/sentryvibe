@@ -8,9 +8,11 @@ import { useCommandPalette } from '@/hooks/useCommandPalette';
 interface CommandPaletteProviderProps {
   children: React.ReactNode;
   onOpenProcessModal?: () => void;
+  onRenameProject?: (project: { id: string; name: string }) => void;
+  onDeleteProject?: (project: { id: string; name: string; slug: string }) => void;
 }
 
-export function CommandPaletteProvider({ children, onOpenProcessModal }: CommandPaletteProviderProps) {
+export function CommandPaletteProvider({ children, onOpenProcessModal, onRenameProject, onDeleteProject }: CommandPaletteProviderProps) {
   const { isOpen, open, close, toggle } = useCommandPalette();
   const [mounted, setMounted] = useState(false);
 
@@ -44,6 +46,8 @@ export function CommandPaletteProvider({ children, onOpenProcessModal }: Command
           open={isOpen}
           onOpenChange={(open) => (open ? open() : close())}
           onOpenProcessModal={onOpenProcessModal}
+          onRenameProject={onRenameProject}
+          onDeleteProject={onDeleteProject}
         />,
         document.body
       )}

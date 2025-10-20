@@ -28,6 +28,8 @@ interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenProcessModal?: () => void;
+  onRenameProject?: (project: { id: string; name: string }) => void;
+  onDeleteProject?: (project: { id: string; name: string; slug: string }) => void;
 }
 
 type CommandAction =
@@ -44,7 +46,7 @@ interface CommandItem {
   group?: string;
 }
 
-export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenameProject, onDeleteProject }: CommandPaletteProps) {
   const router = useRouter();
   const { projects, refetch } = useProjects();
   const { selectedRunnerId } = useRunner();
@@ -189,12 +191,20 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
         return; // Skip other actions in bulk mode
       }
 
-      // View project
+      // View project (with enhanced metadata)
+      const projectIcon = getIconComponent(project.icon);
+      const metadata = [];
+      if (project.projectType) metadata.push(project.projectType);
+      if (project.port || project.devServerPort) metadata.push(`Port ${project.devServerPort || project.port}`);
+      if (project.runnerId) metadata.push(`Runner: ${project.runnerId.substring(0, 8)}`);
+
+      const enhancedDescription = project.description || metadata.join(' • ') || 'View project';
+
       items.push({
         id: `view-${project.id}`,
         label: `View ${project.name}`,
-        description: project.description || undefined,
-        icon: Folder,
+        description: enhancedDescription,
+        icon: projectIcon,
         action: { type: 'navigate', path: `/?project=${project.slug}` },
         group: 'Projects',
       });
@@ -254,10 +264,46 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
           group: 'Server Actions',
         });
       }
+
+      // Rename project action
+      if (onRenameProject) {
+        items.push({
+          id: `rename-${project.id}`,
+          label: `Rename ${project.name}`,
+          description: 'Change project name',
+          icon: Edit3,
+          action: {
+            type: 'action',
+            fn: () => {
+              onRenameProject({ id: project.id, name: project.name });
+              onOpenChange(false);
+            },
+          },
+          group: 'Project Actions',
+        });
+      }
+
+      // Delete project action
+      if (onDeleteProject) {
+        items.push({
+          id: `delete-${project.id}`,
+          label: `Delete ${project.name}`,
+          description: 'Permanently delete this project',
+          icon: Trash2,
+          action: {
+            type: 'action',
+            fn: () => {
+              onDeleteProject({ id: project.id, name: project.name, slug: project.slug });
+              onOpenChange(false);
+            },
+          },
+          group: 'Project Actions',
+        });
+      }
     });
 
     return items;
-  }, [projects, selectedRunnerId, onOpenProcessModal, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction]);
+  }, [projects, selectedRunnerId, onOpenProcessModal, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction]);
 
   // Group commands
   const groupedCommands = useMemo(() => {
