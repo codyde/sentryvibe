@@ -20,6 +20,8 @@ import {
   CheckSquare,
   XSquare,
   Loader2,
+  ChevronRight,
+  ArrowLeft,
   type LucideIcon,
 } from 'lucide-react';
 import { getIconComponent } from '@sentryvibe/agent-core/lib/icon-mapper';
@@ -53,20 +55,155 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
-  // Reset bulk state when closing
+  // Reset all state when closing
   useEffect(() => {
     if (!open) {
       setBulkMode(false);
       setSelectedItems(new Set());
       setLoadingAction(null);
+      setSelectedProject(null);
     }
   }, [open]);
+
+  // Handle escape key for navigation
+  useEffect(() => {
+    if (!open) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedProject) {
+          e.preventDefault();
+          setSelectedProject(null);
+        }
+        // Otherwise let Command.Dialog handle closing
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [open, selectedProject]);
 
   // Build command list
   const commands = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [];
 
+    // If a project is selected, show only that project's actions
+    if (selectedProject) {
+      const project = projects.find(p => p.id === selectedProject);
+      if (!project) return items;
+
+      const isRunning = project.devServerStatus === 'running';
+      const isBuilding = project.status === 'in_progress';
+
+      // View/Navigate to project
+      items.push({
+        id: 'view-project',
+        label: 'View Project',
+        description: 'Go to project workspace',
+        icon: Folder,
+        action: {
+          type: 'action',
+          fn: () => {
+            router.push(`/?project=${project.slug}`);
+            onOpenChange(false);
+          },
+        },
+        group: 'Navigate',
+      });
+
+      // Server actions
+      if (isRunning) {
+        items.push({
+          id: 'stop-server',
+          label: 'Stop Server',
+          description: loadingAction === 'stop-server' ? 'Stopping...' : 'Stop development server',
+          icon: Square,
+          action: {
+            type: 'action',
+            fn: async () => {
+              setLoadingAction('stop-server');
+              await fetch(`/api/projects/${project.id}/stop`, { method: 'POST' });
+              await refetch();
+              setLoadingAction(null);
+            },
+          },
+          group: 'Server',
+        });
+
+        items.push({
+          id: 'open-browser',
+          label: 'Open in Browser',
+          description: `localhost:${project.devServerPort || project.port}`,
+          icon: ExternalLink,
+          action: {
+            type: 'action',
+            fn: () => {
+              const port = project.devServerPort || project.port || 3000;
+              window.open(`http://localhost:${port}`, '_blank');
+            },
+          },
+          group: 'Server',
+        });
+      } else if (!isBuilding && project.runCommand) {
+        items.push({
+          id: 'start-server',
+          label: 'Start Server',
+          description: loadingAction === 'start-server' ? 'Starting...' : 'Start development server',
+          icon: Play,
+          action: {
+            type: 'action',
+            fn: async () => {
+              setLoadingAction('start-server');
+              await fetch(`/api/projects/${project.id}/start`, { method: 'POST' });
+              await refetch();
+              setLoadingAction(null);
+            },
+          },
+          group: 'Server',
+        });
+      }
+
+      // Project management
+      if (onRenameProject) {
+        items.push({
+          id: 'rename-project',
+          label: 'Rename Project',
+          description: 'Change project name',
+          icon: Edit3,
+          action: {
+            type: 'action',
+            fn: () => {
+              onRenameProject({ id: project.id, name: project.name });
+              onOpenChange(false);
+            },
+          },
+          group: 'Manage',
+        });
+      }
+
+      if (onDeleteProject) {
+        items.push({
+          id: 'delete-project',
+          label: 'Delete Project',
+          description: 'Permanently delete this project',
+          icon: Trash2,
+          action: {
+            type: 'action',
+            fn: () => {
+              onDeleteProject({ id: project.id, name: project.name, slug: project.slug });
+              onOpenChange(false);
+            },
+          },
+          group: 'Manage',
+        });
+      }
+
+      return items;
+    }
+
+    // Top-level view: Show global actions and project list
     // Global actions
     items.push({
       id: 'new-project',
@@ -172,11 +309,8 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       });
     }
 
-    // Project actions
+    // Project list - drill down on selection
     projects.forEach((project) => {
-      const isRunning = project.devServerStatus === 'running';
-      const isBuilding = project.status === 'in_progress';
-
       // In bulk mode, show selection toggle
       if (bulkMode) {
         const isSelected = selectedItems.has(project.id);
@@ -188,122 +322,33 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
           action: { type: 'bulk-select', projectId: project.id },
           group: 'Projects',
         });
-        return; // Skip other actions in bulk mode
+        return;
       }
 
-      // View project (with enhanced metadata)
+      // Normal mode: Show project list, drill down to see actions
       const projectIcon = getIconComponent(project.icon);
       const metadata = [];
       if (project.projectType) metadata.push(project.projectType);
       if (project.port || project.devServerPort) metadata.push(`Port ${project.devServerPort || project.port}`);
       if (project.runnerId) metadata.push(`Runner: ${project.runnerId.substring(0, 8)}`);
 
-      const enhancedDescription = project.description || metadata.join(' • ') || 'View project';
+      const enhancedDescription = project.description || metadata.join(' • ') || 'View actions';
 
       items.push({
-        id: `view-${project.id}`,
-        label: `View ${project.name}`,
+        id: `project-${project.id}`,
+        label: project.name,
         description: enhancedDescription,
         icon: projectIcon,
-        action: { type: 'navigate', path: `/?project=${project.slug}` },
+        action: {
+          type: 'action',
+          fn: () => setSelectedProject(project.id),
+        },
         group: 'Projects',
       });
-
-      if (isRunning) {
-        // Stop server
-        items.push({
-          id: `stop-${project.id}`,
-          label: `Stop ${project.name}`,
-          description: loadingAction === `stop-${project.id}` ? 'Stopping...' : 'Stop development server',
-          icon: Square,
-          action: {
-            type: 'action',
-            fn: async () => {
-              setLoadingAction(`stop-${project.id}`);
-              await fetch(`/api/projects/${project.id}/stop`, { method: 'POST' });
-              await refetch();
-              setLoadingAction(null);
-              onOpenChange(false);
-            },
-          },
-          group: 'Server Actions',
-        });
-
-        // Open in browser
-        items.push({
-          id: `open-${project.id}`,
-          label: `Open ${project.name}`,
-          description: `Open in browser (localhost:${project.devServerPort || project.port})`,
-          icon: ExternalLink,
-          action: {
-            type: 'action',
-            fn: () => {
-              const port = project.devServerPort || project.port || 3000;
-              window.open(`http://localhost:${port}`, '_blank');
-              onOpenChange(false);
-            },
-          },
-          group: 'Server Actions',
-        });
-      } else if (!isBuilding && project.runCommand) {
-        items.push({
-          id: `start-${project.id}`,
-          label: `Start ${project.name}`,
-          description: loadingAction === `start-${project.id}` ? 'Starting...' : 'Start development server',
-          icon: Play,
-          action: {
-            type: 'action',
-            fn: async () => {
-              setLoadingAction(`start-${project.id}`);
-              await fetch(`/api/projects/${project.id}/start`, { method: 'POST' });
-              await refetch();
-              setLoadingAction(null);
-              onOpenChange(false);
-            },
-          },
-          group: 'Server Actions',
-        });
-      }
-
-      // Rename project action
-      if (onRenameProject) {
-        items.push({
-          id: `rename-${project.id}`,
-          label: `Rename ${project.name}`,
-          description: 'Change project name',
-          icon: Edit3,
-          action: {
-            type: 'action',
-            fn: () => {
-              onRenameProject({ id: project.id, name: project.name });
-              onOpenChange(false);
-            },
-          },
-          group: 'Project Actions',
-        });
-      }
-
-      // Delete project action
-      if (onDeleteProject) {
-        items.push({
-          id: `delete-${project.id}`,
-          label: `Delete ${project.name}`,
-          description: 'Permanently delete this project',
-          icon: Trash2,
-          action: {
-            type: 'action',
-            fn: () => {
-              onDeleteProject({ id: project.id, name: project.name, slug: project.slug });
-              onOpenChange(false);
-            },
-          },
-          group: 'Project Actions',
-        });
-      }
     });
 
     return items;
-  }, [projects, selectedRunnerId, onOpenProcessModal, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction]);
+  }, [projects, selectedRunnerId, onOpenProcessModal, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction, selectedProject]);
 
   // Group commands
   const groupedCommands = useMemo(() => {
@@ -352,10 +397,34 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
         <VisuallyHidden.Root asChild>
           <Dialog.Title>Command Menu</Dialog.Title>
         </VisuallyHidden.Root>
+
+        {/* Breadcrumb when project selected */}
+        {selectedProject && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-purple-500/10">
+            <button
+              onClick={() => setSelectedProject(null)}
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              <span>Back to projects</span>
+            </button>
+            <ChevronRight className="h-3 w-3 text-gray-600" />
+            <span className="text-sm text-white font-medium">
+              {projects.find(p => p.id === selectedProject)?.name}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center border-b border-white/10 px-4">
           <Search className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
           <Command.Input
-            placeholder={bulkMode ? 'Select projects for bulk operations...' : 'Search commands...'}
+            placeholder={
+              selectedProject
+                ? 'Search actions...'
+                : bulkMode
+                ? 'Select projects for bulk operations...'
+                : 'Search projects and commands...'
+            }
             className="flex h-12 w-full bg-transparent py-3 text-sm text-white placeholder:text-gray-500 outline-none"
           />
           {bulkMode && (
