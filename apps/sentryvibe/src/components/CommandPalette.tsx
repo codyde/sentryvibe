@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
 import {
@@ -176,7 +177,9 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
       className="fixed left-[50%] top-[50%] z-50 w-full max-w-[640px] translate-x-[-50%] translate-y-[-50%]"
     >
       <div className="overflow-hidden rounded-xl border-2 border-purple-500 bg-gray-950 shadow-2xl">
-        <div className="sr-only" aria-live="polite" role="status">Command Menu</div>
+        <VisuallyHidden.Root>
+          <h2>Command Menu</h2>
+        </VisuallyHidden.Root>
         <div className="flex items-center border-b border-white/10 px-4">
           <Search className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
           <Command.Input
