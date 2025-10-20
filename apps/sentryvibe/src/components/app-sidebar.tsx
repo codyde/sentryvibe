@@ -150,6 +150,5 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
 
         <SidebarRail />
       </Sidebar>
-    </>
   )
 }
