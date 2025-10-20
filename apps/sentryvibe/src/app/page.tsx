@@ -2595,7 +2595,7 @@ function HomeContent() {
                             })}
 
                             {/* Current Build (Active or Completed) */}
-                            {generationState && (
+                            {generationState && generationState.todos && generationState.todos.length > 0 && (
                               <BuildProgress
                                 state={generationState}
                                 templateInfo={selectedTemplate}
@@ -2643,7 +2643,9 @@ function HomeContent() {
                                   Builds ({buildHistory.length})
                                 </h3>
                                 <div className="space-y-4">
-                                  {buildHistory.map((build) => (
+                                  {buildHistory
+                                    .filter((build) => build.todos && build.todos.length > 0)
+                                    .map((build) => (
                                     <BuildProgress
                                       key={build.id}
                                       state={build}
