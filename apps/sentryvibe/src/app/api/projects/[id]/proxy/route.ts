@@ -42,25 +42,33 @@ export async function GET(
       return new NextResponse('Dev server not running', { status: 503 });
     }
 
-    // Determine target URL based on where THIS proxy code is running
-    // If proxy runs on Railway (production), it can't access user's localhost
-    // If proxy runs locally (dev), it CAN access localhost
-    const proxyIsLocal = process.env.NODE_ENV === 'development';
+    // Determine target URL based on where the USER is accessing the frontend from
+    // Check the Host header to see if frontend is being accessed locally or remotely
+    const requestHost = req.headers.get('host') || '';
+    const frontendIsLocal = requestHost.includes('localhost') || requestHost.includes('127.0.0.1');
 
     let targetUrl: string;
 
-    if (proxyIsLocal) {
-      // Proxy running locally: Can always use localhost (fast!)
+    if (frontendIsLocal) {
+      // User accessing frontend via localhost (e.g., http://localhost:3000)
+      // This means frontend and runner are on the SAME machine
+      // Proxy can directly access runner's localhost
       targetUrl = `http://localhost:${proj.devServerPort}${path}`;
-      console.log(`[proxy] Local mode: Fetching from localhost:${proj.devServerPort}`);
+      console.log(`[proxy] Frontend accessed via ${requestHost} - using localhost:${proj.devServerPort}`);
     } else if (proj.tunnelUrl) {
-      // Proxy on Railway: Must use tunnel to reach user's machine
+      // User accessing frontend via remote URL (e.g., sentryvibe.up.railway.app)
+      // Frontend and runner are on DIFFERENT machines
+      // Proxy must use tunnel to reach runner
       targetUrl = `${proj.tunnelUrl}${path}`;
-      console.log(`[proxy] Remote mode: Fetching from tunnel ${proj.tunnelUrl}`);
+      console.log(`[proxy] Frontend accessed via ${requestHost} - using tunnel ${proj.tunnelUrl}`);
     } else {
-      // Proxy on Railway, no tunnel: Can't reach localhost
-      console.error(`[proxy] Remote mode but no tunnel available for project ${id}`);
-      return new NextResponse('Tunnel required: Runner is on a different machine than the frontend', { status: 503 });
+      // Frontend accessed remotely but no tunnel exists
+      // Proxy can't reach runner
+      console.error(`[proxy] Remote access via ${requestHost} but no tunnel for project ${id}`);
+      return new NextResponse(
+        'Tunnel required: Frontend is remote but no tunnel exists. Click "Start Tunnel" to create one.',
+        { status: 503 }
+      );
     }
     const response = await fetch(targetUrl);
     const contentType = response.headers.get('content-type') || '';
