@@ -24,13 +24,18 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Declare variables outside try-catch so they're accessible in error handler
+  let id: string;
+  let url: URL;
+  let project: any[];
+
   try {
-    const { id } = await params;
-    const url = new URL(req.url);
+    ({ id } = await params);
+    url = new URL(req.url);
     const path = url.searchParams.get('path') || '/';
 
     // Get project
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     if (project.length === 0) {
       return new NextResponse('Project not found', { status: 404 });
     }
