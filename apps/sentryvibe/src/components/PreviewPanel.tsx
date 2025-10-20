@@ -69,7 +69,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const [copied, setCopied] = useState(false);
   const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
   const [isTunnelLoading, setIsTunnelLoading] = useState(false);
-  const [dnsVerificationProgress, setDnsVerificationProgress] = useState<number>(0);
+  const [dnsVerificationAttempt, setDnsVerificationAttempt] = useState<number>(0);
   const [dnsTroubleshooting, setDnsTroubleshooting] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
@@ -143,7 +143,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     // Show loading while tunnel is being created
     if (isStartingTunnel) {
       setIsTunnelLoading(true);
-      setDnsVerificationProgress(0);
+      setDnsVerificationAttempt(0);
       setDnsTroubleshooting(false); // Clear troubleshooting screen
       return;
     }
@@ -155,17 +155,17 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
       setVerifiedTunnelUrl(null); // Clear old verified URL - keeps iframe blank
-      setDnsVerificationProgress(0);
+      setDnsVerificationAttempt(0);
 
       // Verify browser can actually reach the tunnel
       (async () => {
-        const maxAttempts = 30; // 30 attempts × 1s = 30 seconds max
+        const maxAttempts = 10; // 10 attempts × 3s = 30 seconds max
         let resolved = false;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
             console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
-            setDnsVerificationProgress(Math.round((attempt / maxAttempts) * 100));
+            setDnsVerificationAttempt(attempt);
 
             // IMPORTANT: Use the actual URL (no cache-bust on verification)
             // We want to know when the REAL URL resolves, not a cache-busted variant
@@ -190,22 +190,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             // NOW expose the URL to the DOM
             console.log('✅ Exposing verified URL to iframe');
             setVerifiedTunnelUrl(currentTunnelUrl);
-            setDnsVerificationProgress(100);
+            setDnsVerificationAttempt(maxAttempts); // Show complete
             setIsTunnelLoading(false);
             return;
           } catch (error: any) {
             console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
 
-            // Wait 1 second between attempts
+            // Wait 3 seconds between attempts
             if (attempt < maxAttempts) {
-              await new Promise(r => setTimeout(r, 1000));
+              await new Promise(r => setTimeout(r, 3000));
             }
           }
         }
 
         if (!resolved) {
-          console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s`);
-          console.error('   This may be a Chrome DNS cache issue. Try: chrome://net-internals/#dns → Clear host cache');
+          console.error(`❌ Tunnel DNS verification timeout after 30s (${maxAttempts} attempts)`);
+          console.error('   This may be a Chrome DNS cache issue.');
 
           // Show troubleshooting screen instead of loading iframe
           setDnsTroubleshooting(true);
@@ -521,7 +521,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             {/* DNS Troubleshooting overlay */}
             {dnsTroubleshooting && (
               <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
-                <div className="max-w-lg w-full bg-[#2d2d2d] border border-orange-500/30 rounded-xl p-8 space-y-6">
+                <div className="max-w-lg w-full bg-[#2d2d2d] rounded-xl p-8 space-y-6">
                   <div className="text-center space-y-2">
                     <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
                       <Cloud className="w-8 h-8 text-orange-400" />
@@ -574,24 +574,33 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
                       <button
                         onClick={() => {
-                          window.location.reload();
+                          // Reload iframe only (not full page)
+                          setDnsTroubleshooting(false);
+                          setKey(prev => prev + 1); // Force iframe reload
+                          setDnsVerificationAttempt(0);
+                          // Re-run verification
+                          if (currentProject?.tunnelUrl) {
+                            lastTunnelUrlRef.current = null;
+                            setVerifiedTunnelUrl(null);
+                            setIsTunnelLoading(true);
+                          }
                         }}
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors font-medium"
                       >
                         <RefreshCw className="w-4 h-4" />
-                        Reload Page
+                        Reload Preview
                       </button>
                     </div>
                   </div>
 
                   <p className="text-xs text-gray-500 text-center">
-                    After running the DNS commands, reload the page to retry the tunnel connection.
+                    After running the DNS commands, click "Reload Preview" to retry the tunnel connection.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Tunnel loading overlay with progress */}
+            {/* Tunnel loading overlay with attempt counter */}
             {isTunnelLoading && !dnsTroubleshooting && (
               <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20">
                 <div className="flex flex-col items-center gap-4">
@@ -601,21 +610,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   </div>
                   <div className="text-center space-y-2">
                     <p className="text-lg font-semibold text-white">
-                      {dnsVerificationProgress > 0 ? 'Verifying Tunnel Connection' : 'Initializing Tunnel'}
+                      {dnsVerificationAttempt > 0 ? 'Verifying Tunnel Connection' : 'Initializing Tunnel'}
                     </p>
                     <p className="text-sm text-gray-400">
-                      {dnsVerificationProgress > 0
-                        ? `Waiting for DNS to propagate... ${dnsVerificationProgress}%`
+                      {dnsVerificationAttempt > 0
+                        ? `Attempt ${dnsVerificationAttempt}/10...`
                         : 'Setting up secure connection...'}
                     </p>
-                    {dnsVerificationProgress > 0 && (
-                      <div className="w-48 h-1 bg-gray-700 rounded-full overflow-hidden mt-2">
-                        <div
-                          className="h-full bg-blue-400 transition-all duration-300"
-                          style={{ width: `${dnsVerificationProgress}%` }}
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
