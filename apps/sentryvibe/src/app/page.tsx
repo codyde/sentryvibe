@@ -11,6 +11,8 @@ import { Sparkles } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
 import TerminalOutput from "@/components/TerminalOutput";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
+import RenameProjectModal from "@/components/RenameProjectModal";
+import DeleteProjectModal from "@/components/DeleteProjectModal";
 import SummaryCard from "@/components/SummaryCard";
 import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
@@ -18,6 +20,7 @@ import ChatUpdate from "@/components/ChatUpdate";
 import { AppSidebar } from "@/components/app-sidebar";
 import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
@@ -93,6 +96,8 @@ function HomeContent() {
   } | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
+  const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
+  const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
   >(null);
@@ -2167,13 +2172,51 @@ function HomeContent() {
   };
 
   return (
-    <SidebarProvider defaultOpen={false}>
-      <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
-      <ProcessManagerModal
-        isOpen={showProcessModal}
-        onClose={() => setShowProcessModal(false)}
-      />
-      <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
+    <CommandPaletteProvider
+      onOpenProcessModal={() => setShowProcessModal(true)}
+      onRenameProject={setRenamingProject}
+      onDeleteProject={setDeletingProject}
+    >
+      <SidebarProvider defaultOpen={false}>
+        <AppSidebar
+          onOpenProcessModal={() => setShowProcessModal(true)}
+          onRenameProject={setRenamingProject}
+          onDeleteProject={setDeletingProject}
+        />
+        <ProcessManagerModal
+          isOpen={showProcessModal}
+          onClose={() => setShowProcessModal(false)}
+        />
+        {renamingProject && (
+          <RenameProjectModal
+            isOpen={!!renamingProject}
+            onClose={() => setRenamingProject(null)}
+            projectId={renamingProject.id}
+            currentName={renamingProject.name}
+            onRenameComplete={() => {
+              setRenamingProject(null);
+              refetch();
+            }}
+          />
+        )}
+        {deletingProject && (
+          <DeleteProjectModal
+            isOpen={!!deletingProject}
+            onClose={() => setDeletingProject(null)}
+            projectId={deletingProject.id}
+            projectName={deletingProject.name}
+            projectSlug={deletingProject.slug}
+            onDeleteComplete={() => {
+              setDeletingProject(null);
+              refetch();
+              // If viewing deleted project, navigate home
+              if (selectedProjectSlug === deletingProject.slug) {
+                router.push('/');
+              }
+            }}
+          />
+        )}
+        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
         {runnerOnline === false && (
           <div className="bg-amber-500/20 border border-amber-400/40 text-amber-200 px-4 py-2 text-sm">
             Local runner is offline. Start the runner CLI on your machine to
@@ -2255,30 +2298,11 @@ function HomeContent() {
                 </motion.div>
               )}
 
-            {/* Loading State - Show until mounted and project data loaded */}
+            {/* Three-Panel Layout - Show immediately when mounted */}
             {(messages.length > 0 ||
               selectedProjectSlug ||
               isCreatingProject) &&
-              (!isMounted || (selectedProjectSlug && isLoadingProject)) && (
-                <motion.div
-                  key="initial-loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex-1 flex items-center justify-center"
-                >
-                  <div className="text-center space-y-4">
-                    <Sparkles className="w-12 h-12 mx-auto text-purple-400 animate-pulse" />
-                    <p className="text-gray-400">Loading workspace...</p>
-                  </div>
-                </motion.div>
-              )}
-
-            {/* Three-Panel Layout - Show after mounted and data loaded */}
-            {(messages.length > 0 ||
-              selectedProjectSlug ||
-              isCreatingProject) &&
-              isMounted &&
-              !(selectedProjectSlug && isLoadingProject) && (
+              isMounted && (
                 <motion.div
                   key="chat-layout"
                   initial={{ opacity: 0 }}
@@ -2929,6 +2953,28 @@ function HomeContent() {
                               );
                             })}
 
+                            {/* Loading indicator for project messages */}
+                            {isLoadingProject && (
+                              <div className="flex justify-start animate-in fade-in duration-500">
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                                    <div
+                                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                                      style={{ animationDelay: "0.2s" }}
+                                    ></div>
+                                    <div
+                                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                                      style={{ animationDelay: "0.4s" }}
+                                    ></div>
+                                    <span className="ml-2 text-sm text-gray-400">
+                                      Loading messages...
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Loading indicator in chat view */}
                             {isGenerating &&
                               (!generationState ||
@@ -3041,6 +3087,7 @@ function HomeContent() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+    </CommandPaletteProvider>
   );
 }
 

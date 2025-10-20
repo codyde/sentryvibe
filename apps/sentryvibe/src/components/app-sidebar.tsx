@@ -5,8 +5,6 @@ import { Activity, Settings, Command, Monitor } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { ActivityFeed } from "@/components/sidebar/ActivityFeed"
 import { SmartProjectGroups } from "@/components/sidebar/SmartProjectGroups"
-import RenameProjectModal from "@/components/RenameProjectModal"
-import DeleteProjectModal from "@/components/DeleteProjectModal"
 import RunnerSelector from "@/components/RunnerSelector"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
@@ -24,15 +22,15 @@ import {
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onOpenProcessModal: () => void;
+  onRenameProject: (project: { id: string; name: string }) => void;
+  onDeleteProject: (project: { id: string; name: string; slug: string }) => void;
 }
 
-export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
+export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProject, ...props }: AppSidebarProps) {
   const { projects, refetch, isLoading } = useProjects();
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
-  const [renamingProject, setRenamingProject] = React.useState<{ id: string; name: string } | null>(null);
-  const [deletingProject, setDeletingProject] = React.useState<{ id: string; name: string; slug: string } | null>(null);
 
   const handleStartServer = async (projectId: string) => {
     try {
@@ -57,42 +55,6 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
   };
 
   return (
-    <>
-      {renamingProject && (
-        <RenameProjectModal
-          isOpen={!!renamingProject}
-          onClose={() => setRenamingProject(null)}
-          projectId={renamingProject.id}
-          currentName={renamingProject.name}
-          onRenameComplete={() => {
-            setRenamingProject(null);
-            refetch();
-          }}
-        />
-      )}
-
-      {deletingProject && (
-        <DeleteProjectModal
-          isOpen={!!deletingProject}
-          onClose={() => setDeletingProject(null)}
-          projectId={deletingProject.id}
-          projectName={deletingProject.name}
-          projectSlug={deletingProject.slug}
-          onDeleteComplete={() => {
-            setDeletingProject(null);
-            refetch();
-
-            // If we're currently viewing the project being deleted, do a hard navigation
-            if (currentProjectSlug === deletingProject.slug) {
-              console.log('Navigating away from deleted project');
-              window.location.href = '/';
-            } else {
-              router.push('/');
-            }
-          }}
-        />
-      )}
-
       <Sidebar collapsible="offcanvas" {...props}>
         {/* Header */}
         <SidebarHeader className="p-4 border-b border-white/10 bg-gradient-to-r from-purple-900/20 to-pink-900/20">
@@ -173,8 +135,8 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
                   projects={projects}
                   onStartServer={handleStartServer}
                   onStopServer={handleStopServer}
-                  onRename={setRenamingProject}
-                  onDelete={setDeletingProject}
+                  onRename={onRenameProject}
+                  onDelete={onDeleteProject}
                 />
               </SidebarGroup>
             </>
@@ -188,6 +150,5 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
 
         <SidebarRail />
       </Sidebar>
-    </>
   )
 }
