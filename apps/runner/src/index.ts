@@ -664,6 +664,29 @@ function createBuildQuery(agent: AgentId, claudeModel?: ClaudeModelId): BuildQue
 }
 
 /**
+ * Retry a fetch call with exponential backoff
+ */
+async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxAttempts) {
+        const delay = 1000 * attempt; // 1s, 2s, 3s
+        console.log(`   ⏳ Attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Cleanup orphaned processes on startup
  */
 async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
@@ -671,11 +694,11 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
 
   try {
     // Get list of processes from API (filtered by this runner's ID)
-    const response = await fetch(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
+    const response = await fetchWithRetry(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
       headers: {
         'Authorization': `Bearer ${runnerSharedSecret}`,
       },
-    });
+    }, 3);
 
     if (!response.ok) {
       console.error('❌ Failed to fetch process list for cleanup');
@@ -694,12 +717,12 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
         // Process doesn't exist - orphaned, unregister via API
         console.log(`   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(0, 8)}), cleaning up`);
 
-        await fetch(`${apiBaseUrl}/api/runner/process/${row.projectId}`, {
+        await fetchWithRetry(`${apiBaseUrl}/api/runner/process/${row.projectId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${runnerSharedSecret}`,
           },
-        });
+        }, 3);
       }
     }
 
@@ -755,11 +778,11 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
   const doHealthCheck = async () => {
     try {
       // Get list of processes to health check from API (filtered by this runner's ID)
-      const response = await fetch(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
+      const response = await fetchWithRetry(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
         headers: {
           'Authorization': `Bearer ${runnerSharedSecret}`,
         },
-      });
+      }, 3);
 
       if (!response.ok) {
         console.error('❌ Failed to fetch process list for health check');
@@ -792,7 +815,7 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
         }
 
         // Report health status to API
-        await fetch(`${apiBaseUrl}/api/runner/process/${row.projectId}/health`, {
+        await fetchWithRetry(`${apiBaseUrl}/api/runner/process/${row.projectId}/health`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${runnerSharedSecret}`,
@@ -803,7 +826,7 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
             status: isListening ? 'healthy' : 'unhealthy',
             failCount: newFailCount,
           }),
-        });
+        }, 3);
 
         if (!isListening) {
           console.log(`   ⚠️  Port ${row.port} not in use (fail ${newFailCount}/3) for project ${row.projectId.slice(0, 8)}`);

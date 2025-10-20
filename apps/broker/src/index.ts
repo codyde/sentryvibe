@@ -34,6 +34,29 @@ function auth(req: express.Request, res: express.Response, next: express.NextFun
   return next();
 }
 
+/**
+ * Retry a fetch call with exponential backoff
+ */
+async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxAttempts) {
+        const delay = 1000 * attempt; // 1s, 2s, 3s
+        console.log(`[broker] ⏳ Attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 const app = express();
 app.use(express.json());
 
@@ -113,14 +136,14 @@ server.listen(PORT, () => {
 
 async function forwardEvent(event: RunnerEvent) {
   try {
-    const response = await fetch(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
+    const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${SHARED_SECRET}`,
       },
       body: JSON.stringify(event),
-    });
+    }, 3);
 
     if (!response.ok) {
       const text = await response.text();
