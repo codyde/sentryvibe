@@ -664,7 +664,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                       {dnsVerificationAttempt > 0
                         ? `Attempt ${dnsVerificationAttempt}/10...`
                         : (frontendIsRemote
-                          ? 'Tunnel required for Railway access...'
+                          ? 'Tunnel required for remote access...'
                           : 'Setting up secure connection...')}
                     </p>
                   </div>
@@ -767,7 +767,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                     Server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> but tunnel was stopped.
                   </p>
                   <p className="text-gray-400 text-sm">
-                    Restart tunnel to access from Railway:
+                    Restart tunnel to access remotely:
                   </p>
                 </div>
                 <button
