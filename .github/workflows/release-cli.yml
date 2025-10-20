@@ -31,21 +31,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build and pack agent-core
+      - name: Build agent-core
         run: |
           echo "Building agent-core..."
           pnpm --filter @sentryvibe/agent-core build
-
-          echo "Packing agent-core..."
-          cd packages/agent-core
-          pnpm pack
-
-          echo "Moving tarball to runner vendor..."
-          mkdir -p ../../apps/runner/vendor
-          mv sentryvibe-agent-core-*.tgz ../../apps/runner/vendor/sentryvibe-agent-core-0.1.0.tgz
-
-          echo "✓ agent-core packed and ready"
-          ls -lh ../../apps/runner/vendor/sentryvibe-agent-core-0.1.0.tgz
 
       - name: Verify vendor packages (now committed to git)
         run: |
@@ -67,9 +56,8 @@ jobs:
           echo ""
           echo "Total .tgz files: $VENDOR_COUNT"
 
-          # Check for all required files
+          # Check for all required files (Sentry SDK tarballs)
           REQUIRED_FILES=(
-            "sentryvibe-agent-core-0.1.0.tgz"
             "sentry-core-LOCAL.tgz"
             "sentry-node-LOCAL.tgz"
             "sentry-node-core-LOCAL.tgz"
@@ -86,9 +74,9 @@ jobs:
             fi
           done
 
-          if [ "$VENDOR_COUNT" -ne 5 ]; then
+          if [ "$VENDOR_COUNT" -ne 4 ]; then
             echo ""
-            echo "ERROR: Expected 5 vendor files, found $VENDOR_COUNT"
+            echo "ERROR: Expected 4 vendor files (Sentry SDKs), found $VENDOR_COUNT"
             exit 1
           fi
 
