@@ -8,6 +8,8 @@ import type { Template } from '../templates/config';
 import { getTemplateById, selectTemplateFromPrompt } from '../templates/config';
 import { downloadTemplate, getProjectFileTree } from '../templates/downloader';
 import type { BuildRequest } from '../../types/build';
+import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '../../types/agent';
+import type { AgentId, ClaudeModelId } from '../../types/agent';
 import { getWorkspaceRoot } from '../workspace';
 
 export interface AgentMessage {
@@ -57,7 +59,39 @@ interface RuntimeMetadata {
   port: number;
 }
 
-function resolveScriptRunner(packageJson: any): 'npm' | 'pnpm' | 'yarn' | 'bun' {
+interface PackageJson {
+  packageManager?: string;
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+interface PreBuildStartEvent {
+  type: 'pre-build-start';
+}
+
+interface MetadataExtractedEvent {
+  type: 'metadata-extracted';
+  metadata: ProjectMetadata;
+}
+
+interface TemplateSelectedEvent {
+  type: 'template-selected';
+  template: Template;
+}
+
+interface TemplateDownloadedEvent {
+  type: 'template-downloaded';
+  path: string;
+}
+
+interface BuildErrorEvent {
+  type: 'error';
+  error: string;
+}
+
+function resolveScriptRunner(packageJson: PackageJson): 'npm' | 'pnpm' | 'yarn' | 'bun' {
   const pm = typeof packageJson?.packageManager === 'string'
     ? packageJson.packageManager.toLowerCase()
     : '';
@@ -171,7 +205,12 @@ interface BuildPipelineParams extends BuildRequest {
 }
 
 async function runBuildPipeline(params: BuildPipelineParams) {
-  const { projectId: id, prompt, operationType, context, writer, query } = params;
+  const { projectId: id, prompt, operationType, context, writer, query, agent, claudeModel } = params;
+  const agentId: AgentId = agent ?? DEFAULT_AGENT_ID;
+  const resolvedClaudeModel: ClaudeModelId =
+    agentId === 'claude-code' && (claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5')
+      ? claudeModel
+      : DEFAULT_CLAUDE_MODEL_ID;
 
   const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
@@ -207,13 +246,18 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   switch (operationType) {
     case 'initial-build': {
       console.log('🆕 INITIAL BUILD - Starting pre-build phase...');
-      writer.write({ type: 'pre-build-start' } as any);
+      const preBuildEvent: PreBuildStartEvent = { type: 'pre-build-start' };
+      // Custom event types are not part of the standard UI stream protocol
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      writer.write(preBuildEvent as any);
 
-      metadata = await extractProjectMetadata(prompt, query);
-      writer.write({
+      metadata = await extractProjectMetadata(prompt, query, agentId, resolvedClaudeModel);
+      const metadataEvent: MetadataExtractedEvent = {
         type: 'metadata-extracted',
         metadata,
-      } as any);
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      writer.write(metadataEvent as any);
 
       selectedTemplate = metadata?.template
         ? await getTemplateById(metadata.template)
@@ -223,10 +267,14 @@ async function runBuildPipeline(params: BuildPipelineParams) {
         throw new Error('Unable to resolve template for build');
       }
 
-      writer.write({ type: 'template-selected', template: selectedTemplate } as any);
+      const templateEvent: TemplateSelectedEvent = { type: 'template-selected', template: selectedTemplate };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      writer.write(templateEvent as any);
 
       const downloadResult = await downloadTemplate(selectedTemplate, projectName);
-      writer.write({ type: 'template-downloaded', path: downloadResult } as any);
+      const downloadEvent: TemplateDownloadedEvent = { type: 'template-downloaded', path: downloadResult };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      writer.write(downloadEvent as any);
 
       fileTree = await getProjectFileTree(downloadResult);
       systemPrompt = await buildInitialSystemPrompt({
@@ -300,16 +348,23 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     ? `${prompt}\n\nTarget element: ${context.elementSelector}`
     : prompt;
 
+  const queryOptions: Record<string, unknown> = {
+    cwd: projectsDir,
+    permissionMode: 'bypassPermissions',
+    maxTurns,
+    systemPrompt,
+  };
+
+  if (agentId === 'claude-code') {
+    queryOptions.model = resolvedClaudeModel;
+  } else if (agentId === 'openai-codex') {
+    queryOptions.model = 'gpt-5-codex';
+  }
+
   const agentStream = (await query({
     prompt: fullPrompt,
     inputMessages: [{ role: 'system', content: systemPrompt }],
-    options: {
-      model: 'claude-sonnet-4-5',
-      cwd: projectsDir,
-      permissionMode: 'bypassPermissions',
-      maxTurns,
-      systemPrompt,
-    },
+    options: queryOptions,
   })) as AsyncGenerator<AgentMessage>;
 
   await writeAgentMessagesToStream(agentStream, writer, id);
@@ -336,14 +391,23 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   }
 }
 
-async function extractProjectMetadata(prompt: string, query: AgentQueryFn): Promise<ProjectMetadata> {
+async function extractProjectMetadata(
+  prompt: string,
+  query: AgentQueryFn,
+  agentId: AgentId,
+  claudeModel: ClaudeModelId,
+): Promise<ProjectMetadata> {
   console.log('🤖 Extracting project metadata...');
 
   const metadataStream = await query({
     prompt: `Analyze this project request: "${prompt}"\n\nExtract metadata and select the best template.\n\nAvailable templates:\n- react-vite: React with Vite, TypeScript, Tailwind (fast SPA, client-side only)\n- nextjs-fullstack: Next.js with TypeScript, Tailwind (SSR, API routes, full-stack)\n- astro-static: Astro with TypeScript, Tailwind (static site generation, content-focused)\n\nOutput ONLY valid JSON (no markdown, no explanation):\n{\n  "slug": "short-kebab-case-name",\n  "friendlyName": "Friendly Display Name",\n  "description": "Brief description of what this builds",\n  "icon": "Package",\n  "template": "react-vite"\n}\n\nAvailable icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter\n\nRules:\n- slug must be lowercase, kebab-case, 2-4 words max\n- friendlyName should be concise (2-5 words)\n- description should explain what the app does\n- template must be one of: react-vite, nextjs-fullstack, astro-static\n\nTemplate Selection Logic (PRIORITY ORDER):\n1. If user explicitly mentions "vite" OR "react vite" → react-vite\n2. If user explicitly mentions "next" OR "nextjs" → nextjs-fullstack\n3. If user explicitly mentions "astro" → astro-static\n4. If user mentions backend needs (API, database, auth, server) → nextjs-fullstack\n5. If user mentions static content (blog, docs, markdown) → astro-static\n6. For simple landing pages with NO backend → react-vite (simpler/faster)\n7. For landing pages WITH backend/forms/API → nextjs-fullstack\n8. For interactive apps (todo, dashboard, calculator, game) → react-vite\n9. Default if unclear → react-vite (simplest option)\n\nCRITICAL: Pay attention to explicit technology mentions. If user says "vite landing page", use react-vite NOT nextjs!`,
     inputMessages: [],
     options: {
-      model: 'claud-sonnet-4-5',
+      ...(agentId === 'claude-code'
+        ? { model: claudeModel }
+        : agentId === 'openai-codex'
+          ? { model: 'gpt-5-codex' }
+          : {}),
       maxTurns: 1,
       systemPrompt: 'You are a metadata extraction assistant. Output ONLY valid JSON. No markdown blocks. No explanations. Just raw JSON.',
     },
@@ -502,10 +566,13 @@ async function writeAgentMessagesToStream(
       }
     } else if (message.type === 'error') {
       console.error('❌ Agent Error:', message.error);
-      writer.write({
+      const errorEvent: BuildErrorEvent = {
         type: 'error',
         error: message.error instanceof Error ? message.error.message : String(message.error),
-      } as any);
+      };
+      // Custom event format for build errors
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      writer.write(errorEvent as any);
     }
   }
 }

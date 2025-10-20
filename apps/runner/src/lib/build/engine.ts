@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
-import type { AgentId } from '@sentryvibe/agent-core/types/agent';
+import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
 
 type BuildQueryFn = (
@@ -21,6 +21,7 @@ interface BuildStreamOptions {
   systemPrompt: string;
   agent: AgentId;
   isNewProject?: boolean;
+  claudeModel?: ClaudeModelId;
 }
 
 /**

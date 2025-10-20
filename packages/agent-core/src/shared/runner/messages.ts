@@ -1,4 +1,7 @@
-export type AgentId = 'claude-code' | 'openai-codex';
+import type { AgentId as CoreAgentId, ClaudeModelId as CoreClaudeModelId } from '../../types/agent';
+
+export type AgentId = CoreAgentId;
+export type ClaudeModelId = CoreClaudeModelId;
 
 export type RunnerCommandType =
   | 'start-build'
@@ -50,6 +53,7 @@ export interface StartBuildCommand extends BaseCommand {
     templateId?: string | null;
     regenerate?: boolean;
     agent?: AgentId;
+    claudeModel?: ClaudeModelId;
     template?: {
       id: string;
       name: string;

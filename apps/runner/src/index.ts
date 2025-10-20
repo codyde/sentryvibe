@@ -22,12 +22,14 @@ import {
   type RunnerCommand,
   type RunnerEvent,
   type AgentId,
+  type ClaudeModelId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
 import type { TodoItem } from "@sentryvibe/agent-core/types/generation";
 // Use dynamic import for buildLogger to work around CommonJS/ESM interop
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
+import { DEFAULT_CLAUDE_MODEL_ID } from "@sentryvibe/agent-core/types/agent";
 
 // Configure templates.json path for this runner app
 setTemplatesPath(resolve(__dirname, "../templates.json"));
@@ -64,7 +66,6 @@ const log = (...args: unknown[]) => {
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
-const CLAUDE_MODEL = "claude-sonnet-4-5";
 const CODEX_MODEL = "gpt-5-codex";
 type CodexEvent = {
   type: string;
@@ -330,7 +331,7 @@ async function* convertCodexEventsToAgentMessages(
  * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
  * The orchestrator provides context-specific sections only (no base prompt).
  */
-function createClaudeQuery(): BuildQueryFn {
+function createClaudeQuery(model: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
   return (prompt, workingDirectory, systemPrompt) => {
     const sentryQuery = Sentry.createInstrumentedClaudeQuery();
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
@@ -341,7 +342,7 @@ function createClaudeQuery(): BuildQueryFn {
     return sentryQuery({
       prompt,
       options: {
-        model: CLAUDE_MODEL,
+        model,
         cwd: workingDirectory,
         permissionMode: "default",
         maxTurns: 100,
@@ -655,11 +656,11 @@ Don't just plan - TAKE ACTION and create/modify files.`;
   };
 }
 
-function createBuildQuery(agent: AgentId): BuildQueryFn {
+function createBuildQuery(agent: AgentId, claudeModel?: ClaudeModelId): BuildQueryFn {
   if (agent === "openai-codex") {
     return createCodexQuery();
   }
-  return createClaudeQuery();
+  return createClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
 }
 
 /**
@@ -728,9 +729,9 @@ async function checkPortInUse(port: number): Promise<boolean> {
       resolve(true);
     });
 
-    socket.once('error', (err: any) => {
+    socket.once('error', (err: Error) => {
       // Connection failed = server not running
-      console.log(`   🔍 [Debug] Port ${port} check: ${err.code} → Server NOT running`);
+      console.log(`   🔍 [Debug] Port ${port} check: ${err.message} → Server NOT running`);
       resolve(false);
     });
 
@@ -1395,8 +1396,18 @@ export function startRunner(options: RunnerOptions = {}) {
             (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
           const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
           log("selected agent:", agent);
+          const claudeModel: ClaudeModelId =
+            agent === "claude-code" &&
+            (command.payload.claudeModel === "claude-haiku-4-5" ||
+              command.payload.claudeModel === "claude-sonnet-4-5")
+              ? command.payload.claudeModel
+              : DEFAULT_CLAUDE_MODEL_ID;
 
-          const agentQuery = createBuildQuery(agent);
+          if (agent === "claude-code") {
+            log("claude model:", claudeModel);
+          }
+
+          const agentQuery = createBuildQuery(agent, claudeModel);
 
           // Reset transformer state for new build
           resetTransformerState();
@@ -1467,6 +1478,7 @@ export function startRunner(options: RunnerOptions = {}) {
             workingDirectory: projectDirectory,
             systemPrompt: orchestration.systemPrompt,
             agent,
+            claudeModel: agent === "claude-code" ? claudeModel : undefined,
             isNewProject: orchestration.isNewProject,
           });
 

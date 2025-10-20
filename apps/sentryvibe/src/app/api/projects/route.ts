@@ -6,7 +6,7 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 
-// Note: This route extracts metadata via Claude (Sonnet) by default and can fall back to Codex.
+// Note: This route extracts metadata via Claude (Haiku) by default and can fall back to Codex.
 const claudeMetadataQuery = Sentry.createInstrumentedClaudeQuery({
   name: 'metadata-extraction',
 });
@@ -39,6 +39,7 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
   const { events } = await thread.runStreamed(promptText);
   let accumulated = '';
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for await (const event of events as AsyncIterable<any>) {
     if (event?.type === 'item.completed') {
       const item = event.item as Record<string, unknown> | undefined;
@@ -65,7 +66,7 @@ export async function GET() {
   }
 }
 
-// POST /api/projects - Create new project with Sonnet metadata extraction
+// POST /api/projects - Create new project with Haiku metadata extraction
 export async function POST(req: Request) {
   try {
     const { prompt, agent, runnerId } = (await req.json()) as { prompt?: string; agent?: AgentId; runnerId?: string };
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
       agent: selectedAgent,
     });
     if (selectedAgent === 'claude-code') {
-      console.log('[projects] Using Claude Sonnet for metadata extraction');
+      console.log('[projects] Using Claude Haiku for metadata extraction');
     }
 
     const metadataPrompt = buildMetadataPrompt(prompt);
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
       }
       console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
     } else {
-      // Use Claude Sonnet with retries
+        // Use Claude Haiku with retries
       let attempts = 0;
       const maxAttempts = 2;
 
@@ -125,18 +126,18 @@ export async function POST(req: Request) {
             prompt: metadataPrompt,
             inputMessages: [],
             options: {
-              model: 'claude-3-5-Sonnet-20241022',
+              model: 'claude-haiku-4-5',
               maxTurns: 1,
               systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
             },
           });
 
           const timeout = setTimeout(() => {
-            console.warn('⚠️  Sonnet response timeout after 8 seconds');
-          }, 8000);
+            console.warn('⚠️  Haiku response timeout after 8 seconds');
+          }, 15000);
 
           for await (const message of metadataStream) {
-            const msgAny = message as any;
+            const msgAny = message as { type: string; message?: { content?: Array<{ type: string; text?: string }> } };
             if (msgAny.type === 'assistant' && msgAny.message?.content) {
               for (const block of msgAny.message.content) {
                 if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
@@ -155,12 +156,12 @@ export async function POST(req: Request) {
         } catch (error) {
           console.error(`❌ Attempt ${attempts} failed:`, error);
           if (attempts === maxAttempts) {
-            console.log('⚠️  All Sonnet attempts failed, using fallback logic');
+            console.log('⚠️  All Haiku attempts failed, using fallback logic');
           }
         }
       }
 
-      console.log('📥 Raw Sonnet response:', JSON.stringify(jsonResponse));
+      console.log('📥 Raw Haiku response:', JSON.stringify(jsonResponse));
     }
 
     console.log('   Response length:', jsonResponse.length);
@@ -170,7 +171,7 @@ export async function POST(req: Request) {
 
     // Check if response is empty
     if (!jsonResponse || jsonResponse.trim().length === 0) {
-      console.warn('⚠️  Sonnet returned empty response, using fallback');
+      console.warn('⚠️  Haiku returned empty response, using fallback');
       // Skip parsing, go straight to fallback
     } else {
       try {
@@ -186,7 +187,7 @@ export async function POST(req: Request) {
           metadata = JSON.parse(jsonMatch[0]);
           console.log('📋 Parsed metadata:', metadata);
         } else {
-          console.warn('⚠️  No JSON object found in Sonnet response');
+          console.warn('⚠️  No JSON object found in Haiku response');
         }
       } catch (parseError) {
         console.error('❌ JSON parsing failed:', parseError);

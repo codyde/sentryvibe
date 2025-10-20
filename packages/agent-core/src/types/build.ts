@@ -3,6 +3,7 @@
  * Defines the semantic intent of each build request
  */
 import type { AgentId } from './agent';
+import type { ClaudeModelId } from '../shared/runner/messages';
 
 export type BuildOperationType =
   | 'initial-build'      // First time build, needs template download
@@ -32,6 +33,7 @@ export interface BuildRequest {
   runnerId?: string; // Optional runner ID - falls back to RUNNER_DEFAULT_ID
   buildId?: string;
   agent?: AgentId; // Selected coding agent provider (Claude Code, OpenAI Codex, etc.)
+  claudeModel?: ClaudeModelId;
   template?: TemplateMetadata; // Frontend-selected template (NEW: for parity improvements)
   context?: {
     elementSelector?: string;
@@ -39,7 +41,7 @@ export interface BuildRequest {
       tagName?: string;
       className?: string;
       textContent?: string;
-      [key: string]: any;
+      [key: string]: unknown;
     };
     previousBuildId?: string;
   };
@@ -76,7 +78,7 @@ export interface BuildEvent {
   type: BuildEventType;
   buildId: string;
   timestamp: number;
-  data?: any;
+  data?: unknown;
 }
 
 /**
@@ -98,9 +100,9 @@ export interface EnhancedGenerationState {
   projectId: string;
   projectName: string;
   operationType: BuildOperationType;
-  todos: any[];
-  toolsByTodo: Record<number, any[]>;
-  textByTodo: Record<number, any[]>;
+  todos: unknown[];
+  toolsByTodo: Record<number, unknown[]>;
+  textByTodo: Record<number, unknown[]>;
   activeTodoIndex: number;
   isActive: boolean;
   startTime: Date;

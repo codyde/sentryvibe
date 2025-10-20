@@ -1,5 +1,6 @@
 import type { BuildOperationType } from '@/types/build';
 import type { AgentId } from '@/types/agent';
+import type { ClaudeModelId } from '../shared/runner/messages';
 import type { CodexSessionState, GenerationState } from '@/types/generation';
 import type { ProjectSummary } from '@/types/project';
 
@@ -51,6 +52,7 @@ export function createFreshGenerationState(params: {
   projectName: string;
   operationType: BuildOperationType;
   agentId?: AgentId;
+  claudeModelId?: ClaudeModelId;
 }): GenerationState {
   const buildId = `build-${Date.now()}`;
 
@@ -60,6 +62,7 @@ export function createFreshGenerationState(params: {
     projectName: params.projectName,
     operationType: params.operationType,
     agentId: params.agentId,
+    claudeModelId: params.claudeModelId,
     todos: [],
     toolsByTodo: {},
     textByTodo: {},
@@ -78,10 +81,10 @@ export function createFreshGenerationState(params: {
 /**
  * Validate generation state before using it
  */
-export function validateGenerationState(state: any): boolean {
+export function validateGenerationState(state: unknown): boolean {
   if (!state) return false;
-  if (!state.id || !state.projectId) return false;
-  if (!Array.isArray(state.todos)) return false;
+  if (!(state as GenerationState).id || !(state as GenerationState).projectId) return false;
+  if (!Array.isArray((state as GenerationState).todos)) return false;
   return true;
 }
 

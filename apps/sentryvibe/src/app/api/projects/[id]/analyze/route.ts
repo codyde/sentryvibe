@@ -1,5 +1,9 @@
 import { analyzePromptForTemplate } from '@/services/template-analysis';
-import type { AgentId } from '@sentryvibe/agent-core/types/agent';
+import {
+  DEFAULT_CLAUDE_MODEL_ID,
+  type AgentId,
+  type ClaudeModelId,
+} from '@sentryvibe/agent-core/types/agent';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
@@ -26,9 +30,10 @@ export async function POST(
     const { id } = await params;
     const body = await req.json();
 
-    const { prompt, selectedAgent } = body as {
+    const { prompt, selectedAgent, claudeModel } = body as {
       prompt: string;
       selectedAgent: AgentId;
+      claudeModel?: ClaudeModelId;
     };
 
     if (!prompt || !selectedAgent) {
@@ -61,7 +66,17 @@ export async function POST(
     console.log(`[analyze-route] Loaded ${templates.length} templates`);
 
     // Analyze prompt using the agent's model
-    const analysis = await analyzePromptForTemplate(prompt, selectedAgent, templates);
+    const resolvedClaudeModel =
+      selectedAgent === 'claude-code' && (claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5')
+        ? claudeModel
+        : DEFAULT_CLAUDE_MODEL_ID;
+
+    const analysis = await analyzePromptForTemplate(
+      prompt,
+      selectedAgent,
+      templates,
+      selectedAgent === 'claude-code' ? resolvedClaudeModel : undefined,
+    );
 
     console.log(`[analyze-route] Analysis complete`);
     console.log(`[analyze-route] Selected template: ${analysis.templateName}`);

@@ -9,10 +9,22 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { DEFAULT_AGENT_ID, type AgentId } from '@sentryvibe/agent-core/client';
+import {
+  DEFAULT_AGENT_ID,
+  DEFAULT_CLAUDE_MODEL_ID,
+  CLAUDE_MODEL_METADATA,
+  type AgentId,
+  type ClaudeModelId,
+} from '@sentryvibe/agent-core/client';
 
 export interface AgentOption {
   id: AgentId;
+  label: string;
+  description: string;
+}
+
+export interface ClaudeModelOption {
+  id: ClaudeModelId;
   label: string;
   description: string;
 }
@@ -21,13 +33,16 @@ interface AgentContextValue {
   selectedAgentId: AgentId;
   setSelectedAgentId: (id: AgentId) => void;
   agents: AgentOption[];
+  selectedClaudeModelId: ClaudeModelId;
+  setSelectedClaudeModelId: (id: ClaudeModelId) => void;
+  claudeModels: ClaudeModelOption[];
 }
 
 const AGENTS: AgentOption[] = [
   {
     id: 'claude-code',
     label: 'Claude Code',
-    description: 'Anthropic Sonnet 4.5 with Claude Code tools',
+    description: 'Anthropic Claude Code toolkit with MCP integration',
   },
   {
     id: 'openai-codex',
@@ -37,11 +52,23 @@ const AGENTS: AgentOption[] = [
 ];
 
 const STORAGE_KEY = 'selectedAgentId';
+const CLAUDE_MODEL_STORAGE_KEY = 'selectedClaudeModelId';
+
+const CLAUDE_MODELS: ClaudeModelOption[] = Object.entries(CLAUDE_MODEL_METADATA).map(
+  ([id, metadata]) => ({
+    id: id as ClaudeModelId,
+    label: metadata.label,
+    description: metadata.description,
+  }),
+);
 
 const AgentContext = createContext<AgentContextValue | undefined>(undefined);
 
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [selectedAgentId, setSelectedAgentIdState] = useState<AgentId>(DEFAULT_AGENT_ID);
+  const [selectedClaudeModelId, setSelectedClaudeModelIdState] = useState<ClaudeModelId>(
+    DEFAULT_CLAUDE_MODEL_ID,
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -52,6 +79,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     if (stored === 'claude-code' || stored === 'openai-codex') {
       setSelectedAgentIdState(stored);
     }
+
+    const storedClaudeModel = window.localStorage.getItem(CLAUDE_MODEL_STORAGE_KEY);
+    if (storedClaudeModel === 'claude-haiku-4-5' || storedClaudeModel === 'claude-sonnet-4-5') {
+      setSelectedClaudeModelIdState(storedClaudeModel);
+    }
   }, []);
 
   const setSelectedAgentId = useCallback((id: AgentId) => {
@@ -61,13 +93,23 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setSelectedClaudeModelId = useCallback((id: ClaudeModelId) => {
+    setSelectedClaudeModelIdState(id);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CLAUDE_MODEL_STORAGE_KEY, id);
+    }
+  }, []);
+
   const value = useMemo<AgentContextValue>(
     () => ({
       selectedAgentId,
       setSelectedAgentId,
       agents: AGENTS,
+      selectedClaudeModelId,
+      setSelectedClaudeModelId,
+      claudeModels: CLAUDE_MODELS,
     }),
-    [selectedAgentId, setSelectedAgentId],
+    [selectedAgentId, setSelectedAgentId, selectedClaudeModelId, setSelectedClaudeModelId],
   );
 
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;

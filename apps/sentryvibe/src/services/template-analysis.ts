@@ -1,5 +1,11 @@
 import * as Sentry from '@sentry/node';
-import type { AgentId } from '@sentryvibe/agent-core/types/agent';
+import {
+  DEFAULT_CLAUDE_MODEL_ID,
+  CLAUDE_MODEL_METADATA,
+  getClaudeModelLabel,
+  type AgentId,
+  type ClaudeModelId,
+} from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 
 interface AnalysisModelConfig {
@@ -8,19 +14,36 @@ interface AnalysisModelConfig {
   displayName: string;
 }
 
-// Models used for template analysis
-const ANALYSIS_MODELS: Record<AgentId, AnalysisModelConfig> = {
-  'claude-code': {
+const CLAUDE_ANALYSIS_MODELS: Record<ClaudeModelId, AnalysisModelConfig> = {
+  'claude-haiku-4-5': {
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    displayName: CLAUDE_MODEL_METADATA['claude-haiku-4-5'].label,
+  },
+  'claude-sonnet-4-5': {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5',
-    displayName: 'Claude Sonnet 4.5',
-  },
-  'openai-codex': {
-    provider: 'openai',
-    model: 'gpt-5-codex', // Matches CODEX_MODEL in runner
-    displayName: 'GPT-5 Codex',
+    displayName: CLAUDE_MODEL_METADATA['claude-sonnet-4-5'].label,
   },
 };
+
+const OPENAI_ANALYSIS_MODEL: AnalysisModelConfig = {
+  provider: 'openai',
+  model: 'gpt-5-codex',
+  displayName: 'GPT-5 Codex',
+};
+
+function getAnalysisModelConfig(agent: AgentId, claudeModel?: ClaudeModelId): AnalysisModelConfig {
+  if (agent === 'openai-codex') {
+    return OPENAI_ANALYSIS_MODEL;
+  }
+
+  const resolvedModel = claudeModel && CLAUDE_ANALYSIS_MODELS[claudeModel]
+    ? claudeModel
+    : DEFAULT_CLAUDE_MODEL_ID;
+
+  return CLAUDE_ANALYSIS_MODELS[resolvedModel];
+}
 
 export interface TemplateAnalysisResult {
   templateId: string;
@@ -41,10 +64,11 @@ export interface TemplateAnalysisResult {
 export async function analyzePromptForTemplate(
   prompt: string,
   selectedAgent: AgentId,
-  templates: Template[]
+  templates: Template[],
+  claudeModel?: ClaudeModelId,
 ): Promise<TemplateAnalysisResult> {
-  const modelConfig = ANALYSIS_MODELS[selectedAgent];
-  const systemPrompt = buildTemplateSelectionPrompt(templates, selectedAgent);
+  const modelConfig = getAnalysisModelConfig(selectedAgent, claudeModel);
+  const systemPrompt = buildTemplateSelectionPrompt(templates, selectedAgent, claudeModel);
 
   console.log(`[template-analysis] Using ${modelConfig.displayName} for template selection`);
 
@@ -103,7 +127,10 @@ export async function analyzePromptForTemplate(
     branch: template.branch,
     reasoning: result.reasoning,
     confidence: result.confidence,
-    analyzedBy: modelConfig.displayName,
+    analyzedBy:
+      selectedAgent === 'claude-code'
+        ? getClaudeModelLabel(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID)
+        : modelConfig.displayName,
   };
 }
 
@@ -171,8 +198,15 @@ async function analyzeWithOpenAI(
   return result.finalResponse ?? '{}';
 }
 
-function buildTemplateSelectionPrompt(templates: Template[], agent: AgentId): string {
-  const agentName = agent === 'claude-code' ? 'Claude Sonnet 4.5' : 'GPT-5 Codex';
+function buildTemplateSelectionPrompt(
+  templates: Template[],
+  agent: AgentId,
+  claudeModel?: ClaudeModelId,
+): string {
+  const agentName =
+    agent === 'claude-code'
+      ? getClaudeModelLabel(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID)
+      : 'GPT-5 Codex';
 
   return `You are ${agentName}, and you will be building this project.
 Your task: Select the BEST template for YOU to start from.

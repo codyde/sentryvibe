@@ -1,5 +1,7 @@
 import { streamText, UIMessage, convertToModelMessages } from 'ai';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
+import { DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
+import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -41,11 +43,16 @@ ALWAYS verify each step is complete before moving to the next.`,
 export async function POST(req: Request) {
   console.log('📨 Received request to /api/chat');
   
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const { messages, claudeModel }: { messages: UIMessage[]; claudeModel?: ClaudeModelId } = await req.json();
   console.log(`💬 Processing ${messages.length} message(s)`);
 
+  const selectedClaudeModel: ClaudeModelId =
+    claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5'
+      ? claudeModel
+      : DEFAULT_CLAUDE_MODEL_ID;
+
   const result = streamText({
-    model: claudeCode('claude-sonnet-4-5'),
+    model: claudeCode(selectedClaudeModel),
     experimental_telemetry:{
       isEnabled: true,
       functionId: 'Code'
