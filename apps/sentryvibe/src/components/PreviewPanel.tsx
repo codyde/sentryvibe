@@ -540,71 +540,52 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                         <p className="text-sm font-medium text-white">Run these commands in Terminal</p>
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="relative group">
-                          <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
-                            sudo dscacheutil -flushcache
-                          </code>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText('sudo dscacheutil -flushcache');
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 2000);
-                            }}
-                            className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Copy command"
-                          >
+                      <div className="relative group">
+                        <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 whitespace-pre overflow-x-auto">
+                          sudo dscacheutil -flushcache{'\n'}sudo killall -HUP mDNSResponder
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText('sudo dscacheutil -flushcache\nsudo killall -HUP mDNSResponder');
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Copy commands"
+                        >
+                          {copied ? (
+                            <Check className="w-3.5 h-3.5 text-green-400" />
+                          ) : (
                             <Copy className="w-3.5 h-3.5 text-blue-400" />
-                          </button>
-                        </div>
-
-                        <div className="relative group">
-                          <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
-                            sudo killall -HUP mDNSResponder
-                          </code>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText('sudo killall -HUP mDNSResponder');
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 2000);
-                            }}
-                            className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Copy command"
-                          >
-                            <Copy className="w-3.5 h-3.5 text-blue-400" />
-                          </button>
-                        </div>
+                          )}
+                        </button>
                       </div>
+                      <p className="text-xs text-gray-500">
+                        Paste this in Terminal and press Enter
+                      </p>
                     </div>
 
-                    {/* Step 2: Retry */}
+                    {/* Step 2: Reload page */}
                     <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">2</div>
-                        <p className="text-sm font-medium text-white">Retry tunnel connection</p>
+                        <p className="text-sm font-medium text-white">Reload the page</p>
                       </div>
 
                       <button
                         onClick={() => {
-                          setDnsTroubleshooting(false);
-                          setVerifiedTunnelUrl(null);
-                          setIsTunnelLoading(true);
-                          setDnsVerificationProgress(0);
-                          // Trigger tunnel reload by clearing and re-requesting
-                          if (currentProject?.tunnelUrl) {
-                            lastTunnelUrlRef.current = null; // Force re-verification
-                          }
+                          window.location.reload();
                         }}
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors font-medium"
                       >
                         <RefreshCw className="w-4 h-4" />
-                        Retry Connection
+                        Reload Page
                       </button>
                     </div>
                   </div>
 
                   <p className="text-xs text-gray-500 text-center">
-                    Run the commands above, then click "Retry Connection" to reload the tunnel.
+                    After running the DNS commands, reload the page to retry the tunnel connection.
                   </p>
                 </div>
               </div>
