@@ -98,17 +98,19 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   // Register process with API
   if (childProcess.pid) {
+    const runnerId = process.env.RUNNER_ID || 'unknown';
     callAPI('/api/runner/process/register', {
       method: 'POST',
       body: JSON.stringify({
         projectId,
         pid: childProcess.pid,
         command,
+        runnerId,
         startedAt: new Date().toISOString(),
       }),
     })
       .then(() => {
-        console.log(`[process-manager] ✅ Registered process via API: PID ${childProcess.pid}`);
+        console.log(`[process-manager] ✅ Registered process via API: PID ${childProcess.pid}, Runner ${runnerId}`);
       })
       .catch((err: unknown) => {
         console.error(`[process-manager] ❌ Failed to register process via API:`, err);

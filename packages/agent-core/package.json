@@ -38,6 +38,9 @@
       "default": "./dist/types/*.js"
     }
   },
+  "files": [
+    "dist/**/*"
+  ],
   "dependencies": {
     "ai": "^5.0.57",
     "ai-sdk-provider-claude-code": "^1.1.4",
@@ -49,7 +52,9 @@
     "tailwind-merge": "^3.3.1"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "prepare": "pnpm run build",
+    "prepack": "pnpm run build"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

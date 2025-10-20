@@ -47,6 +47,7 @@ export const runningProcesses = pgTable('running_processes', {
   pid: integer('pid').notNull(),
   port: integer('port'),
   command: text('command'),
+  runnerId: text('runner_id'), // Runner that manages this process
   startedAt: timestamp('started_at').notNull().defaultNow(),
   lastHealthCheck: timestamp('last_health_check'),
   healthCheckFailCount: integer('health_check_fail_count').notNull().default(0),

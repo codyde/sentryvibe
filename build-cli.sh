@@ -18,8 +18,8 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Rebuild agent-core to ensure latest changes
-echo "🔄 Rebuilding agent-core package..."
-./scripts/update-agent-core.sh
+echo "🔄 Building @sentryvibe/agent-core..."
+pnpm --filter @sentryvibe/agent-core build
 echo ""
 
 # Build the CLI

@@ -1,176 +1,83 @@
-# Agent-Core Package Workflow
+# Agent Core Workflow
 
 ## Overview
 
-`@sentryvibe/agent-core` is a shared package used by all apps in the SentryVibe monorepo. To avoid build complexity and ensure maximum portability, it's distributed as a **local tarball package** (`.tgz` file) similar to the custom Sentry packages.
+`@sentryvibe/agent-core` is now treated like any other workspace package. The TypeScript sources inside `packages/agent-core/` compile to `dist/` during normal installs and builds, and every app depends on the workspace output instead of a pre-built `.tgz`.
 
-## How It Works
+Key changes:
 
-### Package Structure
+- The package owns its own build via `prepare`/`prepack` scripts, so `dist/` is always present when the CLI is packed or an app installs dependencies.
+- The web app, broker, and CLI all point at `workspace:*`, so local development, CI, and production use the exact same source.
+- The CLI includes agent-core via `bundledDependencies`, eliminating the bespoke tarball that used to live in `vendor/`.
+
+## File Layout
+
 ```
-packages/agent-core/          # Source code
-  ├── src/                    # TypeScript source
-  ├── dist/                   # Compiled output (gitignored)
-  └── package.json
-
-vendor/                       # Distribution packages (committed to git)
-  └── sentryvibe-agent-core-0.1.0.tgz
-
-apps/*/package.json           # Reference the .tgz file
-  "dependencies": {
-    "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz"
-  }
+packages/agent-core/
+  ├── src/            # TypeScript source
+  ├── dist/           # Compiled output (ignored by git)
+  ├── package.json    # Includes prepare/prepack scripts
+  └── tsconfig.json
 ```
 
-### Why This Approach?
+Apps consume agent-core directly from the workspace:
 
-**Before (workspace: dependencies):**
-- ❌ Required coordinated builds
-- ❌ Broke with tsx (used by broker)
-- ❌ Complex prebuild hooks needed
-- ❌ Deployment issues with missing dist/
-- ❌ Different behavior in dev vs prod
+```
+apps/sentryvibe/package.json      "@sentryvibe/agent-core": "workspace:*"
+apps/broker/package.json          "@sentryvibe/agent-core": "workspace:*"
+apps/runner/package.json          "@sentryvibe/agent-core": "workspace:*"
+```
 
-**After (.tgz file dependencies):**
-- ✅ No build coordination needed
-- ✅ Works with all tools (tsx, webpack, Next.js, etc.)
-- ✅ Simple npm-standard workflow
-- ✅ Deployment works everywhere
-- ✅ Consistent behavior across environments
+The CLI marks it as a bundled dependency so the compiled output ships with the published tarball.
 
-## Workflows
+## Everyday Development
 
-### Making Changes to Agent-Core
-
-When you modify code in `packages/agent-core/src/`:
+Individual developers do not need to run special scripts when they touch agent-core.
 
 ```bash
-# Option 1: Use the automation script (RECOMMENDED)
-./scripts/update-agent-core.sh
-
-# Option 2: Manual steps
-cd packages/agent-core
-pnpm build
-pnpm pack
-mv sentryvibe-agent-core-*.tgz ../../vendor/
-cd ../..
+# Start everything (agent-core will build automatically on install)
 pnpm install
-```
-
-The automation script handles everything:
-1. Builds TypeScript → JavaScript
-2. Packs into .tgz tarball
-3. Moves to vendor/ directory
-4. Updates all package.json files
-5. Reinstalls dependencies
-
-### Regular Development (No agent-core changes)
-
-```bash
-# Start dev servers
 pnpm dev:all
-
-# Build for production
-pnpm build:all
-
-# Build specific app
-pnpm --filter sentryvibe build
 ```
 
-No special build steps needed! 🎉
-
-### Fresh Clone Setup
+When you change `packages/agent-core/src/**`, rebuild it with:
 
 ```bash
-git clone <repo>
-cd sentryvibe
-pnpm install
+pnpm --filter @sentryvibe/agent-core build
 ```
 
-That's it! The `.tgz` file is committed in `vendor/`, so it's already available.
+The `prepare` hook ensures the compiled `dist` directory exists whenever `pnpm install` runs, so Next.js, the broker, and the CLI all consume the latest TypeScript output.
 
-### Deployment
+## CLI Packaging
 
-Works on any platform (Vercel, Railway, etc.):
+1. Ensure dependencies are installed: `pnpm install`
+2. Build agent-core: `pnpm --filter @sentryvibe/agent-core build`
+3. Build the CLI: `pnpm --filter @sentryvibe/runner-cli build`
+4. Run the release prep script: `node apps/runner/scripts/prepare-release.js`
+5. Package the CLI: `cd apps/runner && pnpm pack`
 
-```bash
-# Build command (in platform config)
-pnpm build
+`prepare-release.js` rewrites `apps/runner/package.json` so the four patched Sentry packages use npm versions for publishing, and it pins `@sentryvibe/agent-core` to the current workspace version while keeping it in `bundledDependencies`. After tagging and publishing, reset the file with `git checkout -- apps/runner/package.json`.
 
-# Start command
-pnpm start
-```
+## CI/CD and Deployments
 
-The `.tgz` file deploys with your repo, so no special build steps needed.
+- GitHub Actions runs `pnpm --filter @sentryvibe/agent-core build` before building the CLI, ensuring the bundle includes the compiled output without generating an intermediate tarball.
+- All hosted environments (Vercel, Railway, Docker) keep using `pnpm install` followed by the normal build scripts. Because every consumer depends on `workspace:*`, runtime behaviour is consistent between local, CI, and production.
+- The vendored Sentry packages are still committed under `apps/runner/vendor/` and remain untouched by this workflow.
 
-## Benefits
+## When to Bump Versions
 
-### For Development:
-- **Fast** - No waiting for agent-core to rebuild
-- **Simple** - Standard npm workflows
-- **Reliable** - No magical workspace resolution
-
-### For CI/CD:
-- **Portable** - Works on any platform
-- **Predictable** - Same package everywhere
-- **Fast** - No build coordination
-
-### For Team:
-- **Clear** - Easy to understand
-- **Standard** - Normal npm package workflow
-- **Documented** - This file explains everything
-
-## Versioning
-
-When you make breaking changes to agent-core:
-
-1. Update version in `packages/agent-core/package.json`
-2. Run `./scripts/update-agent-core.sh`
-3. Commit both the new .tgz and updated package.json files
-
-The tarball filename will include the version (e.g., `sentryvibe-agent-core-0.2.0.tgz`).
+If you introduce breaking changes to agent-core, bump the version in `packages/agent-core/package.json`. The release script will automatically reflect the new version in the CLI’s packaged manifest. Consumers pinned with `workspace:*` pick up the change immediately.
 
 ## Troubleshooting
 
-### "Cannot find module @sentryvibe/agent-core"
-
-```bash
-# Reinstall dependencies
-pnpm install
-
-# If still broken, rebuild the package
-./scripts/update-agent-core.sh
-```
-
-### "Type definitions not found"
-
-Check that `packages/agent-core/package.json` exports include your path:
-
-```json
-"exports": {
-  "./lib/*": { "types": "./dist/lib/*.d.ts", "default": "./dist/lib/*.js" },
-  "./shared/runner/messages": { "types": "./dist/shared/runner/messages.d.ts", ... }
-}
-```
-
-### Changes to agent-core not reflected
-
-You forgot to run `./scripts/update-agent-core.sh`! The old .tgz is still installed.
-
-## File Locations
-
-- **Source:** `packages/agent-core/src/`
-- **Compiled:** `packages/agent-core/dist/` (gitignored)
-- **Package:** `vendor/sentryvibe-agent-core-0.1.0.tgz` (committed)
-- **Script:** `scripts/update-agent-core.sh`
+| Symptom | Fix |
+| ------- | --- |
+| `Cannot find module '@sentryvibe/agent-core'` | Run `pnpm install` so the workspace dependency is linked, then rebuild with `pnpm --filter @sentryvibe/agent-core build`. |
+| CLI tarball missing agent-core | Re-run the release prep script, then `pnpm pack`. Confirm `bundledDependencies` still lists `@sentryvibe/agent-core`. |
+| Stale types in apps | Clean the build with `rm -rf packages/agent-core/dist` and rebuild via `pnpm --filter @sentryvibe/agent-core build`. |
 
 ## Summary
 
-This approach trades a small manual step (running update script) for **massive simplification**:
-- No build orchestration
-- No prebuild hooks
-- No workspace: magic
-- Standard npm workflow
-- Works everywhere
-
-It's the same pattern used successfully by the Sentry custom packages in this repo!
+- No more tarball management or mode toggles.
+- Agent-core compiles automatically on install and before packing.
+- All apps and the CLI share the same workspace dependency, ensuring behaviour is identical across environments.

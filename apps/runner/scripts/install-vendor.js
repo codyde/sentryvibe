@@ -69,7 +69,6 @@ if (missing.length) {
 try {
   mkdirSync(nodeModules, { recursive: true });
   mkdirSync(path.join(nodeModules, '@sentry'), { recursive: true });
-  mkdirSync(path.join(nodeModules, '@sentryvibe'), { recursive: true });
 
   for (const { name, tarball } of packages) {
     const source = path.join(vendorDir, tarball);
@@ -83,21 +82,6 @@ try {
     );
 
     console.log(`  ✓ @sentry/${name}`);
-  }
-
-  // Also install agent-core from vendor if present
-  const agentCoreTarball = path.join(vendorDir, 'sentryvibe-agent-core-0.1.0.tgz');
-  if (existsSync(agentCoreTarball)) {
-    const agentCoreDestination = path.join(nodeModules, '@sentryvibe', 'agent-core');
-    const agentCoreExtractTarget = resolveExtractionTarget(agentCoreDestination);
-
-    execFileSync(
-      'tar',
-      ['-xzf', agentCoreTarball, '--strip-components', '1', '-C', agentCoreExtractTarget],
-      { stdio: 'pipe' },
-    );
-
-    console.log(`  ✓ @sentryvibe/agent-core`);
   }
 
   console.log('✓ Vendor packages installed successfully');

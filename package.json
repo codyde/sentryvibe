@@ -1,13 +1,21 @@
 {
   "name": "sentryvibe-monorepo",
+  "version": "0.4.0",
+  "description": "AI-powered project generation platform with Claude AI and remote runner architecture",
   "private": true,
   "packageManager": "pnpm@9.15.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codyde/sentryvibe.git"
+  },
+  "author": "Cody De Arkland",
+  "license": "MIT",
   "scripts": {
     "dev": "pnpm --filter sentryvibe dev",
     "build": "pnpm --filter sentryvibe build",
     "build:all": "pnpm --filter sentryvibe build && pnpm --filter @sentryvibe/runner-cli build && pnpm --filter sentryvibe-broker build",
     "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
-    "build:agent-core": "cd packages/agent-core && pnpm build && pnpm pack && mv *.tgz ../../apps/runner/vendor/",
+    "build:agent-core": "pnpm --filter @sentryvibe/agent-core build",
     "start": "pnpm --filter sentryvibe start",
     "lint": "pnpm --filter sentryvibe lint",
     "dev:all": "pnpm --parallel --filter sentryvibe --filter sentryvibe-broker --filter @sentryvibe/runner-cli run dev",
