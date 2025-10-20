@@ -42,14 +42,26 @@ export async function GET(
       return new NextResponse('Dev server not running', { status: 503 });
     }
 
-    // Determine target URL: Use tunnel if available AND remote runner
-    // For local runners, always use localhost (faster, no tunnel needed)
-    const isLocalRunner = !proj.runnerId || proj.runnerId === 'local';
-    const targetUrl = proj.tunnelUrl && !isLocalRunner
-      ? `${proj.tunnelUrl}${path}`  // Remote runner: Proxy through tunnel
-      : `http://localhost:${proj.devServerPort}${path}`;  // Local runner: Direct localhost
+    // Determine target URL based on where THIS proxy code is running
+    // If proxy runs on Railway (production), it can't access user's localhost
+    // If proxy runs locally (dev), it CAN access localhost
+    const proxyIsLocal = process.env.NODE_ENV === 'development';
 
-    console.log(`[proxy] Fetching: ${targetUrl} (${isLocalRunner ? 'local' : 'remote'} runner)`);
+    let targetUrl: string;
+
+    if (proxyIsLocal) {
+      // Proxy running locally: Can always use localhost (fast!)
+      targetUrl = `http://localhost:${proj.devServerPort}${path}`;
+      console.log(`[proxy] Local mode: Fetching from localhost:${proj.devServerPort}`);
+    } else if (proj.tunnelUrl) {
+      // Proxy on Railway: Must use tunnel to reach user's machine
+      targetUrl = `${proj.tunnelUrl}${path}`;
+      console.log(`[proxy] Remote mode: Fetching from tunnel ${proj.tunnelUrl}`);
+    } else {
+      // Proxy on Railway, no tunnel: Can't reach localhost
+      console.error(`[proxy] Remote mode but no tunnel available for project ${id}`);
+      return new NextResponse('Tunnel required: Runner is on a different machine than the frontend', { status: 503 });
+    }
     const response = await fetch(targetUrl);
     const contentType = response.headers.get('content-type') || '';
     const isViteChunk = path.includes('/node_modules/.vite/') || /chunk-[A-Z0-9]+\.js/i.test(path);
