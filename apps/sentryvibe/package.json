@@ -1,7 +1,10 @@
 {
   "name": "sentryvibe",
-  "version": "0.1.0",
+  "version": "0.4.2",
+  "description": "AI-powered project generation web application with real-time build tracking and code preview",
   "private": true,
+  "author": "Cody De Arkland",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

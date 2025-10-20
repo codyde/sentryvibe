@@ -665,12 +665,12 @@ function createBuildQuery(agent: AgentId): BuildQueryFn {
 /**
  * Cleanup orphaned processes on startup
  */
-async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string) {
+async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
   console.log('🧹 Cleaning up orphaned processes from previous runs...');
 
   try {
-    // Get list of processes from API
-    const response = await fetch(`${apiBaseUrl}/api/runner/process/list`, {
+    // Get list of processes from API (filtered by this runner's ID)
+    const response = await fetch(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
       headers: {
         'Authorization': `Bearer ${runnerSharedSecret}`,
       },
@@ -682,7 +682,7 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
     }
 
     const { processes } = await response.json();
-    console.log(`   Found ${processes.length} processes to check`);
+    console.log(`   Found ${processes.length} processes to check for this runner`);
 
     for (const row of processes) {
       try {
@@ -748,13 +748,13 @@ async function checkPortInUse(port: number): Promise<boolean> {
 /**
  * Start periodic health checks for running processes
  */
-function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string) {
+function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
   console.log('🏥 Starting periodic port health checks (every 30s)...');
 
   const doHealthCheck = async () => {
     try {
-      // Get list of processes to health check from API
-      const response = await fetch(`${apiBaseUrl}/api/runner/process/list`, {
+      // Get list of processes to health check from API (filtered by this runner's ID)
+      const response = await fetch(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
         headers: {
           'Authorization': `Bearer ${runnerSharedSecret}`,
         },
@@ -858,16 +858,17 @@ export function startRunner(options: RunnerOptions = {}) {
   // Set environment variables for process-manager and other modules
   process.env.API_BASE_URL = apiBaseUrl;
   process.env.RUNNER_SHARED_SECRET = runnerSharedSecret;
+  process.env.RUNNER_ID = RUNNER_ID;
 
   log("api base url:", apiBaseUrl);
 
   // Cleanup orphaned processes on startup
-  cleanupOrphanedProcesses(apiBaseUrl, runnerSharedSecret).catch((err) => {
+  cleanupOrphanedProcesses(apiBaseUrl, runnerSharedSecret, RUNNER_ID).catch((err) => {
     console.error('❌ Failed to cleanup orphaned processes on startup:', err);
   });
 
   // Start periodic health checks
-  startPeriodicHealthChecks(apiBaseUrl, runnerSharedSecret);
+  startPeriodicHealthChecks(apiBaseUrl, runnerSharedSecret, RUNNER_ID);
 
   let socket: WebSocket | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;

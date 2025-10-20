@@ -165,32 +165,20 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
     return false;
   }
 
-  // Ensure vendor packages are installed in sentryvibe app before running drizzle-kit
-  // drizzle-kit runs in apps/sentryvibe and looks for schema in its node_modules
-  spinner.start('Installing vendor packages for sentryvibe app...');
+  spinner.start('Ensuring sentryvibe dependencies are installed...');
 
   try {
-    // Use update-agent-core script to ensure agent-core is in apps/sentryvibe/node_modules
-    const updateAgentCoreScript = join(sentryvibeAppPath, '../../scripts/update-agent-core.sh');
-
-    if (existsSync(updateAgentCoreScript)) {
-      execFileSync('bash', [updateAgentCoreScript], {
-        cwd: join(sentryvibeAppPath, '../..'), // Run from monorepo root
-        stdio: 'pipe', // Silent
-      });
-      spinner.succeed('Vendor packages installed');
-    } else {
-      spinner.warn('Agent-core update script not found, trying pnpm install in sentryvibe app');
-
-      // Fallback: Just run pnpm install in sentryvibe app
-      execFileSync('pnpm', ['install'], {
-        cwd: sentryvibeAppPath,
-        stdio: 'pipe',
-      });
-      spinner.succeed('Dependencies installed');
-    }
+    execFileSync('pnpm', ['install'], {
+      cwd: sentryvibeAppPath,
+      stdio: 'pipe',
+    });
+    execFileSync('pnpm', ['--filter', '@sentryvibe/agent-core', 'build'], {
+      cwd: monorepoPath,
+      stdio: 'pipe',
+    });
+    spinner.succeed('Dependencies ready');
   } catch (error) {
-    spinner.warn('Vendor install failed, trying schema push anyway');
+    spinner.warn('Dependency installation failed, trying schema push anyway');
   }
 
   spinner.start('Initializing database schema (this may take a moment)...');
@@ -283,4 +271,3 @@ export async function connectManualDatabase(): Promise<string | null> {
 
   return connectionString.trim();
 }
-

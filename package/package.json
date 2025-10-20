@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/runner-cli",
-  "version": "0.3.8",
+  "version": "0.4.2",
   "description": "SentryVibe Runner CLI - Execute AI-powered builds locally",
   "private": false,
   "type": "module",
@@ -15,6 +15,9 @@
     "vendor/",
     "scripts/",
     "templates.json"
+  ],
+  "bundledDependencies": [
+    "@sentryvibe/agent-core"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -54,7 +57,7 @@
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentry/opentelemetry": "^10.17.0",
-    "@sentryvibe/agent-core": "file:./vendor/sentryvibe-agent-core-0.1.0.tgz",
+    "@sentryvibe/agent-core": "^0.1.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",

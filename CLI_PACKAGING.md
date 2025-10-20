@@ -2,296 +2,96 @@
 
 ## Overview
 
-The SentryVibe CLI (`@sentryvibe/runner-cli`) is a standalone package that needs to be properly built and packaged before publishing or releasing.
+The runner CLI (`@sentryvibe/runner-cli`) now consumes `@sentryvibe/agent-core` directly from the workspace. The CLI bundles the compiled output through `bundledDependencies`, so no agent-core tarball is copied into `vendor/`. The only tarballs that remain in `apps/runner/vendor/` are the patched Sentry builds.
 
-## 🔄 Development vs Production Modes
+## Prerequisites
 
-### **Development Mode** (Default - Fast Iteration)
-```json
-"@sentryvibe/agent-core": "workspace:*"
-```
-- ✅ Changes to `packages/agent-core` picked up on restart
-- ✅ No tarball rebuilds needed
-- ✅ Fast iteration
-- ⚠️ **Don't ship this way!**
+- `pnpm install`
+- Ensure `apps/runner/vendor/` contains the four patched Sentry archives:
+  - `sentry-core-LOCAL.tgz`
+  - `sentry-node-LOCAL.tgz`
+  - `sentry-node-core-LOCAL.tgz`
+  - `sentry-nextjs-LOCAL.tgz`
 
-### **Production Mode** (For CLI Distribution)
-```json
-"@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz"
-```
-- ✅ Self-contained package
-- ✅ No workspace dependencies
-- ✅ Works when installed globally
-- ✅ **Ready to ship!**
-
-### **Switching Modes**
+## Standard Build
 
 ```bash
-# Development mode (currently active)
-./scripts/toggle-dev-mode.sh dev
-
-# Production mode (before packaging CLI)
-./scripts/toggle-dev-mode.sh prod
+# From repo root
+pnpm install
+pnpm --filter @sentryvibe/agent-core build
+pnpm --filter @sentryvibe/runner-cli build
 ```
 
-**IMPORTANT:** Always run `./scripts/toggle-dev-mode.sh prod` before packaging the CLI!
+The `prepare` hook in `packages/agent-core` runs automatically on install, but running the explicit build ensures fresh output before packaging.
 
----
-
-## Package Structure
-
-```
-apps/runner/
-├── dist/                    # Compiled TypeScript (created by build)
-│   ├── cli/                 # CLI entry points
-│   ├── lib/                 # Core runner logic
-│   └── index.js             # Main entry point
-├── vendor/                  # Bundled dependencies (must be included!)
-│   ├── sentry-core-LOCAL.tgz
-│   ├── sentry-node-LOCAL.tgz
-│   ├── sentry-node-core-LOCAL.tgz
-│   ├── sentry-nextjs-LOCAL.tgz
-│   └── sentryvibe-agent-core-0.1.0.tgz
-├── scripts/
-│   └── install-vendor.js    # Postinstall script to unpack vendor packages
-├── templates.json           # Template definitions
-└── package.json
-```
-
----
-
-## Build Process
-
-### 1. Build Agent Core
-
-The runner depends on `@sentryvibe/agent-core`, which must be built and packed first:
+## Preparing a Release Tarball
 
 ```bash
-cd packages/agent-core
-pnpm build
-pnpm pack
-mv *.tgz ../../vendor/sentryvibe-agent-core-0.1.0.tgz
-```
+# 1. Install and build
+pnpm install
+pnpm --filter @sentryvibe/agent-core build
+pnpm --filter @sentryvibe/runner-cli build
 
-Or use the root script:
-```bash
-pnpm run build:agent-core
-```
+# 2. Rewrite package.json for publishing
+node apps/runner/scripts/prepare-release.js
 
-### 2. Ensure Vendor Packages Exist
-
-The runner requires patched Sentry packages in `/apps/runner/vendor/`:
-- `sentry-core-LOCAL.tgz`
-- `sentry-node-LOCAL.tgz`
-- `sentry-node-core-LOCAL.tgz`
-- `sentry-nextjs-LOCAL.tgz`
-
-These should already exist. If missing, you need to:
-1. Build the patched Sentry packages from source
-2. Pack them into tarballs
-3. Place in `apps/runner/vendor/`
-
-### 3. Build the CLI
-
-```bash
-cd apps/runner
-pnpm build
-```
-
-This compiles TypeScript to `dist/` directory.
-
-### 4. Package for Distribution
-
-```bash
+# 3. Pack the CLI
 cd apps/runner
 pnpm pack
 ```
 
-This creates `sentryvibe-runner-cli-0.1.11.tgz` (or current version) which includes:
-- `dist/` directory (compiled code)
-- `vendor/` directory (5 tarball files)
-- `scripts/` directory (install-vendor.js)
+`prepare-release.js` performs two tasks:
+
+1. Converts the local `file:` references for Sentry packages to their registry versions so a global install succeeds.
+2. Pins `@sentryvibe/agent-core` to the current workspace version and ensures it stays in `bundledDependencies`. During `pnpm pack` the folder from `node_modules/@sentryvibe/agent-core` is embedded in the CLI tarball, so the runner does not need to download it separately.
+
+After publishing, revert `apps/runner/package.json` via `git checkout -- apps/runner/package.json`.
+
+## Verifying the Artifact
+
+```bash
+cd apps/runner
+pnpm pack --dry-run
+tar -tzf sentryvibe-cli.tgz | head
+```
+
+Confirm the tarball includes:
+
+- `dist/`
+- `vendor/` (four Sentry tarballs)
+- `node_modules/@sentryvibe/agent-core/**` (bundled dependency produced by prepare-release)
+- `scripts/install-vendor.js`
 - `templates.json`
-- `package.json`
 
-### 5. Test Locally
-
-Before releasing, test the package locally:
+For a full test, install the tarball globally:
 
 ```bash
-# From the generated .tgz
-npm install -g ./sentryvibe-runner-cli-0.1.11.tgz
-
-# Verify installation
+npm install -g ./sentryvibe-cli.tgz
 sentryvibe --version
-
-# Test commands
-sentryvibe status
-sentryvibe init --help
+sentryvibe run --help
 ```
 
----
+## GitHub Actions
 
-## Publishing to npm Registry
+`.github/workflows/release-cli.yml` now:
 
-If you want to publish to npm (optional):
+1. Runs `pnpm --filter @sentryvibe/agent-core build`.
+2. Verifies only the Sentry tarballs live under `apps/runner/vendor/`.
+3. Builds the CLI and runs `prepare-release.js`.
+4. Packs the CLI and publishes the artifact.
 
-```bash
-cd apps/runner
+No additional toggles or tarball updates are required.
 
-# Ensure you're logged in
-npm login
+## FAQ
 
-# Publish (must have permissions for @sentryvibe scope)
-npm publish --access public
-```
+**Do I need to rebuild agent-core manually?**  
+Only when you change its source. Use `pnpm --filter @sentryvibe/agent-core build`. The prepare/prepack scripts make sure the compiled files exist whenever the package is packed.
 
-Then users can install via:
-```bash
-npm install -g @sentryvibe/runner-cli
-# or
-pnpm add -g @sentryvibe/runner-cli
-```
+**What happened to `toggle-dev-mode.sh` and `update-agent-core.sh`?**  
+They are no longer needed. Workspace linking provides fast iteration, and bundling handles distribution.
 
----
+**Where did the agent-core tarball go?**  
+It has been removed. The CLI now bundles the compiled workspace package directly. Only the custom Sentry tarballs remain in `vendor/`.
 
-## GitHub Release Process
-
-### 1. Create Release Tag
-
-```bash
-# Tag format: runner-cli-vX.Y.Z
-git tag runner-cli-v0.1.11
-git push origin runner-cli-v0.1.11
-```
-
-### 2. Create GitHub Release
-
-1. Go to: https://github.com/codyde/sentryvibe/releases/new
-2. Select tag: `runner-cli-v0.1.11`
-3. Title: "SentryVibe CLI v0.1.11"
-4. Upload the packaged `.tgz` file as: `sentryvibe-cli.tgz` (rename if needed)
-5. Add release notes
-
-### 3. Test Installation
-
-After release is published:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
-```
-
----
-
-## Postinstall Behavior
-
-When the CLI is installed (via `npm install -g` or `pnpm add -g`), the `postinstall` script runs automatically:
-
-1. Checks if `vendor/` directory exists
-2. Unpacks all `vendor/*.tgz` files to `node_modules/@sentry/*`
-3. Ensures patched Sentry packages are used instead of published versions
-
-This is **critical** for the CLI to work correctly with the instrumented Claude/Codex SDKs.
-
----
-
-## Required Files in package.json
-
-```json
-{
-  "files": [
-    "dist/",
-    "templates/",
-    "vendor/",
-    "scripts/",
-    "templates.json"
-  ],
-  "scripts": {
-    "postinstall": "node scripts/install-vendor.js"
-  }
-}
-```
-
-The `files` array determines what gets included in the `.tgz` when you run `pnpm pack`.
-
----
-
-## Troubleshooting
-
-### CLI not working after install
-
-**Problem:** "Module not found" errors for @sentry packages
-
-**Solution:** The postinstall script failed. Check:
-```bash
-# Find where CLI is installed
-npm root -g
-
-# Check if vendor packages were unpacked
-ls -la $(npm root -g)/@sentry/
-```
-
-### Version mismatch
-
-**Problem:** `sentryvibe --version` shows old version
-
-**Solution:** Clear npm cache and reinstall:
-```bash
-npm cache clean --force
-npm uninstall -g @sentryvibe/runner-cli
-npm install -g https://github.com/codyde/sentryvibe/releases/download/runner-cli-vX.Y.Z/sentryvibe-cli.tgz
-```
-
-### Vendor packages not found
-
-**Problem:** CLI package doesn't include vendor files
-
-**Solution:** Verify `files` array in package.json includes `"vendor/"` and rebuild:
-```bash
-cd apps/runner
-rm -rf dist/
-pnpm build
-pnpm pack
-```
-
----
-
-## Complete Release Checklist
-
-- [ ] **Switch to production mode**: `./scripts/toggle-dev-mode.sh prod`
-- [ ] Verify vendor/ has 5 .tgz files (4 sentry + 1 agent-core)
-- [ ] Build runner CLI: `cd apps/runner && pnpm build`
-- [ ] Bump version in `apps/runner/package.json`
-- [ ] Pack CLI: `pnpm pack` (creates .tgz)
-- [ ] Test locally: `npm install -g ./sentryvibe-runner-cli-X.Y.Z.tgz`
-- [ ] Run test commands: `sentryvibe --version`, `sentryvibe status`
-- [ ] Create git tag: `git tag runner-cli-vX.Y.Z`
-- [ ] Push tag: `git push origin runner-cli-vX.Y.Z`
-- [ ] Create GitHub release with .tgz file (rename to `sentryvibe-cli.tgz`)
-- [ ] Test install script: `curl ... | bash`
-- [ ] Optional: Publish to npm: `npm publish`
-- [ ] **Switch back to dev mode**: `./scripts/toggle-dev-mode.sh dev`
-
----
-
-## Environment Variables Required
-
-After installation, users must configure:
-
-```bash
-# Create .env file (or use sentryvibe init)
-ANTHROPIC_API_KEY=sk-ant-...        # Required for Claude builds
-OPENAI_API_KEY=sk-...               # Required for Codex builds
-DATABASE_URL=postgresql://...       # Required for persistence
-RUNNER_SHARED_SECRET=your-secret    # Required for broker auth
-WORKSPACE_DIR=./sentryvibe-workspace # Optional, default: ./sentryvibe-workspace
-```
-
----
-
-## Notes
-
-- The CLI is designed to work **offline** after installation (vendor packages bundled)
-- Templates are defined in `templates.json` (included in package)
-- Postinstall script is essential - without it, Sentry instrumentation won't work
-- Node 20+ required (down from 18 due to SDK requirements)
+**Can I still publish the CLI to npm?**  
+Yes. `prepare-release.js` converts dependencies to public versions and ensures agent-core is bundled, so `npm publish` or GitHub releases work the same as before.

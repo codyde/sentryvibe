@@ -18,7 +18,7 @@ function ensureAuthorized(request: Request) {
 
 /**
  * Get list of running processes for health checking
- * GET /api/runner/process/list
+ * GET /api/runner/process/list?runnerId=xxx (optional filter)
  */
 export async function GET(request: Request) {
   try {
@@ -26,7 +26,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const processes = await db.select().from(runningProcesses);
+    const { searchParams } = new URL(request.url);
+    const runnerId = searchParams.get('runnerId');
+
+    let processes;
+    if (runnerId) {
+      // Filter by runner ID if provided
+      const { eq } = await import('drizzle-orm');
+      processes = await db.select().from(runningProcesses).where(eq(runningProcesses.runnerId, runnerId));
+    } else {
+      // Return all processes if no filter
+      processes = await db.select().from(runningProcesses);
+    }
 
     return NextResponse.json({ processes });
   } catch (error) {
