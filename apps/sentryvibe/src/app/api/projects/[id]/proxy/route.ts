@@ -42,8 +42,14 @@ export async function GET(
       return new NextResponse('Dev server not running', { status: 503 });
     }
 
-    // Fetch from dev server
-    const targetUrl = `http://localhost:${proj.devServerPort}${path}`;
+    // Determine target URL: Use tunnel if available AND remote runner
+    // For local runners, always use localhost (faster, no tunnel needed)
+    const isLocalRunner = !proj.runnerId || proj.runnerId === 'local';
+    const targetUrl = proj.tunnelUrl && !isLocalRunner
+      ? `${proj.tunnelUrl}${path}`  // Remote runner: Proxy through tunnel
+      : `http://localhost:${proj.devServerPort}${path}`;  // Local runner: Direct localhost
+
+    console.log(`[proxy] Fetching: ${targetUrl} (${isLocalRunner ? 'local' : 'remote'} runner)`);
     const response = await fetch(targetUrl);
     const contentType = response.headers.get('content-type') || '';
     const isViteChunk = path.includes('/node_modules/.vite/') || /chunk-[A-Z0-9]+\.js/i.test(path);

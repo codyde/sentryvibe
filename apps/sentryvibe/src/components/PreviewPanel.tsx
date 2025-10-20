@@ -240,14 +240,20 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const isRemoteRunner = currentProject?.runnerId && currentProject.runnerId !== 'local';
   const needsTunnel = isRemoteRunner && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
 
-  // Construct preview URL - prefer VERIFIED tunnel URL, otherwise use proxy route
-  // Use verifiedTunnelUrl (only set after DNS check passes) instead of currentProject.tunnelUrl
-  // This prevents iframe from loading before DNS propagates
-  const previewUrl = verifiedTunnelUrl && currentProject?.devServerStatus === 'running'
-    ? verifiedTunnelUrl
-    : (actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id && !isRemoteRunner
-      ? `/api/projects/${currentProject.id}/proxy?path=/`
-      : '');
+  // Construct preview URL - ALWAYS use proxy route for script injection
+  // Proxy will intelligently route to tunnel (remote) or localhost (local)
+  // This ensures selection mode works in all scenarios
+  const shouldShowPreview = actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id &&
+    (isLocalRunner || verifiedTunnelUrl || !currentProject?.tunnelUrl);
+    // Show if: Local runner (always) OR tunnel verified OR no tunnel needed
+
+  const previewUrl = shouldShowPreview
+    ? `/api/projects/${currentProject.id}/proxy?path=/`
+    : '';
+
+  // Note: Proxy intelligently routes based on runnerId:
+  // - Local runner: Fetches from localhost (fast, no tunnel needed)
+  // - Remote runner: Fetches from verified tunnel (selection mode works!)
 
 
   const handleRefresh = () => {
@@ -258,9 +264,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   };
 
   const handleCopyUrl = async () => {
-    // Copy the actual tunnel URL (might not be verified yet, but that's ok for copy)
-    // User can paste it and wait, or use it elsewhere
-    const url = currentProject?.tunnelUrl || verifiedTunnelUrl || `http://localhost:${actualPort}`;
+    // Copy the actual URL (tunnel for remote, localhost for local)
+    const url = isLocalRunner
+      ? `http://localhost:${actualPort}`
+      : (verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`);
+
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -286,11 +294,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const dimensions = getDeviceDimensions();
 
   const handleOpenInNewTab = () => {
-    // Open tunnel URL if available, otherwise localhost
-    if (currentProject?.tunnelUrl) {
-      window.open(currentProject.tunnelUrl, '_blank');
-    } else if (actualPort) {
-      window.open(`http://localhost:${actualPort}`, '_blank');
+    // Open actual URL (tunnel for remote, localhost for local)
+    const url = isLocalRunner
+      ? `http://localhost:${actualPort}`
+      : (verifiedTunnelUrl || currentProject?.tunnelUrl);
+
+    if (url) {
+      window.open(url, '_blank');
     }
   };
 
@@ -396,7 +406,9 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors">
                 <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 flex-shrink-0"></div>
                 <span className="text-xs font-mono text-gray-300 truncate">
-                  {verifiedTunnelUrl || `http://localhost:${actualPort}`}
+                  {isLocalRunner
+                    ? `http://localhost:${actualPort}`
+                    : (verifiedTunnelUrl || `http://localhost:${actualPort}`)}
                 </span>
                 <button
                   onClick={handleCopyUrl}
