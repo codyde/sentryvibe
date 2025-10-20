@@ -9,7 +9,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "clean": "rm -rf .next",
+    "clean:cache": "rm -rf .next && echo '✅ Next.js build cache cleared. Restart dev server to rebuild.'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.21",

@@ -1,1 +1,40 @@
 node_modules/
+# Next.js build cache and output
+.next/
+out/
+
+# Build artifacts
+dist/
+build/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Environment files
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
+
+# Testing
+coverage/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*

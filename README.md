@@ -482,6 +482,26 @@ Each runner receives build commands and executes them in isolation.
 
 ## Troubleshooting
 
+### "useState is not defined" or Module Loading Errors
+
+If you encounter errors like `ReferenceError: useState is not defined` or `Module not found` during development with Fast Refresh, this typically means Next.js has cached references to deleted or moved files.
+
+**Solution:**
+```bash
+# Stop the dev server (Ctrl+C)
+cd apps/sentryvibe
+npm run clean:cache
+# Restart the dev server
+npm run dev
+```
+
+This error occurs when:
+- A component file was deleted but webpack still references it
+- Files were moved/renamed during hot reload
+- Build cache contains stale module references
+
+The `clean:cache` script removes the `.next` directory, forcing a clean rebuild.
+
 ### Runner won't connect
 - Verify broker URL is correct (`sentryvibe config get broker.url`)
 - Check shared secret matches broker
