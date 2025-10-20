@@ -533,69 +533,78 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   </div>
 
                   <div className="space-y-4">
-                    {/* Step 1 */}
-                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-2">
+                    {/* Step 1: Run DNS flush commands */}
+                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">1</div>
-                        <p className="text-sm font-medium text-white">Clear DNS cache</p>
+                        <p className="text-sm font-medium text-white">Run these commands in Terminal</p>
                       </div>
-                      <div className="relative group">
-                        <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
-                          sudo dscacheutil -flushcache
-                        </code>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText('sudo dscacheutil -flushcache');
-                          }}
-                          className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Copy command"
-                        >
-                          <Copy className="w-3.5 h-3.5 text-blue-400" />
-                        </button>
+
+                      <div className="space-y-2">
+                        <div className="relative group">
+                          <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                            sudo dscacheutil -flushcache
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('sudo dscacheutil -flushcache');
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Copy command"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-blue-400" />
+                          </button>
+                        </div>
+
+                        <div className="relative group">
+                          <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                            sudo killall -HUP mDNSResponder
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('sudo killall -HUP mDNSResponder');
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Copy command"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-blue-400" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Step 2 */}
-                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-2">
+                    {/* Step 2: Retry */}
+                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">2</div>
-                        <p className="text-sm font-medium text-white">Restart DNS responder</p>
+                        <p className="text-sm font-medium text-white">Retry tunnel connection</p>
                       </div>
-                      <div className="relative group">
-                        <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
-                          sudo killall -HUP mDNSResponder
-                        </code>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText('sudo killall -HUP mDNSResponder');
-                          }}
-                          className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Copy command"
-                        >
-                          <Copy className="w-3.5 h-3.5 text-blue-400" />
-                        </button>
-                      </div>
+
+                      <button
+                        onClick={() => {
+                          setDnsTroubleshooting(false);
+                          setVerifiedTunnelUrl(null);
+                          setIsTunnelLoading(true);
+                          setDnsVerificationProgress(0);
+                          // Trigger tunnel reload by clearing and re-requesting
+                          if (currentProject?.tunnelUrl) {
+                            lastTunnelUrlRef.current = null; // Force re-verification
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors font-medium"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Retry Connection
+                      </button>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setDnsTroubleshooting(false);
-                      setVerifiedTunnelUrl(null);
-                      setIsTunnelLoading(true);
-                      // Trigger tunnel reload by clearing and re-requesting
-                      if (currentProject?.tunnelUrl) {
-                        lastTunnelUrlRef.current = null; // Force re-verification
-                      }
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors font-medium"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    Retry Connection
-                  </button>
-
                   <p className="text-xs text-gray-500 text-center">
-                    After running the commands, click "Retry Connection" to reload the tunnel.
+                    Run the commands above, then click "Retry Connection" to reload the tunnel.
                   </p>
                 </div>
               </div>
