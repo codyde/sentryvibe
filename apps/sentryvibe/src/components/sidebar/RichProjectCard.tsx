@@ -29,6 +29,7 @@ interface RichProjectCardProps {
   onRename?: () => void
   onDelete?: () => void
   compact?: boolean
+  isCurrentProject?: boolean
 }
 
 export function RichProjectCard({
@@ -38,7 +39,8 @@ export function RichProjectCard({
   onStopServer,
   onRename,
   onDelete,
-  compact = false
+  compact = false,
+  isCurrentProject = false
 }: RichProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const isRunning = project.devServerStatus === 'running'
@@ -78,7 +80,11 @@ export function RichProjectCard({
     return (
       <motion.a
         href={`/?project=${project.slug}`}
-        className="block px-3 py-2 rounded-lg hover:bg-white/5 transition-colors group"
+        className={`block px-3 py-2 rounded-lg transition-all group ${
+          isCurrentProject
+            ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-l-2 border-purple-500'
+            : 'hover:bg-white/5'
+        }`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -88,8 +94,19 @@ export function RichProjectCard({
             animate={getStatusAnimation()}
             transition={{ duration: 2, repeat: Infinity }}
           />
-          <Icon className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors flex-shrink-0" />
-          <span className="text-sm text-white truncate flex-1">{project.name}</span>
+          <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
+            isCurrentProject ? 'text-purple-400' : 'text-gray-400 group-hover:text-white'
+          }`} />
+          <span className={`text-sm truncate flex-1 ${
+            isCurrentProject ? 'text-white font-medium' : 'text-white'
+          }`}>{project.name}</span>
+
+          {/* Runner badge */}
+          {project.runnerId && !isHovered && (
+            <span className="text-[10px] text-gray-500 font-mono truncate max-w-[60px]">
+              {project.runnerId.substring(0, 8)}
+            </span>
+          )}
 
           {/* Quick actions on hover */}
           {isHovered && (
@@ -164,7 +181,11 @@ export function RichProjectCard({
       href={`/?project=${project.slug}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="block p-4 rounded-lg bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all group"
+      className={`block p-4 rounded-lg transition-all group ${
+        isCurrentProject
+          ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-2 border-purple-500/50'
+          : 'bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10'
+      }`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -186,7 +207,7 @@ export function RichProjectCard({
       </div>
 
       {/* Status info */}
-      <div className="flex items-center gap-2 text-xs mb-3">
+      <div className="flex items-center gap-2 text-xs mb-3 flex-wrap">
         {isRunning && (
           <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-500/30">
             Running :{project.devServerPort || project.port}
@@ -200,6 +221,11 @@ export function RichProjectCard({
         {hasFailed && (
           <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
             Failed
+          </span>
+        )}
+        {project.runnerId && (
+          <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono text-[10px]">
+            {project.runnerId.substring(0, 12)}
           </span>
         )}
         {project.lastActivityAt && (

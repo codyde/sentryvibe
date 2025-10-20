@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, ChevronRight, Zap, Clock, FolderOpen } from "lucide-react"
 import { type Project } from "@/contexts/ProjectContext"
@@ -22,6 +23,9 @@ export function SmartProjectGroups({
   onRename,
   onDelete
 }: SmartProjectGroupsProps) {
+  const searchParams = useSearchParams()
+  const currentProjectSlug = searchParams?.get('project') ?? null
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['active', 'recent']) // Expand active and recent by default
   )
@@ -136,6 +140,7 @@ export function SmartProjectGroups({
                           project={project}
                           icon={getIconComponent(project.icon)}
                           compact
+                          isCurrentProject={project.slug === currentProjectSlug}
                           onStartServer={() => onStartServer(project.id)}
                           onStopServer={() => onStopServer(project.id)}
                           onRename={() => onRename({ id: project.id, name: project.name })}

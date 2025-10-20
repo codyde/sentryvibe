@@ -18,6 +18,7 @@ import ChatUpdate from "@/components/ChatUpdate";
 import { AppSidebar } from "@/components/app-sidebar";
 import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
@@ -2167,13 +2168,14 @@ function HomeContent() {
   };
 
   return (
-    <SidebarProvider defaultOpen={false}>
-      <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
-      <ProcessManagerModal
-        isOpen={showProcessModal}
-        onClose={() => setShowProcessModal(false)}
-      />
-      <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
+    <CommandPaletteProvider onOpenProcessModal={() => setShowProcessModal(true)}>
+      <SidebarProvider defaultOpen={false}>
+        <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
+        <ProcessManagerModal
+          isOpen={showProcessModal}
+          onClose={() => setShowProcessModal(false)}
+        />
+        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
         {runnerOnline === false && (
           <div className="bg-amber-500/20 border border-amber-400/40 text-amber-200 px-4 py-2 text-sm">
             Local runner is offline. Start the runner CLI on your machine to
@@ -3041,6 +3043,7 @@ function HomeContent() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+    </CommandPaletteProvider>
   );
 }
 
