@@ -69,6 +69,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const [copied, setCopied] = useState(false);
   const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
   const [isTunnelLoading, setIsTunnelLoading] = useState(false);
+  const [dnsVerificationProgress, setDnsVerificationProgress] = useState<number>(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
   const lastTunnelUrlRef = useRef<string | null>(null);
@@ -141,6 +142,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     // Show loading while tunnel is being created
     if (isStartingTunnel) {
       setIsTunnelLoading(true);
+      setDnsVerificationProgress(0);
       return;
     }
 
@@ -150,6 +152,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
       setVerifiedTunnelUrl(null); // Clear old verified URL
+      setDnsVerificationProgress(0);
 
       // Verify browser can actually reach the tunnel
       (async () => {
@@ -159,10 +162,15 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
             console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
+            setDnsVerificationProgress(Math.round((attempt / maxAttempts) * 100));
+
+            // Add cache-busting to verification request to bypass Chrome DNS cache
+            // This prevents Chrome from using cached NXDOMAIN from preemptive lookup
+            const verifyUrl = `${currentTunnelUrl}?verify=${Date.now()}`;
 
             // Use no-cors mode to avoid CORS blocking the check
             // We just need to verify DNS resolves and connection succeeds
-            await fetch(currentTunnelUrl, {
+            await fetch(verifyUrl, {
               method: 'HEAD',
               mode: 'no-cors',
               cache: 'no-store', // Don't use cached responses
@@ -171,11 +179,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;
 
-            // Add cache-busting parameter to prevent Chrome DNS cache issues
-            const cacheBustUrl = `${currentTunnelUrl}?t=${Date.now()}`;
-            console.log('📌 Using cache-busted URL:', cacheBustUrl);
-
-            setVerifiedTunnelUrl(cacheBustUrl); // Only set after verification!
+            // Use clean URL (no cache-bust needed once DNS verified)
+            console.log('✅ DNS verified, using clean URL for iframe');
+            setVerifiedTunnelUrl(currentTunnelUrl);
+            setDnsVerificationProgress(100);
             setIsTunnelLoading(false);
             return;
           } catch (error: any) {
@@ -190,12 +197,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         if (!resolved) {
           console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s - showing anyway (may fail)`);
-
-          // Add cache-busting even on timeout
-          const cacheBustUrl = `${currentTunnelUrl}?t=${Date.now()}`;
-          console.log('📌 Using cache-busted URL (timeout):', cacheBustUrl);
-
-          setVerifiedTunnelUrl(cacheBustUrl); // Show anyway after timeout
+          setVerifiedTunnelUrl(currentTunnelUrl); // Show anyway after timeout
         }
         setIsTunnelLoading(false);
       })();
@@ -499,7 +501,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl ? (
           <>
-            {/* Tunnel loading overlay - 5 second delay */}
+            {/* Tunnel loading overlay with progress */}
             {isTunnelLoading && (
               <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20">
                 <div className="flex flex-col items-center gap-4">
@@ -508,8 +510,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                     <div className="absolute inset-0 rounded-full border-4 border-blue-400/20 border-t-blue-400 animate-spin"></div>
                   </div>
                   <div className="text-center space-y-2">
-                    <p className="text-lg font-semibold text-white">Initializing Tunnel</p>
-                    <p className="text-sm text-gray-400">Setting up secure connection...</p>
+                    <p className="text-lg font-semibold text-white">
+                      {dnsVerificationProgress > 0 ? 'Verifying Tunnel Connection' : 'Initializing Tunnel'}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      {dnsVerificationProgress > 0
+                        ? `Waiting for DNS to propagate... ${dnsVerificationProgress}%`
+                        : 'Setting up secure connection...'}
+                    </p>
+                    {dnsVerificationProgress > 0 && (
+                      <div className="w-48 h-1 bg-gray-700 rounded-full overflow-hidden mt-2">
+                        <div
+                          className="h-full bg-blue-400 transition-all duration-300"
+                          style={{ width: `${dnsVerificationProgress}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
