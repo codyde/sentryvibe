@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useState } from "react"
 import { Activity, Settings, Command, Monitor } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { ActivityFeed } from "@/components/sidebar/ActivityFeed"
@@ -31,8 +32,8 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
-  const [renamingProject, setRenamingProject] = React.useState<{ id: string; name: string } | null>(null);
-  const [deletingProject, setDeletingProject] = React.useState<{ id: string; name: string; slug: string } | null>(null);
+  const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
+  const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
 
   const handleStartServer = async (projectId: string) => {
     try {
