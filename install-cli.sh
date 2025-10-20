@@ -69,17 +69,17 @@ if [ -n "$LOCATION_HEADER" ]; then
     TAG_NAME="${LOCATION_HEADER##*/}"
 fi
 
-# Validate tag looks like a CLI release
-if [ -z "$TAG_NAME" ] || [[ "$TAG_NAME" != *"cli"* ]]; then
-    echo -e "${YELLOW}!${NC} Could not auto-detect CLI release, trying npm registry..."
+# Validate tag looks like a release (v* or cli-v* format)
+if [ -z "$TAG_NAME" ] || [[ "$TAG_NAME" != v* && "$TAG_NAME" != cli-v* ]]; then
+    echo -e "${YELLOW}!${NC} Could not auto-detect release, trying npm registry..."
 
     # Try to get version from npm
     if NPM_VERSION=$(npm view @sentryvibe/runner-cli version 2>/dev/null); then
         echo -e "${GREEN}✓${NC} Found version ${NPM_VERSION} on npm"
-        TAG_NAME="cli-v${NPM_VERSION}"
+        TAG_NAME="v${NPM_VERSION}"
     else
-        echo -e "${YELLOW}!${NC} Using fallback version: cli-v0.3.8"
-        TAG_NAME="cli-v0.3.8"
+        echo -e "${YELLOW}!${NC} Using fallback version: v0.4.3"
+        TAG_NAME="v0.4.3"
     fi
 fi
 

@@ -3,7 +3,8 @@ name: Release CLI
 on:
   push:
     tags:
-      - 'cli-v*'  # Trigger on tags like cli-v0.1.0
+      - 'v*'      # Trigger on tags like v0.4.3
+      - 'cli-v*'  # Also support legacy cli-v0.1.0 format
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
@@ -159,7 +160,10 @@ jobs:
         id: version
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION=${GITHUB_REF#refs/tags/cli-v}
+            # Support both v* and cli-v* formats
+            VERSION=${GITHUB_REF#refs/tags/}
+            VERSION=${VERSION#cli-v}  # Remove cli-v prefix if present
+            VERSION=${VERSION#v}      # Remove v prefix if present
           else
             VERSION="latest"
           fi
