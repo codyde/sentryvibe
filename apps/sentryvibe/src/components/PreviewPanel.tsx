@@ -238,6 +238,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Detect if server is running on a remote runner (not local machine)
   // Remote runners typically have runnerId != 'local'
   const isRemoteRunner = currentProject?.runnerId && currentProject.runnerId !== 'local';
+  const isLocalRunner = !currentProject?.runnerId || currentProject?.runnerId === 'local';
   const needsTunnel = isRemoteRunner && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
 
   // Construct preview URL - ALWAYS use proxy route for script injection
