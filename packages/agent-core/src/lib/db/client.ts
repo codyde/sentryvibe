@@ -14,9 +14,6 @@ function createDbClient(): NodePgDatabase<any> {
     return global.__db;
   }
 
-  console.log('⚠️  [DB] Database client being initialized - this should only happen in frontend/broker, not runner!');
-  console.log('⚠️  [DB] Stack trace:', new Error().stack);
-
   // Dynamic imports to prevent loading pg unless actually needed
   const { drizzle } = require('drizzle-orm/node-postgres');
   const { Pool } = require('pg');

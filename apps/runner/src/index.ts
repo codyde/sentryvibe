@@ -838,6 +838,13 @@ export function startRunner(options: RunnerOptions = {}) {
     // Fallback: derive from broker URL (same host, http/https protocol)
     const brokerUrl = new URL(BROKER_URL);
     const protocol = brokerUrl.protocol === 'wss:' ? 'https:' : 'http:';
+
+    // Special case for local development: broker is :4000, API is :3000
+    if (brokerUrl.hostname === 'localhost' || brokerUrl.hostname === '127.0.0.1') {
+      return `${protocol}//localhost:3000`;
+    }
+
+    // For remote deployments, API and broker share the same host
     return `${protocol}//${brokerUrl.host}`;
   })();
 
