@@ -19,7 +19,6 @@ import { randomUUID } from "crypto";
 import {
   CLAUDE_SYSTEM_PROMPT,
   CODEX_SYSTEM_PROMPT,
-  DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
   type AgentId,
@@ -30,6 +29,7 @@ import type { TodoItem } from "@sentryvibe/agent-core/types/generation";
 // Use dynamic import for buildLogger to work around CommonJS/ESM interop
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
+import { DEFAULT_CLAUDE_MODEL_ID } from "@sentryvibe/agent-core/types/agent";
 
 // Configure templates.json path for this runner app
 setTemplatesPath(resolve(__dirname, "../templates.json"));
@@ -729,9 +729,9 @@ async function checkPortInUse(port: number): Promise<boolean> {
       resolve(true);
     });
 
-    socket.once('error', (err: any) => {
+    socket.once('error', (err: Error) => {
       // Connection failed = server not running
-      console.log(`   🔍 [Debug] Port ${port} check: ${err.code} → Server NOT running`);
+      console.log(`   🔍 [Debug] Port ${port} check: ${err.message} → Server NOT running`);
       resolve(false);
     });
 

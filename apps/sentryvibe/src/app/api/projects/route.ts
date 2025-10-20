@@ -39,6 +39,7 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
   const { events } = await thread.runStreamed(promptText);
   let accumulated = '';
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for await (const event of events as AsyncIterable<any>) {
     if (event?.type === 'item.completed') {
       const item = event.item as Record<string, unknown> | undefined;
@@ -133,10 +134,10 @@ export async function POST(req: Request) {
 
           const timeout = setTimeout(() => {
             console.warn('⚠️  Haiku response timeout after 8 seconds');
-          }, 8000);
+          }, 15000);
 
           for await (const message of metadataStream) {
-            const msgAny = message as any;
+            const msgAny = message as { type: string; message?: { content?: Array<{ type: string; text?: string }> } };
             if (msgAny.type === 'assistant' && msgAny.message?.content) {
               for (const block of msgAny.message.content) {
                 if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
