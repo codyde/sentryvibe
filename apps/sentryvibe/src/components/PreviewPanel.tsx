@@ -235,11 +235,24 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     }
   }, [currentProject?.tunnelUrl, isStartingTunnel]);
 
+  // Detect if frontend is being accessed remotely (not localhost)
+  const frontendIsRemote = typeof window !== 'undefined' &&
+    !window.location.hostname.includes('localhost') &&
+    !window.location.hostname.includes('127.0.0.1');
+
   // Detect if server is running on a remote runner (not local machine)
   // Remote runners typically have runnerId != 'local'
   const isRemoteRunner = currentProject?.runnerId && currentProject.runnerId !== 'local';
   const isLocalRunner = !isRemoteRunner;
-  const needsTunnel = isRemoteRunner && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
+  const needsTunnel = frontendIsRemote && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
+
+  // Auto-create tunnel when remote frontend detects server started
+  useEffect(() => {
+    if (needsTunnel && onStartTunnel && !isStartingTunnel) {
+      console.log('🔗 Remote frontend detected - auto-creating tunnel...');
+      onStartTunnel();
+    }
+  }, [needsTunnel, onStartTunnel, isStartingTunnel]);
 
   // Construct preview URL - ALWAYS use proxy route for script injection
   // Proxy will intelligently route to tunnel (remote) or localhost (local)
@@ -293,17 +306,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   };
 
   const dimensions = getDeviceDimensions();
-
-  const handleOpenInNewTab = () => {
-    // Open actual URL (tunnel for remote, localhost for local)
-    const url = isLocalRunner
-      ? `http://localhost:${actualPort}`
-      : (verifiedTunnelUrl || currentProject?.tunnelUrl);
-
-    if (url) {
-      window.open(url, '_blank');
-    }
-  };
 
   // Auto-sync inspector state when iframe loads or script announces ready
   useEffect(() => {
@@ -461,14 +463,30 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 </button>
               </div>
 
-              {/* Open in new tab */}
-              <button
-                onClick={handleOpenInNewTab}
-                className="p-1.5 rounded-md hover:bg-white/10 transition-all duration-200"
-                title="Open in new tab"
-              >
-                <ExternalLink className="w-4 h-4 text-gray-400" />
-              </button>
+              {/* Open buttons */}
+              <div className="flex items-center gap-1">
+                {/* Open Tunnel URL */}
+                {verifiedTunnelUrl && (
+                  <button
+                    onClick={() => window.open(verifiedTunnelUrl, '_blank')}
+                    className="p-1.5 rounded-md hover:bg-blue-500/20 transition-all duration-200 group"
+                    title="Open tunnel URL in new tab"
+                  >
+                    <Cloud className="w-4 h-4 text-blue-400 group-hover:text-blue-300" />
+                  </button>
+                )}
+
+                {/* Open Localhost */}
+                {actualPort && (
+                  <button
+                    onClick={() => window.open(`http://localhost:${actualPort}`, '_blank')}
+                    className="p-1.5 rounded-md hover:bg-green-500/20 transition-all duration-200 group"
+                    title="Open localhost in new tab"
+                  >
+                    <Monitor className="w-4 h-4 text-green-400 group-hover:text-green-300" />
+                  </button>
+                )}
+              </div>
             </div>
 
           </>
@@ -719,31 +737,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 title="Spinning up your workspace"
                 subtitle="Warming caches, allocating a port, and preparing the dev server."
               />
-            ) : needsTunnel ? (
-              <div className="text-center space-y-4 max-w-md px-6">
-                <div className="flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
-                    <Cloud className="w-8 h-8 text-blue-400" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Server Running on Remote Runner</h3>
-                  <p className="text-gray-400 text-sm">
-                    Your dev server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> on runner <span className="font-mono text-blue-300">{currentProject.runnerId}</span>.
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    Start a Cloudflare tunnel to connect:
-                  </p>
-                </div>
-                <button
-                  onClick={onStartTunnel}
-                  disabled={isStartingTunnel}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Cloud className={`w-5 h-5 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
-                  {isStartingTunnel ? 'Starting Tunnel...' : 'Start Cloudflare Tunnel'}
-                </button>
-              </div>
             ) : project?.status === 'completed' && project?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">
                 <div className="flex items-center justify-center">
