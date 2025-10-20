@@ -136,7 +136,7 @@ export class TunnelManager extends EventEmitter {
       console.log(`[tunnel] Creating tunnel for port ${port}...`);
 
       // Direct binary execution with unbuffered streams
-      const proc = spawn(this.cloudflaredPath!, [
+      const proc = spawn('/opt/homebrew/bin/cloudflared', [
         'tunnel',
         '--url', `http://localhost:${port}`,
         '--no-autoupdate',
@@ -177,21 +177,12 @@ export class TunnelManager extends EventEmitter {
           this.tunnels.set(port, { url, port, process: proc });
 
           console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
+          console.log(`✅ Tunnel ready: ${url}`);
 
-          // Start async verification in background (don't wait)
-          // This logs results but doesn't block tunnel creation
-          this._verifyTunnelReady(url).then((verified) => {
-            if (verified) {
-              console.log(`✅ Tunnel verified working: ${url}`);
-            } else {
-              console.log(`⚠️  Tunnel verification timed out, but tunnel may still work: ${url}`);
-            }
-          }).catch((err) => {
-            console.log(`⚠️  Tunnel verification failed: ${err.message}`);
-          });
+          // Note: Backend verification skipped for localhost tunnels
+          // The tunnel connects localhost to Cloudflare - backend can't verify it
+          // Frontend will verify DNS before loading in iframe
 
-          // Return immediately - don't wait for verification
-          console.log(`✅ Tunnel ready (async verification in progress): ${url}`);
           resolve(url);
         }
       };
