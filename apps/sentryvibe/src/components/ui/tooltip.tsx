@@ -4,6 +4,7 @@ import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
+import { useSafePortal } from "@/hooks/use-safe-portal"
 
 function TooltipProvider({
   delayDuration = 0,
@@ -40,6 +41,13 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  const isSafeToPortal = useSafePortal()
+
+  // Don't render portal until DOM is ready to prevent Fast Refresh errors
+  if (!isSafeToPortal) {
+    return null
+  }
+
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content

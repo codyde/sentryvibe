@@ -4,6 +4,7 @@ import * as React from "react"
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card"
 
 import { cn } from "@/lib/utils"
+import { useSafePortal } from "@/hooks/use-safe-portal"
 
 function HoverCard({
   ...props
@@ -25,6 +26,13 @@ function HoverCardContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
+  const isSafeToPortal = useSafePortal()
+
+  // Don't render portal until DOM is ready to prevent Fast Refresh errors
+  if (!isSafeToPortal) {
+    return null
+  }
+
   return (
     <HoverCardPrimitive.Portal data-slot="hover-card-portal">
       <HoverCardPrimitive.Content

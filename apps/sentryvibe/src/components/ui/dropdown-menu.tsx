@@ -5,6 +5,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useSafePortal } from "@/hooks/use-safe-portal"
 
 function DropdownMenu({
   ...props
@@ -36,6 +37,13 @@ function DropdownMenuContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const isSafeToPortal = useSafePortal()
+
+  // Don't render portal until DOM is ready to prevent Fast Refresh errors
+  if (!isSafeToPortal) {
+    return null
+  }
+
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content

@@ -5,6 +5,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useSafePortal } from "@/hooks/use-safe-portal"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -52,6 +53,13 @@ function SheetContent({
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
 }) {
+  const isSafeToPortal = useSafePortal()
+
+  // Don't render portal until DOM is ready to prevent Fast Refresh errors
+  if (!isSafeToPortal) {
+    return null
+  }
+
   return (
     <SheetPortal>
       <SheetOverlay />
