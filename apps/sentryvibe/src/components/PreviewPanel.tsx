@@ -270,17 +270,20 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Construct preview URL - ALWAYS use proxy route for script injection
   // Proxy will intelligently route to tunnel (remote) or localhost (local)
   // This ensures selection mode works in all scenarios
-  const shouldShowPreview = actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id &&
-    (isLocalRunner || verifiedTunnelUrl || !currentProject?.tunnelUrl);
-    // Show if: Local runner (always) OR tunnel verified OR no tunnel needed
 
-  const previewUrl = shouldShowPreview
+  // For remote frontend: Only show preview if tunnel exists OR is being created
+  // For local frontend: Always show (can access localhost)
+  const canShowPreview = actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id &&
+    (!frontendIsRemote || currentProject?.tunnelUrl || isTunnelLoading);
+    // Show if: Local frontend (always) OR tunnel exists OR tunnel being created
+
+  const previewUrl = canShowPreview
     ? `/api/projects/${currentProject.id}/proxy?path=/`
     : '';
 
-  // Note: Proxy intelligently routes based on runnerId:
-  // - Local runner: Fetches from localhost (fast, no tunnel needed)
-  // - Remote runner: Fetches from verified tunnel (selection mode works!)
+  // Note: Proxy intelligently routes based on Host header:
+  // - Local frontend: Fetches from localhost (fast, no tunnel needed)
+  // - Remote frontend: Fetches from tunnel (requires tunnel to exist)
 
 
   const handleRefresh = () => {
