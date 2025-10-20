@@ -170,7 +170,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
             console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;
-            setVerifiedTunnelUrl(currentTunnelUrl); // Only set after verification!
+
+            // Add cache-busting parameter to prevent Chrome DNS cache issues
+            const cacheBustUrl = `${currentTunnelUrl}?t=${Date.now()}`;
+            console.log('📌 Using cache-busted URL:', cacheBustUrl);
+
+            setVerifiedTunnelUrl(cacheBustUrl); // Only set after verification!
             setIsTunnelLoading(false);
             return;
           } catch (error: any) {
@@ -185,7 +190,12 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         if (!resolved) {
           console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s - showing anyway (may fail)`);
-          setVerifiedTunnelUrl(currentTunnelUrl); // Show anyway after timeout
+
+          // Add cache-busting even on timeout
+          const cacheBustUrl = `${currentTunnelUrl}?t=${Date.now()}`;
+          console.log('📌 Using cache-busted URL (timeout):', cacheBustUrl);
+
+          setVerifiedTunnelUrl(cacheBustUrl); // Show anyway after timeout
         }
         setIsTunnelLoading(false);
       })();
