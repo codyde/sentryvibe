@@ -173,6 +173,7 @@ export default function BuildProgress({
       <BuildHeader
         projectName={state.projectName}
         agentId={state.agentId}
+        claudeModelId={state.claudeModelId}
         completed={completed}
         total={total}
         progress={progress}

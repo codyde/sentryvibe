@@ -4,7 +4,14 @@
  * imported in client-side code without pulling in server-only dependencies
  */
 
-export { DEFAULT_AGENT_ID, type AgentId } from './types/agent';
+export {
+  DEFAULT_AGENT_ID,
+  DEFAULT_CLAUDE_MODEL_ID,
+  CLAUDE_MODEL_METADATA,
+  getClaudeModelLabel,
+  type AgentId,
+  type ClaudeModelId,
+} from './types/agent';
 export type { ProjectSummary, ProjectStatus } from './types/project';
 export type { CodexSessionState } from './types/generation';
 

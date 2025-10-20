@@ -15,7 +15,8 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/types/generation';
 import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
-import { DEFAULT_AGENT_ID } from '@sentryvibe/agent-core/types/agent';
+import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
+import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { analyzePromptForTemplate } from '@/services/template-analysis';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -86,7 +87,14 @@ export async function POST(
     commandId = randomUUID();
     const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
     const agentId = body.agent ?? DEFAULT_AGENT_ID;
+    const claudeModel: ClaudeModelId =
+      agentId === 'claude-code' && (body.claudeModel === 'claude-haiku-4-5' || body.claudeModel === 'claude-sonnet-4-5')
+        ? body.claudeModel
+        : DEFAULT_CLAUDE_MODEL_ID;
     console.log('[build-route] Using agent for build:', agentId);
+    if (agentId === 'claude-code') {
+      console.log('[build-route] Claude model selected:', claudeModel);
+    }
 
     // NEW: Automatically analyze prompt for template selection if this is a new project
     let templateMetadata = body.template; // Use provided template if available
@@ -97,7 +105,7 @@ export async function POST(
 
       try {
         const templates = await loadTemplates();
-        const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates);
+        const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates, claudeModel);
 
         templateMetadata = {
           id: analysis.templateId,
@@ -267,6 +275,9 @@ export async function POST(
         projectName: project[0].name,
         operationType: (sessionRow.operationType ?? body.operationType) as GenerationState['operationType'],
         agentId: (persistedState?.agentId as GenerationState['agentId']) ?? agentId,
+        claudeModelId:
+          (persistedState?.claudeModelId as GenerationState['claudeModelId']) ??
+          (agentId === 'claude-code' ? claudeModel : undefined),
         todos: todosSnapshot,
         toolsByTodo,
         textByTodo,
@@ -713,6 +724,7 @@ export async function POST(
         projectName: project[0].name,
         context: body.context,
         agent: agentId,
+        claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
         template: templateMetadata, // NEW: Pass analyzed template metadata to runner
       },
     });

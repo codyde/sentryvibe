@@ -1,4 +1,5 @@
 import type { AgentId } from './agent';
+import type { ClaudeModelId } from '../shared/runner/messages';
 
 export interface TodoItem {
   content: string;
@@ -94,6 +95,7 @@ export interface GenerationState {
   projectName: string;
   operationType?: BuildOperationType; // Type of build operation
   agentId?: AgentId;
+  claudeModelId?: ClaudeModelId;
   todos: TodoItem[];
   toolsByTodo: Record<number, ToolCall[]>; // Tools nested under each todo index
   textByTodo: Record<number, TextMessage[]>; // Text messages nested under each todo

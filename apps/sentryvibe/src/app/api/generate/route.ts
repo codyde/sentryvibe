@@ -1,5 +1,7 @@
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
+import { DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
+import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -7,11 +9,16 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   console.log('📨 Received request to /api/generate');
   
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const { messages, claudeModel }: { messages: UIMessage[]; claudeModel?: ClaudeModelId } = await req.json();
   console.log(`💬 Processing ${messages.length} message(s)`);
 
+  const selectedClaudeModel: ClaudeModelId =
+    claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5'
+      ? claudeModel
+      : DEFAULT_CLAUDE_MODEL_ID;
+
   const result = streamText({
-    model: anthropic('claude-sonnet-4-5'),
+    model: anthropic(selectedClaudeModel),
     messages: convertToModelMessages(messages),
     stopWhen: stepCountIs(5), // Allow up to 5 steps for multi-step tool usage
     tools: {

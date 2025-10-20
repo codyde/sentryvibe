@@ -2,11 +2,17 @@
 
 import { motion } from 'framer-motion';
 import { CheckCircle2, Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react';
-import type { AgentId } from '@sentryvibe/agent-core/types/agent';
+import {
+  getClaudeModelLabel,
+  DEFAULT_CLAUDE_MODEL_ID,
+  type AgentId,
+  type ClaudeModelId,
+} from '@sentryvibe/agent-core/client';
 
 interface BuildHeaderProps {
   projectName: string;
   agentId?: AgentId;
+  claudeModelId?: ClaudeModelId;
   completed: number;
   total: number;
   progress: number;
@@ -25,6 +31,7 @@ interface BuildHeaderProps {
 export function BuildHeader({
   projectName,
   agentId,
+  claudeModelId,
   completed,
   total,
   progress,
@@ -35,7 +42,10 @@ export function BuildHeader({
   onClose,
   templateInfo,
 }: BuildHeaderProps) {
-  const agentLabel = agentId === 'openai-codex' ? 'Codex' : 'Claude Code';
+  const agentLabel =
+    agentId === 'openai-codex'
+      ? 'Codex'
+      : `Claude Code • ${getClaudeModelLabel(claudeModelId ?? DEFAULT_CLAUDE_MODEL_ID)}`;
 
   return (
     <>

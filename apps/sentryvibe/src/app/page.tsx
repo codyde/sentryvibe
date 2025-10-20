@@ -166,7 +166,11 @@ function HomeContent() {
   const selectedProjectSlug = searchParams?.get("project") ?? null;
   const { projects, refetch, runnerOnline, setActiveProjectId } = useProjects();
   const { selectedRunnerId } = useRunner();
-  const { selectedAgentId } = useAgent();
+  const { selectedAgentId, selectedClaudeModelId, claudeModels } = useAgent();
+  const selectedClaudeModel = claudeModels.find(
+    (model) => model.id === selectedClaudeModelId,
+  );
+  const selectedClaudeModelLabel = selectedClaudeModel?.label ?? "Claude Haiku 4.5";
 
   // Restore view preference from sessionStorage after mount (avoids hydration error)
   useEffect(() => {
@@ -191,6 +195,7 @@ function HomeContent() {
         prevState || generationStateRef.current || generationState;
       const previousOperationType = existingState?.operationType;
       const previousAgentId = existingState?.agentId;
+      const previousClaudeModelId = existingState?.claudeModelId;
 
       if (prevState) return prevState;
       if (generationStateRef.current) return generationStateRef.current;
@@ -201,11 +206,20 @@ function HomeContent() {
           projectName: currentProject.name,
           operationType: previousOperationType ?? "initial-build",
           agentId: previousAgentId ?? selectedAgentId,
+          claudeModelId:
+            selectedAgentId === "claude-code"
+              ? previousClaudeModelId ?? selectedClaudeModelId
+              : undefined,
         });
       }
       return null;
     },
-    [generationState, currentProject, selectedAgentId]
+    [
+      generationState,
+      currentProject,
+      selectedAgentId,
+      selectedClaudeModelId,
+    ]
   );
 
   const updateCodexState = useCallback(
@@ -873,6 +887,9 @@ function HomeContent() {
           operationType: "focused-edit",
           prompt,
           runnerId: selectedRunnerId,
+          agent: selectedAgentId,
+          claudeModel:
+            selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
           context: {
             elementSelector: element?.selector,
             elementInfo: {
@@ -1137,7 +1154,7 @@ function HomeContent() {
 
     // Initialize template info from existing project if available
     if (project.projectType && project.projectType !== "unknown" && !selectedTemplate) {
-      const agentName = selectedAgentId === "claude-code" ? "Claude Sonnet 4.5" : "GPT-5 Codex";
+      const agentName = selectedAgentId === "claude-code" ? selectedClaudeModelLabel : "GPT-5 Codex";
       setSelectedTemplate({
         name: project.projectType,
         framework: project.projectType,
@@ -1163,6 +1180,7 @@ function HomeContent() {
       projectName: project.name,
       operationType,
       agentId: selectedAgentId,
+      claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
     });
 
     console.log("✅ Created fresh generationState:", freshState.id);
@@ -1193,6 +1211,8 @@ function HomeContent() {
           buildId: existingBuildId,
           runnerId: selectedRunnerId,
           agent: selectedAgentId,
+          claudeModel:
+            selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
           context: isElementChange
             ? {
                 elementSelector: "unknown", // Will be enhanced later
@@ -1647,7 +1667,7 @@ function HomeContent() {
             // Store for UI display
             const agentName =
               selectedAgentId === "claude-code"
-                ? "Claude Sonnet 4.5"
+                ? selectedClaudeModelLabel
                 : "GPT-5 Codex";
 
             if (metadata.projectType && metadata.projectType !== "unknown") {
@@ -1863,6 +1883,8 @@ function HomeContent() {
             prompt: userPrompt,
             agent: selectedAgentId,
             runnerId: selectedRunnerId,
+            claudeModel:
+              selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
           }),
         });
 
@@ -1891,6 +1913,7 @@ function HomeContent() {
           projectName: project.name,
           operationType: "initial-build",
           agentId: selectedAgentId,
+          claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
         });
 
         console.log("✅ Fresh state created:", {
@@ -2248,7 +2271,7 @@ function HomeContent() {
                         </button>
                       </div>
                       <div className="mt-3 flex justify-start">
-                        <AgentSelector className="w-full sm:w-64" />
+                        <AgentSelector className="w-full max-w-2xl" />
                       </div>
                     </form>
                   </div>
@@ -2453,7 +2476,7 @@ function HomeContent() {
                                   {isAnalyzingTemplate
                                     ? `${
                                         selectedAgentId === "claude-code"
-                                          ? "Claude Sonnet 4.5"
+                                          ? selectedClaudeModelLabel
                                           : "GPT-5 Codex"
                                       } is selecting the best template...`
                                     : "Setting up the perfect environment..."}
@@ -2994,7 +3017,7 @@ function HomeContent() {
                           </div>
                         </form>
                         <div className="mt-3 flex justify-start">
-                          <AgentSelector className="w-full md:w-64" />
+                          <AgentSelector className="w-full max-w-2xl" />
                         </div>
                       </div>
                     </div>
