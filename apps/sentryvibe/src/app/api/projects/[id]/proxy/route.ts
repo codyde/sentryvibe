@@ -24,13 +24,19 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Declare variables outside try block so they're accessible in catch block
+  let id: string | undefined;
+  let url: URL | undefined;
+  let project: any[] | undefined;
+
   try {
-    const { id } = await params;
-    const url = new URL(req.url);
+    const paramsResolved = await params;
+    id = paramsResolved.id;
+    url = new URL(req.url);
     const path = url.searchParams.get('path') || '/';
 
     // Get project
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     if (project.length === 0) {
       return new NextResponse('Project not found', { status: 404 });
     }
@@ -207,11 +213,11 @@ export async function GET(
 
   } catch (error) {
     console.error('❌ Proxy error:', error);
-    console.error('   Project:', id);
-    console.error('   Path:', url.searchParams.get('path'));
-    console.error('   Runner ID:', project[0]?.runnerId);
-    console.error('   Port:', project[0]?.devServerPort);
-    console.error('   Tunnel URL:', project[0]?.tunnelUrl);
+    console.error('   Project:', id ?? 'undefined');
+    console.error('   Path:', url?.searchParams.get('path') ?? 'undefined');
+    console.error('   Runner ID:', project?.[0]?.runnerId ?? 'undefined');
+    console.error('   Port:', project?.[0]?.devServerPort ?? 'undefined');
+    console.error('   Tunnel URL:', project?.[0]?.tunnelUrl ?? 'undefined');
     return new NextResponse(
       `Proxy failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { status: 500 }
