@@ -2257,30 +2257,11 @@ function HomeContent() {
                 </motion.div>
               )}
 
-            {/* Loading State - Show until mounted and project data loaded */}
+            {/* Three-Panel Layout - Show immediately when mounted */}
             {(messages.length > 0 ||
               selectedProjectSlug ||
               isCreatingProject) &&
-              (!isMounted || (selectedProjectSlug && isLoadingProject)) && (
-                <motion.div
-                  key="initial-loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex-1 flex items-center justify-center"
-                >
-                  <div className="text-center space-y-4">
-                    <Sparkles className="w-12 h-12 mx-auto text-purple-400 animate-pulse" />
-                    <p className="text-gray-400">Loading workspace...</p>
-                  </div>
-                </motion.div>
-              )}
-
-            {/* Three-Panel Layout - Show after mounted and data loaded */}
-            {(messages.length > 0 ||
-              selectedProjectSlug ||
-              isCreatingProject) &&
-              isMounted &&
-              !(selectedProjectSlug && isLoadingProject) && (
+              isMounted && (
                 <motion.div
                   key="chat-layout"
                   initial={{ opacity: 0 }}
@@ -2930,6 +2911,28 @@ function HomeContent() {
                                 </div>
                               );
                             })}
+
+                            {/* Loading indicator for project messages */}
+                            {isLoadingProject && (
+                              <div className="flex justify-start animate-in fade-in duration-500">
+                                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                                    <div
+                                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                                      style={{ animationDelay: "0.2s" }}
+                                    ></div>
+                                    <div
+                                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                                      style={{ animationDelay: "0.4s" }}
+                                    ></div>
+                                    <span className="ml-2 text-sm text-gray-400">
+                                      Loading messages...
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Loading indicator in chat view */}
                             {isGenerating &&

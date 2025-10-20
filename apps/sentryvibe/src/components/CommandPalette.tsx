@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
+import * as Dialog from '@radix-ui/react-dialog';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
@@ -14,6 +15,10 @@ import {
   Square,
   Folder,
   ExternalLink,
+  Trash2,
+  Edit3,
+  CheckSquare,
+  XSquare,
   type LucideIcon,
 } from 'lucide-react';
 import { getIconComponent } from '@sentryvibe/agent-core/lib/icon-mapper';
@@ -26,7 +31,8 @@ interface CommandPaletteProps {
 
 type CommandAction =
   | { type: 'navigate'; path: string }
-  | { type: 'action'; fn: () => void | Promise<void> };
+  | { type: 'action'; fn: () => void | Promise<void> }
+  | { type: 'bulk-select'; projectId: string };
 
 interface CommandItem {
   id: string;
@@ -41,6 +47,16 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
   const router = useRouter();
   const { projects, refetch } = useProjects();
   const { selectedRunnerId } = useRunner();
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+
+  // Reset bulk state when closing
+  useEffect(() => {
+    if (!open) {
+      setBulkMode(false);
+      setSelectedItems(new Set());
+    }
+  }, [open]);
 
   // Build command list
   const commands = useMemo<CommandItem[]>(() => {
@@ -73,10 +89,98 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
       });
     }
 
+    // Toggle bulk mode
+    items.push({
+      id: 'toggle-bulk',
+      label: bulkMode ? 'Exit Bulk Mode' : 'Enable Bulk Mode',
+      description: bulkMode ? 'Switch back to normal mode' : 'Select multiple projects for bulk operations',
+      icon: bulkMode ? XSquare : CheckSquare,
+      action: {
+        type: 'action',
+        fn: () => setBulkMode(!bulkMode),
+      },
+      group: 'Actions',
+    });
+
+    // Bulk actions (only show when items are selected)
+    if (selectedItems.size > 0) {
+      items.push({
+        id: 'bulk-stop-servers',
+        label: `Stop ${selectedItems.size} Server${selectedItems.size > 1 ? 's' : ''}`,
+        description: 'Stop development servers for selected projects',
+        icon: Square,
+        action: {
+          type: 'action',
+          fn: async () => {
+            await Promise.all(
+              Array.from(selectedItems).map((id) =>
+                fetch(`/api/projects/${id}/stop`, { method: 'POST' })
+              )
+            );
+            refetch();
+            setSelectedItems(new Set());
+            setBulkMode(false);
+            onOpenChange(false);
+          },
+        },
+        group: 'Bulk Actions',
+      });
+
+      items.push({
+        id: 'bulk-delete',
+        label: `Delete ${selectedItems.size} Project${selectedItems.size > 1 ? 's' : ''}`,
+        description: 'Permanently delete selected projects',
+        icon: Trash2,
+        action: {
+          type: 'action',
+          fn: async () => {
+            if (confirm(`Are you sure you want to delete ${selectedItems.size} project(s)?`)) {
+              await Promise.all(
+                Array.from(selectedItems).map((id) =>
+                  fetch(`/api/projects/${id}`, { method: 'DELETE' })
+                )
+              );
+              refetch();
+              setSelectedItems(new Set());
+              setBulkMode(false);
+              onOpenChange(false);
+            }
+          },
+        },
+        group: 'Bulk Actions',
+      });
+
+      items.push({
+        id: 'clear-selection',
+        label: 'Clear Selection',
+        description: 'Deselect all projects',
+        icon: XSquare,
+        action: {
+          type: 'action',
+          fn: () => setSelectedItems(new Set()),
+        },
+        group: 'Bulk Actions',
+      });
+    }
+
     // Project actions
     projects.forEach((project) => {
       const isRunning = project.devServerStatus === 'running';
       const isBuilding = project.status === 'in_progress';
+
+      // In bulk mode, show selection toggle
+      if (bulkMode) {
+        const isSelected = selectedItems.has(project.id);
+        items.push({
+          id: `select-${project.id}`,
+          label: `${isSelected ? '✓ ' : ''}${project.name}`,
+          description: isSelected ? 'Click to deselect' : 'Click to select',
+          icon: getIconComponent(project.icon),
+          action: { type: 'bulk-select', projectId: project.id },
+          group: 'Projects',
+        });
+        return; // Skip other actions in bulk mode
+      }
 
       // View project
       items.push({
@@ -142,7 +246,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
     });
 
     return items;
-  }, [projects, selectedRunnerId, onOpenProcessModal, onOpenChange, refetch, router]);
+  }, [projects, selectedRunnerId, onOpenProcessModal, onOpenChange, refetch, router, bulkMode, selectedItems]);
 
   // Group commands
   const groupedCommands = useMemo(() => {
@@ -166,6 +270,17 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
       case 'action':
         command.action.fn();
         break;
+      case 'bulk-select':
+        setSelectedItems((prev) => {
+          const next = new Set(prev);
+          if (next.has(command.action.projectId)) {
+            next.delete(command.action.projectId);
+          } else {
+            next.add(command.action.projectId);
+          }
+          return next;
+        });
+        break;
     }
   };
 
@@ -177,15 +292,25 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
       className="fixed left-[50%] top-[50%] z-50 w-full max-w-[640px] translate-x-[-50%] translate-y-[-50%]"
     >
       <div className="overflow-hidden rounded-xl border-2 border-purple-500 bg-gray-950 shadow-2xl">
-        <VisuallyHidden.Root>
-          <h2>Command Menu</h2>
+        <VisuallyHidden.Root asChild>
+          <Dialog.Title>Command Menu</Dialog.Title>
         </VisuallyHidden.Root>
         <div className="flex items-center border-b border-white/10 px-4">
           <Search className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
           <Command.Input
-            placeholder="Search commands..."
+            placeholder={bulkMode ? 'Select projects for bulk operations...' : 'Search commands...'}
             className="flex h-12 w-full bg-transparent py-3 text-sm text-white placeholder:text-gray-500 outline-none"
           />
+          {bulkMode && (
+            <span className="ml-2 rounded bg-purple-500/20 px-2 py-1 text-xs text-purple-300 border border-purple-500/30 whitespace-nowrap">
+              Bulk Mode
+            </span>
+          )}
+          {selectedItems.size > 0 && (
+            <span className="ml-2 rounded bg-blue-500/20 px-2 py-1 text-xs text-blue-300 border border-blue-500/30 whitespace-nowrap">
+              {selectedItems.size} selected
+            </span>
+          )}
         </div>
 
         <Command.List className="max-h-[400px] overflow-y-auto p-2">
