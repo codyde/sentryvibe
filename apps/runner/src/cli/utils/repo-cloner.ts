@@ -27,10 +27,11 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
   logger.info(`Branch: ${branch}`);
   logger.log('');
 
-  // Check if target already exists
+  // Check if target already exists (should be handled by caller)
   if (existsSync(targetPath)) {
     logger.warn(`Directory already exists: ${targetPath}`);
-    throw new Error('Target directory already exists. Please choose a different location or remove the existing directory.');
+    logger.warn('This should have been handled by init command');
+    // Continue anyway - caller should have cleaned it up
   }
 
   // Create parent directory if needed

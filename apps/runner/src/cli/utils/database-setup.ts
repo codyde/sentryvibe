@@ -165,21 +165,29 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
     return false;
   }
 
-  // Ensure vendor packages are installed before running drizzle-kit
-  // drizzle-kit needs @sentryvibe/agent-core/dist/lib/db/schema.js
-  spinner.start('Installing vendor packages...');
+  // Ensure vendor packages are installed in sentryvibe app before running drizzle-kit
+  // drizzle-kit runs in apps/sentryvibe and looks for schema in its node_modules
+  spinner.start('Installing vendor packages for sentryvibe app...');
 
   try {
-    const installVendorScript = join(sentryvibeAppPath, '../runner/scripts/install-vendor.js');
+    // Use update-agent-core script to ensure agent-core is in apps/sentryvibe/node_modules
+    const updateAgentCoreScript = join(sentryvibeAppPath, '../../scripts/update-agent-core.sh');
 
-    if (existsSync(installVendorScript)) {
-      execFileSync('node', [installVendorScript], {
-        cwd: join(sentryvibeAppPath, '../runner'),
+    if (existsSync(updateAgentCoreScript)) {
+      execFileSync('bash', [updateAgentCoreScript], {
+        cwd: join(sentryvibeAppPath, '../..'), // Run from monorepo root
         stdio: 'pipe', // Silent
       });
       spinner.succeed('Vendor packages installed');
     } else {
-      spinner.warn('Vendor install script not found, skipping');
+      spinner.warn('Agent-core update script not found, trying pnpm install in sentryvibe app');
+
+      // Fallback: Just run pnpm install in sentryvibe app
+      execFileSync('pnpm', ['install'], {
+        cwd: sentryvibeAppPath,
+        stdio: 'pipe',
+      });
+      spinner.succeed('Dependencies installed');
     }
   } catch (error) {
     spinner.warn('Vendor install failed, trying schema push anyway');

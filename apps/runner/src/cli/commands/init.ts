@@ -107,6 +107,28 @@ export async function initCommand(options: InitOptions) {
     logger.log('');
 
     try {
+      // Check if target path already exists
+      if (existsSync(clonePath)) {
+        logger.warn(`Directory already exists: ${clonePath}`);
+
+        const shouldDelete = await prompts.confirm(
+          'Delete existing directory and clone fresh?',
+          true  // Default to YES
+        );
+
+        if (!shouldDelete) {
+          logger.info('Setup cancelled');
+          process.exit(0);
+        }
+
+        // Delete existing directory
+        logger.info('Removing existing directory...');
+        const { rmSync } = await import('fs');
+        rmSync(clonePath, { recursive: true, force: true });
+        logger.success('Directory removed');
+        logger.log('');
+      }
+
       // Clone the repository
       monorepoPath = await cloneRepository({
         targetPath: clonePath,
