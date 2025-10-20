@@ -178,30 +178,29 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
       },
     });
 
-    let hasError = false;
-    let errorOutput = '';
+    let allOutput = '';
 
-    // Suppress normal output, only capture errors
-    proc.stdout?.on('data', () => {
-      // Silently consume stdout
+    // Capture all output for debugging
+    proc.stdout?.on('data', (data) => {
+      allOutput += data.toString();
     });
 
     proc.stderr?.on('data', (data) => {
-      const text = data.toString();
-      if (text.includes('error') || text.includes('Error')) {
-        hasError = true;
-        errorOutput += text;
-      }
+      allOutput += data.toString();
     });
 
     proc.on('exit', (code) => {
-      if (code === 0 && !hasError) {
+      if (code === 0) {
         spinner.succeed('Database schema initialized successfully');
         resolve(true);
       } else {
         spinner.fail('Failed to push database schema');
-        if (errorOutput) {
-          logger.error(errorOutput.trim());
+        // Show all output when it fails so user can see what went wrong
+        if (allOutput.trim()) {
+          logger.log(''); // Blank line
+          logger.log('Output from drizzle-kit push:');
+          logger.log(allOutput.trim());
+          logger.log(''); // Blank line
         }
         resolve(false);
       }
