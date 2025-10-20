@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * NOTE: Fast Refresh / HMR Error Resolution
+ * 
+ * If you encounter ReferenceError exceptions about undefined handlers (e.g., handleRenameProject)
+ * during development with Next.js Fast Refresh, this is typically caused by stale build artifacts
+ * in the .next directory. The browser's cached JavaScript still references old code that has been
+ * removed or refactored.
+ * 
+ * To resolve:
+ * 1. Stop the dev server
+ * 2. Delete the .next directory (or run: npm run clean)
+ * 3. Restart the dev server (npm run dev)
+ * 
+ * This ensures a clean build state and prevents ghost references to deleted code.
+ */
+
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
