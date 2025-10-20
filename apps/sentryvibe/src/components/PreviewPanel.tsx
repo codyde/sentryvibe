@@ -225,6 +225,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       lastTunnelUrlRef.current = null;
       setVerifiedTunnelUrl(null);
       setIsTunnelLoading(false);
+      setDnsTroubleshooting(false);
+      setDnsVerificationAttempt(0);
     }
 
     // Hide loading if not starting
