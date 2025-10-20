@@ -11,6 +11,8 @@ import { Sparkles } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
 import TerminalOutput from "@/components/TerminalOutput";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
+import RenameProjectModal from "@/components/RenameProjectModal";
+import DeleteProjectModal from "@/components/DeleteProjectModal";
 import SummaryCard from "@/components/SummaryCard";
 import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
@@ -94,6 +96,8 @@ function HomeContent() {
   } | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
+  const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
+  const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
   >(null);
@@ -2170,13 +2174,48 @@ function HomeContent() {
   return (
     <CommandPaletteProvider
       onOpenProcessModal={() => setShowProcessModal(true)}
+      onRenameProject={setRenamingProject}
+      onDeleteProject={setDeletingProject}
     >
       <SidebarProvider defaultOpen={false}>
-        <AppSidebar onOpenProcessModal={() => setShowProcessModal(true)} />
+        <AppSidebar
+          onOpenProcessModal={() => setShowProcessModal(true)}
+          onRenameProject={setRenamingProject}
+          onDeleteProject={setDeletingProject}
+        />
         <ProcessManagerModal
           isOpen={showProcessModal}
           onClose={() => setShowProcessModal(false)}
         />
+        {renamingProject && (
+          <RenameProjectModal
+            isOpen={!!renamingProject}
+            onClose={() => setRenamingProject(null)}
+            projectId={renamingProject.id}
+            currentName={renamingProject.name}
+            onRenameComplete={() => {
+              setRenamingProject(null);
+              refetch();
+            }}
+          />
+        )}
+        {deletingProject && (
+          <DeleteProjectModal
+            isOpen={!!deletingProject}
+            onClose={() => setDeletingProject(null)}
+            projectId={deletingProject.id}
+            projectName={deletingProject.name}
+            projectSlug={deletingProject.slug}
+            onDeleteComplete={() => {
+              setDeletingProject(null);
+              refetch();
+              // If viewing deleted project, navigate home
+              if (selectedProjectSlug === deletingProject.slug) {
+                router.push('/');
+              }
+            }}
+          />
+        )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
         {runnerOnline === false && (
           <div className="bg-amber-500/20 border border-amber-400/40 text-amber-200 px-4 py-2 text-sm">
