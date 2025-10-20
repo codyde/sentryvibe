@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CommandPalette } from './CommandPalette';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
 
@@ -11,6 +12,11 @@ interface CommandPaletteProviderProps {
 
 export function CommandPaletteProvider({ children, onOpenProcessModal }: CommandPaletteProviderProps) {
   const { isOpen, open, close, toggle } = useCommandPalette();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,11 +39,14 @@ export function CommandPaletteProvider({ children, onOpenProcessModal }: Command
   return (
     <>
       {children}
-      <CommandPalette
-        open={isOpen}
-        onOpenChange={(open) => (open ? open() : close())}
-        onOpenProcessModal={onOpenProcessModal}
-      />
+      {mounted && createPortal(
+        <CommandPalette
+          open={isOpen}
+          onOpenChange={(open) => (open ? open() : close())}
+          onOpenProcessModal={onOpenProcessModal}
+        />,
+        document.body
+      )}
     </>
   );
 }
