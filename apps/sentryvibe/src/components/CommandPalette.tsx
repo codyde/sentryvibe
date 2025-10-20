@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getIconComponent } from '@sentryvibe/agent-core/lib/icon-mapper';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -295,15 +296,29 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
   };
 
   return (
-    <Command.Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      shouldFilter={false}
-      loop
-      label="Command Menu"
-      className="fixed left-1/2 top-1/3 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 border-purple-500 bg-gray-950 shadow-2xl shadow-purple-500/30 overflow-hidden"
-      overlayClassName="fixed inset-0 z-40 bg-black/70"
-    >
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+            onClick={() => onOpenChange(false)}
+          />
+
+          {/* Command Palette */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -20 }}
+            transition={{ duration: 0.2, type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed left-1/2 top-1/3 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Command shouldFilter={false} loop className="rounded-xl border-2 border-purple-500/50 bg-black/95 shadow-2xl shadow-purple-500/20 overflow-hidden">
               <div className="flex items-center border-b border-white/10 px-4">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
                 <Command.Input
@@ -364,6 +379,10 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
                   <span>Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded">↑↓</kbd> to navigate</span>
                 </div>
               </div>
-    </Command.Dialog>
+            </Command>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
