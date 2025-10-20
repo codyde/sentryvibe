@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -163,6 +163,26 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
   if (!existsSync(configPath)) {
     logger.error(`Drizzle config not found: ${configPath}`);
     return false;
+  }
+
+  // Ensure vendor packages are installed before running drizzle-kit
+  // drizzle-kit needs @sentryvibe/agent-core/dist/lib/db/schema.js
+  spinner.start('Installing vendor packages...');
+
+  try {
+    const installVendorScript = join(sentryvibeAppPath, '../runner/scripts/install-vendor.js');
+
+    if (existsSync(installVendorScript)) {
+      execFileSync('node', [installVendorScript], {
+        cwd: join(sentryvibeAppPath, '../runner'),
+        stdio: 'pipe', // Silent
+      });
+      spinner.succeed('Vendor packages installed');
+    } else {
+      spinner.warn('Vendor install script not found, skipping');
+    }
+  } catch (error) {
+    spinner.warn('Vendor install failed, trying schema push anyway');
   }
 
   spinner.start('Initializing database schema (this may take a moment)...');
