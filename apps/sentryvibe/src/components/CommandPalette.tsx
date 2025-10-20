@@ -357,7 +357,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
                           key={command.id}
                           value={`${command.id}-${command.label}`}
                           onSelect={() => handleSelect(command)}
-                          className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none hover:bg-white/10 aria-selected:bg-gradient-to-r aria-selected:from-purple-500/20 aria-selected:to-pink-500/20 aria-selected:border aria-selected:border-purple-500/30 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-all"
+                          className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm text-white outline-none hover:bg-white/10 data-[selected=true]:bg-gradient-to-r data-[selected=true]:from-purple-500/20 data-[selected=true]:to-pink-500/20 data-[selected=true]:border-purple-500/50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                         >
                           <Icon className="h-4 w-4 shrink-0 text-gray-400" />
                           <div className="flex-1 overflow-hidden">
