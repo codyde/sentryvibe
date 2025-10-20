@@ -246,13 +246,26 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const isLocalRunner = !isRemoteRunner;
   const needsTunnel = frontendIsRemote && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl;
 
-  // Auto-create tunnel when remote frontend detects server started
+  // Auto-create tunnel when remote frontend detects server started (only once per server start)
+  const hasAutoStartedTunnel = useRef(false);
+
   useEffect(() => {
-    if (needsTunnel && onStartTunnel && !isStartingTunnel) {
-      console.log('🔗 Remote frontend detected - auto-creating tunnel...');
+    // Reset flag when server stops
+    if (currentProject?.devServerStatus !== 'running') {
+      hasAutoStartedTunnel.current = false;
+    }
+
+    // Auto-start tunnel when:
+    // - Remote frontend (Railway)
+    // - Server just started
+    // - No tunnel exists
+    // - Haven't already auto-started for this server session
+    if (needsTunnel && onStartTunnel && !isStartingTunnel && !hasAutoStartedTunnel.current) {
+      console.log('🔗 Remote frontend detected - auto-creating tunnel for first time...');
+      hasAutoStartedTunnel.current = true;
       onStartTunnel();
     }
-  }, [needsTunnel, onStartTunnel, isStartingTunnel]);
+  }, [needsTunnel, onStartTunnel, isStartingTunnel, currentProject?.devServerStatus]);
 
   // Construct preview URL - ALWAYS use proxy route for script injection
   // Proxy will intelligently route to tunnel (remote) or localhost (local)
@@ -643,12 +656,16 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   </div>
                   <div className="text-center space-y-2">
                     <p className="text-lg font-semibold text-white">
-                      {dnsVerificationAttempt > 0 ? 'Verifying Tunnel Connection' : 'Initializing Tunnel'}
+                      {dnsVerificationAttempt > 0
+                        ? 'Verifying Tunnel Connection'
+                        : (frontendIsRemote ? 'Creating Tunnel for Remote Access' : 'Initializing Tunnel')}
                     </p>
                     <p className="text-sm text-gray-400">
                       {dnsVerificationAttempt > 0
                         ? `Attempt ${dnsVerificationAttempt}/10...`
-                        : 'Setting up secure connection...'}
+                        : (frontendIsRemote
+                          ? 'Tunnel required for Railway access...'
+                          : 'Setting up secure connection...')}
                     </p>
                   </div>
                 </div>
@@ -737,6 +754,31 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 title="Spinning up your workspace"
                 subtitle="Warming caches, allocating a port, and preparing the dev server."
               />
+            ) : frontendIsRemote && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl ? (
+              <div className="text-center space-y-4 max-w-md px-6">
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <Cloud className="w-8 h-8 text-blue-400" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-white">Tunnel Disconnected</h3>
+                  <p className="text-gray-400 text-sm">
+                    Server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> but tunnel was stopped.
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Restart tunnel to access from Railway:
+                  </p>
+                </div>
+                <button
+                  onClick={onStartTunnel}
+                  disabled={isStartingTunnel}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Cloud className={`w-5 h-5 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
+                  {isStartingTunnel ? 'Starting Tunnel...' : 'Restart Tunnel'}
+                </button>
+              </div>
             ) : project?.status === 'completed' && project?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">
                 <div className="flex items-center justify-center">

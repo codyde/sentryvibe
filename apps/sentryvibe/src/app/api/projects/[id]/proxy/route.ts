@@ -62,12 +62,12 @@ export async function GET(
       targetUrl = `${proj.tunnelUrl}${path}`;
       console.log(`[proxy] Frontend accessed via ${requestHost} - using tunnel ${proj.tunnelUrl}`);
     } else {
-      // Frontend accessed remotely but no tunnel exists
-      // Proxy can't reach runner
-      console.error(`[proxy] Remote access via ${requestHost} but no tunnel for project ${id}`);
+      // Frontend accessed remotely but no tunnel exists yet
+      // Return a special status that frontend can detect and handle gracefully
+      console.warn(`[proxy] Remote access via ${requestHost} - waiting for tunnel to be created for project ${id}`);
       return new NextResponse(
-        'Tunnel required: Frontend is remote but no tunnel exists. Click "Start Tunnel" to create one.',
-        { status: 503 }
+        'Waiting for tunnel...',
+        { status: 202, headers: { 'X-Tunnel-Status': 'pending' } }
       );
     }
     const response = await fetch(targetUrl);
