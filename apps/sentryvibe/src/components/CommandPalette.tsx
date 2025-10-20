@@ -19,6 +19,7 @@ import {
   Edit3,
   CheckSquare,
   XSquare,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react';
 import { getIconComponent } from '@sentryvibe/agent-core/lib/icon-mapper';
@@ -49,12 +50,14 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
   const { selectedRunnerId } = useRunner();
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   // Reset bulk state when closing
   useEffect(() => {
     if (!open) {
       setBulkMode(false);
       setSelectedItems(new Set());
+      setLoadingAction(null);
     }
   }, [open]);
 
@@ -107,17 +110,19 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
       items.push({
         id: 'bulk-stop-servers',
         label: `Stop ${selectedItems.size} Server${selectedItems.size > 1 ? 's' : ''}`,
-        description: 'Stop development servers for selected projects',
+        description: loadingAction === 'bulk-stop-servers' ? 'Stopping servers...' : 'Stop development servers for selected projects',
         icon: Square,
         action: {
           type: 'action',
           fn: async () => {
+            setLoadingAction('bulk-stop-servers');
             await Promise.all(
               Array.from(selectedItems).map((id) =>
                 fetch(`/api/projects/${id}/stop`, { method: 'POST' })
               )
             );
-            refetch();
+            await refetch();
+            setLoadingAction(null);
             setSelectedItems(new Set());
             setBulkMode(false);
             onOpenChange(false);
@@ -129,18 +134,20 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
       items.push({
         id: 'bulk-delete',
         label: `Delete ${selectedItems.size} Project${selectedItems.size > 1 ? 's' : ''}`,
-        description: 'Permanently delete selected projects',
+        description: loadingAction === 'bulk-delete' ? 'Deleting projects...' : 'Permanently delete selected projects',
         icon: Trash2,
         action: {
           type: 'action',
           fn: async () => {
             if (confirm(`Are you sure you want to delete ${selectedItems.size} project(s)?`)) {
+              setLoadingAction('bulk-delete');
               await Promise.all(
                 Array.from(selectedItems).map((id) =>
                   fetch(`/api/projects/${id}`, { method: 'DELETE' })
                 )
               );
-              refetch();
+              await refetch();
+              setLoadingAction(null);
               setSelectedItems(new Set());
               setBulkMode(false);
               onOpenChange(false);
@@ -197,13 +204,15 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
         items.push({
           id: `stop-${project.id}`,
           label: `Stop ${project.name}`,
-          description: 'Stop development server',
+          description: loadingAction === `stop-${project.id}` ? 'Stopping...' : 'Stop development server',
           icon: Square,
           action: {
             type: 'action',
             fn: async () => {
+              setLoadingAction(`stop-${project.id}`);
               await fetch(`/api/projects/${project.id}/stop`, { method: 'POST' });
-              refetch();
+              await refetch();
+              setLoadingAction(null);
               onOpenChange(false);
             },
           },
@@ -230,13 +239,15 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
         items.push({
           id: `start-${project.id}`,
           label: `Start ${project.name}`,
-          description: 'Start development server',
+          description: loadingAction === `start-${project.id}` ? 'Starting...' : 'Start development server',
           icon: Play,
           action: {
             type: 'action',
             fn: async () => {
+              setLoadingAction(`start-${project.id}`);
               await fetch(`/api/projects/${project.id}/start`, { method: 'POST' });
-              refetch();
+              await refetch();
+              setLoadingAction(null);
               onOpenChange(false);
             },
           },
@@ -246,7 +257,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
     });
 
     return items;
-  }, [projects, selectedRunnerId, onOpenProcessModal, onOpenChange, refetch, router, bulkMode, selectedItems]);
+  }, [projects, selectedRunnerId, onOpenProcessModal, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction]);
 
   // Group commands
   const groupedCommands = useMemo(() => {
@@ -326,14 +337,20 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
             >
               {items.map((command) => {
                 const Icon = command.icon || Folder;
+                const isLoading = loadingAction === command.id;
                 return (
                   <Command.Item
                     key={command.id}
                     value={command.label}
                     onSelect={() => handleSelect(command)}
-                    className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none data-[selected=true]:bg-gradient-to-r data-[selected=true]:from-purple-500/20 data-[selected=true]:to-pink-500/20"
+                    disabled={isLoading}
+                    className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none data-[selected=true]:bg-gradient-to-r data-[selected=true]:from-purple-500/20 data-[selected=true]:to-pink-500/20 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed"
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 shrink-0 text-purple-400 animate-spin" />
+                    ) : (
+                      <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+                    )}
                     <div className="flex-1 overflow-hidden">
                       <div className="font-medium truncate">{command.label}</div>
                       {command.description && (
