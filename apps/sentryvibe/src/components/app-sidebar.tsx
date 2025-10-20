@@ -119,8 +119,8 @@ export function AppSidebar({ onOpenProcessModal, ...props }: AppSidebarProps) {
             <div className="px-3 py-4 space-y-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="animate-pulse">
-                  <div className="h-4 bg-white/5 rounded mb-2" style={{ width: `${60 + (i * 8)}%` }} />
-                  <div className="h-3 bg-white/5 rounded" style={{ width: `${40 + (i * 5)}%` }} />
+                  <div className="h-4 bg-white/5 rounded mb-2" style={{ width: (60 + (i * 8)) + '%' }} />
+                  <div className="h-3 bg-white/5 rounded" style={{ width: (40 + (i * 5)) + '%' }} />
                 </div>
               ))}
             </div>
