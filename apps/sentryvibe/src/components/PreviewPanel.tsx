@@ -248,7 +248,9 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   };
 
   const handleCopyUrl = async () => {
-    const url = currentProject?.tunnelUrl || `http://localhost:${actualPort}`;
+    // Copy the actual tunnel URL (might not be verified yet, but that's ok for copy)
+    // User can paste it and wait, or use it elsewhere
+    const url = currentProject?.tunnelUrl || verifiedTunnelUrl || `http://localhost:${actualPort}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -384,7 +386,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors">
                 <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 flex-shrink-0"></div>
                 <span className="text-xs font-mono text-gray-300 truncate">
-                  {currentProject?.tunnelUrl || `http://localhost:${actualPort}`}
+                  {verifiedTunnelUrl || `http://localhost:${actualPort}`}
                 </span>
                 <button
                   onClick={handleCopyUrl}
