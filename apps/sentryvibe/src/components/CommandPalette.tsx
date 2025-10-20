@@ -305,7 +305,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[9998] bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
             onClick={() => onOpenChange(false)}
           />
 
@@ -315,7 +315,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal }: Comma
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -20 }}
             transition={{ duration: 0.2, type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed left-1/2 top-1/3 z-[9999] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2"
+            className="fixed left-1/2 top-1/3 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2"
             onClick={(e) => e.stopPropagation()}
           >
             <Command shouldFilter={false} loop className="rounded-xl border-2 border-purple-500/50 bg-black/95 shadow-2xl shadow-purple-500/20 overflow-hidden">
