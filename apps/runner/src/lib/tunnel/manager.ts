@@ -158,6 +158,9 @@ export class TunnelManager extends EventEmitter {
       console.log(`[tunnel] Cloudflared spawned with PID: ${proc.pid}`);
 
       let resolved = false;
+      let tunnelUrl: string | null = null;
+      let tunnelRegistered = false;
+
       const timeout = setTimeout(() => {
         if (!resolved) {
           proc.kill();
@@ -168,22 +171,35 @@ export class TunnelManager extends EventEmitter {
       // Shared handler for both stdout and stderr
       const handleOutput = async (data: Buffer) => {
         const output = data.toString();
-        const url = this._extractTunnelUrl(output);
 
-        if (url && !resolved) {
+        // Step 1: Extract URL
+        if (!tunnelUrl) {
+          const url = this._extractTunnelUrl(output);
+          if (url) {
+            tunnelUrl = url;
+            console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
+            this.tunnels.set(port, { url, port, process: proc });
+          }
+        }
+
+        // Step 2: Wait for tunnel registration (edge connection established)
+        if (tunnelUrl && !tunnelRegistered && output.includes('Registered tunnel connection')) {
+          tunnelRegistered = true;
+          console.log(`✅ Tunnel registered with Cloudflare edge (DNS propagating)`);
+        }
+
+        // Step 3: Return only after BOTH URL received AND tunnel registered
+        if (tunnelUrl && tunnelRegistered && !resolved) {
           resolved = true;
           clearTimeout(timeout);
 
-          this.tunnels.set(port, { url, port, process: proc });
-
-          console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
-          console.log(`✅ Tunnel ready: ${url}`);
+          console.log(`✅ Tunnel ready: ${tunnelUrl}`);
 
           // Note: Backend verification skipped for localhost tunnels
           // The tunnel connects localhost to Cloudflare - backend can't verify it
           // Frontend will verify DNS before loading in iframe
 
-          resolve(url);
+          resolve(tunnelUrl);
         }
       };
 
