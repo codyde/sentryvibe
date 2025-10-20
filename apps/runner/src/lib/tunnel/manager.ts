@@ -136,7 +136,7 @@ export class TunnelManager extends EventEmitter {
       console.log(`[tunnel] Creating tunnel for port ${port}...`);
 
       // Direct binary execution with unbuffered streams
-      const proc = spawn('/opt/homebrew/bin/cloudflared', [
+      const proc = spawn(this.cloudflaredPath!, [
         'tunnel',
         '--url', `http://localhost:${port}`,
         '--no-autoupdate',
