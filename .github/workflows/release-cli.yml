@@ -30,8 +30,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build agent-core package
-        run: pnpm run build:agent-core
+      - name: Build agent-core
+        run: pnpm --filter @sentryvibe/agent-core build
 
       - name: Verify vendor packages (now committed to git)
         run: |
@@ -59,7 +59,6 @@ jobs:
             "sentry-node-LOCAL.tgz"
             "sentry-node-core-LOCAL.tgz"
             "sentry-nextjs-LOCAL.tgz"
-            "sentryvibe-agent-core-0.1.0.tgz"
           )
 
           for file in "${REQUIRED_FILES[@]}"; do
@@ -72,14 +71,14 @@ jobs:
             fi
           done
 
-          if [ "$VENDOR_COUNT" -ne 5 ]; then
+          if [ "$VENDOR_COUNT" -ne 4 ]; then
             echo ""
-            echo "ERROR: Expected 5 vendor files, found $VENDOR_COUNT"
+            echo "ERROR: Expected 4 vendor files, found $VENDOR_COUNT"
             exit 1
           fi
 
           echo ""
-          echo "✓ All 5 required vendor packages verified"
+          echo "✓ All required vendor packages verified"
 
       - name: Build CLI
         run: pnpm run build:cli

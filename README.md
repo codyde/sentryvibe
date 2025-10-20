@@ -1,220 +1,120 @@
 # SentryVibe
 
-AI-powered project generation and management platform with remote runner architecture.
+AI-powered project generation platform that uses Claude AI and OpenAI Codex to build web projects with real-time streaming, live previews, and tunnel support.
 
-## Quick Reference
+## Quick Start
 
-**Install CLI (recommended):**
+**Install CLI:**
 ```bash
-# One-line install
-curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
-
-# Then setup and run
-sentryvibe init -y
+npm install -g @sentryvibe/runner-cli
+sentryvibe init -y    # Accept all defaults (generates secure secret)
 sentryvibe run
 ```
 
-**Build from source:**
-```bash
-# From repository root
-./build-cli.sh        # Build and link CLI
+Open http://localhost:3000 and start building!
 
-# Start full stack
-sentryvibe run
+> **Tip**: Use `sentryvibe init` (without `-y`) for interactive setup with custom configuration.
 
-# Start runner only
-sentryvibe --runner
-```
+## What is SentryVibe?
 
-## Overview
+SentryVibe lets you describe what you want to build ("Create a React todo app with TypeScript and Tailwind") and AI generates a complete, runnable project on your local machine. Watch Claude AI work in real-time, preview your app instantly via tunnels, and iterate with follow-up prompts.
 
-SentryVibe is a full-stack application that uses Claude AI to generate, build, and manage web projects. It consists of three main components:
-
-- **Sentryvibe Web App** - Next.js frontend hosted on Railway
-- **Broker Service** - WebSocket broker for runner communication
-- **Runner CLI** - Local command-line tool for executing builds
+**Key Features:**
+- AI project generation with Claude AI and OpenAI Codex
+- Real-time build streaming with full transparency
+- Automatic dev server management and port detection
+- Cloudflare tunnel creation for instant previews
+- Code editor with Monaco for file viewing/editing
+- Multi-agent support (Claude Code, OpenAI Codex)
+- MCP (Model Context Protocol) integration
+- Project management dashboard
 
 ## Architecture
 
+SentryVibe uses a distributed architecture with three components:
+
 ```
-┌─────────────────────────────────────────────────────┐
-│  User Browser (Railway Frontend)                    │
-│  https://sentryvibe.up.railway.app                  │
-└──────────────┬──────────────────────────────────────┘
-               │
-        HTTP API Calls
-               │
-               ▼
-┌─────────────────────────────────────────────────────┐
-│  Sentryvibe (Railway - Next.js)                     │
-│  - User interface                                   │
-│  - Project persistence (Postgres)                   │
-│  - Command dispatcher                               │
-└──────────────┬──────────────────────────────────────┘
-               │
-        POST /commands
-               │
-               ▼
-┌─────────────────────────────────────────────────────┐
-│  Broker (Railway - Express + WebSocket)             │
-│  - Multiplexes commands/events                      │
-│  - Maintains runner connections                     │
-│  - Routes: HTTP ↔ WebSocket                        │
-└──────────────┬──────────────────────────────────────┘
-               │
-        WebSocket (WSS)
-               │
-               ▼
-┌─────────────────────────────────────────────────────┐
-│  Runner CLI (Your Local Machine)                    │
-│  - Executes Claude builds                           │
-│  - Manages dev servers                              │
-│  - Creates Cloudflare tunnels                       │
-│  - Workspace: ~/sentryvibe-workspace/              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────┐
+│   Web Application   │  Next.js app with AI chat interface
+│   (localhost:3000)  │  Project management & code preview
+└──────────┬──────────┘
+           │ HTTP/WebSocket
+┌──────────▼──────────┐
+│   Broker Service    │  WebSocket multiplexer
+│   (localhost:4000)  │  Routes commands to runners
+└──────────┬──────────┘
+           │ WebSocket
+┌──────────▼──────────┐
+│    Runner CLI       │  Executes AI builds locally
+│  (Your Machine)     │  Manages dev servers & tunnels
+└─────────────────────┘
 ```
 
-## Operating Modes
+## Two Operating Modes
 
-SentryVibe supports two deployment modes:
-
-### 🏠 Local Mode (Default)
-- All services run on your machine
-- Broker: `ws://localhost:4000/socket`
-- Secret: `dev-secret`
-- Best for: Development, testing, full control
-- Command: `sentryvibe run`
-
-### ☁️ Remote Mode
-- Web app + broker on Railway (or other hosting)
-- Runner only on your machine
-- Broker: `wss://broker.up.railway.app/socket`
-- Secret: Production secret from deployment
-- Best for: Production use, resource efficiency
-- Command: `sentryvibe --runner`
-
-**The CLI defaults to local mode** - just run `sentryvibe init` and accept the defaults!
-
-For remote mode, override the broker URL and secret during init.
-
-## Quick Start (From Zero)
-
-### Prerequisites
-
-- **Node.js 18+** installed
-- **npm** or **pnpm** package manager
-- **Git** installed
-
-### Option 1: Start Full Stack Locally (Default)
-
-If you want to run the entire SentryVibe application locally:
-
+### Local Mode (Default)
+Run the entire stack on your machine - perfect for development:
 ```bash
-# Clone and setup
-git clone <repo-url>
-cd sentryvibe
-pnpm install
-
-# Start everything (web app + broker + runner)
 sentryvibe run
 ```
 
-That's it! Access the web app at http://localhost:3000
+**What runs:**
+- Web app at http://localhost:3000
+- Broker at ws://localhost:4000
+- Runner in your workspace directory
 
-### Option 2: Runner Only (Connect to Remote)
-
-If the web app and broker are already deployed (Railway), just run the runner locally:
-
-**Step 1: Install the CLI**
-
+### Remote Mode
+Connect to hosted web app and broker (e.g., Railway):
 ```bash
-# Recommended - One-line install
-curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
-```
-
-**Alternative methods:**
-```bash
-# From latest GitHub release
-npm install -g https://github.com/codyde/sentryvibe/releases/latest/download/sentryvibe-cli.tgz
-
-# From npm (if published)
-npm install -g @sentryvibe/runner-cli
-```
-
-> **Note:** For local development, see [Local Development](#local-development) below.
-
-**Step 2: Initialize for Remote Mode**
-
-```bash
-sentryvibe init \
-  --broker wss://broker.up.railway.app/socket \
-  --secret YOUR_PRODUCTION_SECRET
-```
-
-Or run interactively and change the defaults:
-
-```bash
-sentryvibe init
-```
-
-You'll be prompted for:
-- **Workspace directory** (default: `~/sentryvibe-workspace`)
-- **Broker WebSocket URL** (default: `ws://localhost:4000/socket` - change to remote)
-- **Shared secret** (default: `dev-secret` - change to production secret)
-- **Runner ID** (default: `local`)
-
-**Step 3: Start the Runner**
-
-```bash
+sentryvibe init --broker wss://broker.up.railway.app/socket --secret YOUR_SECRET
 sentryvibe --runner
 ```
 
-Or use the explicit command:
+**What runs:**
+- Runner only (connects to remote broker)
+- Projects build locally in your workspace
+- All compute happens on your machine
+
+## Installation
+
+### Option 1: Install from npm (Recommended)
 
 ```bash
-sentryvibe runner
+npm install -g @sentryvibe/runner-cli
+
+# Initialize with defaults (recommended for first-time setup)
+sentryvibe init -y
+
+# Or interactive setup
+sentryvibe init
+
+# Start full stack locally
+sentryvibe run
 ```
 
-That's it! Your runner is now connected and ready to execute builds.
+### Option 2: Build from Source
 
-### Step 4: Create a Project
+```bash
+git clone https://github.com/codyde/sentryvibe.git
+cd sentryvibe
+pnpm install
 
-1. Open the SentryVibe web app in your browser
-2. Enter a prompt like "Create a React app with Tailwind"
-3. Watch as the runner executes the build locally
-4. Preview your project via Cloudflare tunnel
+# Use the build script
+./build-cli.sh
+
+# Or build manually
+pnpm run build:cli
+cd apps/runner
+npm link
+
+# Start full stack
+sentryvibe run
+```
 
 ## CLI Commands
 
-### Default Behavior
-
-```bash
-# Start full stack (web + broker + runner)
-sentryvibe
-
-# Start runner only
-sentryvibe --runner
-```
-
-### `init` - Initialize Configuration
-
-Set up the runner for the first time:
-
-```bash
-sentryvibe init
-
-# Non-interactive mode
-sentryvibe init \
-  --workspace ~/my-workspace \
-  --broker wss://broker.up.railway.app/socket \
-  --secret YOUR_SECRET \
-  --non-interactive
-```
-
-### `run` - Start Full Stack
-
-Start the entire application locally (web app + broker + runner):
-
+### `sentryvibe` or `sentryvibe run`
+Start the full stack locally (web app + broker + runner):
 ```bash
 sentryvibe run
 
@@ -222,23 +122,13 @@ sentryvibe run
 sentryvibe run --port 3001 --broker-port 4001
 ```
 
-**Options:**
-- `-p, --port <port>` - Web app port (default: 3000)
-- `-b, --broker-port <port>` - Broker port (default: 4000)
-
-### `runner` - Start Runner Only
-
-Start just the runner (connect to existing broker):
-
+### `sentryvibe --runner` or `sentryvibe runner`
+Start runner only (connects to existing broker):
 ```bash
-sentryvibe runner
+sentryvibe --runner
 
-# Override config with flags
-sentryvibe runner \
-  --broker wss://localhost:4000/socket \
-  --workspace ~/custom-workspace \
-  --runner-id my-laptop \
-  --verbose
+# With options
+sentryvibe runner --broker wss://localhost:4000/socket --verbose
 ```
 
 **Options:**
@@ -248,32 +138,76 @@ sentryvibe runner \
 - `-s, --secret <secret>` - Shared secret
 - `-v, --verbose` - Enable verbose logging
 
-### `status` - Show Runner Status
+### `sentryvibe init`
+Initialize configuration (workspace, broker URL, secret):
+```bash
+sentryvibe init
 
-Display current configuration and workspace status:
+# Non-interactive with defaults (-y flag)
+sentryvibe init -y
+```
 
+**Default configuration when using `-y`:**
+- **Workspace**: `~/sentryvibe-workspace`
+- **Broker URL**: `ws://localhost:4000/socket` (local mode)
+- **API URL**: `http://localhost:3000`
+- **Secret**: Auto-generated secure random 64-character hex string
+- **Runner ID**: `local`
+- **Database**: Prompts to set up Neon PostgreSQL (required for full stack)
+
+The `-y` flag automatically generates a secure secret for you. You'll see output like:
+```
+Using default configuration...
+  Workspace: ~/sentryvibe-workspace
+  Broker URL: ws://localhost:4000/socket
+  API URL: http://localhost:3000
+  Secret: a1b2c3d4e5f6... (generated)
+  Runner ID: local
+
+⚠ A random secret was generated for local development.
+ℹ For production use, share this secret with your broker configuration.
+```
+
+**Custom settings:**
+```bash
+# Override specific defaults
+sentryvibe init -y --secret my-custom-secret
+
+# Full custom configuration
+sentryvibe init \
+  --workspace ~/my-workspace \
+  --broker wss://broker.example.com/socket \
+  --secret my-secret \
+  --runner-id my-laptop \
+  --non-interactive
+```
+
+### `sentryvibe status`
+Show current configuration and workspace status:
 ```bash
 sentryvibe status
 ```
 
 Shows:
-- Initialization status
-- Config file location
+- Configuration file location
 - Workspace path and project count
-- Broker URL and connection info
-- Configuration validation
+- Broker URL
+- Runner ID
+- Initialization status
 
-### `config` - Manage Configuration
-
+### `sentryvibe config`
+Manage configuration settings:
 ```bash
-# List all configuration
+# List all settings
 sentryvibe config list
 
 # Get specific value
 sentryvibe config get workspace
 
-# Set configuration
+# Update setting
 sentryvibe config set workspace ~/new-workspace
+sentryvibe config set broker.url wss://broker.example.com/socket
+sentryvibe config set broker.secret new-secret
 
 # Show config file path
 sentryvibe config path
@@ -285,8 +219,8 @@ sentryvibe config validate
 sentryvibe config reset
 ```
 
-### `cleanup` - Clean Up Resources
-
+### `sentryvibe cleanup`
+Delete projects from workspace:
 ```bash
 # Delete specific project
 sentryvibe cleanup --project my-project
@@ -294,151 +228,114 @@ sentryvibe cleanup --project my-project
 # Delete all projects
 sentryvibe cleanup --all
 
-# Show cleanup help
+# Show help
 sentryvibe cleanup
 ```
 
-## Building the CLI from Source
+## Project Structure
 
-### Method 1: Use the Build Script (Easiest)
-
-```bash
-# From the repository root
-./build-cli.sh
+```
+sentryvibe/
+├── apps/
+│   ├── sentryvibe/              # Next.js web application
+│   │   ├── src/app/             # App router pages & API routes
+│   │   │   ├── api/chat/        # Claude Code provider (MCP)
+│   │   │   ├── api/generate/    # Anthropic API with tools
+│   │   │   └── api/projects/    # Project management API
+│   │   └── components/          # React components
+│   ├── broker/                  # WebSocket broker service
+│   │   └── src/index.ts         # Express + WebSocket server
+│   ├── runner/                  # Runner CLI
+│   │   ├── cli/                 # CLI commands (init, run, config, etc.)
+│   │   ├── lib/                 # Build engine, templates, tunnels
+│   │   └── src/index.ts         # Runner WebSocket client
+│   └── projects/                # Project templates
+└── packages/
+    └── agent-core/              # Shared agent utilities & types
 ```
 
-This script will:
-1. Install dependencies (if needed)
-2. Build the CLI package
-3. Link it globally
-4. Show you what commands are available
+## How It Works
 
-### Method 2: Manual Build
+1. **User submits a prompt** in the web UI at http://localhost:3000
+2. **Web app creates a build command** and sends it to the broker
+3. **Broker forwards command** to connected runner via WebSocket
+4. **Runner executes AI build** using Claude AI or OpenAI Codex
+5. **Real-time streaming** shows Claude's thinking, tool calls, and todos
+6. **Dev server starts** automatically on an available port
+7. **Tunnel created** via Cloudflare for instant preview access
+8. **User sees preview** in embedded iframe with live URL
+9. **Iterate with follow-ups** - modify the project with new prompts
 
-```bash
-# From the repository root
-pnpm install          # Install dependencies
-pnpm run build:cli    # Build the CLI
-cd apps/runner        # Navigate to runner
-npm link              # Link globally
+## Key Technologies
 
-# Now you can use it anywhere
-sentryvibe --help
-sentryvibe status
-sentryvibe run        # Start full stack
-sentryvibe --runner   # Start runner only
-```
+| Component | Stack |
+|-----------|-------|
+| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
+| **UI Components** | Radix UI, Framer Motion, Monaco Editor |
+| **AI/ML** | Claude AI (Anthropic SDK), OpenAI Codex, MCP |
+| **Database** | PostgreSQL with Drizzle ORM |
+| **Real-time** | WebSocket (ws library) |
+| **CLI** | Commander.js, Inquirer, Chalk, Ora |
+| **Tunneling** | Cloudflare tunnel |
+| **Observability** | Sentry (experimental PR #17844) |
+| **Build System** | pnpm monorepo, TypeScript |
 
-### Method 3: One-Line Build
+## Development Setup
 
-```bash
-# From root directory
-pnpm install && pnpm run build:cli && cd apps/runner && npm link
-```
+### Prerequisites
+- Node.js 18+
+- pnpm 9.15.0+
+- PostgreSQL (for web app)
+- Git
 
-### Unlink When Done
-
-```bash
-npm unlink -g @sentryvibe/runner-cli
-```
-
-## Local Development
-
-### Setup
-
-Clone and install dependencies:
+### Local Development
 
 ```bash
-git clone <repo-url>
+# Clone and install
+git clone https://github.com/codyde/sentryvibe.git
 cd sentryvibe
 pnpm install
-```
 
-### Setup Database
+# Setup database
+cd apps/sentryvibe
+pnpm run db:push
+cd ../..
 
-After installing dependencies or removing `node_modules` and re-installing, you need to build the native bindings for better-sqlite3 and create the database:
-
-```bash
-# Build better-sqlite3 native bindings
-cd node_modules/.pnpm/better-sqlite3@12.4.1/node_modules/better-sqlite3
-npm run build-release
-cd ../../../../..
-```
-
-### Run Development Server
-
-**Option 1: Run all services**
-```bash
+# Start all services
 pnpm run dev:all
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to interact with the Claude Code agent.
+This starts:
+- Web app at http://localhost:3000
+- Broker at http://localhost:4000
+- Runner connected to local broker
 
-### Migrations
+### Individual Services
 
-This project uses Drizzle ORM with SQLite. Migrations live in the `drizzle/` directory and can be applied with `drizzle-kit`.
-
-Terminal 1 - Web App:
 ```bash
-pnpm db:push
+# Web app only
+pnpm --filter sentryvibe dev
 
-# Apply migrations to a different database file
-DATABASE_URL=sentryvibe.db npx drizzle-kit push --config drizzle.config.ts
-
-# Apply migrations manually with sqlite3 (optional)
-sqlite3 sqlite.db ".read drizzle/0003_port_pool.sql"
-sqlite3 sentryvibe.db ".read drizzle/0003_port_pool.sql"
-```
-
-Terminal 2 - Broker:
-```bash
+# Broker only
 pnpm --filter sentryvibe-broker dev
-```
 
-Terminal 3 - Runner:
-```bash
+# Runner only
 cd apps/runner
 pnpm run dev
 ```
 
-### Testing the CLI Locally
+### Environment Variables
 
-Build and link the CLI:
-
-```bash
-cd apps/runner
-pnpm run build
-npm link
-```
-
-Now you can use `sentryvibe-cli` globally on your machine.
-
-To unlink later:
-```bash
-npm unlink -g @sentryvibe/runner-cli
-```
-
-### Environment Variables (Optional)
-
-When using `sentryvibe run`, the CLI automatically provides all required environment variables from your config. However, you can create `.env.local` files to override settings.
-
-Each app directory has an `.env.example` file showing all available variables:
-
-**Create .env.local files (optional):**
-```bash
-cp apps/sentryvibe/.env.example apps/sentryvibe/.env.local
-cp apps/broker/.env.example apps/broker/.env.local
-cp apps/runner/.env.example apps/runner/.env.local
-```
+When using `sentryvibe run`, environment variables are automatically configured from your settings. For manual service startup, create `.env.local` files:
 
 **apps/sentryvibe/.env.local:**
 ```env
-DATABASE_URL=postgresql://...
+DATABASE_URL=postgresql://user:pass@localhost:5432/sentryvibe
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 RUNNER_SHARED_SECRET=dev-secret
 RUNNER_BROKER_URL=ws://localhost:4000/socket
 RUNNER_BROKER_HTTP_URL=http://localhost:4000
-WORKSPACE_ROOT=/Users/yourname/sentryvibe-workspace
-RUNNER_ID=local
 ```
 
 **apps/broker/.env.local:**
@@ -453,63 +350,72 @@ RUNNER_EVENT_TARGET_URL=http://localhost:3000
 RUNNER_ID=local
 RUNNER_BROKER_URL=ws://localhost:4000/socket
 RUNNER_SHARED_SECRET=dev-secret
-WORKSPACE_ROOT=/Users/yourname/sentryvibe-workspace
+WORKSPACE_ROOT=~/sentryvibe-workspace
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-> **Note:** When using `sentryvibe run`, environment variables are automatically set from your config, so `.env.local` files are optional.
+See `.env.example` files in each app directory for all available options.
 
-## Project Structure
+## Features in Detail
 
-```
-sentryvibe/
-├── apps/
-│   ├── sentryvibe/          # Next.js web application
-│   ├── broker/              # WebSocket broker service
-│   ├── runner/              # Runner CLI (see apps/runner/README.md)
-│   └── projects/            # Generated project templates
-├── packages/
-│   └── agent-core/          # Shared agent utilities
-└── README.md                # This file
-```
+### AI Project Generation
+- **Claude Code** - Default agent with MCP support and Sentry docs access
+- **OpenAI Codex** - Alternative agent for different generation styles
+- **Template system** - Start from popular frameworks (React, Next.js, Vue, etc.)
+- **Streaming output** - Watch AI thinking, tool calls, and file edits in real-time
 
-## How It Works
+### Build Progress Tracking
+- Real-time streaming of AI thinking and reasoning
+- Tool call visualization (bash commands, file operations)
+- Todo list tracking from TodoWrite events
+- Terminal output with ANSI color support
+- File change detection and preview
 
-1. **User submits a prompt** in the web UI
-2. **Sentryvibe backend** creates a build command
-3. **Broker** forwards the command to connected runners
-4. **Runner** executes Claude AI build locally
-5. **Runner** manages dev server and creates tunnel
-6. **User** previews the project via tunnel URL
+### Project Management
+- Create projects from AI prompts
+- List and browse all projects
+- Delete projects and clean workspace
+- Rename projects
+- Export project files
+
+### Code Editor
+- Monaco editor integration
+- Syntax highlighting for all languages
+- File browser with tree view
+- Read-only and edit modes
+- Direct file viewing from project directory
+
+### Dev Server & Tunnels
+- Automatic port detection and allocation
+- Process lifecycle management (start/stop/restart)
+- Health checking on dev server ports
+- Cloudflare tunnel auto-creation
+- Tunnel URLs displayed for instant access
+- Environment variable injection
+
+### Security & Isolation
+- Project-scoped file operations
+- Path validation prevents directory escaping
+- Workspace isolation
+- Bearer token authentication for broker
+- TLS support for production (WSS)
+
+### MCP Integration
+The web app includes MCP support with:
+- **Sentry Docs MCP Server** - Access to Sentry documentation
+- **Custom system prompts** - Tailored for JS/TS project generation
+- **Tool support** - Bash, text editor, web search
+- **Bypass permissions** - Development mode for faster iteration
 
 ## Configuration
 
-The runner stores configuration in a platform-specific location:
+Runner configuration is stored in a platform-specific location:
 
-**`sentry.server.config.ts`:**
+- **macOS**: `~/Library/Application Support/sentryvibe-runner-cli/config.json`
+- **Linux**: `~/.config/sentryvibe-runner-cli/config.json`
+- **Windows**: `%APPDATA%\sentryvibe-runner-cli\config.json`
 
-```typescript
-import * as Sentry from "@sentry/nextjs";
-
-### Default Configuration (Local Mode)
-
-**`src/app/api/claude-agent/route.ts`:**
-
-```typescript
-import * as Sentry from "@sentry/nextjs";
-
-const query = Sentry.createInstrumentedClaudeQuery();
-```
-
-## Testing with Sentry SDK PR
-
-This project is currently testing [PR #17844](https://github.com/getsentry/sentry-javascript/pull/17844) which adds Claude Code Agent SDK instrumentation to Sentry.
-
-### Installing PR-Based SDKs
-
-#### Step 1: Add pnpm Overrides
-
-**CRITICAL:** Add this to your `package.json` to force pnpm to use local tarballs for ALL dependency resolutions (including nested dependencies):
-
+**Default configuration (local mode):**
 ```json
 {
   "workspace": "~/sentryvibe-workspace",
@@ -523,94 +429,151 @@ This project is currently testing [PR #17844](https://github.com/getsentry/sentr
 }
 ```
 
-Perfect for running the full stack locally with `sentryvibe run`!
-
-### Remote Mode Configuration
-
-To connect to a remote broker (Railway), override during init:
-
-Depending on where you put your projects, the following commands assume the projects are at the same level and are at `/Users/youruser`.
-
-```bash
-# 1. Build the Sentry SDKs from the PR branch
-cd /Users/youruser/sentry-javascript/packages/node
-yarn build
-npm pack
-
-cd /Users/youruser/sentry-javascript
-yarn install # make sure this succeeds before other commands
-yarn build:tarballs # Should generate tarballs for all packages but if it doesn't work, bellow are the 2 we need
-
-cd /Users/youruser/sentry-javascript/packages/nextjs
-yarn build:transpile
-npm pack
-
-# 2. Install in this project (clean install recommended)
-cd /Users/youruser/sentryvibe
-rm -rf node_modules pnpm-lock.yaml
-pnpm install
-rm -rf .next
-
-# 3. Start dev server
-pnpm dev
+**Remote configuration:**
+```json
+{
+  "workspace": "~/sentryvibe-workspace",
+  "broker": {
+    "url": "wss://broker.up.railway.app/socket",
+    "secret": "your-production-secret"
+  },
+  "runner": {
+    "id": "my-laptop"
+  }
+}
 ```
 
-Or change existing config:
+## Deployment
+
+### Deploy to Railway
+
+The web app and broker can be deployed to Railway (or any Node.js host):
+
+**Web App:**
+- Build command: `pnpm install && pnpm run build`
+- Start command: `pnpm start`
+- Environment variables: `DATABASE_URL`, `ANTHROPIC_API_KEY`, `RUNNER_SHARED_SECRET`, `RUNNER_BROKER_URL`, `RUNNER_BROKER_HTTP_URL`
+
+**Broker:**
+- Build command: `cd apps/broker && pnpm install && pnpm run build`
+- Start command: `cd apps/broker && pnpm start`
+- Environment variables: `PORT`, `RUNNER_SHARED_SECRET`, `RUNNER_EVENT_TARGET_URL`
+
+**Runner (Local):**
+- Stays on your machine
+- Connect via: `sentryvibe init --broker wss://YOUR_BROKER_URL/socket --secret YOUR_SECRET`
+- Run: `sentryvibe --runner`
+
+### Multiple Runners
+
+You can run multiple runners connecting to the same broker:
 
 ```bash
-sentryvibe config set broker.url wss://broker.up.railway.app/socket
-sentryvibe config set broker.secret YOUR_PRODUCTION_SECRET
+# Machine 1
+sentryvibe init --runner-id laptop
+sentryvibe --runner
+
+# Machine 2
+sentryvibe init --runner-id desktop
+sentryvibe --runner
 ```
 
-### Configuration Includes
-- Workspace directory path
-- Monorepo path (auto-detected or cloned)
-- Broker WebSocket URL
-- Shared secret
-- Runner ID
-- Tunnel settings
+Each runner receives build commands and executes them in isolation.
 
 ## Troubleshooting
 
-### Runner Won't Connect
+### Runner won't connect
+- Verify broker URL is correct (`sentryvibe config get broker.url`)
+- Check shared secret matches broker
+- Ensure firewall allows WebSocket connections
+- Check broker is running (`curl http://localhost:4000/status`)
 
-1. Check broker URL is correct
-2. Verify shared secret matches
-3. Ensure firewall allows WebSocket connections
-4. Check runner logs for errors
+### Builds failing
+- Verify workspace directory exists and is writable
+- Check Node.js version (18+ required): `node --version`
+- Ensure git is installed: `git --version`
+- Check AI API keys are valid
+- Review runner logs with `--verbose` flag
 
-### Builds Failing
+### Tunnel not working
+- Verify Cloudflare tunnel is installed
+- Check dev server is actually running on the port
+- Ensure port is not blocked by firewall
+- Try stopping and restarting: `sentryvibe cleanup --project NAME` then rebuild
 
-1. Verify workspace directory exists and is writable
-2. Check Node.js version (18+ required)
-3. Ensure git is installed
-4. Check Claude API quota/limits
-
-### Tunnel Not Working
-
-1. Verify Cloudflare tunnel is created (check logs)
-2. Ensure port is actually listening
-3. Check for firewall blocking local ports
-4. Try stopping and restarting dev server
-
-### Config Issues
-
+### Configuration issues
 ```bash
-# Check current status
-sentryvibe-cli status
+# Check current configuration
+sentryvibe status
 
 # Validate configuration
-sentryvibe-cli config validate
+sentryvibe config validate
 
 # Reset and reconfigure
-sentryvibe-cli config reset
-sentryvibe-cli init
+sentryvibe config reset
+sentryvibe init
 ```
+
+### Clean install
+```bash
+# Remove runner link
+npm unlink -g @sentryvibe/runner-cli
+
+# Clean workspace
+rm -rf ~/sentryvibe-workspace
+
+# Remove config
+rm -rf ~/Library/Application\ Support/sentryvibe-runner-cli  # macOS
+rm -rf ~/.config/sentryvibe-runner-cli  # Linux
+
+# Reinstall
+npm install -g @sentryvibe/runner-cli
+sentryvibe init
+```
+
+## Testing Sentry SDK PR
+
+This project is currently testing [Sentry JavaScript SDK PR #17844](https://github.com/getsentry/sentry-javascript/pull/17844) which adds Claude Code Agent SDK instrumentation.
+
+### Using Local Sentry SDK Tarballs
+
+The monorepo uses pnpm overrides to force all packages to use local Sentry SDK builds:
+
+```json
+{
+  "pnpm": {
+    "overrides": {
+      "@sentry/core": "file:./apps/sentryvibe/vendor/sentry-core-LOCAL.tgz",
+      "@sentry/node": "file:./apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
+      "@sentry/node-core": "file:./apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz",
+      "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz"
+    }
+  }
+}
+```
+
+Place built tarballs in `apps/sentryvibe/vendor/` and `apps/runner/vendor/` directories.
 
 ## Contributing
 
-See [apps/runner/README.md](apps/runner/README.md) for detailed runner development docs.
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test locally with `sentryvibe run`
+5. Submit a pull request
 
 ## License
 
-[License info here]
+MIT
+
+## Links
+
+- **Repository**: https://github.com/codyde/sentryvibe
+- **Issues**: https://github.com/codyde/sentryvibe/issues
+- **Author**: Cody De Arkland
+
+---
+
+Built with Claude AI, Next.js, and TypeScript.

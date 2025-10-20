@@ -1,15 +1,18 @@
 {
   "name": "sentryvibe-broker",
-  "version": "0.1.0",
+  "version": "0.4.0",
+  "description": "WebSocket broker service for routing commands between SentryVibe web app and local runners",
   "private": true,
   "main": "dist/index.js",
+  "author": "Cody De Arkland",
+  "license": "MIT",
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@sentryvibe/agent-core": "file:../../vendor/sentryvibe-agent-core-0.1.0.tgz",
+    "@sentryvibe/agent-core": "workspace:*",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "ws": "^8.18.0"

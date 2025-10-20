@@ -15,6 +15,9 @@ const packageJsonPath = join(__dirname, '../package.json');
 console.log('Preparing package.json for release...');
 
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+const agentCorePackageJson = JSON.parse(
+  readFileSync(join(__dirname, '../../../packages/agent-core/package.json'), 'utf-8'),
+);
 
 // Replace file: dependencies with npm versions
 const replacements = {
@@ -34,10 +37,25 @@ for (const [pkg, version] of Object.entries(replacements)) {
   }
 }
 
-// Note: @sentryvibe/agent-core is NOT in dependencies
-// It's extracted from vendor/ by the postinstall script
-// This avoids pnpm path resolution issues with file: dependencies in global installs
-console.log('  Note: @sentryvibe/agent-core installed via postinstall from vendor/');
+const agentCoreVersion = agentCorePackageJson.version;
+const desiredAgentCoreVersion = `^${agentCoreVersion}`;
+const currentAgentCore = packageJson.dependencies['@sentryvibe/agent-core'];
+
+if (!currentAgentCore || currentAgentCore !== desiredAgentCoreVersion) {
+  console.log(
+    `  Setting @sentryvibe/agent-core: ${currentAgentCore ?? '<<missing>>'} → ${desiredAgentCoreVersion}`,
+  );
+  packageJson.dependencies['@sentryvibe/agent-core'] = desiredAgentCoreVersion;
+  modified = true;
+}
+
+const existingBundled = new Set(packageJson.bundledDependencies ?? []);
+if (!existingBundled.has('@sentryvibe/agent-core')) {
+  existingBundled.add('@sentryvibe/agent-core');
+  packageJson.bundledDependencies = Array.from(existingBundled);
+  console.log('  Ensured @sentryvibe/agent-core is included in bundledDependencies');
+  modified = true;
+}
 
 if (modified) {
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');

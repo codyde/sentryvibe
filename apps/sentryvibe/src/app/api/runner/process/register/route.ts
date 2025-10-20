@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { projectId, pid, command, port, startedAt } = await request.json();
+    const { projectId, pid, command, port, startedAt, runnerId } = await request.json();
 
     if (!projectId || !pid || !command) {
       return NextResponse.json(
@@ -41,6 +41,7 @@ export async function POST(request: Request) {
         pid,
         command,
         port: port || null,
+        runnerId: runnerId || null,
         startedAt: new Date(startedAt || Date.now()),
         healthCheckFailCount: 0,
       })
@@ -50,12 +51,13 @@ export async function POST(request: Request) {
           pid,
           command,
           port: port || null,
+          runnerId: runnerId || null,
           startedAt: new Date(startedAt || Date.now()),
           healthCheckFailCount: 0,
         },
       });
 
-    console.log(`✅ Registered process: projectId=${projectId}, pid=${pid}`);
+    console.log(`✅ Registered process: projectId=${projectId}, pid=${pid}, runnerId=${runnerId}`);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

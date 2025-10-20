@@ -2,15 +2,23 @@ import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import { randomBytes } from 'crypto';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
 import { prompts } from '../utils/prompts.js';
 import { configManager } from '../utils/config-manager.js';
 import { spinner } from '../utils/spinner.js';
 import { isInsideMonorepo, findMonorepoRoot } from '../utils/repo-detector.js';
-import { cloneRepository, installDependencies, isPnpmInstalled } from '../utils/repo-cloner.js';
+import { cloneRepository, installDependencies, isPnpmInstalled, buildAgentCore } from '../utils/repo-cloner.js';
 import { setupDatabase, pushDatabaseSchema, connectManualDatabase } from '../utils/database-setup.js';
 import { displaySetupComplete } from '../utils/banner.js';
+
+/**
+ * Generate a secure random secret
+ */
+function generateSecret(): string {
+  return randomBytes(32).toString('hex');
+}
 
 /**
  * Normalize URL by adding protocol if missing
@@ -137,44 +145,9 @@ export async function initCommand(options: InitOptions) {
 
       logger.log('');
 
-      // Check if vendor directory exists - if not, we need to build agent-core first
-      const vendorPath = join(monorepoPath, 'vendor');
-      const agentCoreTgz = join(vendorPath, 'sentryvibe-agent-core-0.1.0.tgz');
-
-      if (!existsSync(agentCoreTgz)) {
-        logger.warn('vendor/sentryvibe-agent-core-0.1.0.tgz not found in cloned repo');
-        logger.info('Building agent-core package from source...');
-        logger.log('');
-
-        // Build agent-core from source
-        const { spawn } = await import('child_process');
-
-        spinner.start('Building agent-core...');
-
-        await new Promise<void>((resolve, reject) => {
-          const proc = spawn('bash', ['-c', 'cd packages/agent-core && pnpm build && pnpm pack && mkdir -p ../../vendor && mv *.tgz ../../vendor/'], {
-            cwd: monorepoPath,
-            stdio: 'inherit',
-          });
-
-          proc.on('exit', (code) => {
-            if (code === 0) {
-              spinner.succeed('agent-core built and packaged');
-              resolve();
-            } else {
-              spinner.fail('Failed to build agent-core');
-              reject(new Error(`agent-core build failed with code ${code}`));
-            }
-          });
-
-          proc.on('error', (error) => {
-            spinner.fail('Failed to build agent-core');
-            reject(error);
-          });
-        });
-
-        logger.log('');
-      }
+      // Ensure agent-core is compiled before installing dependencies
+      await buildAgentCore(monorepoPath);
+      logger.log('');
 
       // Install dependencies for entire monorepo
       logger.info('This may take several minutes...');
@@ -220,17 +193,34 @@ export async function initCommand(options: InitOptions) {
 
   if (isNonInteractive) {
     // Non-interactive mode: use provided options or defaults
+    // Generate a secure random secret if not provided
+    const generatedSecret = options.secret || generateSecret();
+    const isGeneratedSecret = !options.secret;
+
     answers = {
       workspace: options.workspace || configManager.get('workspace'),
       brokerUrl: options.broker || configManager.get('broker').url,
       apiUrl: normalizeUrl(options.url || 'http://localhost:3000'),
-      secret: options.secret || '',
+      secret: generatedSecret,
       runnerId: configManager.get('runner').id,
     };
 
-    if (!answers.secret) {
-      logger.error('--secret is required in non-interactive mode');
-      process.exit(1);
+    logger.info('Using default configuration...');
+    logger.info(`  Workspace: ${chalk.cyan(answers.workspace)}`);
+    logger.info(`  Broker URL: ${chalk.cyan(answers.brokerUrl)}`);
+    logger.info(`  API URL: ${chalk.cyan(answers.apiUrl)}`);
+    if (isGeneratedSecret) {
+      logger.info(`  Secret: ${chalk.cyan(generatedSecret)} ${chalk.dim('(generated)')}`);
+    } else {
+      logger.info(`  Secret: ${chalk.cyan(generatedSecret)}`);
+    }
+    logger.info(`  Runner ID: ${chalk.cyan(answers.runnerId)}`);
+    logger.log('');
+
+    if (isGeneratedSecret) {
+      logger.warn('A random secret was generated for local development.');
+      logger.info('For production use, share this secret with your broker configuration.');
+      logger.log('');
     }
   } else {
     // Interactive mode
