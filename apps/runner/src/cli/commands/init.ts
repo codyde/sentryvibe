@@ -53,130 +53,177 @@ interface InitOptions {
 }
 
 export async function initCommand(options: InitOptions) {
-  logger.section('SentryVibe Runner Setup');
-  logger.log('');
+  // Handle -y / --yes flag (alias for --non-interactive)
+  const isNonInteractive = options.nonInteractive || options.yes;
+
+  // Only show banner in non-interactive mode
+  if (!isNonInteractive) {
+    logger.section('SentryVibe Runner Setup');
+    logger.log('');
+  }
 
   // Step 1: Check for monorepo
-  logger.info('Checking for SentryVibe repository...');
+  if (!isNonInteractive) {
+    logger.info('Checking for SentryVibe repository...');
+  }
   const repoCheck = await isInsideMonorepo();
 
   let monorepoPath: string | undefined;
 
   if (repoCheck.inside && repoCheck.root) {
-    logger.success(`Found repository at: ${chalk.cyan(repoCheck.root)}`);
+    if (!isNonInteractive) {
+      logger.success(`Found repository at: ${chalk.cyan(repoCheck.root)}`);
+    }
     monorepoPath = repoCheck.root;
 
     // Update config if path changed
     const savedPath = configManager.get('monorepoPath');
     if (savedPath && savedPath !== monorepoPath) {
-      logger.info(`Updating monorepo path (was: ${savedPath})`);
+      if (!isNonInteractive) {
+        logger.info(`Updating monorepo path (was: ${savedPath})`);
+      }
     }
   } else {
-    logger.warn('SentryVibe repository not found in current directory');
-    logger.log('');
-
-    if (options.nonInteractive) {
-      logger.error('Repository required but not found. Cannot clone in non-interactive mode.');
-      logger.info('Please clone manually or run without --non-interactive');
-      process.exit(1);
+    if (!isNonInteractive) {
+      logger.warn('SentryVibe repository not found in current directory');
+      logger.log('');
     }
 
-    // Offer to clone
-    const shouldClone = await prompts.confirm(
-      'Would you like to clone the SentryVibe repository?',
-      true
-    );
-
-    if (!shouldClone) {
-      logger.info('Setup cancelled. Please clone the repository manually and run init again.');
-      process.exit(0);
-    }
-
-    // Check for pnpm
-    const hasPnpm = await isPnpmInstalled();
-    if (!hasPnpm) {
-      logger.error('pnpm is not installed');
-      logger.info('Install pnpm first: npm install -g pnpm');
-      process.exit(1);
-    }
-
-    // Get clone location - default to current directory + /sentryvibe
-    const defaultClonePath = join(process.cwd(), 'sentryvibe');
-    const clonePath = await prompts.input(
-      'Where should the repository be cloned?',
-      defaultClonePath
-    );
-
-    // Get branch to clone - silent flag, defaults to 'main'
-    const branchToClone = options.branch || 'main';
-
-    logger.log('');
-    logger.info(`Cloning branch: ${chalk.cyan(branchToClone)}`);
-    logger.log('');
-
-    try {
-      // Check if target path already exists
-      if (existsSync(clonePath)) {
-        logger.warn(`Directory already exists: ${clonePath}`);
-
-        const shouldDelete = await prompts.confirm(
-          'Delete existing directory and clone fresh?',
-          true  // Default to YES
-        );
-
-        if (!shouldDelete) {
-          logger.info('Setup cancelled');
-          process.exit(0);
-        }
-
-        // Delete existing directory
-        logger.info('Removing existing directory...');
-        const { rmSync } = await import('fs');
-        rmSync(clonePath, { recursive: true, force: true });
-        logger.success('Directory removed');
-        logger.log('');
+    // In non-interactive mode, automatically clone
+    if (isNonInteractive) {
+      // Check for pnpm
+      const hasPnpm = await isPnpmInstalled();
+      if (!hasPnpm) {
+        logger.error('pnpm is not installed');
+        logger.info('Install pnpm first: npm install -g pnpm');
+        process.exit(1);
       }
 
-      // Clone the repository
-      monorepoPath = await cloneRepository({
-        targetPath: clonePath,
-        branch: branchToClone,
-      });
+      // Use default clone location
+      const clonePath = join(process.cwd(), 'sentryvibe');
+      const branchToClone = options.branch || 'main';
+
+      try {
+        // Check if target path already exists
+        if (existsSync(clonePath)) {
+          // Auto-delete in non-interactive mode
+          spinner.start('Removing existing directory...');
+          const { rmSync } = await import('fs');
+          rmSync(clonePath, { recursive: true, force: true });
+          spinner.succeed('Existing directory removed');
+        }
+
+        // Clone the repository
+        monorepoPath = await cloneRepository({
+          targetPath: clonePath,
+          branch: branchToClone,
+        });
+
+        // Install dependencies for entire monorepo FIRST
+        await installDependencies(monorepoPath);
+
+        // Then build agent-core (after dependencies are available)
+        await buildAgentCore(monorepoPath);
+      } catch (error) {
+        logger.error('Failed to set up repository');
+        logger.error(error instanceof Error ? error.message : 'Unknown error');
+        process.exit(1);
+      }
+    } else {
+      // Interactive mode - ask user
+      const shouldClone = await prompts.confirm(
+        'Would you like to clone the SentryVibe repository?',
+        true
+      );
+
+      if (!shouldClone) {
+        logger.info('Setup cancelled. Please clone the repository manually and run init again.');
+        process.exit(0);
+      }
+
+      // Check for pnpm
+      const hasPnpm = await isPnpmInstalled();
+      if (!hasPnpm) {
+        logger.error('pnpm is not installed');
+        logger.info('Install pnpm first: npm install -g pnpm');
+        process.exit(1);
+      }
+
+      // Get clone location - default to current directory + /sentryvibe
+      const defaultClonePath = join(process.cwd(), 'sentryvibe');
+      const clonePath = await prompts.input(
+        'Where should the repository be cloned?',
+        defaultClonePath
+      );
+
+      // Get branch to clone - silent flag, defaults to 'main'
+      const branchToClone = options.branch || 'main';
 
       logger.log('');
-
-      // Ensure agent-core is compiled before installing dependencies
-      await buildAgentCore(monorepoPath);
+      logger.info(`Cloning branch: ${chalk.cyan(branchToClone)}`);
       logger.log('');
 
-      // Install dependencies for entire monorepo
-      logger.info('This may take several minutes...');
-      await installDependencies(monorepoPath);
+      try {
+        // Check if target path already exists
+        if (existsSync(clonePath)) {
+          logger.warn(`Directory already exists: ${clonePath}`);
 
-      logger.log('');
-      logger.success('Repository setup complete!');
-      logger.log('');
-    } catch (error) {
-      logger.error('Failed to set up repository');
-      logger.error(error instanceof Error ? error.message : 'Unknown error');
-      process.exit(1);
+          const shouldDelete = await prompts.confirm(
+            'Delete existing directory and clone fresh?',
+            true  // Default to YES
+          );
+
+          if (!shouldDelete) {
+            logger.info('Setup cancelled');
+            process.exit(0);
+          }
+
+          // Delete existing directory
+          logger.info('Removing existing directory...');
+          const { rmSync } = await import('fs');
+          rmSync(clonePath, { recursive: true, force: true });
+          logger.success('Directory removed');
+          logger.log('');
+        }
+
+        // Clone the repository
+        monorepoPath = await cloneRepository({
+          targetPath: clonePath,
+          branch: branchToClone,
+        });
+
+        logger.log('');
+
+        // Install dependencies for entire monorepo FIRST
+        logger.info('Installing dependencies (this may take several minutes)...');
+        await installDependencies(monorepoPath);
+        logger.log('');
+
+        // Then build agent-core (after dependencies are available)
+        await buildAgentCore(monorepoPath);
+
+        logger.log('');
+        logger.success('Repository setup complete!');
+        logger.log('');
+      } catch (error) {
+        logger.error('Failed to set up repository');
+        logger.error(error instanceof Error ? error.message : 'Unknown error');
+        process.exit(1);
+      }
     }
   }
 
-  logger.log('');
-
-  // Handle -y / --yes flag (alias for --non-interactive)
-  const isNonInteractive = options.nonInteractive || options.yes;
+  if (!isNonInteractive) {
+    logger.log('');
+  }
 
   // Check if already initialized - default to YES for reset
   if (configManager.isInitialized()) {
-    logger.warn('Configuration already exists');
-
     if (isNonInteractive) {
-      // In non-interactive mode, always reset
-      logger.info('Resetting configuration...');
+      // In non-interactive mode, silently reset
       configManager.reset();
     } else {
+      logger.warn('Configuration already exists');
       const shouldReset = await prompts.confirm(
         'Do you want to reset and reconfigure?',
         true  // Default to YES
@@ -195,7 +242,6 @@ export async function initCommand(options: InitOptions) {
     // Non-interactive mode: use provided options or defaults
     // Generate a secure random secret if not provided
     const generatedSecret = options.secret || generateSecret();
-    const isGeneratedSecret = !options.secret;
 
     answers = {
       workspace: options.workspace || configManager.get('workspace'),
@@ -205,23 +251,7 @@ export async function initCommand(options: InitOptions) {
       runnerId: configManager.get('runner').id,
     };
 
-    logger.info('Using default configuration...');
-    logger.info(`  Workspace: ${chalk.cyan(answers.workspace)}`);
-    logger.info(`  Broker URL: ${chalk.cyan(answers.brokerUrl)}`);
-    logger.info(`  API URL: ${chalk.cyan(answers.apiUrl)}`);
-    if (isGeneratedSecret) {
-      logger.info(`  Secret: ${chalk.cyan(generatedSecret)} ${chalk.dim('(generated)')}`);
-    } else {
-      logger.info(`  Secret: ${chalk.cyan(generatedSecret)}`);
-    }
-    logger.info(`  Runner ID: ${chalk.cyan(answers.runnerId)}`);
-    logger.log('');
-
-    if (isGeneratedSecret) {
-      logger.warn('A random secret was generated for local development.');
-      logger.info('For production use, share this secret with your broker configuration.');
-      logger.log('');
-    }
+    // Don't show config in non-interactive mode - will show at end
   } else {
     // Interactive mode
     logger.info('Let\'s configure your runner...\n');
@@ -343,26 +373,47 @@ export async function initCommand(options: InitOptions) {
   }
 
   // Success
-  logger.log('');
-  logger.log('');
-  displaySetupComplete();
-  logger.log('');
-  logger.info(`Config file: ${chalk.cyan(configManager.path)}`);
-  logger.info(`Workspace: ${chalk.cyan(answers.workspace)}`);
-  if (monorepoPath) {
-    logger.info(`Repository: ${chalk.cyan(monorepoPath)}`);
-  }
-  logger.log('');
-  logger.info('Next steps:');
-  if (monorepoPath) {
-    logger.log(`  1. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
-    logger.log(`  2. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
+  if (isNonInteractive) {
+    // Clean output for -y mode
+    logger.log('');
+    displaySetupComplete();
+    logger.log('');
+    logger.success('✨ SentryVibe is ready!');
+    logger.log('');
+    logger.info('Configuration:');
+    logger.info(`  Workspace:  ${chalk.cyan(answers.workspace)}`);
+    logger.info(`  Broker:     ${chalk.cyan(answers.brokerUrl)}`);
+    logger.info(`  Runner ID:  ${chalk.cyan(answers.runnerId)}`);
+    if (monorepoPath) {
+      logger.info(`  Repository: ${chalk.cyan(monorepoPath)}`);
+    }
+    logger.log('');
+    logger.info('Start the full stack:');
+    logger.log(`  ${chalk.cyan('sentryvibe run')}`);
+    logger.log('');
   } else {
-    logger.log(`  1. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
-    logger.log(`  2. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
+    // Detailed output for interactive mode
+    logger.log('');
+    logger.log('');
+    displaySetupComplete();
+    logger.log('');
+    logger.info(`Config file: ${chalk.cyan(configManager.path)}`);
+    logger.info(`Workspace: ${chalk.cyan(answers.workspace)}`);
+    if (monorepoPath) {
+      logger.info(`Repository: ${chalk.cyan(monorepoPath)}`);
+    }
+    logger.log('');
+    logger.info('Next steps:');
+    if (monorepoPath) {
+      logger.log(`  1. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
+      logger.log(`  2. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
+    } else {
+      logger.log(`  1. Run ${chalk.cyan('sentryvibe run')} to start the full stack`);
+      logger.log(`  2. Or ${chalk.cyan('sentryvibe --runner')} for runner only`);
+    }
+    logger.log('');
+    logger.log('');
+    logger.info(`Run ${chalk.cyan('sentryvibe --help')} to see all available commands and options`);
+    logger.log('');
   }
-  logger.log('');
-  logger.log('');
-  logger.info(`Run ${chalk.cyan('sentryvibe --help')} to see all available commands and options`);
-  logger.log('');
 }
