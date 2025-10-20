@@ -70,6 +70,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
   const [isTunnelLoading, setIsTunnelLoading] = useState(false);
   const [dnsVerificationProgress, setDnsVerificationProgress] = useState<number>(0);
+  const [dnsTroubleshooting, setDnsTroubleshooting] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { edits, addEdit, removeEdit } = useElementEdits();
   const lastTunnelUrlRef = useRef<string | null>(null);
@@ -143,6 +144,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     if (isStartingTunnel) {
       setIsTunnelLoading(true);
       setDnsVerificationProgress(0);
+      setDnsTroubleshooting(false); // Clear troubleshooting screen
       return;
     }
 
@@ -204,9 +206,15 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         if (!resolved) {
           console.error(`❌ Tunnel DNS verification timeout after ${maxAttempts}s`);
           console.error('   This may be a Chrome DNS cache issue. Try: chrome://net-internals/#dns → Clear host cache');
-          setVerifiedTunnelUrl(currentTunnelUrl); // Show anyway after timeout
+
+          // Show troubleshooting screen instead of loading iframe
+          setDnsTroubleshooting(true);
+          setIsTunnelLoading(false);
+          // Don't set verifiedTunnelUrl - keep it null so iframe doesn't load
+          return;
         }
         setIsTunnelLoading(false);
+        setDnsTroubleshooting(false);
       })();
 
       return;
@@ -510,8 +518,91 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl || isTunnelLoading ? (
           <>
+            {/* DNS Troubleshooting overlay */}
+            {dnsTroubleshooting && (
+              <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
+                <div className="max-w-lg w-full bg-[#2d2d2d] border border-orange-500/30 rounded-xl p-8 space-y-6">
+                  <div className="text-center space-y-2">
+                    <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
+                      <Cloud className="w-8 h-8 text-orange-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white">DNS Resolution Issue</h3>
+                    <p className="text-sm text-gray-400">
+                      Your browser's DNS cache is preventing the tunnel from loading. Follow these steps to resolve:
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Step 1 */}
+                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">1</div>
+                        <p className="text-sm font-medium text-white">Clear DNS cache</p>
+                      </div>
+                      <div className="relative group">
+                        <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                          sudo dscacheutil -flushcache
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText('sudo dscacheutil -flushcache');
+                          }}
+                          className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Copy command"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-blue-400" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">2</div>
+                        <p className="text-sm font-medium text-white">Restart DNS responder</p>
+                      </div>
+                      <div className="relative group">
+                        <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                          sudo killall -HUP mDNSResponder
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText('sudo killall -HUP mDNSResponder');
+                          }}
+                          className="absolute right-2 top-2 p-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Copy command"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-blue-400" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setDnsTroubleshooting(false);
+                      setVerifiedTunnelUrl(null);
+                      setIsTunnelLoading(true);
+                      // Trigger tunnel reload by clearing and re-requesting
+                      if (currentProject?.tunnelUrl) {
+                        lastTunnelUrlRef.current = null; // Force re-verification
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-lg transition-colors font-medium"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Retry Connection
+                  </button>
+
+                  <p className="text-xs text-gray-500 text-center">
+                    After running the commands, click "Retry Connection" to reload the tunnel.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Tunnel loading overlay with progress */}
-            {isTunnelLoading && (
+            {isTunnelLoading && !dnsTroubleshooting && (
               <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20">
                 <div className="flex flex-col items-center gap-4">
                   <div className="relative">
