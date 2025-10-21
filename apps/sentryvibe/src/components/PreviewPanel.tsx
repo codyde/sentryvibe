@@ -24,42 +24,7 @@ interface PreviewPanelProps {
 
 type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
-const PreviewLoadingAnimation = ({ title, subtitle }: { title: string; subtitle: string }) => (
-  <div className="flex flex-col items-center gap-6 text-center">
-    <div className="relative flex items-center justify-center">
-      <motion.span
-        className="absolute w-48 h-48 rounded-full bg-gradient-to-br from-[#7553FF]/35 via-[#FF45A8]/30 to-transparent blur-3xl"
-        animate={{ scale: [1, 1.12, 1], opacity: [0.7, 1, 0.7] }}
-        transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="relative w-36 h-36 rounded-full bg-gradient-to-tr from-[#7553FF] via-[#FF45A8] to-[#92DD00] shadow-[0_0_30px_rgba(117,83,255,0.45)]"
-        animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: 14, ease: 'linear' }}
-      >
-        <motion.div
-          className="absolute inset-4 rounded-full border border-white/20"
-          animate={{ rotate: -360 }}
-          transition={{ repeat: Infinity, duration: 10, ease: 'linear' }}
-        />
-        <motion.span
-          className="absolute top-3 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-white shadow-[0_0_18px_rgba(255,255,255,0.7)]"
-          animate={{ y: [0, 10, 0], scale: [1, 1.2, 1] }}
-          transition={{ repeat: Infinity, duration: 2.8, ease: 'easeInOut' }}
-        />
-        <motion.span
-          className="absolute bottom-6 right-8 h-2 w-2 rounded-full bg-white/70 shadow-[0_0_14px_rgba(255,255,255,0.6)]"
-          animate={{ scale: [1, 1.6, 1], opacity: [0.6, 1, 0.6] }}
-          transition={{ repeat: Infinity, duration: 3.4, ease: 'easeInOut' }}
-        />
-      </motion.div>
-    </div>
-    <div className="space-y-2">
-      <h3 className="text-lg font-semibold text-white tracking-wide">{title}</h3>
-      <p className="text-sm text-gray-300/90 max-w-xs mx-auto leading-relaxed">{subtitle}</p>
-    </div>
-  </div>
-);
+const DEBUG_PREVIEW = false; // Set to true to enable verbose preview panel logging
 
 export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel }: PreviewPanelProps) {
   const { projects, refetch } = useProjects();
@@ -86,14 +51,24 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Use terminal-detected port if available, otherwise fall back to DB port
   const actualPort = terminalPort || currentProject?.devServerPort;
 
+  // Track SSE connection health
+  const [isSSEConnected, setIsSSEConnected] = useState(false);
+  const sseFailureCountRef = useRef(0);
+
   // Real-time status updates via SSE
   useEffect(() => {
     if (!project?.id) {
       setLiveProject(undefined);
+      setIsSSEConnected(false);
       return;
     }
 
     const eventSource = new EventSource(`/api/projects/${project.id}/status-stream`);
+
+    eventSource.onopen = () => {
+      setIsSSEConnected(true);
+      sseFailureCountRef.current = 0;
+    };
 
     eventSource.onmessage = (event) => {
       // Ignore keepalive pings
@@ -110,16 +85,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     };
 
     eventSource.onerror = () => {
+      setIsSSEConnected(false);
+      sseFailureCountRef.current++;
       eventSource.close();
     };
 
     return () => {
+      setIsSSEConnected(false);
       eventSource.close();
     };
   }, [project?.id]);
 
-  // Fallback polling when SSE fails: Poll during active operations
+  // Fallback polling ONLY when SSE fails: Poll during active operations
   useEffect(() => {
+    // Only poll if SSE has failed multiple times (not just temporarily disconnected)
+    if (isSSEConnected || sseFailureCountRef.current < 2) return;
+
     // Poll every 2 seconds while server starting, tunnel starting, or server running without tunnel URL
     const shouldPoll = isStartingServer || isStartingTunnel ||
                       (currentProject?.devServerStatus === 'starting') ||
@@ -134,7 +115,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     return () => {
       clearInterval(interval);
     };
-  }, [isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
+  }, [isSSEConnected, isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
 
   // Tunnel loading with client-side DNS verification
   useEffect(() => {
@@ -151,7 +132,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     // Verify tunnel URL is resolvable in browser before showing iframe
     // CRITICAL: Don't expose URL to DOM until verified to prevent Chrome DNS prefetch
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      console.log('🔗 Tunnel URL received, starting verification (URL hidden from DOM)');
+      if (DEBUG_PREVIEW) console.log('🔗 Tunnel URL received, starting verification (URL hidden from DOM)');
       lastTunnelUrlRef.current = currentTunnelUrl;
       setIsTunnelLoading(true);
       setVerifiedTunnelUrl(null); // Clear old verified URL - keeps iframe blank
@@ -164,7 +145,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
-            console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
+            if (DEBUG_PREVIEW) console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
             setDnsVerificationAttempt(attempt);
 
             // IMPORTANT: Use the actual URL (no cache-bust on verification)
@@ -180,25 +161,25 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               },
             });
 
-            console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
+            if (DEBUG_PREVIEW) console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;
 
             // Wait an extra 2 seconds after DNS resolves to let Chrome's cache update
-            console.log('⏳ Waiting 2 extra seconds for Chrome DNS cache refresh...');
+            if (DEBUG_PREVIEW) console.log('⏳ Waiting 2 extra seconds for Chrome DNS cache refresh...');
             await new Promise(r => setTimeout(r, 2000));
 
             // NOW expose the URL to the DOM and reload iframe
-            console.log('✅ Exposing verified URL to iframe');
+            if (DEBUG_PREVIEW) console.log('✅ Exposing verified URL to iframe');
             setVerifiedTunnelUrl(currentTunnelUrl);
             setDnsVerificationAttempt(maxAttempts); // Show complete
             setIsTunnelLoading(false);
 
             // Force iframe to reload with tunnel-proxied content
             setKey(prev => prev + 1);
-            console.log('🔄 Reloading iframe with tunnel URL');
+            if (DEBUG_PREVIEW) console.log('🔄 Reloading iframe with tunnel URL');
             return;
           } catch (error: any) {
-            console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
+            if (DEBUG_PREVIEW) console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
 
             // Wait 3 seconds between attempts
             if (attempt < maxAttempts) {
@@ -265,7 +246,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     // - No tunnel exists
     // - Haven't already auto-started for this server session
     if (needsTunnel && onStartTunnel && !isStartingTunnel && !hasAutoStartedTunnel.current) {
-      console.log('🔗 Remote frontend detected - auto-creating tunnel for first time...');
+      if (DEBUG_PREVIEW) console.log('🔗 Remote frontend detected - auto-creating tunnel for first time...');
       hasAutoStartedTunnel.current = true;
       onStartTunnel();
     }
@@ -331,7 +312,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (e.data.type === 'sentryvibe:ready') {
-        console.log('📦 Iframe script ready, syncing inspector state:', isSelectionModeEnabled);
+        if (DEBUG_PREVIEW) console.log('📦 Iframe script ready, syncing inspector state:', isSelectionModeEnabled);
         // Iframe loaded and script ready, sync current state
         if (iframeRef.current) {
           toggleSelectionMode(iframeRef.current, isSelectionModeEnabled);
@@ -363,18 +344,18 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       y: element.clickPosition.y + 60, // Offset down 50px
     };
 
-    console.log('📍 Creating comment:', {
+    if (DEBUG_PREVIEW) console.log('📍 Creating comment:', {
       rawClick: element.clickPosition,
       adjusted: position,
     });
 
     const editId = addEdit(element, prompt, position);
-    console.log('✅ Created edit:', editId);
+    if (DEBUG_PREVIEW) console.log('✅ Created edit:', editId);
   }, [addEdit]);
 
   // Handle comment submission - send to chat as regular generation
   const handleCommentSubmit = useCallback((editId: string, prompt: string) => {
-    console.log('🚀 Submitting element change:', editId, prompt);
+    if (DEBUG_PREVIEW) console.log('🚀 Submitting element change:', editId, prompt);
 
     const edit = edits.find(e => e.id === editId);
     if (!edit) return;
@@ -390,7 +371,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       detail: { element: edit.element, prompt: formattedPrompt },
     }));
 
-    console.log('✅ Sent to chat system');
+    if (DEBUG_PREVIEW) console.log('✅ Sent to chat system');
   }, [edits, removeEdit]);
 
   return (
@@ -713,7 +694,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 title="Preview"
                 onLoad={(e) => {
                   setIsRefreshing(false);
-                  console.log('✅ Iframe loaded:', previewUrl);
+                  if (DEBUG_PREVIEW) console.log('✅ Iframe loaded:', previewUrl);
 
                   // Check for error pages
                   const iframe = e.currentTarget;
@@ -725,11 +706,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                         if (bodyText?.includes('Application error') || bodyText?.includes('502') || bodyText?.includes('503')) {
                           console.error('🚨 Preview loaded error page:', bodyText);
                         } else {
-                          console.log('📄 Preview content loaded successfully');
+                          if (DEBUG_PREVIEW) console.log('📄 Preview content loaded successfully');
                         }
                       }
                     } catch (err) {
-                      console.log('⚠️  Cross-origin iframe (cannot inspect content)');
+                      if (DEBUG_PREVIEW) console.log('⚠️  Cross-origin iframe (cannot inspect content)');
                     }
                   }, 500);
                 }}
@@ -756,11 +737,21 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            {project?.devServerStatus === 'starting' || isStartingServer ? (
-              <PreviewLoadingAnimation
-                title="Spinning up your workspace"
-                subtitle="Warming caches, allocating a port, and preparing the dev server."
-              />
+            {currentProject?.devServerStatus === 'starting' || isStartingServer ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative flex items-center justify-center w-24 h-24">
+                  <Rocket className="w-16 h-16 text-purple-400 animate-pulse" />
+                  <div className="absolute inset-0 rounded-full border-4 border-purple-400/20 border-t-purple-400 animate-spin"></div>
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-semibold text-white">
+                    Spinning up your workspace
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    Warming caches, allocating a port, and preparing the dev server.
+                  </p>
+                </div>
+              </div>
             ) : frontendIsRemote && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl ? (
               <div className="text-center space-y-4 max-w-md px-6">
                 <div className="flex items-center justify-center">
@@ -786,7 +777,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                   {isStartingTunnel ? 'Starting Tunnel...' : 'Restart Tunnel'}
                 </button>
               </div>
-            ) : project?.status === 'completed' && project?.runCommand ? (
+            ) : currentProject?.status === 'completed' && currentProject?.runCommand ? (
               <div className="text-center space-y-4 max-w-md">
                 <div className="flex items-center justify-center">
                   <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">

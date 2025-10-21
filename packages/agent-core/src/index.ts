@@ -1,6 +1,6 @@
 export { CLAUDE_SYSTEM_PROMPT, CODEX_SYSTEM_PROMPT } from './lib/prompts';
 export * from './shared/runner/messages';
-export { DEFAULT_AGENT_ID, type AgentId } from './types/agent';
+export { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID, type AgentId, type ClaudeModelId } from './types/agent';
 export type { ProjectSummary, ProjectStatus } from './types/project';
 
 // Only export specific items from agents to prevent bundling server-only code

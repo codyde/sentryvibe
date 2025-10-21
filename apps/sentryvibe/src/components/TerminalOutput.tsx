@@ -12,6 +12,7 @@ interface ParsedLogEntry {
 }
 
 const MAX_LOG_ENTRIES = 1000;
+const DEBUG_TERMINAL = false; // Set to true to enable verbose terminal logging
 
 function parseLogChunk(chunk: string): ParsedLogEntry[] {
   const entries: ParsedLogEntry[] = [];
@@ -83,11 +84,11 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
   // Debug: Log component mount and projectId changes
   useEffect(() => {
-    console.log('🖥️  TerminalOutput mounted, projectId:', projectId);
+    if (DEBUG_TERMINAL) console.log('🖥️  TerminalOutput mounted, projectId:', projectId);
   }, []);
 
   useEffect(() => {
-    console.log('🔄 TerminalOutput projectId changed:', projectId);
+    if (DEBUG_TERMINAL) console.log('🔄 TerminalOutput projectId changed:', projectId);
     if (projectId) {
       detectedPortRef.current = null;
       lastNotifiedPortRef.current = null;
@@ -105,7 +106,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
   // Reconnect stream across dev server lifecycle states
   useEffect(() => {
-    console.log('🔄 Dev server status changed:', devServerStatus);
+    if (DEBUG_TERMINAL) console.log('🔄 Dev server status changed:', devServerStatus);
 
     const prevStatus = lastStatusRef.current;
 
@@ -124,19 +125,19 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
       if (prevStatus !== 'starting') {
         stopStreaming();
         setLogs([]);
-        console.log('🔌 Dev server starting, attaching terminal stream...');
+        if (DEBUG_TERMINAL) console.log('🔌 Dev server starting, attaching terminal stream...');
         startStreaming();
       } else if (!eventSourceRef.current) {
         startStreaming();
       }
     } else if (currentStatus === 'running') {
       if (!eventSourceRef.current) {
-        console.log('🔌 Dev server running, ensuring terminal stream attached');
+        if (DEBUG_TERMINAL) console.log('🔌 Dev server running, ensuring terminal stream attached');
         startStreaming();
       }
     } else if (currentStatus === 'stopped' || currentStatus === 'failed' || currentStatus === null) {
       if (eventSourceRef.current || prevStatus !== currentStatus) {
-        console.log('🛑 Dev server stopped/failed (or unknown), closing terminal stream');
+        if (DEBUG_TERMINAL) console.log('🛑 Dev server stopped/failed (or unknown), closing terminal stream');
         stopStreaming();
         setLogs([]);
       }
@@ -154,20 +155,20 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
     // Prevent duplicate connection attempts (atomic check-and-set)
     if (connectionAttemptRef.current || eventSourceRef.current) {
-      console.log('   ⚠️  Connection attempt already in progress or stream exists, skipping');
+      if (DEBUG_TERMINAL) console.log('   ⚠️  Connection attempt already in progress or stream exists, skipping');
       return;
     }
 
     connectionAttemptRef.current = true;
 
-    console.log(`📡 Starting terminal stream for project: ${projectId} (attempt ${retryCountRef.current + 1})`);
+    if (DEBUG_TERMINAL) console.log(`📡 Starting terminal stream for project: ${projectId} (attempt ${retryCountRef.current + 1})`);
 
     try {
       const url = `/api/projects/${projectId}/logs?stream=true`;
       const eventSource = new EventSource(url);
 
       eventSource.onopen = () => {
-        console.log('✅ Terminal stream connected');
+        if (DEBUG_TERMINAL) console.log('✅ Terminal stream connected');
         setIsStreaming(true);
         retryCountRef.current = 0; // Reset retry counter on successful connection
       };
@@ -176,19 +177,19 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
         // Ignore keepalive pings
         if (event.data === ':keepalive') return;
 
-        console.log('📨 Terminal SSE message received:', event.data.substring(0, 200));
+        if (DEBUG_TERMINAL) console.log('📨 Terminal SSE message received:', event.data.substring(0, 200));
 
         try {
           const data = JSON.parse(event.data);
-          console.log('   Parsed data type:', data.type);
+          if (DEBUG_TERMINAL) console.log('   Parsed data type:', data.type);
 
           if (data.type === 'log' && data.data) {
-            console.log('   Log data length:', data.data.length);
+            if (DEBUG_TERMINAL) console.log('   Log data length:', data.data.length);
             enqueueLogs(data.data);
           } else if (data.type === 'connected') {
-            console.log('   ✅ Connection established');
+            if (DEBUG_TERMINAL) console.log('   ✅ Connection established');
           } else if (data.type === 'exit') {
-            console.log('   ⚠️  Process exited');
+            if (DEBUG_TERMINAL) console.log('   ⚠️  Process exited');
             setLogs((prev) => [...prev, '\n--- Process exited ---\n']);
             stopStreaming();
           }
@@ -201,11 +202,11 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
         const readyState = eventSource.readyState;
 
         if (readyState === EventSource.CLOSED) {
-          console.log('ℹ️  Terminal stream closed');
+          if (DEBUG_TERMINAL) console.log('ℹ️  Terminal stream closed');
           stopStreaming(false);
           scheduleRetry();
         } else if (readyState === EventSource.CONNECTING) {
-          console.log('🔄 Terminal stream reconnecting...');
+          if (DEBUG_TERMINAL) console.log('🔄 Terminal stream reconnecting...');
         }
       };
 
@@ -228,7 +229,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
     // Only retry if we have a project and dev server should be running
     if (!projectId || devServerStatus === 'stopped' || devServerStatus === 'failed') {
-      console.log('   Skipping retry - no project or server stopped/failed');
+      if (DEBUG_TERMINAL) console.log('   Skipping retry - no project or server stopped/failed');
       return;
     }
 
@@ -236,7 +237,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
     const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 8000);
     retryCountRef.current++;
 
-    console.log(`🔁 Scheduling retry in ${delay}ms (attempt ${retryCountRef.current})`);
+    if (DEBUG_TERMINAL) console.log(`🔁 Scheduling retry in ${delay}ms (attempt ${retryCountRef.current})`);
 
     retryTimeoutRef.current = setTimeout(() => {
       retryTimeoutRef.current = null;
@@ -283,7 +284,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
   const fetchLogsAsFallback = async () => {
     if (!projectId) return;
 
-    console.log('🔄 Using fallback: fetching logs via JSON API');
+    if (DEBUG_TERMINAL) console.log('🔄 Using fallback: fetching logs via JSON API');
     try {
       const res = await fetch(`/api/projects/${projectId}/logs`);
       const data = await res.json();
@@ -301,14 +302,14 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
   };
 
   const enqueueLogs = (chunk: string) => {
-    console.log('📝 enqueueLogs called with chunk length:', chunk.length);
+    if (DEBUG_TERMINAL) console.log('📝 enqueueLogs called with chunk length:', chunk.length);
     const entries = parseLogChunk(chunk);
-    console.log('   Parsed entries:', entries.length);
+    if (DEBUG_TERMINAL) console.log('   Parsed entries:', entries.length);
     if (!entries.length) return;
 
     // Store for batched flush
     pendingLogsRef.current.push(...entries);
-    console.log('   Pending logs now:', pendingLogsRef.current.length);
+    if (DEBUG_TERMINAL) console.log('   Pending logs now:', pendingLogsRef.current.length);
 
     if (!flushScheduledRef.current) {
       flushScheduledRef.current = true;
@@ -322,11 +323,11 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
         setLogs((prev) => {
           if (pendingLogsRef.current.length === 0) {
-            console.log('   ⚠️  No pending logs to flush');
+            if (DEBUG_TERMINAL) console.log('   ⚠️  No pending logs to flush');
             return prev;
           }
 
-          console.log(`   Flushing ${pendingLogsRef.current.length} pending logs (prev array has ${prev.length} items)`);
+          if (DEBUG_TERMINAL) console.log(`   Flushing ${pendingLogsRef.current.length} pending logs (prev array has ${prev.length} items)`);
 
           let next = [...prev];
           let changed = false;
@@ -356,7 +357,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
           pendingLogsRef.current = [];
 
           if (!changed) {
-            console.log('   ⚠️  No changes detected, returning prev');
+            if (DEBUG_TERMINAL) console.log('   ⚠️  No changes detected, returning prev');
             return prev;
           }
 
@@ -364,7 +365,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
             next = next.slice(next.length - MAX_LOG_ENTRIES);
           }
 
-          console.log(`   ✅ Updated logs array: ${prev.length} → ${next.length} items`);
+          if (DEBUG_TERMINAL) console.log(`   ✅ Updated logs array: ${prev.length} → ${next.length} items`);
           return next;
         });
       });
@@ -376,7 +377,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
     // Skip lines mentioning ports that are "in use" or "busy"
     if (logText.match(/in use|busy|unavailable|already/i)) {
-      console.log('⏭️  Skipping "in use" port message:', logText.trim());
+      if (DEBUG_TERMINAL) console.log('⏭️  Skipping "in use" port message:', logText.trim());
       return;
     }
 
@@ -396,7 +397,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
       const port = parseInt(portMatch[1], 10);
       if (port >= 3000 && port <= 65535) {
         if (detectedPortRef.current !== port) {
-          console.log(`🔍 Port detected from terminal: ${port}`);
+          if (DEBUG_TERMINAL) console.log(`🔍 Port detected from terminal: ${port}`);
           detectedPortRef.current = port;
           setDetectedPort(port);
         }

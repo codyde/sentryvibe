@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.23",
-    "@openai/codex-sdk": "^0.46.0",
+    "@openai/codex-sdk": "^0.47.0",
     "@sentry/core": "file:./vendor/sentry-core-LOCAL.tgz",
     "@sentry/nextjs": "file:./vendor/sentry-nextjs-LOCAL.tgz",
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",

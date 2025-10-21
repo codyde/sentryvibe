@@ -17,6 +17,7 @@ import SummaryCard from "@/components/SummaryCard";
 import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
 import ChatUpdate from "@/components/ChatUpdate";
+import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import { AppSidebar } from "@/components/app-sidebar";
 import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -76,6 +77,8 @@ interface Message {
   generationState?: GenerationState; // For generation messages
   elementChange?: ElementChange; // For element selector changes
 }
+
+const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 
 function HomeContent() {
   const [input, setInput] = useState("");
@@ -257,7 +260,7 @@ function HomeContent() {
           },
         };
 
-        console.log("🌀 Codex state updated:", {
+        if (DEBUG_PAGE) console.log("🌀 Codex state updated:", {
           phases: updated.codex?.phases.map((p) => `${p.id}:${p.status}`),
         });
 
@@ -312,10 +315,10 @@ function HomeContent() {
   useEffect(() => {
     const handleSelectionChange = (e: CustomEvent) => {
       const { element, prompt } = e.detail;
-      console.log("🎯 Selection change received:", { element, prompt });
+      if (DEBUG_PAGE) console.log("🎯 Selection change received:", { element, prompt });
 
       if (!currentProject) {
-        console.warn("⚠️ No current project for element change");
+        if (DEBUG_PAGE) console.warn("⚠️ No current project for element change");
         return;
       }
 
@@ -364,7 +367,7 @@ function HomeContent() {
   useEffect(() => {
     const currentTodoCount = generationState?.todos?.length || 0;
 
-    console.log("👀 Todo count tracker:", {
+    if (DEBUG_PAGE) console.log("👀 Todo count tracker:", {
       current: currentTodoCount,
       previous: previousTodoCountRef.current,
       activeView,
@@ -373,7 +376,7 @@ function HomeContent() {
 
     // If we just got our first todo, switch to build tab (regardless of current tab)
     if (currentTodoCount > 0 && previousTodoCountRef.current === 0) {
-      console.log("📊 First todos arrived! Switching to Build tab");
+      if (DEBUG_PAGE) console.log("📊 First todos arrived! Switching to Build tab");
       switchTab("build");
     }
 
@@ -389,7 +392,7 @@ function HomeContent() {
     }
     if (!generationState?.codex?.lastUpdatedAt) return;
     if (codexAutoSwitchRef.current) return;
-    console.log("🌀 Codex activity detected, switching to Build tab");
+    if (DEBUG_PAGE) console.log("🌀 Codex activity detected, switching to Build tab");
     switchTab("build");
     codexAutoSwitchRef.current = true;
   }, [
@@ -421,7 +424,7 @@ function HomeContent() {
     );
 
     if (!alreadyArchived) {
-      console.log(
+      if (DEBUG_PAGE) console.log(
         "📚 Archiving completed build to history:",
         generationState.id
       );
@@ -454,12 +457,12 @@ function HomeContent() {
 
   const loadMessages = useCallback(
     async (projectId: string) => {
-      console.log("📥 Loading messages for project:", projectId);
-      console.log("   Generating ref?", isGeneratingRef.current);
+      if (DEBUG_PAGE) console.log("📥 Loading messages for project:", projectId);
+      if (DEBUG_PAGE) console.log("   Generating ref?", isGeneratingRef.current);
 
       // Only block if ACTIVELY generating right now
       if (isGeneratingRef.current) {
-        console.log("🛑 BLOCKED - currently generating");
+        if (DEBUG_PAGE) console.log("🛑 BLOCKED - currently generating");
         return;
       }
 
@@ -469,7 +472,7 @@ function HomeContent() {
         lastLoadedProjectRef.current === projectId &&
         now - lastLoadTimeRef.current < 2000
       ) {
-        console.log("⏭️  SKIPPED - messages loaded recently");
+        if (DEBUG_PAGE) console.log("⏭️  SKIPPED - messages loaded recently");
         return;
       }
 
@@ -482,10 +485,10 @@ function HomeContent() {
         const data = await res.json();
 
         if (data.messages) {
-          console.log(`   Found ${data.messages.length} messages in DB`);
+          if (DEBUG_PAGE) console.log(`   Found ${data.messages.length} messages in DB`);
 
           if (data.messages.length === 0) {
-            console.log("   ℹ️  No messages in DB, keeping current messages");
+            if (DEBUG_PAGE) console.log("   ℹ️  No messages in DB, keeping current messages");
             return; // Don't wipe existing messages if DB is empty
           }
 
@@ -531,7 +534,7 @@ function HomeContent() {
             }
           );
 
-          console.log(
+          if (DEBUG_PAGE) console.log(
             "   ✅ Loaded:",
             regularMessages.length,
             "messages,",
@@ -666,7 +669,7 @@ function HomeContent() {
                       : undefined,
                   };
                 } catch (err) {
-                  console.warn(
+                  if (DEBUG_PAGE) console.warn(
                     "Failed to rebuild generation state from session",
                     err
                   );
@@ -699,7 +702,7 @@ function HomeContent() {
                   (state) => state.isActive
                 );
                 if (activeSession) {
-                  console.log("   🔄 Restoring active session from DB");
+                  if (DEBUG_PAGE) console.log("   🔄 Restoring active session from DB");
                   updateGenerationState(activeSession);
                 } else if (hydratedSessions.length > 0) {
                   const latestCompleted = [...hydratedSessions]
@@ -708,7 +711,7 @@ function HomeContent() {
                       (a, b) => b.startTime.getTime() - a.startTime.getTime()
                     )[0];
                   if (latestCompleted) {
-                    console.log(
+                    if (DEBUG_PAGE) console.log(
                       "   📚 Restoring most recent completed session for context"
                     );
                     updateGenerationState({
@@ -737,15 +740,15 @@ function HomeContent() {
         (p) => p.slug === selectedProjectSlug
       );
       if (project && (!currentProject || currentProject.id !== project.id)) {
-        console.log("🔄 Project changed to:", project.slug);
-        console.log("   Currently generating?", isGeneratingRef.current);
-        console.log("   Has generationState in DB?", !!project.generationState);
+        if (DEBUG_PAGE) console.log("🔄 Project changed to:", project.slug);
+        if (DEBUG_PAGE) console.log("   Currently generating?", isGeneratingRef.current);
+        if (DEBUG_PAGE) console.log("   Has generationState in DB?", !!project.generationState);
         setCurrentProject(project);
         setActiveProjectId(project.id);
 
         // CRITICAL: Don't touch generationState if we're actively generating!
         if (isGeneratingRef.current) {
-          console.log(
+          if (DEBUG_PAGE) console.log(
             "⚠️  Generation in progress - keeping existing generationState"
           );
           return;
@@ -753,22 +756,22 @@ function HomeContent() {
 
         // Load persisted generationState if it exists
         if (project.generationState) {
-          console.log("🎨 Restoring generationState from DB...");
+          if (DEBUG_PAGE) console.log("🎨 Restoring generationState from DB...");
           const restored = deserializeGenerationState(
             project.generationState as string
           );
 
           if (restored && validateGenerationState(restored)) {
-            console.log("   ✅ Valid state, todos:", restored.todos.length);
+            if (DEBUG_PAGE) console.log("   ✅ Valid state, todos:", restored.todos.length);
             updateGenerationState(restored);
           }
         }
 
         // Load messages
-        console.log("📥 Loading messages from DB...");
+        if (DEBUG_PAGE) console.log("📥 Loading messages from DB...");
         loadMessages(project.id);
       } else if (!project) {
-        console.log(
+        if (DEBUG_PAGE) console.log(
           "⚠️  No project found for slug yet:",
           selectedProjectSlug,
           "Projects loaded:",
@@ -778,7 +781,7 @@ function HomeContent() {
     } else {
       // Leaving project
       if (isGeneratingRef.current) {
-        console.log("⚠️  Generation in progress - not clearing state");
+        if (DEBUG_PAGE) console.log("⚠️  Generation in progress - not clearing state");
         return;
       }
 
@@ -823,7 +826,7 @@ function HomeContent() {
 
     // If it's been more than 500ms since last sync, update immediately (user action)
     if (timeSinceLastSync > 500) {
-      console.log(
+      if (DEBUG_PAGE) console.log(
         "🔄 Syncing currentProject immediately (user action or first update)"
       );
       lastSyncKeyRef.current = latestKey;
@@ -836,7 +839,7 @@ function HomeContent() {
       }
 
       syncTimeoutRef.current = setTimeout(() => {
-        console.log("🔄 Syncing currentProject after debounce (rapid updates)");
+        if (DEBUG_PAGE) console.log("🔄 Syncing currentProject after debounce (rapid updates)");
         lastSyncKeyRef.current = latestKey;
         lastSyncTimeRef.current = Date.now();
         setCurrentProject(latestProject);
@@ -848,7 +851,7 @@ function HomeContent() {
         clearTimeout(syncTimeoutRef.current);
       }
     };
-  }, [projects, selectedProjectSlug, currentProject]);
+  }, [projects, selectedProjectSlug]);
 
   // Auto-start dev server when project status changes to completed
   const prevProjectStatusRef = useRef<string | null>(null);
@@ -863,7 +866,7 @@ function HomeContent() {
       currentProject?.runCommand &&
       currentProject?.devServerStatus !== "running"
     ) {
-      console.log("🚀 Generation completed, auto-starting dev server...");
+      if (DEBUG_PAGE) console.log("🚀 Generation completed, auto-starting dev server...");
       setTimeout(() => startDevServer(), 1000);
     }
 
@@ -925,7 +928,7 @@ function HomeContent() {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           if (line === "data: [DONE]") {
-            console.log("✅ SSE stream completed for project", projectId);
+            if (DEBUG_PAGE) console.log("✅ SSE stream completed for project", projectId);
             continue;
           }
 
@@ -948,7 +951,7 @@ function HomeContent() {
                     );
 
                     if (existingToolIndex >= 0) {
-                      console.log(
+                      if (DEBUG_PAGE) console.log(
                         "⚠️ Tool already exists, skipping duplicate:",
                         data.toolName
                       );
@@ -1042,7 +1045,7 @@ function HomeContent() {
         );
 
         // Save to database
-        console.log("💾 Saving element change to database...");
+        if (DEBUG_PAGE) console.log("💾 Saving element change to database...");
         const saveRes = await fetch(`/api/projects/${projectId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1058,7 +1061,7 @@ function HomeContent() {
         });
 
         if (saveRes.ok) {
-          console.log("✅ Element change saved successfully");
+          if (DEBUG_PAGE) console.log("✅ Element change saved successfully");
         } else {
           console.error(
             "❌ Failed to save element change:",
@@ -1165,7 +1168,7 @@ function HomeContent() {
         framework: project.projectType,
         analyzedBy: agentName,
       });
-      console.log(`📦 Initialized template info from project: ${project.projectType}`);
+      if (DEBUG_PAGE) console.log(`📦 Initialized template info from project: ${project.projectType}`);
     }
 
     // Detect operation type
@@ -1174,7 +1177,7 @@ function HomeContent() {
       isElementChange,
       isRetry,
     });
-    console.log("🎬 Starting build:", {
+    if (DEBUG_PAGE) console.log("🎬 Starting build:", {
       projectName: project.name,
       operationType,
     });
@@ -1188,7 +1191,7 @@ function HomeContent() {
       claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
     });
 
-    console.log("✅ Created fresh generationState:", freshState.id);
+    if (DEBUG_PAGE) console.log("✅ Created fresh generationState:", freshState.id);
     updateGenerationState(freshState);
 
     await startGenerationStream(
@@ -1246,7 +1249,7 @@ function HomeContent() {
 
         try {
           const data = JSON.parse(payload);
-          console.log("📨 SSE event received:", data.type, data);
+          if (DEBUG_PAGE) console.log("📨 SSE event received:", data.type, data);
 
           if (data.type === "start") {
             // Don't create messages during generation - they're captured in generationState
@@ -1324,7 +1327,7 @@ function HomeContent() {
                 (
                   window as unknown as { saveGenStateTimeout?: NodeJS.Timeout }
                 ).saveGenStateTimeout = setTimeout(() => {
-                  console.log(
+                  if (DEBUG_PAGE) console.log(
                     "💾 Saving text update (debounced), projectId:",
                     updated.projectId
                   );
@@ -1358,24 +1361,24 @@ function HomeContent() {
               );
             }
           } else if (data.type === "text-end") {
-            console.log("✅ Text block finished:", data.id);
+            if (DEBUG_PAGE) console.log("✅ Text block finished:", data.id);
             // Text messages are stored in textByTodo and displayed inside BuildProgress
             // Don't add to main conversation messages array
           } else if (data.type?.startsWith("codex-")) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             updateCodexState((codex) => processCodexEvent(codex, data as any));
           } else if (data.type === "tool-input-available") {
-            console.log(
+            if (DEBUG_PAGE) console.log(
               "🧰 Tool event detected:",
               data.toolName,
               "toolCallId:",
               data.toolCallId
             );
-            console.log(
+            if (DEBUG_PAGE) console.log(
               "   Current activeTodoIndex:",
               generationStateRef.current?.activeTodoIndex
             );
-            console.log(
+            if (DEBUG_PAGE) console.log(
               "   Current todos count:",
               generationStateRef.current?.todos?.length
             );
@@ -1384,13 +1387,13 @@ function HomeContent() {
               const inputData = data.input as { todos?: TodoItem[] };
               const todos = inputData?.todos || [];
 
-              console.log("📝 TodoWrite - updating generation state");
-              console.log("   Todos count:", todos.length);
-              console.log(
+              if (DEBUG_PAGE) console.log("📝 TodoWrite - updating generation state");
+              if (DEBUG_PAGE) console.log("   Todos count:", todos.length);
+              if (DEBUG_PAGE) console.log(
                 "   Current generationState exists?",
                 !!generationState
               );
-              console.log(
+              if (DEBUG_PAGE) console.log(
                 "   Current todos in state:",
                 generationState?.todos?.length
               );
@@ -1399,8 +1402,8 @@ function HomeContent() {
               const activeIndex = todos.findIndex(
                 (t) => t.status === "in_progress"
               );
-              console.log("   Active todo index:", activeIndex);
-              console.log(
+              if (DEBUG_PAGE) console.log("   Active todo index:", activeIndex);
+              if (DEBUG_PAGE) console.log(
                 "   Incoming todos:",
                 todos.map((t) => `${t.status}:${t.content}`).join(" | ")
               );
@@ -1420,21 +1423,21 @@ function HomeContent() {
                   activeTodoIndex: activeIndex,
                 };
 
-                console.log(
+                if (DEBUG_PAGE) console.log(
                   "✅ Updated generationState with",
                   todos.length,
                   "todos"
                 );
-                console.log("   Active index set to:", activeIndex);
+                if (DEBUG_PAGE) console.log("   Active index set to:", activeIndex);
 
                 // Save to DB using projectId from state (always available!)
-                console.log(
+                if (DEBUG_PAGE) console.log(
                   "💾 Saving TodoWrite update, projectId:",
                   updated.projectId
                 );
                 saveGenerationState(updated.projectId, updated);
 
-                console.log("🧠 Generation state snapshot:", {
+                if (DEBUG_PAGE) console.log("🧠 Generation state snapshot:", {
                   todoCount: updated.todos.length,
                   activeTodoIndex: updated.activeTodoIndex,
                   todoStatuses: updated.todos.map((t) => t.status),
@@ -1444,7 +1447,7 @@ function HomeContent() {
               });
             } else {
               // Route other tools to generation state (nested under active todo)
-              console.log(
+              if (DEBUG_PAGE) console.log(
                 "🔧 Tool",
                 data.toolName,
                 "- updating generation state"
@@ -1456,7 +1459,7 @@ function HomeContent() {
 
                 // CRITICAL: Don't nest if we don't have todos yet!
                 if (!baseState.todos || baseState.todos.length === 0) {
-                  console.log(
+                  if (DEBUG_PAGE) console.log(
                     "⚠️  No todos yet, skipping tool nesting (will re-associate from DB later)"
                   );
                   return prev;
@@ -1476,7 +1479,7 @@ function HomeContent() {
                     : 0;
                 const existing = baseState.toolsByTodo[activeIndex] || [];
 
-                console.log(
+                if (DEBUG_PAGE) console.log(
                   "   ✅ Nesting under todo",
                   activeIndex,
                   "Current tools for this todo:",
@@ -1491,7 +1494,7 @@ function HomeContent() {
                   },
                 };
 
-                console.log(
+                if (DEBUG_PAGE) console.log(
                   "   📊 Updated toolsByTodo:",
                   Object.keys(updated.toolsByTodo)
                     .map(
@@ -1504,7 +1507,7 @@ function HomeContent() {
                 );
 
                 // Save to DB using projectId from state
-                console.log(
+                if (DEBUG_PAGE) console.log(
                   "💾 Saving tool addition, projectId:",
                   updated.projectId
                 );
@@ -1551,7 +1554,7 @@ function HomeContent() {
               };
 
               // Save to DB (tool completion is a checkpoint)
-              console.log(
+              if (DEBUG_PAGE) console.log(
                 "💾 Saving tool completion, projectId:",
                 updated.projectId
               );
@@ -1597,7 +1600,7 @@ function HomeContent() {
             const message =
               (data.data as unknown as { message?: string })?.message ||
               data.message;
-            console.log("💭 Reasoning:", message);
+            if (DEBUG_PAGE) console.log("💭 Reasoning:", message);
 
             if (message) {
               updateGenerationState((prev) => {
@@ -1630,7 +1633,7 @@ function HomeContent() {
             data.type === "metadata-extracted"
           ) {
             const metadata = (data.data as Record<string, unknown>)?.metadata;
-            console.log("📋 Metadata extracted:", metadata);
+            if (DEBUG_PAGE) console.log("📋 Metadata extracted:", metadata);
             // Could show this in UI if desired
           } else if (
             data.type === "data-template-selected" ||
@@ -1639,7 +1642,7 @@ function HomeContent() {
             const template = (data.data as Record<string, unknown>)?.template as Record<string, unknown> | undefined;
             const templateName = template?.name as string | undefined;
             const framework = template?.framework as string | undefined;
-            console.log("🎯 Template selected:", templateName);
+            if (DEBUG_PAGE) console.log("🎯 Template selected:", templateName);
 
             // Store template info for UI display
             setTemplateProvisioningInfo(prev => ({
@@ -1653,7 +1656,7 @@ function HomeContent() {
             data.type === "template-downloaded"
           ) {
             const path = (data.data as unknown as { path?: string })?.path;
-            console.log("📦 Template downloaded to:", path);
+            if (DEBUG_PAGE) console.log("📦 Template downloaded to:", path);
 
             // Update template info with download path
             setTemplateProvisioningInfo(prev => ({
@@ -1664,10 +1667,10 @@ function HomeContent() {
           } else if (data.type === "project-metadata") {
             // NEW: Handle project metadata event (includes template info)
             const metadata = data.payload || data.data || data;
-            console.log("🎯 Project metadata received:", metadata);
-            console.log(`   Framework: ${metadata.projectType}`);
-            console.log(`   Run command: ${metadata.runCommand}`);
-            console.log(`   Port: ${metadata.port}`);
+            if (DEBUG_PAGE) console.log("🎯 Project metadata received:", metadata);
+            if (DEBUG_PAGE) console.log(`   Framework: ${metadata.projectType}`);
+            if (DEBUG_PAGE) console.log(`   Run command: ${metadata.runCommand}`);
+            if (DEBUG_PAGE) console.log(`   Port: ${metadata.port}`);
 
             // Store for UI display
             const agentName =
@@ -1681,12 +1684,12 @@ function HomeContent() {
                 framework: metadata.projectType,
                 analyzedBy: agentName,
               });
-              console.log(
+              if (DEBUG_PAGE) console.log(
                 `✅ Template selected by ${agentName}: ${metadata.projectType}`
               );
             } else if (templateProvisioningInfo?.templateName) {
               // Fallback to provisioning info if metadata lacks framework
-              console.log(
+              if (DEBUG_PAGE) console.log(
                 `📦 Using provisioning info for template: ${templateProvisioningInfo.templateName}`
               );
               setSelectedTemplate({
@@ -1741,9 +1744,9 @@ function HomeContent() {
 
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
-          console.log("📡 SSE chunk received:", chunk.slice(0, 200));
+          if (DEBUG_PAGE) console.log("📡 SSE chunk received:", chunk.slice(0, 200));
           if (chunk.includes("TodoWrite")) {
-            console.log("🧩 Chunk contains TodoWrite payload");
+            if (DEBUG_PAGE) console.log("🧩 Chunk contains TodoWrite payload");
           }
           pushChunk(chunk);
         }
@@ -1795,7 +1798,7 @@ function HomeContent() {
           activeTodoIndex: -1,
         };
 
-        console.log(
+        if (DEBUG_PAGE) console.log(
           "✅ Final summary detected, marking last todo as completed"
         );
         saveGenerationState(completedState.projectId, completedState);
@@ -1813,7 +1816,7 @@ function HomeContent() {
         };
 
         // CRITICAL: Save final state to DB
-        console.log(
+        if (DEBUG_PAGE) console.log(
           "💾💾💾 Saving FINAL generationState to DB, projectId:",
           completed.projectId
         );
@@ -1850,7 +1853,7 @@ function HomeContent() {
         };
 
         // Save failed state to DB
-        console.log(
+        if (DEBUG_PAGE) console.log(
           "💾 Saving FAILED generationState to DB, projectId:",
           failed.projectId
         );
@@ -1861,7 +1864,7 @@ function HomeContent() {
     } finally {
       setIsGenerating(false);
       isGeneratingRef.current = false; // Unlock
-      console.log("🔓 Unlocked generation mode");
+      if (DEBUG_PAGE) console.log("🔓 Unlocked generation mode");
       // Keep generationState visible - don't hide it!
       // User can manually dismiss with X button
     }
@@ -1898,7 +1901,7 @@ function HomeContent() {
         const data = await res.json();
         const project = data.project;
 
-        console.log("✅ Project created:", project.slug);
+        if (DEBUG_PAGE) console.log("✅ Project created:", project.slug);
 
         // Template analysis happens automatically in the build API route
         // We'll see the results in the build metadata event
@@ -1906,10 +1909,10 @@ function HomeContent() {
 
         // LOCK generation mode FIRST (before anything else!)
         isGeneratingRef.current = true;
-        console.log("🔒 Locked generation mode with ref");
+        if (DEBUG_PAGE) console.log("🔒 Locked generation mode with ref");
 
         // Create FRESH generationState BEFORE URL changes
-        console.log(
+        if (DEBUG_PAGE) console.log(
           "🎬 Creating generation state for initial build:",
           project.name
         );
@@ -1921,17 +1924,17 @@ function HomeContent() {
           claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
         });
 
-        console.log("✅ Fresh state created:", {
+        if (DEBUG_PAGE) console.log("✅ Fresh state created:", {
           id: freshState.id,
           todosLength: freshState.todos.length,
           isActive: freshState.isActive,
         });
 
         updateGenerationState(freshState);
-        console.log("✅ GenerationState set in React");
+        if (DEBUG_PAGE) console.log("✅ GenerationState set in React");
 
         // Switch to Build tab
-        console.log("🎯 Switching to Build tab for new project");
+        if (DEBUG_PAGE) console.log("🎯 Switching to Build tab for new project");
         switchTab("build");
 
         // Set project state
@@ -1940,12 +1943,12 @@ function HomeContent() {
 
         // Refresh project list IMMEDIATELY so sidebar updates
         await refetch();
-        console.log("🔄 Sidebar refreshed with new project");
+        if (DEBUG_PAGE) console.log("🔄 Sidebar refreshed with new project");
 
         // Update URL WITHOUT reloading (prevents flash!)
         // This triggers useEffect, but isGeneratingRef is already locked
         router.replace(`/?project=${project.slug}`, { scroll: false });
-        console.log("🔄 URL updated");
+        if (DEBUG_PAGE) console.log("🔄 URL updated");
 
         // Add user message
         const userMessage: Message = {
@@ -1956,7 +1959,7 @@ function HomeContent() {
         setMessages([userMessage]);
 
         // Start generation stream (don't add user message again)
-        console.log("🚀 Starting generation stream...");
+        if (DEBUG_PAGE) console.log("🚀 Starting generation stream...");
         await startGenerationStream(
           project.id,
           userPrompt,
@@ -1997,7 +2000,7 @@ function HomeContent() {
         body: JSON.stringify({ runnerId: selectedRunnerId }),
       });
       if (res.ok) {
-        console.log("✅ Dev server started successfully!");
+        if (DEBUG_PAGE) console.log("✅ Dev server started successfully!");
 
         const data = await res.json();
 
@@ -2040,7 +2043,7 @@ function HomeContent() {
             todos: updatedTodos,
           };
 
-          console.log(
+          if (DEBUG_PAGE) console.log(
             "🎉 Marking final todo as completed - server is running!"
           );
 
@@ -2066,10 +2069,10 @@ function HomeContent() {
             updated?.devServerStatus === "running" &&
             updated?.devServerPort
           ) {
-            console.log("✅ Port detected, stopping poll");
+            if (DEBUG_PAGE) console.log("✅ Port detected, stopping poll");
             clearInterval(pollInterval);
           } else if (pollCount >= maxPolls) {
-            console.log("⏱️ Poll timeout reached, stopping");
+            if (DEBUG_PAGE) console.log("⏱️ Poll timeout reached, stopping");
             clearInterval(pollInterval);
           }
         }, 1000); // Poll every second
@@ -2130,7 +2133,7 @@ function HomeContent() {
         }
       );
       if (res.ok) {
-        console.log("✅ Tunnel start requested");
+        if (DEBUG_PAGE) console.log("✅ Tunnel start requested");
 
         // Poll for tunnel URL to appear
         let pollCount = 0;
@@ -2144,11 +2147,11 @@ function HomeContent() {
             (p) => p.id === currentProject.id
           );
           if (updated?.tunnelUrl) {
-            console.log("✅ Tunnel URL detected:", updated.tunnelUrl);
+            if (DEBUG_PAGE) console.log("✅ Tunnel URL detected:", updated.tunnelUrl);
             clearInterval(pollInterval);
             setIsStartingTunnel(false);
           } else if (pollCount >= maxPolls) {
-            console.log("⏱️ Tunnel poll timeout reached");
+            if (DEBUG_PAGE) console.log("⏱️ Tunnel poll timeout reached");
             clearInterval(pollInterval);
             setIsStartingTunnel(false);
           }
@@ -2174,7 +2177,7 @@ function HomeContent() {
         }
       );
       if (res.ok) {
-        console.log("✅ Tunnel stop requested");
+        if (DEBUG_PAGE) console.log("✅ Tunnel stop requested");
         // Update currentProject to clear tunnel URL
         setCurrentProject((prev) =>
           prev
@@ -2641,6 +2644,19 @@ function HomeContent() {
                               );
                             })}
 
+                            {/* Project Metadata Loading Card - Shows before todos arrive */}
+                            {generationState &&
+                              generationState.isActive &&
+                              (!generationState.todos || generationState.todos.length === 0) &&
+                              currentProject && (
+                              <ProjectMetadataCard
+                                projectName={currentProject.name}
+                                description={currentProject.description}
+                                icon={currentProject.icon}
+                                slug={currentProject.slug}
+                              />
+                            )}
+
                             {/* Current Build (Active or Completed) */}
                             {generationState && generationState.todos && generationState.todos.length > 0 && (
                               <BuildProgress
@@ -3093,7 +3109,7 @@ function HomeContent() {
                       <TerminalOutput
                         projectId={currentProject?.id}
                         onPortDetected={(port) => {
-                          console.log(
+                          if (DEBUG_PAGE) console.log(
                             "🔍 Terminal detected port update:",
                             port
                           );
