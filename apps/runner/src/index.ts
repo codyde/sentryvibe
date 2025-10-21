@@ -59,10 +59,15 @@ export interface RunnerOptions {
   runnerId?: string;
   workspace?: string;
   heartbeatInterval?: number;
+  silent?: boolean; // Suppress console output (for TUI mode)
 }
 
+let isSilentMode = false;
+
 const log = (...args: unknown[]) => {
-  console.log("[runner]", ...args);
+  if (!isSilentMode) {
+    console.log("[runner]", ...args);
+  }
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
@@ -690,7 +695,9 @@ async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3
  * Cleanup orphaned processes on startup
  */
 async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
-  console.log('🧹 Cleaning up orphaned processes from previous runs...');
+  if (!isSilentMode) {
+    console.log('🧹 Cleaning up orphaned processes from previous runs...');
+  }
 
   try {
     // Get list of processes from API (filtered by this runner's ID)
@@ -706,7 +713,9 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
     }
 
     const { processes } = await response.json();
-    console.log(`   Found ${processes.length} processes to check for this runner`);
+    if (!isSilentMode) {
+      console.log(`   Found ${processes.length} processes to check for this runner`);
+    }
 
     for (const row of processes) {
       try {
@@ -726,7 +735,9 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
       }
     }
 
-    console.log('✅ Orphaned process cleanup complete');
+    if (!isSilentMode) {
+      console.log('✅ Orphaned process cleanup complete');
+    }
   } catch (error) {
     console.error('❌ Error during cleanup:', error);
     throw error;
@@ -773,7 +784,9 @@ async function checkPortInUse(port: number): Promise<boolean> {
  * Start periodic health checks for running processes
  */
 function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
-  console.log('🏥 Starting periodic port health checks (every 30s)...');
+  if (!isSilentMode) {
+    console.log('🏥 Starting periodic port health checks (every 30s)...');
+  }
 
   const doHealthCheck = async () => {
     try {
@@ -845,6 +858,9 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
  * Start the runner with the given options
  */
 export function startRunner(options: RunnerOptions = {}) {
+  // Set silent mode if requested (for TUI)
+  isSilentMode = options.silent || false;
+
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
   log("workspace root:", WORKSPACE_ROOT);
 

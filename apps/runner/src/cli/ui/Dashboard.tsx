@@ -141,6 +141,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
             logs={logs}
             selectedService={null}
             fullScreen
+            maxHeight={23}
           />
         )}
 
@@ -148,12 +149,19 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
           <Box padding={2} flexDirection="column">
             <Text bold>Keyboard Shortcuts</Text>
             <Text></Text>
-            <Text><Text color="cyan">q</Text> or <Text color="cyan">Ctrl+C</Text> - Quit and stop all services</Text>
-            <Text><Text color="cyan">r</Text> - Restart all services</Text>
-            <Text><Text color="cyan">c</Text> - Clear logs</Text>
-            <Text><Text color="cyan">l</Text> - View full logs</Text>
-            <Text><Text color="cyan">?</Text> - Show this help</Text>
-            <Text><Text color="cyan">Esc</Text> - Return to dashboard</Text>
+            <Text bold>General:</Text>
+            <Text>  <Text color="cyan">q</Text> or <Text color="cyan">Ctrl+C</Text> - Quit and stop all services</Text>
+            <Text>  <Text color="cyan">r</Text> - Restart all services</Text>
+            <Text>  <Text color="cyan">c</Text> - Clear logs</Text>
+            <Text>  <Text color="cyan">l</Text> - View full logs</Text>
+            <Text>  <Text color="cyan">?</Text> - Show this help</Text>
+            <Text>  <Text color="cyan">Esc</Text> - Return to dashboard</Text>
+            <Text></Text>
+            <Text bold>Log Navigation:</Text>
+            <Text>  <Text color="cyan">↑/↓</Text> - Scroll logs line by line</Text>
+            <Text>  <Text color="cyan">PageUp/PageDown</Text> - Scroll by page</Text>
+            <Text>  <Text color="cyan">g</Text> - Jump to top</Text>
+            <Text>  <Text color="cyan">G</Text> - Jump to bottom (resume auto-scroll)</Text>
             <Text></Text>
             <Text dimColor>Press Esc to return to dashboard</Text>
           </Box>
@@ -161,10 +169,18 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
       </Box>
 
       {/* Footer with keyboard hints */}
-      <Box borderStyle="single" borderTop paddingX={1}>
+      <Box borderTop paddingX={1} paddingY={0}>
         <Text dimColor>
           {isShuttingDown ? (
             <Text color="yellow">Shutting down...</Text>
+          ) : view === 'logs' ? (
+            <>
+              <Text color="cyan">↑↓</Text> scroll  <Text color="cyan">g/G</Text> top/bottom  <Text color="cyan">Esc</Text> dashboard  <Text color="cyan">q</Text> quit
+            </>
+          ) : view === 'help' ? (
+            <>
+              <Text color="cyan">Esc</Text> dashboard  <Text color="cyan">q</Text> quit
+            </>
           ) : (
             <>
               <Text color="cyan">q</Text> quit  <Text color="cyan">r</Text> restart  <Text color="cyan">c</Text> clear  <Text color="cyan">l</Text> logs  <Text color="cyan">?</Text> help

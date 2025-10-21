@@ -214,6 +214,7 @@ export async function startCommand(options: StartOptions) {
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
+      silent: true, // Suppress console output in TUI mode
     });
 
     // Wait for TUI to exit

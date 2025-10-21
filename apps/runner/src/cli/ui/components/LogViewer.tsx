@@ -2,8 +2,8 @@
  * LogViewer Component - Scrollable log display with filtering
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Box, Text } from 'ink';
+import React, { useState, useEffect } from 'react';
+import { Box, Text, useInput } from 'ink';
 
 interface LogEntry {
   timestamp: Date;
@@ -38,18 +38,54 @@ function getServiceColor(service: string): string {
 
 export function LogViewer({ logs, selectedService, fullScreen, maxHeight }: LogViewerProps) {
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [autoScroll, setAutoScroll] = useState(true);
+
   // Use provided maxHeight or defaults
-  const maxVisibleLogs = maxHeight || (fullScreen ? 40 : 20);
+  const maxVisibleLogs = maxHeight || (fullScreen ? 35 : 20);
 
   // Filter logs by selected service
   const filteredLogs = selectedService
     ? logs.filter(log => log.service === selectedService)
     : logs;
 
-  // Auto-scroll to bottom when new logs arrive
+  // Auto-scroll to bottom when new logs arrive (if autoScroll enabled)
   useEffect(() => {
-    setScrollOffset(Math.max(0, filteredLogs.length - maxVisibleLogs));
-  }, [filteredLogs.length, maxVisibleLogs]);
+    if (autoScroll) {
+      setScrollOffset(Math.max(0, filteredLogs.length - maxVisibleLogs));
+    }
+  }, [filteredLogs.length, maxVisibleLogs, autoScroll]);
+
+  // Handle arrow keys for scrolling
+  useInput((input, key) => {
+    if (key.upArrow) {
+      setAutoScroll(false); // Disable auto-scroll when user scrolls manually
+      setScrollOffset(prev => Math.max(0, prev - 1));
+    } else if (key.downArrow) {
+      const maxScroll = Math.max(0, filteredLogs.length - maxVisibleLogs);
+      setScrollOffset(prev => {
+        const newOffset = Math.min(maxScroll, prev + 1);
+        // Re-enable auto-scroll if scrolled to bottom
+        if (newOffset === maxScroll) {
+          setAutoScroll(true);
+        }
+        return newOffset;
+      });
+    } else if (key.pageUp) {
+      setAutoScroll(false);
+      setScrollOffset(prev => Math.max(0, prev - maxVisibleLogs));
+    } else if (key.pageDown) {
+      const maxScroll = Math.max(0, filteredLogs.length - maxVisibleLogs);
+      setScrollOffset(prev => Math.min(maxScroll, prev + maxVisibleLogs));
+    } else if (input === 'g') {
+      // Jump to top
+      setAutoScroll(false);
+      setScrollOffset(0);
+    } else if (input === 'G') {
+      // Jump to bottom
+      setAutoScroll(true);
+      setScrollOffset(Math.max(0, filteredLogs.length - maxVisibleLogs));
+    }
+  });
 
   // Get visible logs
   const visibleLogs = filteredLogs.slice(scrollOffset, scrollOffset + maxVisibleLogs);
@@ -94,10 +130,10 @@ export function LogViewer({ logs, selectedService, fullScreen, maxHeight }: LogV
 
       {/* Scroll indicator */}
       {filteredLogs.length > maxVisibleLogs && (
-        <Box borderStyle="single" borderTop paddingTop={1} justifyContent="center">
+        <Box borderTop paddingTop={1} justifyContent="center">
           <Text dimColor>
             {scrollOffset + 1}-{Math.min(scrollOffset + maxVisibleLogs, filteredLogs.length)} of {filteredLogs.length}
-            {' • Showing latest'}
+            {autoScroll ? ' • Auto-scroll' : ' • Manual (↑↓ scroll, G for bottom)'}
           </Text>
         </Box>
       )}
