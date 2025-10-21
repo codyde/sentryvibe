@@ -1,15 +1,16 @@
 {
   "$schema": "https://schema.railpack.com",
+  "provider": "node",
   "steps": {
-    "install": {
+    "setup": {
       "commands": [
         "corepack enable",
         "corepack prepare pnpm@9.15.0 --activate",
         "cd ../.. && pnpm install --filter=sentryvibe-broker..."
       ]
     },
-    "build": {
-      "inputs": ["install"],
+    "compile": {
+      "inputs": ["$setup"],
       "commands": [
         "cd ../.. && pnpm --filter=sentryvibe-broker run build"
       ]
@@ -17,6 +18,6 @@
   },
   "deploy": {
     "startCommand": "cd apps/broker && pnpm start",
-    "inputs": ["build"]
+    "inputs": ["$compile"]
   }
 }
