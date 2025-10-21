@@ -136,6 +136,18 @@ export function startDevServer(options: StartDevServerOptions): {
     }
   });
 
+  // Handle stdout errors (EPIPE when pipe is broken, e.g., when SSE client disconnects)
+  childProcess.stdout?.on('error', (error: Error) => {
+    // EPIPE errors are expected when the client disconnects from the log stream
+    // while the child process continues to output logs. We suppress these to avoid noise.
+    if ((error as NodeJS.ErrnoException).code === 'EPIPE') {
+      console.log(`[${projectId}] ℹ️  stdout pipe closed (client disconnected)`);
+    } else {
+      console.error(`[${projectId}] ❌ stdout error:`, error);
+      emitter.emit('error', error);
+    }
+  });
+
   // Capture stderr
   childProcess.stderr?.on('data', (data: Buffer) => {
     const text = data.toString().replace(/\u001b\[[0-9;]*m/g, '');
@@ -147,6 +159,18 @@ export function startDevServer(options: StartDevServerOptions): {
       type: 'stderr',
       data: text,
     } as DevServerLog);
+  });
+
+  // Handle stderr errors (EPIPE when pipe is broken, e.g., when SSE client disconnects)
+  childProcess.stderr?.on('error', (error: Error) => {
+    // EPIPE errors are expected when the client disconnects from the log stream
+    // while the child process continues to output logs. We suppress these to avoid noise.
+    if ((error as NodeJS.ErrnoException).code === 'EPIPE') {
+      console.log(`[${projectId}] ℹ️  stderr pipe closed (client disconnected)`);
+    } else {
+      console.error(`[${projectId}] ❌ stderr error:`, error);
+      emitter.emit('error', error);
+    }
   });
 
   // Handle exit

@@ -166,9 +166,33 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     }
   });
 
+  // Handle stdout errors (EPIPE when pipe is broken, e.g., when SSE client disconnects)
+  childProcess.stdout?.on('error', (error: Error) => {
+    // EPIPE errors are expected when the client disconnects from the log stream
+    // while the child process continues to output logs. We suppress these to avoid noise.
+    if ((error as NodeJS.ErrnoException).code === 'EPIPE') {
+      console.log(`[process-manager] ℹ️  stdout pipe closed for project ${projectId} (client disconnected)`);
+    } else {
+      console.error(`[process-manager] ❌ stdout error for project ${projectId}:`, error);
+      emitter.emit('error', error);
+    }
+  });
+
   // Handle stderr
   childProcess.stderr?.on('data', (data: Buffer) => {
     emitter.emit('log', { type: 'stderr', data: data.toString() });
+  });
+
+  // Handle stderr errors (EPIPE when pipe is broken, e.g., when SSE client disconnects)
+  childProcess.stderr?.on('error', (error: Error) => {
+    // EPIPE errors are expected when the client disconnects from the log stream
+    // while the child process continues to output logs. We suppress these to avoid noise.
+    if ((error as NodeJS.ErrnoException).code === 'EPIPE') {
+      console.log(`[process-manager] ℹ️  stderr pipe closed for project ${projectId} (client disconnected)`);
+    } else {
+      console.error(`[process-manager] ❌ stderr error for project ${projectId}:`, error);
+      emitter.emit('error', error);
+    }
   });
 
   // Handle exit
