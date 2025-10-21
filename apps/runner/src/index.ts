@@ -64,9 +64,18 @@ export interface RunnerOptions {
 
 let isSilentMode = false;
 
+// Build logging can be controlled separately
+const DEBUG_BUILD = process.env.DEBUG_BUILD === '1' || false;
+
 const log = (...args: unknown[]) => {
   if (!isSilentMode) {
     console.log("[runner]", ...args);
+  }
+};
+
+const buildLog = (...args: unknown[]) => {
+  if (!isSilentMode && DEBUG_BUILD) {
+    buildLog("", ...args);
   }
 };
 
@@ -1503,15 +1512,12 @@ export async function startRunner(options: RunnerOptions = {}) {
             });
           }
 
-          console.log(
-            `[build] 🚀 Starting build stream for project: ${command.projectId}`
+          buildLog(` 🚀 Starting build stream for project: ${command.projectId}`
           );
-          console.log(`[build]   Directory: ${projectDirectory}`);
-          console.log(
-            `[build]   Is new project: ${orchestration.isNewProject}`
+          buildLog(`   Directory: ${projectDirectory}`);
+          buildLog(`   Is new project: ${orchestration.isNewProject}`
           );
-          console.log(
-            `[build]   Template: ${orchestration.template?.name || "none"}`
+          buildLog(`   Template: ${orchestration.template?.name || "none"}`
           );
 
           const stream = await createBuildStream({
@@ -1528,8 +1534,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             isNewProject: orchestration.isNewProject,
           });
 
-          console.log(
-            `[build] 📡 Build stream created, starting to process chunks...`
+          buildLog(` 📡 Build stream created, starting to process chunks...`
           );
 
           const reader = stream.getReader();
@@ -1539,8 +1544,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           while (true) {
             const { value, done } = await reader.read();
             if (done) {
-              console.log(
-                `[build] Stream reader reports DONE after ${chunkCount} chunks`
+              buildLog(` Stream reader reports DONE after ${chunkCount} chunks`
               );
               break;
             }
@@ -1593,8 +1597,8 @@ export async function startRunner(options: RunnerOptions = {}) {
             }
 
             if (!loggedFirstChunk) {
-              console.log(`[build] 📨 First chunk received from ${agentLabel}`);
-              console.log("[build] 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
+              buildLog(` 📨 First chunk received from ${agentLabel}`);
+              buildLog(" 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
               loggedFirstChunk = true;
             }
 
@@ -1614,8 +1618,7 @@ export async function startRunner(options: RunnerOptions = {}) {
                 for (const block of actualMessage.content) {
                   // Log text content
                   if (block.type === "text" && block.text) {
-                    console.log(
-                      `[build] 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
+                    buildLog(` 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
                         block.text.length > 200 ? "..." : ""
                       }`
                     );
@@ -1623,8 +1626,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
                   // Log thinking blocks
                   if (block.type === "thinking" && block.thinking) {
-                    console.log(
-                      `[build] 🤔 Thinking: ${block.thinking.slice(0, 300)}${
+                    buildLog(` 🤔 Thinking: ${block.thinking.slice(0, 300)}${
                         block.thinking.length > 300 ? "..." : ""
                       }`
                     );
@@ -1635,11 +1637,9 @@ export async function startRunner(options: RunnerOptions = {}) {
                     const toolName = block.name;
                     const toolId = block.id;
                     const input = JSON.stringify(block.input, null, 2);
-                    console.log(
-                      `[build] 🔧 Tool called: ${toolName} (${toolId})`
+                    buildLog(` 🔧 Tool called: ${toolName} (${toolId})`
                     );
-                    console.log(
-                      `[build]    Input: ${input.slice(0, 300)}${
+                    buildLog(`    Input: ${input.slice(0, 300)}${
                         input.length > 300 ? "..." : ""
                       }`
                     );
@@ -1675,16 +1675,14 @@ export async function startRunner(options: RunnerOptions = {}) {
                     }
 
                     if (isError) {
-                      console.error(`[build] ❌ Tool error (${toolId}):`);
-                      console.error(
-                        `[build]    ${content.slice(0, 500)}${
+                      buildLog(` ❌ Tool error (${toolId}):`);
+                      buildLog(`    ${content.slice(0, 500)}${
                           content.length > 500 ? "..." : ""
                         }`
                       );
                     } else {
-                      console.log(`[build] ✅ Tool result (${toolId}):`);
-                      console.log(
-                        `[build]    ${content.slice(0, 500)}${
+                      buildLog(` ✅ Tool result (${toolId}):`);
+                      buildLog(`    ${content.slice(0, 500)}${
                           content.length > 500 ? "..." : ""
                         }`
                       );
@@ -1708,18 +1706,15 @@ export async function startRunner(options: RunnerOptions = {}) {
             }
           }
 
-          console.log(
-            `[build] ═══════════════════════════════════════════════`
+          buildLog(` ═══════════════════════════════════════════════`
           );
-          console.log(`[build] STREAM ENDED - Processing final chunks`);
-          console.log(
-            `[build] ═══════════════════════════════════════════════`
+          buildLog(` STREAM ENDED - Processing final chunks`);
+          buildLog(` ═══════════════════════════════════════════════`
           );
 
           const finalChunk = decoder.decode();
           if (finalChunk) {
-            console.log(
-              `[build] Final chunk decoded: ${finalChunk.length} chars`
+            buildLog(` Final chunk decoded: ${finalChunk.length} chars`
             );
             let payload = finalChunk.startsWith("data:")
               ? finalChunk
@@ -1734,7 +1729,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             });
           }
 
-          console.log(`[build] Sending [DONE] signal to client`);
+          buildLog(` Sending [DONE] signal to client`);
           sendEvent({
             type: "build-stream",
             ...buildEventBase(command.projectId, command.id),
@@ -1778,10 +1773,9 @@ export async function startRunner(options: RunnerOptions = {}) {
             console.warn("Failed to detect runCommand:", error);
           }
 
-          console.log(
-            `[build] ✅ Build completed successfully for project: ${command.projectId}`
+          buildLog(` ✅ Build completed successfully for project: ${command.projectId}`
           );
-          console.log(`[build]   Total chunks processed: (stream ended)`);
+          buildLog(`   Total chunks processed: (stream ended)`);
 
           sendEvent({
             type: "build-completed",

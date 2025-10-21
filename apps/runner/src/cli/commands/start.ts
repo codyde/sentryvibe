@@ -114,6 +114,10 @@ export async function startCommand(options: StartOptions) {
   const consoleInterceptor = new ConsoleInterceptor(serviceManager);
   const sharedSecret = config.broker?.secret || 'dev-secret';
 
+  // Disable all verbose logging in child processes and runner
+  process.env.DEBUG_BUILD = '0';
+  process.env.SILENT_MODE = '1';
+
   // Clear screen for clean TUI start
   console.clear();
 

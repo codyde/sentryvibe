@@ -106,17 +106,17 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   try {
     if (existsSync(workingDirectory)) {
       const files = await readdir(workingDirectory);
-      console.log(`[orchestrator] Directory status: ${files.length} files found`);
+      if (process.env.DEBUG_BUILD === '1') console.log(`[orchestrator] Directory status: ${files.length} files found`);
 
       // If initial-build but files exist, we should clean them first
       if (isNewProject && files.length > 0) {
-        console.log(`[orchestrator] WARNING: initial-build but directory not empty - will overwrite`);
+        if (process.env.DEBUG_BUILD === '1') console.log(`[orchestrator] WARNING: initial-build but directory not empty - will overwrite`);
       }
     } else {
-      console.log(`[orchestrator] Directory doesn't exist - will create`);
+      if (process.env.DEBUG_BUILD === '1') console.log(`[orchestrator] Directory doesn't exist - will create`);
     }
   } catch (error) {
-    console.log(`[orchestrator] Directory check failed:`, error);
+    if (process.env.DEBUG_BUILD === '1') console.log(`[orchestrator] Directory check failed:`, error);
   }
 
   // Handle NEW projects - download template
