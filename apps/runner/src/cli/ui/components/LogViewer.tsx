@@ -94,7 +94,7 @@ export function LogViewer({ logs, selectedService, fullScreen, maxHeight }: LogV
     <Box
       flexDirection="column"
       flexGrow={1}
-      borderStyle={fullScreen ? 'single' : undefined}
+      borderStyle="single"
       paddingX={1}
       paddingY={1}
     >
