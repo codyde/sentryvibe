@@ -117,10 +117,11 @@ export class ServiceManager extends EventEmitter {
       service.state.pid = proc.pid;
       service.startTime = Date.now();
 
-      // Handle stdout
+      // Handle stdout - ONLY emit events, NO console.log
       proc.stdout?.on('data', (data) => {
         const output = data.toString();
         service.state.lastOutput = output.trim();
+        // Emit event - TUI will handle display
         this.emit('service:output', name, output, 'stdout');
 
         // Detect when service is ready
@@ -130,9 +131,10 @@ export class ServiceManager extends EventEmitter {
         }
       });
 
-      // Handle stderr
+      // Handle stderr - ONLY emit events, NO console.log
       proc.stderr?.on('data', (data) => {
         const output = data.toString();
+        // Emit event - TUI will handle display
         this.emit('service:output', name, output, 'stderr');
 
         // Check for errors in stderr
@@ -343,6 +345,9 @@ export class ServiceManager extends EventEmitter {
     try {
       // Import tunnel manager
       const { tunnelManager } = await import('../../lib/tunnel/manager.js');
+
+      // Enable silent mode for TUI
+      tunnelManager.setSilent(true);
 
       // Create tunnel
       const tunnelUrl = await tunnelManager.createTunnel(service.state.port);

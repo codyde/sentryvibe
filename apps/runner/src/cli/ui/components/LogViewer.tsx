@@ -93,7 +93,7 @@ export function LogViewer({ logs, selectedService, fullScreen, maxHeight }: LogV
   return (
     <Box
       flexDirection="column"
-      flexGrow={1}
+      width="80%"
       borderStyle="single"
       paddingX={1}
       paddingY={1}

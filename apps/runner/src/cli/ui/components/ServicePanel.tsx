@@ -45,7 +45,8 @@ export function ServicePanel({ services, selected, onSelect, projects }: Service
   return (
     <Box
       flexDirection="column"
-      width="40%"
+      width="20%"
+      minWidth={30}
       borderStyle="single"
       borderRight
       paddingX={1}
@@ -75,16 +76,15 @@ export function ServicePanel({ services, selected, onSelect, projects }: Service
                 </Text>
               )}
 
-              {/* Show tunnel URL if active */}
+              {/* Show tunnel status */}
               {service.tunnelStatus === 'creating' && (
                 <Box marginLeft={2}>
                   <Text color="yellow">⠋ Creating tunnel...</Text>
                 </Box>
               )}
               {service.tunnelStatus === 'active' && service.tunnelUrl && (
-                <Box marginLeft={2} flexDirection="column">
-                  <Text color="cyan">🌐 Cloudflare Tunnel Active</Text>
-                  <Text color="cyan">{service.tunnelUrl}</Text>
+                <Box marginLeft={2}>
+                  <Text color="cyan">🌐 Tunnel URL (see header)</Text>
                 </Box>
               )}
               {service.tunnelStatus === 'failed' && (

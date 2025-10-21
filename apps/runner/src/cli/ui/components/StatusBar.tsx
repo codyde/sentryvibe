@@ -10,6 +10,7 @@ interface StatusBarProps {
   services: ServiceState[];
   allRunning: boolean;
   isShuttingDown: boolean;
+  tunnelUrl?: string | null; // Active tunnel URL to display
 }
 
 function formatUptime(ms: number): string {
@@ -22,7 +23,7 @@ function formatUptime(ms: number): string {
   return `${seconds}s`;
 }
 
-export function StatusBar({ services, allRunning, isShuttingDown }: StatusBarProps) {
+export function StatusBar({ services, allRunning, isShuttingDown, tunnelUrl }: StatusBarProps) {
   const runningCount = services.filter(s => s.status === 'running').length;
   const totalCount = services.length;
   const errorCount = services.filter(s => s.status === 'error').length;
@@ -48,6 +49,12 @@ export function StatusBar({ services, allRunning, isShuttingDown }: StatusBarPro
           <Text color="red">✗ Error</Text>
         ) : (
           <Text color="yellow">⠋ Starting...</Text>
+        )}
+        {tunnelUrl && (
+          <>
+            <Text dimColor> | </Text>
+            <Text color="cyan">Tunnel: {tunnelUrl}</Text>
+          </>
         )}
       </Box>
 

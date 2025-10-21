@@ -111,6 +111,10 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
   const totalCount = services.length;
   const allRunning = runningCount === totalCount;
 
+  // Get tunnel URL from web service
+  const webService = services.find(s => s.name === 'web');
+  const tunnelUrl = webService?.tunnelUrl || null;
+
   return (
     <Box flexDirection="column">
       {/* Status Bar */}
@@ -118,6 +122,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
         services={services}
         allRunning={allRunning}
         isShuttingDown={isShuttingDown}
+        tunnelUrl={tunnelUrl}
       />
 
       {/* Main Content - Fixed height to prevent screen pushing */}
