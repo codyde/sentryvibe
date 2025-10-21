@@ -1,31 +1,59 @@
 /**
- * Enhanced start command with graceful shutdown and better error handling
- * Starts the full stack: Web App + Broker + Runner
+ * Start command with TUI dashboard support
+ * Provides beautiful real-time monitoring of all services
  */
 
-import { spawn, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { render } from 'ink';
+import React from 'react';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { configManager } from '../utils/config-manager.js';
-import { findMonorepoRoot, isInsideMonorepo } from '../utils/repo-detector.js';
+import { isInsideMonorepo } from '../utils/repo-detector.js';
 import { killProcessOnPort } from '../utils/process-killer.js';
-import { CLIError, errors } from '../utils/cli-error.js';
-import { shutdownHandler } from '../index.js';
+import { errors } from '../utils/cli-error.js';
+import { ServiceManager } from '../ui/service-manager.js';
+import { Dashboard } from '../ui/Dashboard.js';
 
 interface StartOptions {
   port?: string;
   brokerPort?: string;
+  noTui?: boolean; // Disable TUI, use traditional logs
 }
 
-interface ManagedProcess {
-  name: string;
-  process: ChildProcess;
-  port?: number;
+/**
+ * Check if we should use TUI
+ */
+function shouldUseTUI(options: StartOptions): boolean {
+  // Explicit flag
+  if (options.noTui) return false;
+
+  // CI/CD environments
+  if (process.env.CI === '1' || process.env.CI === 'true') return false;
+
+  // Not a TTY
+  if (!process.stdout.isTTY) return false;
+
+  // Explicit env var to disable
+  if (process.env.NO_TUI === '1') return false;
+
+  return true;
 }
 
 export async function startCommand(options: StartOptions) {
+  const useTUI = shouldUseTUI(options);
+
+  // If TUI is disabled, use the traditional start command
+  if (!useTUI) {
+    const { startCommand: traditionalStart } = await import('./start.js');
+    return traditionalStart(options);
+  }
+
+  // ========================================
+  // TUI MODE
+  // ========================================
+
   const s = p.spinner();
 
   // Step 1: Find monorepo
@@ -34,12 +62,10 @@ export async function startCommand(options: StartOptions) {
   let monorepoRoot: string | undefined;
   const config = configManager.get();
 
-  // Try config first
   if (config.monorepoPath && existsSync(config.monorepoPath)) {
     monorepoRoot = config.monorepoPath;
   }
 
-  // Try detection
   if (!monorepoRoot) {
     const repoCheck = await isInsideMonorepo();
     if (repoCheck.inside && repoCheck.root) {
@@ -63,36 +89,14 @@ export async function startCommand(options: StartOptions) {
 
   if (!existsSync(nodeModulesPath)) {
     s.start('Installing dependencies');
-    try {
-      const { installDependencies } = await import('../utils/repo-cloner.js');
-      await installDependencies(monorepoRoot);
-      s.stop(pc.green('✓') + ' Dependencies installed');
-    } catch (error) {
-      s.stop(pc.red('✗') + ' Failed to install dependencies');
-      throw new CLIError({
-        code: 'DEPENDENCIES_INSTALL_FAILED',
-        message: 'Failed to install dependencies',
-        cause: error instanceof Error ? error : new Error(String(error)),
-        suggestions: [
-          `Run manually: cd ${monorepoRoot} && pnpm install`,
-          'Check your internet connection',
-        ],
-      });
-    }
+    const { installDependencies } = await import('../utils/repo-cloner.js');
+    await installDependencies(monorepoRoot);
+    s.stop(pc.green('✓') + ' Dependencies installed');
   }
 
   // Step 3: Check database
   if (!config.databaseUrl) {
-    throw new CLIError({
-      code: 'MISSING_REQUIRED_CONFIG',
-      message: 'Database URL not configured',
-      suggestions: [
-        'Run initialization: sentryvibe init',
-        'Or set manually: sentryvibe config set databaseUrl <url>',
-        'Or setup database: sentryvibe db',
-      ],
-      docs: 'https://github.com/codyde/sentryvibe#database-setup',
-    });
+    throw errors.monorepoNotFound([]);
   }
 
   // Step 4: Clean up zombie processes
@@ -104,162 +108,143 @@ export async function startCommand(options: StartOptions) {
   await killProcessOnPort(brokerPort);
   s.stop(pc.green('✓') + ' Ports available');
 
+  // Clear screen for clean TUI start
+  console.clear();
+
+  // Show banner
+  const { displayBanner } = await import('../utils/banner.js');
+  displayBanner();
+
   console.log();
-  console.log(pc.bold('Starting services...'));
+  console.log(pc.bold('Starting TUI Dashboard...'));
+  console.log(pc.dim('Press Ctrl+C or q to quit'));
   console.log();
 
-  const processes: ManagedProcess[] = [];
+  // Small delay to let user read the message
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  // Step 5: Create ServiceManager
+  const serviceManager = new ServiceManager();
   const sharedSecret = config.broker?.secret || 'dev-secret';
 
-  // Register cleanup with shutdown handler
-  shutdownHandler.onShutdown(async () => {
-    console.log();
-    console.log(pc.yellow('⚠'), 'Stopping all services...');
-
-    // Kill all child processes
-    for (const { name, process: proc } of processes) {
-      if (!proc.killed && proc.pid) {
-        console.log(pc.dim(`  Stopping ${name}...`));
-        proc.kill('SIGTERM');
-      }
-    }
-
-    // Give them time to exit gracefully
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Force kill stragglers
-    for (const { name, port } of processes) {
-      if (port) {
-        try {
-          await killProcessOnPort(port);
-        } catch {
-          // Best effort
-        }
-      }
-    }
-
-    console.log(pc.green('✓'), 'All services stopped');
+  // Register web app
+  serviceManager.register({
+    name: 'web',
+    displayName: 'Web App',
+    port: webPort,
+    command: 'pnpm',
+    args: ['--filter', 'sentryvibe', 'dev'],
+    cwd: monorepoRoot,
+    env: {
+      PORT: String(webPort),
+      DATABASE_URL: config.databaseUrl!,
+      RUNNER_SHARED_SECRET: sharedSecret,
+      RUNNER_BROKER_URL: `ws://localhost:${brokerPort}/socket`,
+      RUNNER_BROKER_HTTP_URL: `http://localhost:${brokerPort}`,
+      WORKSPACE_ROOT: config.workspace,
+      RUNNER_ID: config.runner?.id || 'local',
+      RUNNER_DEFAULT_ID: config.runner?.id || 'local',
+    },
   });
 
+  // Register broker
+  serviceManager.register({
+    name: 'broker',
+    displayName: 'Broker',
+    port: brokerPort,
+    command: 'pnpm',
+    args: ['--filter', 'sentryvibe-broker', 'dev'],
+    cwd: monorepoRoot,
+    env: {
+      PORT: String(brokerPort),
+      BROKER_PORT: String(brokerPort),
+      RUNNER_SHARED_SECRET: sharedSecret,
+      RUNNER_EVENT_TARGET_URL: `http://localhost:${webPort}`,
+    },
+  });
+
+  // Register runner (special handling - not spawned, imported directly)
+  serviceManager.register({
+    name: 'runner',
+    displayName: 'Runner',
+    command: 'internal', // Not actually spawned
+    args: [],
+    cwd: monorepoRoot,
+    env: {},
+  });
+
+  // Step 6: Render TUI
+  const { waitUntilExit, clear } = render(
+    React.createElement(Dashboard, {
+      serviceManager,
+      apiUrl: `http://localhost:${webPort}`,
+      webPort
+    })
+  );
+
+  // Step 7: Start services
   try {
-    // Start Web App
-    console.log(pc.cyan('1/3'), 'Starting web app...');
-    const webApp = spawn('pnpm', ['--filter', 'sentryvibe', 'dev'], {
-      cwd: monorepoRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      env: {
-        ...process.env,
-        PORT: String(webPort),
-        DATABASE_URL: config.databaseUrl,
-        RUNNER_SHARED_SECRET: sharedSecret,
-        RUNNER_BROKER_URL: `ws://localhost:${brokerPort}/socket`,
-        RUNNER_BROKER_HTTP_URL: `http://localhost:${brokerPort}`,
-        WORKSPACE_ROOT: config.workspace,
-        RUNNER_ID: config.runner?.id || 'local',
-        RUNNER_DEFAULT_ID: config.runner?.id || 'local',
-      },
-    });
-
-    processes.push({ name: 'Web App', process: webApp, port: webPort });
-    shutdownHandler.registerProcess(webApp);
-
-    // Handle web app output
-    webApp.stdout?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (text && !text.includes('warn') && !text.includes('deprecated')) {
-        console.log(pc.blue('[web]'), text);
-      }
-    });
-
-    webApp.stderr?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (text && !text.includes('warn') && !text.includes('deprecated')) {
-        console.log(pc.yellow('[web]'), text);
-      }
-    });
-
-    webApp.on('exit', (code) => {
-      // Exit codes 0, 130 (SIGINT), and 143 (SIGTERM) are normal shutdown
-      if (code !== 0 && code !== null && code !== 130 && code !== 143) {
-        console.error(pc.red('✗'), `Web app crashed with code ${code}`);
-        process.exit(1);
-      }
-    });
-
-    // Wait for web app to initialize
+    // Start web and broker (runner will be started separately)
+    await serviceManager.start('web');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Start Broker
-    console.log(pc.cyan('2/3'), 'Starting broker...');
-    const broker = spawn('pnpm', ['--filter', 'sentryvibe-broker', 'dev'], {
-      cwd: monorepoRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      env: {
-        ...process.env,
-        PORT: String(brokerPort),
-        BROKER_PORT: String(brokerPort),
-        RUNNER_SHARED_SECRET: sharedSecret,
-        RUNNER_EVENT_TARGET_URL: `http://localhost:${webPort}`,
-      },
-    });
-
-    processes.push({ name: 'Broker', process: broker, port: brokerPort });
-    shutdownHandler.registerProcess(broker);
-
-    // Handle broker output
-    broker.stdout?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (text) {
-        console.log(pc.green('[broker]'), text);
-      }
-    });
-
-    broker.stderr?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (text && !text.includes('warn') && !text.includes('deprecated')) {
-        console.log(pc.yellow('[broker]'), text);
-      }
-    });
-
-    broker.on('exit', (code) => {
-      // Exit codes 0, 130 (SIGINT), and 143 (SIGTERM) are normal shutdown
-      if (code !== 0 && code !== null && code !== 130 && code !== 143) {
-        console.error(pc.red('✗'), `Broker crashed with code ${code}`);
-        process.exit(1);
-      }
-    });
-
-    // Wait for broker to initialize
+    await serviceManager.start('broker');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Start Runner
-    console.log(pc.cyan('3/3'), 'Starting runner...');
-    console.log();
+    // Mark runner as starting
+    const runnerService = serviceManager['services'].get('runner');
+    if (runnerService) {
+      runnerService.state.status = 'starting';
+      runnerService.startTime = Date.now();
+      serviceManager.emit('service:status-change', 'runner', 'starting');
+    }
 
-    // Success message
-    console.log(pc.green('✓'), pc.bold('All services started!'));
-    console.log();
-    console.log(pc.bold('Services running:'));
-    console.log(`  ${pc.blue('Web App:')} http://localhost:${webPort}`);
-    console.log(`  ${pc.green('Broker:')} http://localhost:${brokerPort}`);
-    console.log(`  ${pc.magenta('Runner:')} Connected to broker`);
-    console.log();
-    console.log(pc.dim(`Press ${pc.cyan('Ctrl+C')} to stop all services`));
-    console.log();
-
-    // Start runner (blocks until shutdown)
+    // Start runner directly (this blocks until shutdown)
     const { startRunner } = await import('../../index.js');
-    await startRunner({
+
+    // Mark as running
+    if (runnerService) {
+      runnerService.state.status = 'running';
+      serviceManager.emit('service:status-change', 'runner', 'running');
+    }
+
+    // Start runner in background (non-blocking for TUI)
+    const runnerPromise = startRunner({
       brokerUrl: `ws://localhost:${brokerPort}/socket`,
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
     });
 
+    // Wait for TUI to exit
+    await waitUntilExit();
+
+    // Clear TUI immediately
+    clear();
+
+    // Show shutdown message
+    console.log();
+    console.log(pc.yellow('⚠'), 'Stopping all services...');
+
+    // Stop all services with timeout
+    const shutdownPromise = Promise.race([
+      (async () => {
+        await serviceManager.stopAll();
+        // Runner will handle its own shutdown via SIGINT handler
+        console.log(pc.green('✓'), 'All services stopped');
+      })(),
+      new Promise((resolve) => setTimeout(() => {
+        console.log(pc.yellow('⚠'), 'Shutdown timeout - forcing exit');
+        resolve(undefined);
+      }, 3000))
+    ]);
+
+    await shutdownPromise;
+
+    // Force exit to ensure we return to prompt
+    process.exit(0);
   } catch (error) {
-    // Global error handler will format this nicely
+    clear();
     throw error;
   }
 }

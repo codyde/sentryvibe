@@ -1,5 +1,5 @@
 import inquirer from 'inquirer';
-import { homedir, hostname } from 'os';
+import { homedir } from 'os';
 import { join } from 'path';
 
 export interface InitPromptAnswers {
