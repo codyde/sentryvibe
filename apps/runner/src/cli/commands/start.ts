@@ -112,17 +112,14 @@ export async function startCommand(options: StartOptions) {
   // Clear screen for clean TUI start
   console.clear();
 
-  // Show banner
-  const { displayBanner } = await import('../utils/banner.js');
-  displayBanner();
-
+  // Show starting message (banner will be part of TUI)
   console.log();
   console.log(pc.bold('Starting TUI Dashboard...'));
   console.log(pc.dim('Press Ctrl+C or q to quit'));
   console.log();
 
   // Small delay to let user read the message
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Step 5: Create ServiceManager and Console Interceptor
   const serviceManager = new ServiceManager();

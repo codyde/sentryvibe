@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { ServiceManager, ServiceState } from './service-manager.js';
+import { Banner } from './components/Banner.js';
 import { StatusBar } from './components/StatusBar.js';
 import { ServicePanel } from './components/ServicePanel.js';
 import { LogViewer } from './components/LogViewer.js';
@@ -146,6 +147,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
 
   return (
     <Box flexDirection="column">
+      {/* Banner - Part of TUI, stays fixed at top */}
+      <Banner />
+
       {/* Status Bar */}
       <StatusBar
         services={services}
