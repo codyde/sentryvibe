@@ -55,8 +55,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
             stream,
           }
         ];
-        // Keep last 1000 log entries
-        return newLogs.slice(-1000);
+        // Keep last 10000 log entries (plenty for a session)
+        return newLogs.slice(-10000);
       });
     };
 
@@ -120,15 +120,18 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
   const webService = services.find(s => s.name === 'web');
   const tunnelUrl = webService?.tunnelUrl || null;
 
-  // Plain logs mode - show logs as plain text for easy copy/paste
+  // Plain logs mode - show ALL logs as plain text for easy copy/paste
   if (showingPlainLogs) {
     return (
       <Box flexDirection="column">
         <Box borderBottom paddingX={1} paddingY={0}>
-          <Text bold>Log History</Text>
-          <Text dimColor> ({logs.length} entries) - Press </Text>
+          <Text bold>All Logs</Text>
+          <Text dimColor> (showing all {logs.length} entries - scroll with terminal)</Text>
+        </Box>
+        <Box borderBottom paddingX={1} paddingY={0}>
+          <Text dimColor>Press </Text>
           <Text color="cyan">Esc</Text>
-          <Text dimColor> to return to dashboard</Text>
+          <Text dimColor> to return to dashboard • Use terminal scroll or Cmd+F to search</Text>
         </Box>
         <Box flexDirection="column" paddingX={1} paddingY={1}>
           {logs.map((log, index) => (
