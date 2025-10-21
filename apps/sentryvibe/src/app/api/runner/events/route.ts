@@ -33,6 +33,31 @@ function emitProjectUpdateFromData(projectId: string, projectData: any) {
   }
 }
 
+/**
+ * Emit project update, fetching data if not provided
+ * Ensures SSE updates are always attempted even when UPDATE matches 0 rows
+ */
+async function emitProjectUpdate(projectId: string, projectData?: any) {
+  try {
+    if (projectData) {
+      // Use provided data from .returning()
+      projectEvents.emitProjectUpdate(projectId, projectData);
+    } else {
+      // Fallback: fetch current project state
+      const updatedProject = await db.select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+      if (updatedProject.length > 0) {
+        projectEvents.emitProjectUpdate(projectId, updatedProject[0]);
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to emit project update for ${projectId}:`, error);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     if (!ensureAuthorized(request)) {
@@ -73,7 +98,7 @@ export async function POST(request: Request) {
           .where(eq(projects.id, event.projectId))
           .returning();
         // No port reservation - framework handles port selection
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        await emitProjectUpdate(event.projectId, updated);
         break;
       }
       case 'tunnel-created': {
@@ -84,7 +109,7 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId))
           .returning();
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        await emitProjectUpdate(event.projectId, updated);
         break;
       }
       case 'tunnel-closed': {
@@ -95,7 +120,7 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId))
           .returning();
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        await emitProjectUpdate(event.projectId, updated);
         break;
       }
       case 'process-exited': {
@@ -115,7 +140,7 @@ export async function POST(request: Request) {
           .where(eq(projects.id, event.projectId))
           .returning();
         // No port reservation cleanup needed
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        await emitProjectUpdate(event.projectId, updated);
         break;
       }
       case 'project-metadata': {
@@ -132,7 +157,7 @@ export async function POST(request: Request) {
             })
             .where(eq(projects.id, event.projectId))
             .returning();
-          if (updated) emitProjectUpdateFromData(event.projectId, updated);
+          await emitProjectUpdate(event.projectId, updated);
         }
         break;
       }
@@ -146,7 +171,7 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId))
           .returning();
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        await emitProjectUpdate(event.projectId, updated);
         break;
       }
       case 'build-failed':
@@ -162,7 +187,7 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId))
           .returning();
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        await emitProjectUpdate(event.projectId, updated);
         break;
       }
       default:
