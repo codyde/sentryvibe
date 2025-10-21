@@ -23,7 +23,12 @@ export const projects = pgTable('projects', {
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  // Indexes for performance
+  runnerIdIdx: index('projects_runner_id_idx').on(table.runnerId),
+  statusIdx: index('projects_status_idx').on(table.status),
+  lastActivityIdx: index('projects_last_activity_idx').on(table.lastActivityAt),
+}));
 
 export const messages = pgTable('messages', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -51,7 +56,10 @@ export const runningProcesses = pgTable('running_processes', {
   startedAt: timestamp('started_at').notNull().defaultNow(),
   lastHealthCheck: timestamp('last_health_check'),
   healthCheckFailCount: integer('health_check_fail_count').notNull().default(0),
-});
+}, (table) => ({
+  // Index for filtering by runner
+  runnerIdIdx: index('running_processes_runner_id_idx').on(table.runnerId),
+}));
 
 export const generationSessions = pgTable('generation_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),

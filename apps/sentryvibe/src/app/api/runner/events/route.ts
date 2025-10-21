@@ -25,16 +25,9 @@ function ensureAuthorized(request: Request) {
  * Emit project update event to SSE streams
  * Provides instant updates without polling
  */
-async function emitProjectUpdate(projectId: string) {
+function emitProjectUpdateFromData(projectId: string, projectData: any) {
   try {
-    const updatedProject = await db.select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .limit(1);
-
-    if (updatedProject.length > 0) {
-      projectEvents.emitProjectUpdate(projectId, updatedProject[0]);
-    }
+    projectEvents.emitProjectUpdate(projectId, projectData);
   } catch (error) {
     console.error(`Failed to emit project update for ${projectId}:`, error);
   }
@@ -69,7 +62,7 @@ export async function POST(request: Request) {
 
     switch (event.type) {
       case 'port-detected': {
-        await db.update(projects)
+        const [updated] = await db.update(projects)
           .set({
             devServerStatus: 'running',
             devServerPort: event.port,
@@ -77,29 +70,32 @@ export async function POST(request: Request) {
             tunnelUrl: event.tunnelUrl || null,
             lastActivityAt: new Date(),
           })
-          .where(eq(projects.id, event.projectId));
+          .where(eq(projects.id, event.projectId))
+          .returning();
         // No port reservation - framework handles port selection
-        await emitProjectUpdate(event.projectId);
+        if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
       case 'tunnel-created': {
-        await db.update(projects)
+        const [updated] = await db.update(projects)
           .set({
             tunnelUrl: event.tunnelUrl,
             lastActivityAt: new Date(),
           })
-          .where(eq(projects.id, event.projectId));
-        await emitProjectUpdate(event.projectId);
+          .where(eq(projects.id, event.projectId))
+          .returning();
+        if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
       case 'tunnel-closed': {
-        await db.update(projects)
+        const [updated] = await db.update(projects)
           .set({
             tunnelUrl: null,
             lastActivityAt: new Date(),
           })
-          .where(eq(projects.id, event.projectId));
-        await emitProjectUpdate(event.projectId);
+          .where(eq(projects.id, event.projectId))
+          .returning();
+        if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
       case 'process-exited': {
@@ -108,7 +104,7 @@ export async function POST(request: Request) {
         const wasKilled = event.signal === 'SIGTERM' || event.signal === 'SIGINT' || event.signal === 'SIGKILL';
         const cleanExit = event.exitCode === 0 || signalExitCodes.includes(event.exitCode || -1);
 
-        await db.update(projects)
+        const [updated] = await db.update(projects)
           .set({
             devServerStatus: (wasKilled || cleanExit) ? 'stopped' : 'failed',
             devServerPid: null,
@@ -116,16 +112,17 @@ export async function POST(request: Request) {
             tunnelUrl: null,
             lastActivityAt: new Date(),
           })
-          .where(eq(projects.id, event.projectId));
+          .where(eq(projects.id, event.projectId))
+          .returning();
         // No port reservation cleanup needed
-        await emitProjectUpdate(event.projectId);
+        if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
       case 'project-metadata': {
         // Update project metadata (path, runCommand, projectType, port) from template download
         const metadata = (event as any).payload;
         if (metadata && event.projectId) {
-          await db.update(projects)
+          const [updated] = await db.update(projects)
             .set({
               path: metadata.path,
               projectType: metadata.projectType,
@@ -133,21 +130,23 @@ export async function POST(request: Request) {
               port: metadata.port,
               lastActivityAt: new Date(),
             })
-            .where(eq(projects.id, event.projectId));
-          await emitProjectUpdate(event.projectId);
+            .where(eq(projects.id, event.projectId))
+            .returning();
+          if (updated) emitProjectUpdateFromData(event.projectId, updated);
         }
         break;
       }
       case 'build-completed': {
         // Mark project as completed
         // Note: runCommand should already be set by project-metadata event
-        await db.update(projects)
+        const [updated] = await db.update(projects)
           .set({
             status: 'completed',
             lastActivityAt: new Date(),
           })
-          .where(eq(projects.id, event.projectId));
-        await emitProjectUpdate(event.projectId);
+          .where(eq(projects.id, event.projectId))
+          .returning();
+        if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
       case 'build-failed':
@@ -155,14 +154,15 @@ export async function POST(request: Request) {
         // UI stream events handled via event bus; DB already updated within build pipeline.
         break;
       case 'error': {
-        await db.update(projects)
+        const [updated] = await db.update(projects)
           .set({
             devServerStatus: 'failed',
             errorMessage: event.error,
             lastActivityAt: new Date(),
           })
-          .where(eq(projects.id, event.projectId));
-        await emitProjectUpdate(event.projectId);
+          .where(eq(projects.id, event.projectId))
+          .returning();
+        if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
       default:

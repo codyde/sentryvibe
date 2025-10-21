@@ -74,7 +74,7 @@ export async function GET(
     const contentType = response.headers.get('content-type') || '';
     const isViteChunk = path.includes('/node_modules/.vite/') || /chunk-[A-Z0-9]+\.js/i.test(path);
 
-    // HTML - Inject base tag and selection script
+    // HTML - Inject base tag, Vite config, and selection script
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
@@ -206,12 +206,15 @@ export async function GET(
     });
 
   } catch (error) {
+    const { id } = await params;
+    const url = new URL(req.url);
+
     console.error('❌ Proxy error:', error);
     console.error('   Project:', id);
     console.error('   Path:', url.searchParams.get('path'));
-    console.error('   Runner ID:', project[0]?.runnerId);
-    console.error('   Port:', project[0]?.devServerPort);
-    console.error('   Tunnel URL:', project[0]?.tunnelUrl);
+    console.error('   Port:', proj?.devServerPort);
+    console.error('   Tunnel URL:', proj?.tunnelUrl);
+    console.error('   Dev server status:', proj?.devServerStatus);
     return new NextResponse(
       `Proxy failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { status: 500 }
