@@ -20,12 +20,12 @@ if (!isLinkedDevelopment) {
   const agentCorePath = join(nodeModulesDir, "@sentryvibe", "agent-core");
 
   if (!existsSync(agentCorePath)) {
-    console.log("🔧 Initializing vendor packages...");
+    // Silently initialize vendor packages in background
     try {
       const installScript = resolve(__dirname, "../../scripts/install-vendor.js");
       execFileSync("node", [installScript], {
         cwd: resolve(__dirname, "../.."),
-        stdio: "inherit"
+        stdio: "pipe" // Silent mode - output only shown if VERBOSE=1
       });
     } catch (error) {
       console.error("Failed to initialize vendor packages:", error);

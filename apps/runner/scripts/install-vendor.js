@@ -44,12 +44,16 @@ const packages = [
   { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz' },
 ];
 
-console.log('Installing vendor Sentry packages...');
-console.log(`  Vendor directory: ${vendorDir}`);
-console.log(`  Target node_modules: ${nodeModules}`);
+// Silent mode by default, only show output if VERBOSE env var is set
+const isVerbose = process.env.VERBOSE === '1' || process.env.VERBOSE === 'true';
+const log = isVerbose ? console.log : () => {};
+
+log('Installing vendor Sentry packages...');
+log(`  Vendor directory: ${vendorDir}`);
+log(`  Target node_modules: ${nodeModules}`);
 
 if (!existsSync(vendorDir)) {
-  console.log('No vendor directory found, skipping...');
+  log('No vendor directory found, skipping...');
   process.exit(0);
 }
 
@@ -58,7 +62,7 @@ const missing = packages.filter(
 );
 
 if (missing.length) {
-  console.log(
+  log(
     `Vendor tarballs not found for: ${missing
       .map(({ tarball }) => tarball)
       .join(', ')}, skipping...`,
@@ -81,10 +85,10 @@ try {
       { stdio: 'pipe' },
     );
 
-    console.log(`  ✓ @sentry/${name}`);
+    log(`  ✓ @sentry/${name}`);
   }
 
-  console.log('✓ Vendor packages installed successfully');
+  log('✓ Vendor packages installed successfully');
 } catch (error) {
   console.warn('Warning: Could not install vendor packages, using published versions');
   console.warn(error instanceof Error ? error.message : String(error));
