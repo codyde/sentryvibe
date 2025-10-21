@@ -92,6 +92,11 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
     } else if (input === 'l') {
       // Switch to logs view
       setView('logs');
+    } else if (input === 't') {
+      // Create tunnel for web app
+      serviceManager.createTunnel('web').catch(err => {
+        // Error will be shown in service panel
+      });
     } else if (input === '?') {
       // Show help
       setView('help');
@@ -152,6 +157,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
             <Text bold>General:</Text>
             <Text>  <Text color="cyan">q</Text> or <Text color="cyan">Ctrl+C</Text> - Quit and stop all services</Text>
             <Text>  <Text color="cyan">r</Text> - Restart all services</Text>
+            <Text>  <Text color="cyan">t</Text> - Create Cloudflare tunnel (share web app publicly)</Text>
             <Text>  <Text color="cyan">c</Text> - Clear logs</Text>
             <Text>  <Text color="cyan">l</Text> - View full logs</Text>
             <Text>  <Text color="cyan">?</Text> - Show this help</Text>
@@ -183,7 +189,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
             </>
           ) : (
             <>
-              <Text color="cyan">q</Text> quit  <Text color="cyan">r</Text> restart  <Text color="cyan">c</Text> clear  <Text color="cyan">l</Text> logs  <Text color="cyan">?</Text> help
+              <Text color="cyan">q</Text> quit  <Text color="cyan">r</Text> restart  <Text color="cyan">t</Text> tunnel  <Text color="cyan">c</Text> clear  <Text color="cyan">l</Text> logs  <Text color="cyan">?</Text> help
             </>
           )}
         </Text>

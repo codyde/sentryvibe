@@ -75,6 +75,24 @@ export function ServicePanel({ services, selected, onSelect, projects }: Service
                 </Text>
               )}
 
+              {/* Show tunnel URL if active */}
+              {service.tunnelStatus === 'creating' && (
+                <Box marginLeft={2}>
+                  <Text color="yellow">⠋ Creating tunnel...</Text>
+                </Box>
+              )}
+              {service.tunnelStatus === 'active' && service.tunnelUrl && (
+                <Box marginLeft={2} flexDirection="column">
+                  <Text color="cyan">🌐 Cloudflare Tunnel Active</Text>
+                  <Text color="cyan">{service.tunnelUrl}</Text>
+                </Box>
+              )}
+              {service.tunnelStatus === 'failed' && (
+                <Box marginLeft={2}>
+                  <Text color="red">✗ Tunnel failed (check cloudflared)</Text>
+                </Box>
+              )}
+
               {service.memory && (
                 <Text dimColor>
                   Memory: {formatBytes(service.memory)}
@@ -82,7 +100,7 @@ export function ServicePanel({ services, selected, onSelect, projects }: Service
                 </Text>
               )}
 
-              {service.error && (
+              {service.error && !service.tunnelStatus && (
                 <Text color="red">{service.error.substring(0, 40)}</Text>
               )}
 

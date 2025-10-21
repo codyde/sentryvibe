@@ -30,12 +30,15 @@ export interface ServiceState {
   pid?: number;
   error?: string;
   lastOutput?: string;
+  tunnelUrl?: string; // Cloudflare tunnel URL
+  tunnelStatus?: 'creating' | 'active' | 'failed';
 }
 
 export interface ServiceManagerEvents {
   'service:status-change': (name: ServiceName, status: ServiceStatus) => void;
   'service:output': (name: ServiceName, output: string, stream: 'stdout' | 'stderr') => void;
   'service:error': (name: ServiceName, error: Error) => void;
+  'service:tunnel-change': (name: ServiceName, tunnelUrl: string | null, status: 'creating' | 'active' | 'failed') => void;
   'all:started': () => void;
   'all:stopped': () => void;
 }
@@ -322,6 +325,68 @@ export class ServiceManager extends EventEmitter {
       default:
         return false;
     }
+  }
+
+  /**
+   * Create a Cloudflare tunnel for a service
+   */
+  async createTunnel(name: ServiceName): Promise<string | null> {
+    const service = this.services.get(name);
+    if (!service || !service.state.port) {
+      throw new Error(`Service ${name} not found or has no port`);
+    }
+
+    // Update state to creating
+    service.state.tunnelStatus = 'creating';
+    this.emit('service:tunnel-change', name, null, 'creating');
+
+    try {
+      // Import tunnel manager
+      const { tunnelManager } = await import('../../lib/tunnel/manager.js');
+
+      // Create tunnel
+      const tunnelUrl = await tunnelManager.createTunnel(service.state.port);
+
+      // Update state
+      service.state.tunnelUrl = tunnelUrl;
+      service.state.tunnelStatus = 'active';
+      this.emit('service:tunnel-change', name, tunnelUrl, 'active');
+
+      return tunnelUrl;
+    } catch (error) {
+      service.state.tunnelStatus = 'failed';
+      service.state.error = error instanceof Error ? error.message : 'Tunnel creation failed';
+      this.emit('service:tunnel-change', name, null, 'failed');
+      return null;
+    }
+  }
+
+  /**
+   * Close tunnel for a service
+   */
+  async closeTunnel(name: ServiceName): Promise<void> {
+    const service = this.services.get(name);
+    if (!service || !service.state.port) {
+      return;
+    }
+
+    try {
+      const { tunnelManager } = await import('../../lib/tunnel/manager.js');
+      await tunnelManager.closeTunnel(service.state.port);
+
+      service.state.tunnelUrl = undefined;
+      service.state.tunnelStatus = undefined;
+      this.emit('service:tunnel-change', name, null, 'active');
+    } catch (error) {
+      // Best effort
+    }
+  }
+
+  /**
+   * Get tunnel URL for a service
+   */
+  getTunnelUrl(name: ServiceName): string | null {
+    return this.services.get(name)?.state.tunnelUrl || null;
   }
 
   /**

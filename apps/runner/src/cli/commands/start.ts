@@ -230,6 +230,9 @@ export async function startCommand(options: StartOptions) {
     // Stop all services with timeout
     const shutdownPromise = Promise.race([
       (async () => {
+        // Close any active tunnels first
+        await serviceManager.closeTunnel('web').catch(() => {});
+
         await serviceManager.stopAll();
         // Runner will handle its own shutdown via SIGINT handler
         console.log(pc.green('✓'), 'All services stopped');
