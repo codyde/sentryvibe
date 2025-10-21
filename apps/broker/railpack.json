@@ -4,8 +4,7 @@
   "steps": {
     "setup": {
       "commands": [
-        "export NODE_OPTIONS='--max-old-space-size=4096'",
-        "cd ../.. && pnpm install --no-frozen-lockfile --filter=sentryvibe-broker"
+        "NODE_OPTIONS='--max-old-space-size=4096' sh -c 'cd ../.. && pnpm install --frozen-lockfile --filter=sentryvibe-broker...'"
       ]
     },
     "compile": {
