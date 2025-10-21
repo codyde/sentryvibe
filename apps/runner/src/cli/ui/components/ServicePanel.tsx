@@ -11,7 +11,6 @@ interface ServicePanelProps {
   services: ServiceState[];
   selected: string | null;
   onSelect: (name: string | null) => void;
-  projects?: Array<{ name: string; status: string }>; // Project list from database
 }
 
 function formatUptime(ms: number): string {
@@ -41,7 +40,7 @@ function getStatusIcon(status: ServiceState['status']): React.ReactNode {
   }
 }
 
-export function ServicePanel({ services, selected, onSelect, projects }: ServicePanelProps) {
+export function ServicePanel({ services, selected, onSelect }: ServicePanelProps) {
   return (
     <Box
       flexDirection="column"
@@ -102,23 +101,6 @@ export function ServicePanel({ services, selected, onSelect, projects }: Service
 
               {service.error && !service.tunnelStatus && (
                 <Text color="red">{service.error.substring(0, 40)}</Text>
-              )}
-
-              {/* Show projects under runner */}
-              {service.name === 'runner' && projects && projects.length > 0 && (
-                <Box flexDirection="column" marginLeft={2} marginTop={1}>
-                  <Text dimColor>Projects ({projects.length}):</Text>
-                  {projects.slice(0, 3).map((project, i) => (
-                    <Box key={i}>
-                      <Text dimColor>  ├─ </Text>
-                      <Text>{project.name}</Text>
-                      <Text dimColor> ({project.status})</Text>
-                    </Box>
-                  ))}
-                  {projects.length > 3 && (
-                    <Text dimColor>  └─ +{projects.length - 3} more</Text>
-                  )}
-                </Box>
               )}
             </Box>
           </Box>

@@ -9,7 +9,6 @@ import { ServiceManager, ServiceState } from './service-manager.js';
 import { StatusBar } from './components/StatusBar.js';
 import { ServicePanel } from './components/ServicePanel.js';
 import { LogViewer } from './components/LogViewer.js';
-import { useProjects } from './hooks/useProjects.js';
 
 interface DashboardProps {
   serviceManager: ServiceManager;
@@ -38,9 +37,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const [showingPlainLogs, setShowingPlainLogs] = useState(false);
-
-  // Fetch projects periodically
-  const { projects } = useProjects(apiUrl, 5000);
 
   // Update service states on changes
   useEffect(() => {
@@ -163,10 +159,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
               services={services}
               selected={selectedService}
               onSelect={setSelectedService}
-              projects={projects.map(p => ({
-                name: p.name,
-                status: p.devServerStatus === 'running' ? 'running' : p.status
-              }))}
             />
             <LogViewer
               logs={logs}
