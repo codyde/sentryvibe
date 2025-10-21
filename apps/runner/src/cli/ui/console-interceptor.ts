@@ -45,7 +45,7 @@ export class ConsoleInterceptor {
     if (this.isActive) return;
     this.isActive = true;
 
-    // Override console methods to buffer output
+    // Override console methods to buffer output (do NOT call original console)
     console.log = (...args: unknown[]) => {
       const message = this.formatMessage(args);
       const serviceName = this.detectService(message);
@@ -55,6 +55,7 @@ export class ConsoleInterceptor {
       } else {
         this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
       }
+      // DO NOT call this.originalConsole.log - we're intercepting, not forwarding
     };
 
     console.error = (...args: unknown[]) => {

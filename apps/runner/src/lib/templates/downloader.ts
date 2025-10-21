@@ -13,10 +13,10 @@ export async function downloadTemplate(
   template: Template,
   targetPath: string
 ): Promise<string> {
-  console.log(`📥 Downloading template: ${template.name}`);
-  console.log(`   Repository: ${template.repository}`);
-  console.log(`   Branch: ${template.branch}`);
-  console.log(`   Target: ${targetPath}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`📥 Downloading template: ${template.name}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Repository: ${template.repository}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Branch: ${template.branch}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Target: ${targetPath}`);
 
   // Check if target already exists
   if (existsSync(targetPath)) {
@@ -41,15 +41,15 @@ export async function downloadTemplateWithGit(
   targetPath: string
 ): Promise<string> {
 
-  console.log(`📥 Cloning template with simple-git: ${template.name}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`📥 Cloning template with simple-git: ${template.name}`);
 
   // Parse GitHub URL
   // "github:username/repo" → "https://github.com/username/repo.git"
   const repoUrl = template.repository.replace('github:', 'https://github.com/') + '.git';
 
-  console.log(`   Repository: ${repoUrl}`);
-  console.log(`   Branch: ${template.branch}`);
-  console.log(`   Target: ${targetPath}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Repository: ${repoUrl}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Branch: ${template.branch}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Target: ${targetPath}`);
 
   try {
     const git = simpleGit();
@@ -61,13 +61,13 @@ export async function downloadTemplateWithGit(
       '--single-branch'
     ]);
 
-    console.log(`✅ Template cloned successfully`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`✅ Template cloned successfully`);
 
     // Verify files were actually downloaded
     const { readdir } = await import('fs/promises');
     const downloadedFiles = await readdir(targetPath);
-    console.log(`   Downloaded ${downloadedFiles.length} files/directories`);
-    console.log(`   Files: ${downloadedFiles.slice(0, 10).join(', ')}${downloadedFiles.length > 10 ? '...' : ''}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Downloaded ${downloadedFiles.length} files/directories`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Files: ${downloadedFiles.slice(0, 10).join(', ')}${downloadedFiles.length > 10 ? '...' : ''}`);
 
     if (downloadedFiles.length === 0) {
       throw new Error('Template clone succeeded but directory is empty!');
@@ -76,7 +76,7 @@ export async function downloadTemplateWithGit(
     // Remove .git directory (we don't need version history)
     try {
       await rm(join(targetPath, '.git'), { recursive: true, force: true });
-      console.log(`   Cleaned .git directory`);
+      if (process.env.DEBUG_BUILD === '1') console.log(`   Cleaned .git directory`);
     } catch (error) {
       console.warn(`   Failed to remove .git:`, error);
     }
@@ -121,7 +121,7 @@ shamefully-hoist=false
 
   try {
     await writeFile(npmrcPath, npmrcContent);
-    console.log(`   Created .npmrc to isolate from workspace`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Created .npmrc to isolate from workspace`);
   } catch (error) {
     console.warn(`   Failed to create .npmrc:`, error);
   }
@@ -134,7 +134,7 @@ async function updatePackageName(projectPath: string, newName: string): Promise<
   const pkgPath = join(projectPath, 'package.json');
 
   if (!existsSync(pkgPath)) {
-    console.log(`   No package.json found in ${projectPath}, skipping name update`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   No package.json found in ${projectPath}, skipping name update`);
     return;
   }
 
@@ -144,7 +144,7 @@ async function updatePackageName(projectPath: string, newName: string): Promise<
     pkg.name = newName;
     await writeFile(pkgPath, JSON.stringify(pkg, null, 2));
 
-    console.log(`   Updated package.json name to: ${newName}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Updated package.json name to: ${newName}`);
   } catch (error) {
     console.warn(`   Failed to update package.json:`, error);
   }

@@ -75,7 +75,7 @@ const log = (...args: unknown[]) => {
 
 const buildLog = (...args: unknown[]) => {
   if (!isSilentMode && DEBUG_BUILD) {
-    buildLog("", ...args);
+    console.log("[build]", ...args);
   }
 };
 
@@ -167,9 +167,9 @@ async function* convertCodexEventsToAgentMessages(
     console.log(
       `[codex-events] ═══════════════════════════════════════════════`
     );
-    console.log(`[codex-events] RAW EVENT #${eventCount}`);
-    console.log(`[codex-events] Type: ${event.type}`);
-    console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] RAW EVENT #${eventCount}`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] Type: ${event.type}`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
     console.log(
       `[codex-events] ═══════════════════════════════════════════════`
     );
@@ -414,7 +414,7 @@ function createCodexQuery(): BuildQueryFn {
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
     // ========================================
-    console.log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
+    if (!isSilentMode && DEBUG_BUILD) console.log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
     turnCount++;
 
     const planningPrompt = `${combinedPrompt}
@@ -429,13 +429,13 @@ All tasks should start as "pending" except the first one which should be "in_pro
 
     let taskPlan;
     try {
-      console.log('📋 [codex-query] Requesting structured task plan...');
+      if (!isSilentMode && DEBUG_BUILD) console.log('📋 [codex-query] Requesting structured task plan...');
       const planningTurn = await thread.run(planningPrompt, {
         outputSchema: getTaskPlanJsonSchema(),
       });
 
       taskPlan = JSON.parse(planningTurn.finalResponse);
-      console.log('✅ [codex-query] Got structured task plan!');
+      if (!isSilentMode && DEBUG_BUILD) console.log('✅ [codex-query] Got structured task plan!');
       console.log(`   Analysis: ${taskPlan.analysis}`);
       console.log(`   Tasks: ${taskPlan.todos.length}`);
 
@@ -452,7 +452,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
         status: 'pending' as const, // All real tasks start as pending
       }))];
 
-      console.log('✅ [codex-query] Added synthetic "Getting Started" task at index 0');
+      if (!isSilentMode && DEBUG_BUILD) console.log('✅ [codex-query] Added synthetic "Getting Started" task at index 0');
       console.log(`   Total tasks: ${allTasks.length} (1 synthetic + ${taskPlan.todos.length} real)`);
 
       // Initialize smart tracker with all tasks (including synthetic)
@@ -485,7 +485,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
       };
 
       // Send TodoWrite event with ALL tasks (including synthetic Getting Started)
-      console.log('📤 [codex-query] Sending initial TodoWrite to UI with Getting Started task...');
+      if (!isSilentMode && DEBUG_BUILD) console.log('📤 [codex-query] Sending initial TodoWrite to UI with Getting Started task...');
       const todoWriteEvent = {
         type: 'assistant',
         message: {
@@ -507,12 +507,12 @@ All tasks should start as "pending" except the first one which should be "in_pro
       throw error;
     }
 
-    console.log(`🔍 [codex-query] Smart tracker initialized with ${smartTracker?.todos.length} tasks`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`🔍 [codex-query] Smart tracker initialized with ${smartTracker?.todos.length} tasks`);
 
     // ========================================
     // PHASE 2: TASK EXECUTION LOOP
     // ========================================
-    console.log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
+    if (!isSilentMode && DEBUG_BUILD) console.log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
 
     while (turnCount < MAX_TURNS) {
       // Check if all tasks are complete
@@ -538,15 +538,15 @@ All tasks should start as "pending" except the first one which should be "in_pro
         break;
       }
 
-      console.log(`🚀 [codex-query] Next task: ${currentTask.content}`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] Next task: ${currentTask.content}`);
 
       // PRE-SET active todo index BEFORE executing turn
       // This ensures tool calls get associated with the right todo!
       const currentTaskIndex = smartTracker.currentIndex;
-      console.log(`📍 [codex-query] Setting active todo index to: ${currentTaskIndex}`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`📍 [codex-query] Setting active todo index to: ${currentTaskIndex}`);
 
       // Send synthetic TodoWrite to update active task BEFORE tools execute
-      console.log(`📤 [codex-query] Sending pre-task TodoWrite (task ${currentTaskIndex} active)...`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`📤 [codex-query] Sending pre-task TodoWrite (task ${currentTaskIndex} active)...`);
       const preTaskUpdate = {
         type: 'assistant',
         message: {
@@ -572,8 +572,8 @@ Don't just plan - TAKE ACTION and create/modify files.`;
       // EXECUTE NEXT TURN
       // ========================================
       turnCount++;
-      console.log(`🚀 [codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
-      console.log(`📝 [codex-query] Prompt: ${nextPrompt.substring(0, 150)}...`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`📝 [codex-query] Prompt: ${nextPrompt.substring(0, 150)}...`);
 
       buildLogger.codexQuery.turnStarted(turnCount, MAX_TURNS, nextPrompt.length);
 
@@ -628,10 +628,10 @@ Don't just plan - TAKE ACTION and create/modify files.`;
         const isSyntheticTask = currentTaskIndex === 0 && taskName.includes('Getting started');
 
         if (isSyntheticTask) {
-          console.log(`✅ [codex-query] Completed synthetic "Getting Started" task`);
-          console.log(`🚀 [codex-query] Now starting real work...`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ [codex-query] Completed synthetic "Getting Started" task`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] Now starting real work...`);
         } else {
-          console.log(`✅ [codex-query] Marked task ${currentTaskIndex} as completed: ${taskName}`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ [codex-query] Marked task ${currentTaskIndex} as completed: ${taskName}`);
         }
 
         if (currentTaskIndex + 1 < smartTracker.todos.length) {
@@ -639,11 +639,11 @@ Don't just plan - TAKE ACTION and create/modify files.`;
           smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
 
           const nextTaskName = smartTracker.todos[currentTaskIndex + 1].content;
-          console.log(`⏳ [codex-query] Advanced to task ${currentTaskIndex + 1}: ${nextTaskName}`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`⏳ [codex-query] Advanced to task ${currentTaskIndex + 1}: ${nextTaskName}`);
         }
 
         // Send updated todos to UI
-        console.log(`📤 [codex-query] Sending post-task TodoWrite (task ${currentTaskIndex} done, task ${currentTaskIndex + 1} active)...`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`📤 [codex-query] Sending post-task TodoWrite (task ${currentTaskIndex} done, task ${currentTaskIndex + 1} active)...`);
         const postTaskUpdate = {
           type: 'assistant',
           message: {
@@ -661,7 +661,7 @@ Don't just plan - TAKE ACTION and create/modify files.`;
         yield postTaskUpdate;
 
         const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
-        console.log(`📊 [codex-query] Progress: ${completed}/${smartTracker.todos.length} tasks complete`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`📊 [codex-query] Progress: ${completed}/${smartTracker.todos.length} tasks complete`);
       }
     }
 
@@ -730,7 +730,7 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
       try {
         // Check if process still exists locally (signal 0 = check existence, doesn't kill)
         process.kill(row.pid, 0);
-        console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
       } catch (err) {
         // Process doesn't exist - orphaned, unregister via API
         console.log(`   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(0, 8)}), cleaning up`);
@@ -745,7 +745,7 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
     }
 
     if (!isSilentMode) {
-      console.log('✅ Orphaned process cleanup complete');
+      if (!isSilentMode && DEBUG_BUILD) console.log('✅ Orphaned process cleanup complete');
     }
   } catch (error) {
     console.error('❌ Error during cleanup:', error);
@@ -819,7 +819,7 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
         // Check port locally (runner can access localhost)
         const isListening = await checkPortInUse(row.port);
 
-        console.log(`   🔍 Health check for port ${row.port}: ${isListening ? 'HEALTHY ✅' : 'UNHEALTHY ❌'}`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`   🔍 Health check for port ${row.port}: ${isListening ? 'HEALTHY ✅' : 'UNHEALTHY ❌'}`);
 
         const newFailCount = isListening ? 0 : (row.healthCheckFailCount || 0) + 1;
 
@@ -987,31 +987,31 @@ export async function startRunner(options: RunnerOptions = {}) {
   }
 
   async function handleCommand(command: RunnerCommand) {
-    console.log(
-      `[runner] 📥 Received command: ${command.type} for project: ${command.projectId}`
+    log(
+      `📥 Received command: ${command.type} for project: ${command.projectId}`
     );
-    console.log(`[runner]   Command ID: ${command.id}`);
-    console.log(`[runner]   Timestamp: ${command.timestamp}`);
+    log(`  Command ID: ${command.id}`);
+    log(`  Timestamp: ${command.timestamp}`);
 
     // Log command-specific details
     if (command.type === "start-build") {
-      console.log(
-        `[runner]   Build operation: ${command.payload.operationType}`
+      log(
+        `  Build operation: ${command.payload.operationType}`
       );
-      console.log(`[runner]   Project slug: ${command.payload.projectSlug}`);
-      console.log(
-        `[runner]   Prompt length: ${command.payload.prompt?.length || 0} chars`
+      log(`  Project slug: ${command.payload.projectSlug}`);
+      log(
+        `  Prompt length: ${command.payload.prompt?.length || 0} chars`
       );
     } else if (command.type === "start-dev-server") {
-      console.log(
-        `[runner]   Working directory: ${command.payload.workingDirectory}`
+      log(
+        `  Working directory: ${command.payload.workingDirectory}`
       );
-      console.log(`[runner]   Run command: ${command.payload.runCommand}`);
+      log(`  Run command: ${command.payload.runCommand}`);
     } else if (
       command.type === "start-tunnel" ||
       command.type === "stop-tunnel"
     ) {
-      console.log(`[runner]   Port: ${command.payload.port}`);
+      log(`  Port: ${command.payload.port}`);
     }
 
     sendEvent({
@@ -1152,7 +1152,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Create tunnel
           const tunnelUrl = await tunnelManager.createTunnel(port);
-          console.log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
 
           sendEvent({
             type: "tunnel-created",
@@ -1179,7 +1179,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           const { port } = command.payload;
           console.log(`🔗 Stopping tunnel for port ${port}...`);
           await tunnelManager.closeTunnel(port);
-          console.log(`✅ Tunnel closed for port ${port}`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Tunnel closed for port ${port}`);
 
           sendEvent({
             type: "tunnel-closed",
@@ -1408,7 +1408,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             })
           );
 
-          console.log(`[runner] ✅ Found ${files.length} entries`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`[runner] ✅ Found ${files.length} entries`);
 
           sendEvent({
             type: "file-list",
@@ -1766,7 +1766,7 @@ export async function startRunner(options: RunnerOptions = {}) {
                   },
                 } as RunnerEvent);
 
-                console.log(`✅ Detected runCommand: ${runCommand}`);
+                if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Detected runCommand: ${runCommand}`);
               }
             }
           } catch (error) {
