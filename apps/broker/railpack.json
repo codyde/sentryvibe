@@ -2,20 +2,26 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "steps": {
-    "setup": {
+    "build-agent-core": {
       "commands": [
-        "NODE_OPTIONS='--max-old-space-size=4096' sh -c 'cd ../.. && pnpm install --frozen-lockfile --filter=sentryvibe-broker...'"
+        "cd ../../packages/agent-core && pnpm install && pnpm run build"
+      ]
+    },
+    "setup": {
+      "inputs": ["$build-agent-core"],
+      "commands": [
+        "pnpm install"
       ]
     },
     "compile": {
       "inputs": ["$setup"],
       "commands": [
-        "cd ../.. && pnpm --filter=sentryvibe-broker run build"
+        "pnpm run build"
       ]
     }
   },
   "deploy": {
-    "startCommand": "cd apps/broker && pnpm start",
+    "startCommand": "pnpm start",
     "inputs": ["$compile"]
   }
 }
