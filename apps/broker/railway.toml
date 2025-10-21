@@ -1,6 +1,8 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+# IMPORTANT: Railway root directory must be set to repository root (not apps/broker)
+# Then specify the Dockerfile path relative to repo root
+dockerfilePath = "apps/broker/Dockerfile"
 
 [deploy]
 startCommand = "node dist/index.js"

@@ -19,6 +19,8 @@ export class ConsoleInterceptor {
   private isActive = false;
   private buffer: Array<{ message: string; service: string; stream: 'stdout' | 'stderr' }> = [];
   private isBuffering = true;
+  private originalStdoutWrite: any;
+  private originalStderrWrite: any;
 
   constructor(serviceManager: ServiceManager) {
     this.serviceManager = serviceManager;
@@ -30,6 +32,10 @@ export class ConsoleInterceptor {
       warn: console.warn.bind(console),
       info: console.info.bind(console),
     };
+
+    // Save original stdout/stderr write methods
+    this.originalStdoutWrite = process.stdout.write.bind(process.stdout);
+    this.originalStderrWrite = process.stderr.write.bind(process.stderr);
   }
 
   /**

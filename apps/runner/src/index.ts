@@ -857,9 +857,15 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
 /**
  * Start the runner with the given options
  */
-export function startRunner(options: RunnerOptions = {}) {
+export async function startRunner(options: RunnerOptions = {}) {
   // Set silent mode if requested (for TUI)
   isSilentMode = options.silent || false;
+
+  // Also set silent mode for process-manager
+  if (isSilentMode) {
+    const { setSilentMode } = await import('./lib/process-manager.js');
+    setSilentMode(true);
+  }
 
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
   log("workspace root:", WORKSPACE_ROOT);

@@ -1,19 +1,61 @@
-FROM node:20-alpine
+# ============================================
+# Stage 1: Build Stage
+# ============================================
+FROM node:20-alpine AS builder
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json ./
+# Copy root workspace configuration
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 
-# Install ALL dependencies (including dev dependencies for build)
-RUN npm install
+# Copy agent-core package (workspace dependency)
+COPY packages/agent-core/package.json ./packages/agent-core/
+COPY packages/agent-core/tsconfig.json ./packages/agent-core/
+COPY packages/agent-core/src ./packages/agent-core/src
 
-# Copy TypeScript config and source
-COPY tsconfig.json ./
-COPY src ./src
+# Copy broker package
+COPY apps/broker/package.json ./apps/broker/
+COPY apps/broker/tsconfig.json ./apps/broker/
+COPY apps/broker/src ./apps/broker/src
 
-# Build TypeScript
-RUN npm run build
+# Install all dependencies for the workspace
+RUN pnpm install --frozen-lockfile
+
+# Build agent-core first (required dependency)
+RUN pnpm --filter @sentryvibe/agent-core build
+
+# Build broker
+RUN pnpm --filter sentryvibe-broker build
+
+# ============================================
+# Stage 2: Production Stage
+# ============================================
+FROM node:20-alpine
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+WORKDIR /app
+
+# Copy root workspace configuration
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+
+# Copy agent-core package.json and built files
+COPY packages/agent-core/package.json ./packages/agent-core/
+COPY --from=builder /app/packages/agent-core/dist ./packages/agent-core/dist
+
+# Copy broker package.json and built files
+COPY apps/broker/package.json ./apps/broker/
+COPY --from=builder /app/apps/broker/dist ./apps/broker/dist
+
+# Install only production dependencies
+RUN pnpm install --prod --frozen-lockfile
+
+# Set working directory to broker
+WORKDIR /app/apps/broker
 
 # Expose port
 EXPOSE 4000
