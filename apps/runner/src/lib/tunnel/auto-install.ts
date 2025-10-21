@@ -129,19 +129,25 @@ async function downloadCloudflared(): Promise<string> {
 /**
  * Ensure cloudflared is installed and return the path to the binary
  */
-export async function ensureCloudflared(): Promise<string> {
+export async function ensureCloudflared(silent: boolean = false): Promise<string> {
   // Check if already installed
   const existing = checkExistingInstallation();
   if (existing) {
-    console.log(`✅ cloudflared found: ${existing}`);
+    if (!silent) {
+      console.log(`✅ cloudflared found: ${existing}`);
+    }
     return existing;
   }
 
-  console.log('📦 cloudflared not found, installing...');
+  if (!silent) {
+    console.log('📦 cloudflared not found, installing...');
+  }
 
   try {
     const path = await downloadCloudflared();
-    console.log(`✅ cloudflared installed to: ${path}`);
+    if (!silent) {
+      console.log(`✅ cloudflared installed to: ${path}`);
+    }
     return path;
   } catch (error) {
     console.error('❌ Failed to install cloudflared:', error);

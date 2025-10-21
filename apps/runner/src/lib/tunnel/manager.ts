@@ -43,7 +43,7 @@ export class TunnelManager extends EventEmitter {
 
     // Ensure cloudflared is installed
     if (!this.cloudflaredPath) {
-      this.cloudflaredPath = await ensureCloudflared();
+      this.cloudflaredPath = await ensureCloudflared(this.silent);
     }
 
     // Try creating tunnel with smart retries
@@ -230,8 +230,13 @@ export class TunnelManager extends EventEmitter {
         const output = data.toString();
 
         // Log errors (cloudflared uses stderr for all output)
-        if (output.toLowerCase().includes('error') || output.toLowerCase().includes('fatal')) {
-          console.error(`[cloudflared:${port}] ${output.trim()}`);
+        // Only show real errors, not shutdown messages
+        const lower = output.toLowerCase();
+        if ((lower.includes('error') || lower.includes('fatal')) &&
+            !lower.includes('context canceled') &&
+            !lower.includes('connection terminated') &&
+            !lower.includes('no more connections active')) {
+          this.log(`[cloudflared:${port}] ${output.trim()}`);
         }
 
         // Check for tunnel URL in stderr too
@@ -264,8 +269,26 @@ export class TunnelManager extends EventEmitter {
     }
 
     this.log(`🔗 Closing tunnel for port ${port}...`);
-    tunnel.process.kill('SIGTERM');
-    this.tunnels.delete(port);
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        // Force kill if not dead after 1 second
+        if (!tunnel.process.killed) {
+          tunnel.process.kill('SIGKILL');
+        }
+        this.tunnels.delete(port);
+        resolve();
+      }, 1000);
+
+      tunnel.process.once('exit', () => {
+        clearTimeout(timeout);
+        this.tunnels.delete(port);
+        resolve();
+      });
+
+      // Send SIGTERM
+      tunnel.process.kill('SIGTERM');
+    });
   }
 
   /**
