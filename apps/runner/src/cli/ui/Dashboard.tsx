@@ -26,6 +26,10 @@ interface LogEntry {
   stream: 'stdout' | 'stderr';
 }
 
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('en-US', { hour12: false });
+}
+
 export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
   const { exit } = useApp();
   const [view, setView] = useState<ViewMode>('dashboard');
@@ -33,6 +37,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
+  const [showingPlainLogs, setShowingPlainLogs] = useState(false);
 
   // Fetch projects periodically
   const { projects } = useProjects(apiUrl, 5000);
@@ -90,8 +95,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
       // Clear logs
       setLogs([]);
     } else if (input === 'l') {
-      // Switch to logs view
-      setView('logs');
+      // Switch to plain text log view (outside TUI for copy/paste)
+      setShowingPlainLogs(true);
     } else if (input === 't') {
       // Create tunnel for web app
       serviceManager.createTunnel('web').catch(err => {
@@ -101,8 +106,12 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
       // Show help
       setView('help');
     } else if (key.escape) {
-      // Go back to dashboard
-      setView('dashboard');
+      // Exit plain logs mode or go back to dashboard
+      if (showingPlainLogs) {
+        setShowingPlainLogs(false);
+      } else {
+        setView('dashboard');
+      }
     }
   });
 
@@ -114,6 +123,27 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
   // Get tunnel URL from web service
   const webService = services.find(s => s.name === 'web');
   const tunnelUrl = webService?.tunnelUrl || null;
+
+  // Plain logs mode - show logs as plain text for easy copy/paste
+  if (showingPlainLogs) {
+    return (
+      <Box flexDirection="column">
+        <Box borderBottom paddingX={1} paddingY={0}>
+          <Text bold>Log History</Text>
+          <Text dimColor> ({logs.length} entries) - Press </Text>
+          <Text color="cyan">Esc</Text>
+          <Text dimColor> to return to dashboard</Text>
+        </Box>
+        <Box flexDirection="column" paddingX={1} paddingY={1}>
+          {logs.map((log, index) => (
+            <Text key={index}>
+              {formatTime(log.timestamp)} [{log.service}] {log.message}
+            </Text>
+          ))}
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">
