@@ -4,20 +4,11 @@
   "steps": {
     "setup": {
       "commands": [
-        "corepack enable",
-        "corepack prepare pnpm@9.15.0 --activate",
         "cd ../.. && pnpm install --filter=sentryvibe-broker..."
-      ]
-    },
-    "compile": {
-      "inputs": ["$setup"],
-      "commands": [
-        "cd ../.. && pnpm --filter=sentryvibe-broker run build"
       ]
     }
   },
   "deploy": {
-    "startCommand": "cd apps/broker && pnpm start",
-    "inputs": ["$compile"]
+    "startCommand": "cd apps/broker && pnpm dev"
   }
 }
