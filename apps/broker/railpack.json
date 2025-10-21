@@ -4,8 +4,6 @@
   "steps": {
     "setup": {
       "commands": [
-        "corepack enable",
-        "corepack prepare pnpm@9.15.0 --activate",
         "cd ../.. && pnpm install --filter=sentryvibe-broker..."
       ]
     },
