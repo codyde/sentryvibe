@@ -77,15 +77,19 @@ program
     }
   })
   .action(async (options) => {
-    // Default action when no subcommand is provided
-    if (options.runner) {
-      // Start runner only
-      const { runCommand } = await import('./commands/run.js');
-      await runCommand({});
-    } else {
-      // Start full stack
-      const { startCommand } = await import('./commands/start.js');
-      await startCommand({});
+    try {
+      // Default action when no subcommand is provided
+      if (options.runner) {
+        // Start runner only
+        const { runCommand } = await import('./commands/run.js');
+        await runCommand({});
+      } else {
+        // Start full stack
+        const { startCommand } = await import('./commands/start.js');
+        await startCommand({});
+      }
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
     }
   });
 
@@ -102,8 +106,12 @@ program
   .option('-y, --yes', 'Accept all defaults (non-interactive mode)')
   .option('--non-interactive', 'Use defaults without prompts (alias for -y)')
   .action(async (options) => {
-    const { initCommand } = await import('./commands/init.js');
-    await initCommand(options);
+    try {
+      const { initCommand } = await import('./commands/init.js');
+      await initCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 program
@@ -112,8 +120,12 @@ program
   .option('-p, --port <port>', 'Web app port (default: 3000)')
   .option('-b, --broker-port <port>', 'Broker port (default: 4000)')
   .action(async (options) => {
-    const { startCommand } = await import('./commands/start.js');
-    await startCommand(options);
+    try {
+      const { startCommand } = await import('./commands/start.js');
+      await startCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 
@@ -127,8 +139,12 @@ program
   .option('-s, --secret <secret>', 'Shared secret for authentication')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
-    const { runCommand } = await import('./commands/run.js');
-    await runCommand(options);
+    try {
+      const { runCommand } = await import('./commands/run.js');
+      await runCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 
@@ -136,16 +152,24 @@ program
   .command('config <action> [key] [value]')
   .description('Manage configuration (actions: get, set, list, path, validate, reset)')
   .action(async (action, key, value) => {
-    const { configCommand } = await import('./commands/config.js');
-    await configCommand(action, key, value);
+    try {
+      const { configCommand } = await import('./commands/config.js');
+      await configCommand(action, key, value);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 program
   .command('status')
   .description('Show runner status and configuration')
   .action(async () => {
-    const { statusCommand } = await import('./commands/status.js');
-    await statusCommand();
+    try {
+      const { statusCommand } = await import('./commands/status.js');
+      await statusCommand();
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 program
@@ -156,8 +180,12 @@ program
   .option('--tunnels', 'Close all active tunnels')
   .option('--processes', 'Kill all dev servers')
   .action(async (options) => {
-    const { cleanupCommand } = await import('./commands/cleanup.js');
-    await cleanupCommand(options);
+    try {
+      const { cleanupCommand } = await import('./commands/cleanup.js');
+      await cleanupCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 program
@@ -165,8 +193,12 @@ program
   .alias('db')
   .description('Set up a new database and initialize schema')
   .action(async () => {
-    const { databaseCommand } = await import('./commands/database.js');
-    await databaseCommand();
+    try {
+      const { databaseCommand } = await import('./commands/database.js');
+      await databaseCommand();
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
   });
 
 
