@@ -15,6 +15,7 @@ import { killProcessOnPort } from '../utils/process-killer.js';
 import { errors } from '../utils/cli-error.js';
 import { ServiceManager } from '../ui/service-manager.js';
 import { Dashboard } from '../ui/Dashboard.js';
+import { ConsoleInterceptor } from '../ui/console-interceptor.js';
 
 interface StartOptions {
   port?: string;
@@ -123,9 +124,13 @@ export async function startCommand(options: StartOptions) {
   // Small delay to let user read the message
   await new Promise(resolve => setTimeout(resolve, 1500));
 
-  // Step 5: Create ServiceManager
+  // Step 5: Create ServiceManager and Console Interceptor
   const serviceManager = new ServiceManager();
+  const consoleInterceptor = new ConsoleInterceptor(serviceManager);
   const sharedSecret = config.broker?.secret || 'dev-secret';
+
+  // Start intercepting console output BEFORE starting any services
+  consoleInterceptor.start();
 
   // Register web app
   serviceManager.register({
@@ -220,6 +225,9 @@ export async function startCommand(options: StartOptions) {
     // Wait for TUI to exit
     await waitUntilExit();
 
+    // Stop console interception and restore normal console
+    consoleInterceptor.stop();
+
     // Clear TUI immediately
     clear();
 
@@ -248,6 +256,8 @@ export async function startCommand(options: StartOptions) {
     // Force exit to ensure we return to prompt
     process.exit(0);
   } catch (error) {
+    // Stop console interception on error
+    consoleInterceptor.stop();
     clear();
     throw error;
   }

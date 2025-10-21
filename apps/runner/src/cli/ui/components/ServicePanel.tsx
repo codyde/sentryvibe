@@ -84,7 +84,7 @@ export function ServicePanel({ services, selected, onSelect, projects }: Service
               )}
               {service.tunnelStatus === 'active' && service.tunnelUrl && (
                 <Box marginLeft={2}>
-                  <Text color="cyan">🌐 Tunnel URL (see header)</Text>
+                  <Text color="green">● Tunnel Ready</Text>
                 </Box>
               )}
               {service.tunnelStatus === 'failed' && (
