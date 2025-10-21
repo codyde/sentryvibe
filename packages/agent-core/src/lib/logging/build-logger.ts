@@ -45,6 +45,15 @@ class BuildLogger {
    * Public for custom logging needs
    */
   log(level: LogLevel, context: LogContext, message: string, data?: Record<string, unknown>) {
+    // Respect DEBUG_BUILD environment variable in TUI mode
+    // info and debug logs are suppressed unless DEBUG_BUILD=1
+    // warn and error logs always show (important for debugging)
+    if (level === 'info' || level === 'debug') {
+      if (process.env.DEBUG_BUILD === '0' || process.env.SILENT_MODE === '1') {
+        return; // Suppress in TUI mode
+      }
+    }
+
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
