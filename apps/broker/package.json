@@ -4,6 +4,7 @@
   "description": "WebSocket broker service for routing commands between SentryVibe web app and local runners",
   "private": true,
   "main": "dist/index.js",
+  "packageManager": "pnpm@9.15.0",
   "author": "Cody De Arkland",
   "license": "MIT",
   "scripts": {
