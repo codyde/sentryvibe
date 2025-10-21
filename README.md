@@ -6,7 +6,7 @@ AI-powered project generation platform that uses Claude AI and OpenAI Codex to b
 
 **Install CLI:**
 ```bash
-npm install -g @sentryvibe/runner-cli
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
 sentryvibe init -y    # Accept all defaults (generates secure secret)
 sentryvibe run        # Launches TUI Dashboard with real-time monitoring
 ```
@@ -80,10 +80,11 @@ sentryvibe --runner
 
 ## Installation
 
-### Option 1: Install from npm (Recommended)
+### Option 1: Automated Install Script (Recommended)
 
 ```bash
-npm install -g @sentryvibe/runner-cli
+# Download and run install script
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
 
 # Initialize with defaults (recommended for first-time setup)
 sentryvibe init -y
@@ -93,6 +94,17 @@ sentryvibe init
 
 # Start full stack locally
 sentryvibe run
+```
+
+The install script automatically:
+- Detects the latest release version
+- Installs from GitHub releases (not npm registry)
+- Supports both pnpm and npm
+- Validates Node.js version (20+ required)
+
+**Alternative: Direct install from latest release**
+```bash
+npm install -g https://github.com/codyde/sentryvibe/releases/latest/download/sentryvibe-cli.tgz
 ```
 
 ### Option 2: Build from Source
@@ -605,7 +617,7 @@ rm -rf ~/Library/Application\ Support/sentryvibe-runner-cli  # macOS
 rm -rf ~/.config/sentryvibe-runner-cli  # Linux
 
 # Reinstall
-npm install -g @sentryvibe/runner-cli
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
 sentryvibe init
 ```
 
