@@ -899,6 +899,7 @@ export function startRunner(options: RunnerOptions = {}) {
   let pingTimer: NodeJS.Timeout | null = null;
   let loggedFirstChunk = false;
   let reconnectAttempts = 0;
+  let isShuttingDown = false; // Prevent reconnection during shutdown
   const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
   const PING_INTERVAL = 30000; // Ping every 30 seconds
 
@@ -1867,6 +1868,12 @@ export function startRunner(options: RunnerOptions = {}) {
         pingTimer = null;
       }
 
+      // Don't reconnect if we're shutting down
+      if (isShuttingDown) {
+        log('shutdown in progress, skipping reconnection');
+        return;
+      }
+
       // Exponential backoff with max delay
       reconnectAttempts++;
       const delay = Math.min(
@@ -1888,9 +1895,19 @@ export function startRunner(options: RunnerOptions = {}) {
   }
 
   process.on("SIGINT", async () => {
+    // Prevent duplicate shutdown calls
+    if (isShuttingDown) return;
+
     log("shutting down");
+    isShuttingDown = true; // Prevent reconnection attempts
+
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (pingTimer) clearInterval(pingTimer);
+
+    // Close WebSocket connection gracefully
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(1000, 'Shutdown requested');
+    }
 
     // Cleanup all tunnels
     await tunnelManager.closeAll();
@@ -1898,14 +1915,24 @@ export function startRunner(options: RunnerOptions = {}) {
     // Flush Sentry events before exiting
     await Sentry.flush(2000);
 
-    socket?.close();
-    process.exit(0);
+    // Don't call process.exit() - let the CLI's shutdown handler finish
+    // If running standalone (not via CLI), the process will exit naturally
   });
 
   process.on("SIGTERM", async () => {
+    // Prevent duplicate shutdown calls
+    if (isShuttingDown) return;
+
     log("shutting down (SIGTERM)");
+    isShuttingDown = true; // Prevent reconnection attempts
+
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (pingTimer) clearInterval(pingTimer);
+
+    // Close WebSocket connection gracefully
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(1000, 'Shutdown requested');
+    }
 
     // Cleanup all tunnels
     await tunnelManager.closeAll();
@@ -1913,8 +1940,7 @@ export function startRunner(options: RunnerOptions = {}) {
     // Flush Sentry events before exiting
     await Sentry.flush(2000);
 
-    socket?.close();
-    process.exit(0);
+    // Don't call process.exit() - let the CLI's shutdown handler finish
   });
 
   connect();

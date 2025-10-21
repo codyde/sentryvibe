@@ -37,11 +37,22 @@ if (!isLinkedDevelopment) {
 import { Command } from 'commander';
 import updateNotifier from 'update-notifier';
 import { displayBanner } from './utils/banner.js';
+import { setupGlobalErrorHandlers, globalErrorHandler } from './utils/error-handler.js';
+import { setupShutdownHandler } from './utils/shutdown-handler.js';
 
 // Get package.json for version info
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, '../../package.json'), 'utf-8')
 );
+
+// Setup global error handlers for uncaught errors
+setupGlobalErrorHandlers();
+
+// Setup graceful shutdown handlers for Ctrl+C
+export const shutdownHandler = setupShutdownHandler({
+  timeout: 5000,
+  verbose: true,
+});
 
 // Display splash screen banner
 displayBanner();
@@ -56,6 +67,15 @@ program
   .description('SentryVibe CLI - Start full stack or runner only')
   .version(packageJson.version)
   .option('--runner', 'Start runner only (skip web app and broker)')
+  .option('--debug', 'Enable debug mode with verbose error output')
+  .hook('preAction', (thisCommand) => {
+    // Enable debug mode if --debug flag is present
+    const opts = thisCommand.opts();
+    if (opts.debug) {
+      globalErrorHandler.setDebug(true);
+      process.env.DEBUG = '1';
+    }
+  })
   .action(async (options) => {
     // Default action when no subcommand is provided
     if (options.runner) {
@@ -78,7 +98,7 @@ program
   .option('--url <url>', 'Set API base URL (default: http://localhost:3000)')
   .option('--secret <secret>', 'Set shared secret')
   .option('--branch <branch>', 'Git branch to clone (default: main)')
-  .option('--database', 'Set up new database and push schema')
+  .option('--database [value]', 'Database setup: "neondb" (auto-setup), connection string, or omit to auto-setup in -y mode')
   .option('-y, --yes', 'Accept all defaults (non-interactive mode)')
   .option('--non-interactive', 'Use defaults without prompts (alias for -y)')
   .action(async (options) => {

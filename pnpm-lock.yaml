@@ -50,6 +50,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.23
         version: 0.1.23(zod@4.1.12)
+      '@clack/prompts':
+        specifier: ^0.11.0
+        version: 0.11.0
       '@openai/codex-sdk':
         specifier: ^0.47.0
         version: 0.47.0
@@ -89,6 +92,9 @@ importers:
       ora:
         specifier: ^9.0.0
         version: 9.0.0
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
       simple-git:
         specifier: ^3.28.0
         version: 3.28.0
@@ -449,6 +455,12 @@ packages:
   '@babel/types@7.28.4':
     resolution: {integrity: sha512-bkFqkLhh3pMBUQQkpVgWDWq/lqzc2678eUyDlTBhRqhCHFguYYGM0Efga7tYk4TogG/3x0EEl66/OQ+WGbWB/Q==}
     engines: {node: '>=6.9.0'}
+
+  '@clack/core@0.5.0':
+    resolution: {integrity: sha512-p3y0FIOwaYRUPRcMO7+dlmLh8PSRcrjuTndsiA0WAFbWES0mLZlrjVoBRZ9DzkPFJZG6KGkJmoEAY0ZcVWTkow==}
+
+  '@clack/prompts@0.11.0':
+    resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -4753,6 +4765,9 @@ packages:
   simple-git@3.28.0:
     resolution: {integrity: sha512-Rs/vQRwsn1ILH1oBUy8NucJlXmnnLeLCfcvbSehkPzbv3wwoFWIdtfd6Ndo6ZPhlPsCZ60CPI4rxurnwAa+a2w==}
 
+  sisteransi@1.0.5:
+    resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -5439,6 +5454,17 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
+
+  '@clack/core@0.5.0':
+    dependencies:
+      picocolors: 1.1.1
+      sisteransi: 1.0.5
+
+  '@clack/prompts@0.11.0':
+    dependencies:
+      '@clack/core': 0.5.0
+      picocolors: 1.1.1
+      sisteransi: 1.0.5
 
   '@drizzle-team/brocli@0.10.2': {}
 
@@ -10144,6 +10170,8 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+
+  sisteransi@1.0.5: {}
 
   source-map-js@1.2.1: {}
 
