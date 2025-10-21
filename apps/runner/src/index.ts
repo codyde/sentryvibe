@@ -767,7 +767,9 @@ async function checkPortInUse(port: number): Promise<boolean> {
 
     socket.once('connect', () => {
       // Successfully connected = server is running
-      console.log(`   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`);
+      if (!isSilentMode) {
+        console.log(`   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`);
+      }
       socket.destroy();
       resolve(true);
     });
@@ -946,7 +948,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
   function sendEvent(event: RunnerEvent) {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      console.warn(
+      log(
         `[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`
       );
       return;
@@ -956,12 +958,12 @@ export async function startRunner(options: RunnerOptions = {}) {
 
       // Only log important events
       if (event.type === "error") {
-        console.error(`[runner] ❌ Error: ${event.error}`);
+        log(`❌ Error: ${event.error}`);
         if (event.stack) {
-          console.error(`[runner]   Stack: ${event.stack.substring(0, 500)}`);
+          log(`Stack: ${event.stack.substring(0, 500)}`);
         }
       } else if (event.type === "port-detected") {
-        console.log(`[runner] 🔌 Port detected: ${event.port}`);
+        log(`🔌 Port detected: ${event.port}`);
       } else if (event.type === "tunnel-created") {
         console.log(
           `[runner] 🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`
@@ -971,13 +973,13 @@ export async function startRunner(options: RunnerOptions = {}) {
           `[runner] ✅ Build completed for project: ${event.projectId}`
         );
       } else if (event.type === "build-failed") {
-        console.error(`[runner] ❌ Build failed: ${event.error}`);
+        log(`❌ Build failed: ${event.error}`);
       }
       // Suppress: build-stream, runner-status, ack, etc.
 
       socket.send(eventJson);
     } catch (error) {
-      console.error(`[runner] ❌ Failed to send event ${event.type}:`, error);
+      log(`❌ Failed to send event ${event.type}:`, error);
     }
   }
 
@@ -1072,7 +1074,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           devProcess.emitter.on("port", async (port: number) => {
             // Store VERIFIED listening port for this project (single source of truth)
             verifiedPortsByProject.set(command.projectId, port);
-            console.log(
+            log(
               `✅ Verified listening port ${port} for project ${command.projectId}`
             );
 
@@ -1090,7 +1092,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             // Use verified port for cleanup (single source of truth)
             const verifiedPort = verifiedPortsByProject.get(command.projectId);
             if (verifiedPort) {
-              console.log(
+              log(
                 `🔗 Closing tunnel for verified port ${verifiedPort}`
               );
               await tunnelManager.closeTunnel(verifiedPort);
@@ -1256,10 +1258,10 @@ export async function startRunner(options: RunnerOptions = {}) {
               `[runner] ✅ Successfully deleted project files: ${projectPath}`
             );
           } catch (rmError) {
-            console.warn(
+            log(
               `[runner] ⚠️  rm -rf failed, trying fs.rm with maxRetries...`
             );
-            console.warn(`[runner]   Error:`, rmError instanceof Error ? rmError.message : String(rmError));
+            log(`[runner]   Error:`, rmError instanceof Error ? rmError.message : String(rmError));
 
             // Strategy 2: Fall back to fs.rm with maxRetries option
             const { rm } = await import("fs/promises");
@@ -1592,7 +1594,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             } else if (typeof value === "object") {
               agentMessage = value;
             } else {
-              console.warn(
+              log(
                 "Unsupported chunk type from build stream:",
                 typeof value
               );
@@ -1773,7 +1775,7 @@ export async function startRunner(options: RunnerOptions = {}) {
               }
             }
           } catch (error) {
-            console.warn("Failed to detect runCommand:", error);
+            log("Failed to detect runCommand:", error);
           }
 
           buildLog(` ✅ Build completed successfully for project: ${command.projectId}`
