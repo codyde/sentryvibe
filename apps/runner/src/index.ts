@@ -870,10 +870,13 @@ export async function startRunner(options: RunnerOptions = {}) {
   // Set silent mode if requested (for TUI)
   isSilentMode = options.silent || false;
 
-  // Also set silent mode for process-manager
+  // Also set silent mode for process-manager and port-checker
   if (isSilentMode) {
-    const { setSilentMode } = await import('./lib/process-manager.js');
-    setSilentMode(true);
+    const { setSilentMode: setProcessManagerSilent } = await import('./lib/process-manager.js');
+    setProcessManagerSilent(true);
+
+    const { setSilentMode: setPortCheckerSilent } = await import('./lib/port-checker.js');
+    setPortCheckerSilent(true);
   }
 
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();

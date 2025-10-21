@@ -120,7 +120,7 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
               input: payload,
             });
           } catch (error) {
-            console.warn('⚠️  Failed to parse TODO_WRITE payload:', error);
+            if (process.env.DEBUG_BUILD === '1') console.warn('⚠️  Failed to parse TODO_WRITE payload:', error);
           }
 
           cleaned += text.slice(lastIndex, match.index);
@@ -234,7 +234,7 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
                   input: payload,
                 });
               } catch (error) {
-                console.warn('⚠️  Failed to parse TODO_WRITE payload from tool result:', error);
+                if (process.env.DEBUG_BUILD === '1') console.warn('⚠️  Failed to parse TODO_WRITE payload from tool result:', error);
               }
             }
           }

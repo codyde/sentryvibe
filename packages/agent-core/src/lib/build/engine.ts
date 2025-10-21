@@ -169,7 +169,7 @@ async function detectRuntimeMetadata(projectPath: string): Promise<RuntimeMetada
       port,
     };
   } catch (error) {
-    console.warn('⚠️  Could not detect runtime metadata:', error);
+    if (process.env.DEBUG_BUILD === '1') console.warn('⚠️  Could not detect runtime metadata:', error);
     return null;
   }
 }
@@ -228,7 +228,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     content: serializeMessageContent([{ type: 'text', text: prompt }]),
   });
 
-  console.log('🎯 Starting build execution...');
+  if (process.env.DEBUG_BUILD === '1') console.log('🎯 Starting build execution...');
 
   const workspaceRoot = getWorkspaceRoot();
   const projectsDir = workspaceRoot;
@@ -245,7 +245,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
 
   switch (operationType) {
     case 'initial-build': {
-      console.log('🆕 INITIAL BUILD - Starting pre-build phase...');
+      if (process.env.DEBUG_BUILD === '1') console.log('🆕 INITIAL BUILD - Starting pre-build phase...');
       const preBuildEvent: PreBuildStartEvent = { type: 'pre-build-start' };
       // Custom event types are not part of the standard UI stream protocol
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,7 +290,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     }
 
     case 'enhancement': {
-      console.log('🔧 ENHANCEMENT - Follow-up chat for existing project');
+      if (process.env.DEBUG_BUILD === '1') console.log('🔧 ENHANCEMENT - Follow-up chat for existing project');
       fileTree = await getProjectFileTree(projectPath);
 
       if (project[0].projectType) {
@@ -315,7 +315,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     }
 
     case 'focused-edit': {
-      console.log('🎯 FOCUSED EDIT - Targeted element change');
+      if (process.env.DEBUG_BUILD === '1') console.log('🎯 FOCUSED EDIT - Targeted element change');
       maxTurns = 15;
       fileTree = await getProjectFileTree(projectPath);
       systemPrompt = buildFocusedEditPrompt({
@@ -330,7 +330,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     }
 
     case 'continuation': {
-      console.log('🔁 CONTINUATION - Retrying failed build');
+      if (process.env.DEBUG_BUILD === '1') console.log('🔁 CONTINUATION - Retrying failed build');
       fileTree = await getProjectFileTree(projectPath);
       systemPrompt = buildContinuationPrompt({
         project: project[0],
@@ -376,10 +376,10 @@ async function runBuildPipeline(params: BuildPipelineParams) {
 
   const runtimeMetadata = await detectRuntimeMetadata(projectPath);
   if (runtimeMetadata) {
-    console.log('🛠️  Runtime metadata detected:', runtimeMetadata);
+    if (process.env.DEBUG_BUILD === '1') console.log('🛠️  Runtime metadata detected:', runtimeMetadata);
     Object.assign(projectUpdates, runtimeMetadata);
   } else {
-    console.warn('⚠️  Unable to determine runtime metadata for project, using defaults');
+    if (process.env.DEBUG_BUILD === '1') console.warn('⚠️  Unable to determine runtime metadata for project, using defaults');
   }
 
   await db.update(projects)
@@ -397,7 +397,7 @@ async function extractProjectMetadata(
   agentId: AgentId,
   claudeModel: ClaudeModelId,
 ): Promise<ProjectMetadata> {
-  console.log('🤖 Extracting project metadata...');
+  if (process.env.DEBUG_BUILD === '1') console.log('🤖 Extracting project metadata...');
 
   const metadataStream = await query({
     prompt: `Analyze this project request: "${prompt}"\n\nExtract metadata and select the best template.\n\nAvailable templates:\n- react-vite: React with Vite, TypeScript, Tailwind (fast SPA, client-side only)\n- nextjs-fullstack: Next.js with TypeScript, Tailwind (SSR, API routes, full-stack)\n- astro-static: Astro with TypeScript, Tailwind (static site generation, content-focused)\n\nOutput ONLY valid JSON (no markdown, no explanation):\n{\n  "slug": "short-kebab-case-name",\n  "friendlyName": "Friendly Display Name",\n  "description": "Brief description of what this builds",\n  "icon": "Package",\n  "template": "react-vite"\n}\n\nAvailable icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter\n\nRules:\n- slug must be lowercase, kebab-case, 2-4 words max\n- friendlyName should be concise (2-5 words)\n- description should explain what the app does\n- template must be one of: react-vite, nextjs-fullstack, astro-static\n\nTemplate Selection Logic (PRIORITY ORDER):\n1. If user explicitly mentions "vite" OR "react vite" → react-vite\n2. If user explicitly mentions "next" OR "nextjs" → nextjs-fullstack\n3. If user explicitly mentions "astro" → astro-static\n4. If user mentions backend needs (API, database, auth, server) → nextjs-fullstack\n5. If user mentions static content (blog, docs, markdown) → astro-static\n6. For simple landing pages with NO backend → react-vite (simpler/faster)\n7. For landing pages WITH backend/forms/API → nextjs-fullstack\n8. For interactive apps (todo, dashboard, calculator, game) → react-vite\n9. Default if unclear → react-vite (simplest option)\n\nCRITICAL: Pay attention to explicit technology mentions. If user says "vite landing page", use react-vite NOT nextjs!`,
@@ -439,7 +439,7 @@ async function extractProjectMetadata(
       return metadata;
     }
   } catch (parseError) {
-    console.error('❌ JSON parsing failed:', parseError);
+    if (process.env.DEBUG_BUILD === '1') console.error('❌ JSON parsing failed:', parseError);
   }
 
   const slug = prompt
@@ -565,7 +565,7 @@ async function writeAgentMessagesToStream(
         messageStarted = false;
       }
     } else if (message.type === 'error') {
-      console.error('❌ Agent Error:', message.error);
+      if (process.env.DEBUG_BUILD === '1') console.error('❌ Agent Error:', message.error);
       const errorEvent: BuildErrorEvent = {
         type: 'error',
         error: message.error instanceof Error ? message.error.message : String(message.error),
@@ -581,8 +581,8 @@ async function autoStartDevServer(projectId: string) {
   // NOTE: This function is deprecated in favor of runner-based server management
   // Auto-start is now handled by the frontend (page.tsx) which calls /api/projects/:id/start
   // Keeping this as a no-op to avoid breaking existing code paths
-  console.log(`⚠️  autoStartDevServer called for ${projectId} - deprecated, skipping`);
-  console.log(`   Server should be started via /api/projects/:id/start endpoint instead`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`⚠️  autoStartDevServer called for ${projectId} - deprecated, skipping`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Server should be started via /api/projects/:id/start endpoint instead`);
 }
 
 async function buildInitialSystemPrompt(params: {
