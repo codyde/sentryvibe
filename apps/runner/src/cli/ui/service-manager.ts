@@ -375,13 +375,14 @@ export class ServiceManager extends EventEmitter {
       return;
     }
 
+    // Update state immediately
+    service.state.tunnelUrl = undefined;
+    service.state.tunnelStatus = undefined;
+    this.emit('service:tunnel-change', name, null, 'active');
+
     try {
       const { tunnelManager } = await import('../../lib/tunnel/manager.js');
       await tunnelManager.closeTunnel(service.state.port);
-
-      service.state.tunnelUrl = undefined;
-      service.state.tunnelStatus = undefined;
-      this.emit('service:tunnel-change', name, null, 'active');
     } catch (error) {
       // Best effort
     }

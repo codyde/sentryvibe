@@ -92,13 +92,23 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
       // Clear logs
       setLogs([]);
     } else if (input === 'l') {
-      // Switch to plain text log view (outside TUI for copy/paste)
-      setShowingPlainLogs(true);
+      // Toggle plain text log view
+      setShowingPlainLogs(!showingPlainLogs);
     } else if (input === 't') {
-      // Create tunnel for web app
-      serviceManager.createTunnel('web').catch(err => {
-        // Error will be shown in service panel
-      });
+      // Toggle tunnel for web app
+      const webService = services.find(s => s.name === 'web');
+      if (webService?.tunnelStatus === 'active') {
+        // Tunnel is active, close it
+        serviceManager.closeTunnel('web').catch(err => {
+          // Error will be shown in service panel
+        });
+      } else if (!webService?.tunnelStatus || webService.tunnelStatus === 'failed') {
+        // No tunnel or failed, create one
+        serviceManager.createTunnel('web').catch(err => {
+          // Error will be shown in service panel
+        });
+      }
+      // If creating, ignore (don't interrupt)
     } else if (input === '?') {
       // Show help
       setView('help');
@@ -191,11 +201,11 @@ export function Dashboard({ serviceManager, apiUrl, webPort }: DashboardProps) {
             <Text bold>General:</Text>
             <Text>  <Text color="cyan">q</Text> or <Text color="cyan">Ctrl+C</Text> - Quit and stop all services</Text>
             <Text>  <Text color="cyan">r</Text> - Restart all services</Text>
-            <Text>  <Text color="cyan">t</Text> - Create Cloudflare tunnel (share web app publicly)</Text>
+            <Text>  <Text color="cyan">t</Text> - Toggle Cloudflare tunnel (create/close)</Text>
             <Text>  <Text color="cyan">c</Text> - Clear logs</Text>
-            <Text>  <Text color="cyan">l</Text> - View full logs</Text>
+            <Text>  <Text color="cyan">l</Text> - Toggle plain text log view</Text>
             <Text>  <Text color="cyan">?</Text> - Show this help</Text>
-            <Text>  <Text color="cyan">Esc</Text> - Return to dashboard</Text>
+            <Text>  <Text color="cyan">Esc</Text> - Return to dashboard (from logs/help)</Text>
             <Text></Text>
             <Text bold>Log Navigation:</Text>
             <Text>  <Text color="cyan">↑/↓</Text> - Scroll logs line by line</Text>

@@ -109,25 +109,27 @@ export async function startCommand(options: StartOptions) {
   await killProcessOnPort(brokerPort);
   s.stop(pc.green('✓') + ' Ports available');
 
-  // Clear screen for clean TUI start
-  console.clear();
-
-  // Show starting message (banner will be part of TUI)
-  console.log();
-  console.log(pc.bold('Starting TUI Dashboard...'));
-  console.log(pc.dim('Press Ctrl+C or q to quit'));
-  console.log();
-
-  // Small delay to let user read the message
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // Step 5: Create ServiceManager and Console Interceptor
+  // Step 5: Create ServiceManager and Console Interceptor FIRST
   const serviceManager = new ServiceManager();
   const consoleInterceptor = new ConsoleInterceptor(serviceManager);
   const sharedSecret = config.broker?.secret || 'dev-secret';
 
-  // Start intercepting console output BEFORE starting any services
+  // Clear screen for clean TUI start
+  console.clear();
+
+  // Start intercepting console output IMMEDIATELY after clear
+  // This captures ALL subsequent output and routes it through TUI
   consoleInterceptor.start();
+
+  // Show starting message using original console (before interception fully active)
+  const originalLog = consoleInterceptor.getOriginal().log;
+  originalLog();
+  originalLog(pc.bold('Starting TUI Dashboard...'));
+  originalLog(pc.dim('Press Ctrl+C or q to quit'));
+  originalLog();
+
+  // Small delay to let user read the message
+  await new Promise(resolve => setTimeout(resolve, 800));
 
   // Register web app
   serviceManager.register({
@@ -175,7 +177,10 @@ export async function startCommand(options: StartOptions) {
     env: {},
   });
 
-  // Step 6: Render TUI
+  // Step 6: Clear screen again right before TUI to catch any output that snuck through
+  process.stdout.write('\x1Bc'); // Full terminal reset
+
+  // Render TUI immediately
   const { waitUntilExit, clear } = render(
     React.createElement(Dashboard, {
       serviceManager,
@@ -183,6 +188,12 @@ export async function startCommand(options: StartOptions) {
       webPort
     })
   );
+
+  // Flush buffered console output now that TUI is rendered
+  // Small delay to ensure TUI is fully painted
+  setTimeout(() => {
+    consoleInterceptor.flush();
+  }, 100);
 
   // Step 7: Start services
   try {

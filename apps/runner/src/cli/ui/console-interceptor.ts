@@ -17,6 +17,8 @@ export class ConsoleInterceptor {
   private originalConsole: InterceptedConsole;
   private serviceManager: ServiceManager;
   private isActive = false;
+  private buffer: Array<{ message: string; service: string; stream: 'stdout' | 'stderr' }> = [];
+  private isBuffering = true;
 
   constructor(serviceManager: ServiceManager) {
     this.serviceManager = serviceManager;
@@ -31,36 +33,71 @@ export class ConsoleInterceptor {
   }
 
   /**
-   * Start intercepting console output
+   * Start intercepting console output (buffers until flush is called)
    */
   start(): void {
     if (this.isActive) return;
     this.isActive = true;
 
-    // Override console methods
+    // Override console methods to buffer output
     console.log = (...args: unknown[]) => {
       const message = this.formatMessage(args);
       const serviceName = this.detectService(message);
-      this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
+
+      if (this.isBuffering) {
+        this.buffer.push({ message, service: serviceName, stream: 'stdout' });
+      } else {
+        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
+      }
     };
 
     console.error = (...args: unknown[]) => {
       const message = this.formatMessage(args);
       const serviceName = this.detectService(message);
-      this.serviceManager.emit('service:output', serviceName, message + '\n', 'stderr');
+
+      if (this.isBuffering) {
+        this.buffer.push({ message, service: serviceName, stream: 'stderr' });
+      } else {
+        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stderr');
+      }
     };
 
     console.warn = (...args: unknown[]) => {
       const message = this.formatMessage(args);
       const serviceName = this.detectService(message);
-      this.serviceManager.emit('service:output', serviceName, message + '\n', 'stderr');
+
+      if (this.isBuffering) {
+        this.buffer.push({ message, service: serviceName, stream: 'stderr' });
+      } else {
+        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stderr');
+      }
     };
 
     console.info = (...args: unknown[]) => {
       const message = this.formatMessage(args);
       const serviceName = this.detectService(message);
-      this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
+
+      if (this.isBuffering) {
+        this.buffer.push({ message, service: serviceName, stream: 'stdout' });
+      } else {
+        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
+      }
     };
+  }
+
+  /**
+   * Flush buffered logs and stop buffering (call after TUI renders)
+   */
+  flush(): void {
+    this.isBuffering = false;
+
+    // Emit all buffered logs
+    for (const entry of this.buffer) {
+      this.serviceManager.emit('service:output', entry.service as any, entry.message + '\n', entry.stream);
+    }
+
+    // Clear buffer
+    this.buffer = [];
   }
 
   /**
