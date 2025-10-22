@@ -2,10 +2,17 @@
 nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
-cmds = ["pnpm install --filter=sentryvibe..."]
+cmds = [
+  "ls -la",
+  "cat pnpm-workspace.yaml",
+  "pnpm install"
+]
 
 [phases.build]
-cmds = ["pnpm --filter=sentryvibe run build"]
+cmds = [
+  "pnpm --filter @sentryvibe/agent-core build",
+  "pnpm --filter sentryvibe build"
+]
 
 [start]
-cmd = "pnpm --filter=sentryvibe start"
+cmd = "pnpm --filter sentryvibe start"
