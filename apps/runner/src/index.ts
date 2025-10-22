@@ -872,13 +872,16 @@ export async function startRunner(options: RunnerOptions = {}) {
   // Set silent mode if requested (for TUI)
   isSilentMode = options.silent || false;
 
-  // Also set silent mode for process-manager and port-checker
+  // Also set silent mode for all modules
   if (isSilentMode) {
     const { setSilentMode: setProcessManagerSilent } = await import('./lib/process-manager.js');
     setProcessManagerSilent(true);
 
     const { setSilentMode: setPortCheckerSilent } = await import('./lib/port-checker.js');
     setPortCheckerSilent(true);
+
+    // Set silent mode on tunnel manager globally
+    tunnelManager.setSilent(true);
   }
 
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
@@ -965,12 +968,12 @@ export async function startRunner(options: RunnerOptions = {}) {
       } else if (event.type === "port-detected") {
         log(`🔌 Port detected: ${event.port}`);
       } else if (event.type === "tunnel-created") {
-        console.log(
-          `[runner] 🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`
+        log(
+          `🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`
         );
       } else if (event.type === "build-completed") {
-        console.log(
-          `[runner] ✅ Build completed for project: ${event.projectId}`
+        log(
+          `✅ Build completed for project: ${event.projectId}`
         );
       } else if (event.type === "build-failed") {
         log(`❌ Build failed: ${event.error}`);
@@ -1145,19 +1148,22 @@ export async function startRunner(options: RunnerOptions = {}) {
       case "start-tunnel": {
         try {
           const { port } = command.payload;
-          console.log(`🔗 Starting tunnel for port ${port}...`);
+          log(`🔗 Starting tunnel for port ${port}...`);
 
           // Wait for the port to be ready before creating tunnel
-          console.log(`⏳ Waiting for port ${port} to be ready...`);
+          log(`⏳ Waiting for port ${port} to be ready...`);
           const isReady = await waitForPort(port, 15, 1000); // 15 retries, 1s apart = max 15s
 
           if (!isReady) {
             throw new Error(`Port ${port} is not ready or not accessible`);
           }
 
+          // Ensure tunnel manager is in silent mode
+          tunnelManager.setSilent(isSilentMode);
+
           // Create tunnel
           const tunnelUrl = await tunnelManager.createTunnel(port);
-          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
+          log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
 
           sendEvent({
             type: "tunnel-created",
@@ -1182,9 +1188,13 @@ export async function startRunner(options: RunnerOptions = {}) {
       case "stop-tunnel": {
         try {
           const { port } = command.payload;
-          console.log(`🔗 Stopping tunnel for port ${port}...`);
+          log(`🔗 Stopping tunnel for port ${port}...`);
+
+          // Ensure tunnel manager is in silent mode
+          tunnelManager.setSilent(isSilentMode);
+
           await tunnelManager.closeTunnel(port);
-          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Tunnel closed for port ${port}`);
+          log(`✅ Tunnel closed for port ${port}`);
 
           sendEvent({
             type: "tunnel-closed",
