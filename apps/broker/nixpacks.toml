@@ -1,14 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
-nixOverlays = ["https://github.com/railwayapp/nix-npm-overlay/archive/main.tar.gz"]
-nixpkgsArchive = "ba913eda2df8eb72147259189d55932012df6301"
+nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
-cmds = [
-  "corepack enable",
-  "corepack prepare pnpm@latest --activate",
-  "pnpm install --frozen-lockfile --filter=sentryvibe-broker..."
-]
+cmds = ["pnpm install --filter=sentryvibe-broker..."]
 
 [phases.build]
 cmds = ["pnpm --filter=sentryvibe-broker run build"]
