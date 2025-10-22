@@ -1,6 +1,21 @@
 'use client';
 
+import { Check, ChevronsUpDown } from 'lucide-react';
 import { MOOD_OPTIONS } from '@sentryvibe/agent-core/types/design';
+import { Button } from '../ui/button';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '../ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../ui/popover';
+import { useState } from 'react';
 
 interface MoodSelectorProps {
   selected: string[];
@@ -13,6 +28,8 @@ export default function MoodSelector({
   onChange,
   maxSelections = 4
 }: MoodSelectorProps) {
+  const [open, setOpen] = useState(false);
+
   const toggleMood = (mood: string) => {
     if (selected.includes(mood)) {
       onChange(selected.filter(m => m !== mood));
@@ -34,31 +51,62 @@ export default function MoodSelector({
         Select 2-4 descriptors for your design aesthetic
       </p>
 
-      <div className="flex flex-wrap gap-1.5">
-        {MOOD_OPTIONS.map(mood => {
-          const isSelected = selected.includes(mood);
-          const isDisabled = !isSelected && selected.length >= maxSelections;
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between text-sm h-auto min-h-[2.5rem]"
+          >
+            <span className="flex flex-wrap gap-1">
+              {selected.length === 0 ? (
+                <span className="text-gray-400">Select moods...</span>
+              ) : (
+                selected.map(mood => (
+                  <span key={mood} className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs">
+                    {mood}
+                  </span>
+                ))
+              )}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[400px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search moods..." />
+            <CommandEmpty>No mood found.</CommandEmpty>
+            <CommandGroup className="max-h-64 overflow-auto">
+              {MOOD_OPTIONS.map((mood) => {
+                const isSelected = selected.includes(mood);
+                const isDisabled = !isSelected && selected.length >= maxSelections;
 
-          return (
-            <button
-              key={mood}
-              onClick={() => toggleMood(mood)}
-              disabled={isDisabled}
-              className={`
-                px-2.5 py-1 rounded-md text-xs font-medium transition-all border
-                ${isSelected
-                  ? 'bg-purple-500/20 text-purple-300 border-purple-500'
-                  : isDisabled
-                    ? 'bg-white/5 text-gray-600 border-white/5 cursor-not-allowed opacity-50'
-                    : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-gray-200 hover:border-white/20'
-                }
-              `}
-            >
-              {mood}
-            </button>
-          );
-        })}
-      </div>
+                return (
+                  <CommandItem
+                    key={mood}
+                    value={mood}
+                    onSelect={() => {
+                      if (!isDisabled) {
+                        toggleMood(mood);
+                      }
+                    }}
+                    disabled={isDisabled}
+                    className="cursor-pointer"
+                  >
+                    <Check
+                      className={`mr-2 h-4 w-4 ${
+                        isSelected ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+                    {mood}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       {selected.length < 2 && (
         <p className="text-xs text-yellow-400/80">
