@@ -17,6 +17,7 @@ import { shutdownHandler } from '../index.js';
 interface StartOptions {
   port?: string;
   brokerPort?: string;
+  prod?: boolean; // Use production mode (build + start)
 }
 
 interface ManagedProcess {
@@ -76,6 +77,45 @@ export async function startCommand(options: StartOptions) {
         suggestions: [
           `Run manually: cd ${monorepoRoot} && pnpm install`,
           'Check your internet connection',
+        ],
+      });
+    }
+  }
+
+  // Step 2.5: Build for production mode
+  if (options.prod) {
+    s.start('Building services (production mode)');
+
+    try {
+      // Use turbo to build all services with caching
+      await new Promise<void>((resolve, reject) => {
+        const buildProcess = spawn('pnpm', ['build:all'], {
+          cwd: monorepoRoot,
+          stdio: 'inherit', // Show build output in traditional mode
+          shell: true,
+        });
+
+        buildProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Build failed with code ${code}`));
+          }
+        });
+
+        buildProcess.on('error', reject);
+      });
+
+      s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
+    } catch (error) {
+      s.stop(pc.red('✗') + ' Build failed');
+      throw new CLIError({
+        code: 'BUILD_FAILED',
+        message: 'Failed to build services for production mode',
+        suggestions: [
+          'Check that all dependencies are installed',
+          'Try running: pnpm build:all',
+          'Run without --prod flag to use dev mode',
         ],
       });
     }
@@ -144,7 +184,8 @@ export async function startCommand(options: StartOptions) {
   try {
     // Start Web App
     console.log(pc.cyan('1/3'), 'Starting web app...');
-    const webApp = spawn('pnpm', ['--filter', 'sentryvibe', 'dev'], {
+    const webCommand = options.prod ? 'start' : 'dev';
+    const webApp = spawn('pnpm', ['--filter', 'sentryvibe', webCommand], {
       cwd: monorepoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
@@ -192,7 +233,8 @@ export async function startCommand(options: StartOptions) {
 
     // Start Broker
     console.log(pc.cyan('2/3'), 'Starting broker...');
-    const broker = spawn('pnpm', ['--filter', 'sentryvibe-broker', 'dev'], {
+    const brokerCommand = options.prod ? 'start' : 'dev';
+    const broker = spawn('pnpm', ['--filter', 'sentryvibe-broker', brokerCommand], {
       cwd: monorepoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,

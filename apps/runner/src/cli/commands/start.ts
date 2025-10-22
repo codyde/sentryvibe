@@ -21,6 +21,7 @@ interface StartOptions {
   port?: string;
   brokerPort?: string;
   noTui?: boolean; // Disable TUI, use traditional logs
+  prod?: boolean; // Use production mode (build + start)
 }
 
 /**
@@ -95,6 +96,46 @@ export async function startCommand(options: StartOptions) {
     s.stop(pc.green('✓') + ' Dependencies installed');
   }
 
+  // Step 2.5: Build for production mode
+  if (options.prod) {
+    s.start('Building services (production mode)');
+    const { spawn } = await import('child_process');
+    const { promisify } = await import('util');
+
+    try {
+      // Use turbo to build all services with caching
+      await new Promise<void>((resolve, reject) => {
+        const buildProcess = spawn('pnpm', ['build:all'], {
+          cwd: monorepoRoot,
+          stdio: 'pipe', // Capture output silently
+        });
+
+        buildProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Build failed with code ${code}`));
+          }
+        });
+
+        buildProcess.on('error', reject);
+      });
+
+      s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
+    } catch (error) {
+      s.stop(pc.red('✗') + ' Build failed');
+      throw new CLIError({
+        code: 'BUILD_FAILED',
+        message: 'Failed to build services for production mode',
+        suggestions: [
+          'Check that all dependencies are installed',
+          'Try running: pnpm build:all',
+          'Run without --prod flag to use dev mode',
+        ],
+      });
+    }
+  }
+
   // Step 3: Check database
   if (!config.databaseUrl) {
     throw new CLIError({
@@ -145,12 +186,13 @@ export async function startCommand(options: StartOptions) {
   await new Promise(resolve => setTimeout(resolve, 800));
 
   // Register web app
+  const webCommand = options.prod ? 'start' : 'dev';
   serviceManager.register({
     name: 'web',
     displayName: 'Web App',
     port: webPort,
     command: 'pnpm',
-    args: ['--filter', 'sentryvibe', 'dev'],
+    args: ['--filter', 'sentryvibe', webCommand],
     cwd: monorepoRoot,
     env: {
       PORT: String(webPort),
@@ -165,12 +207,13 @@ export async function startCommand(options: StartOptions) {
   });
 
   // Register broker
+  const brokerCommand = options.prod ? 'start' : 'dev';
   serviceManager.register({
     name: 'broker',
     displayName: 'Broker',
     port: brokerPort,
     command: 'pnpm',
-    args: ['--filter', 'sentryvibe-broker', 'dev'],
+    args: ['--filter', 'sentryvibe-broker', brokerCommand],
     cwd: monorepoRoot,
     env: {
       PORT: String(brokerPort),
