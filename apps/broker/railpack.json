@@ -2,7 +2,17 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "steps": {
+    "debug": {
+      "commands": [
+        "pwd",
+        "ls -la",
+        "ls -la apps/ || echo 'no apps dir'",
+        "ls -la packages/ || echo 'no packages dir'",
+        "cat pnpm-workspace.yaml || echo 'no workspace file'"
+      ]
+    },
     "setup": {
+      "inputs": ["$debug"],
       "commands": [
         "pnpm install --filter=@sentryvibe/agent-core --filter=sentryvibe-broker"
       ]
