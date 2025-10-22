@@ -4,7 +4,7 @@ nixPkgs = ["nodejs_18", "pnpm-9_x", "openssl"]
 [phases.install]
 cmds = [
   "npm install -g corepack@0.24.1 && corepack enable",
-  "pnpm i --no-frozen-lockfile"
+  "pnpm i"
 ]
 
 [phases.build]
