@@ -3,6 +3,7 @@
   "provider": "node",
   "steps": {
     "setup": {
+      "inputs": ["."],
       "commands": [
         "pnpm install --filter=@sentryvibe/agent-core --filter=sentryvibe-broker"
       ]
@@ -11,11 +12,6 @@
       "inputs": ["$setup"],
       "commands": [
         "pnpm --filter=sentryvibe-broker run build"
-      ],
-      "deployOutputs": [
-        {
-          "include": ["apps/broker/dist/**"]
-        }
       ]
     }
   },
