@@ -26,6 +26,27 @@ function auth(req, res, next) {
     }
     return next();
 }
+/**
+ * Retry a fetch call with exponential backoff
+ */
+async function fetchWithRetry(url, options, maxAttempts = 3) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const response = await fetch(url, options);
+            return response;
+        }
+        catch (error) {
+            lastError = error;
+            if (attempt < maxAttempts) {
+                const delay = 1000 * attempt; // 1s, 2s, 3s
+                console.log(`[broker] ⏳ Attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    throw lastError;
+}
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.get('/status', auth, (req, res) => {
@@ -92,14 +113,14 @@ server.listen(PORT, () => {
 });
 async function forwardEvent(event) {
     try {
-        const response = await fetch(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
+        const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${SHARED_SECRET}`,
             },
             body: JSON.stringify(event),
-        });
+        }, 3);
         if (!response.ok) {
             const text = await response.text();
             console.error('[broker] Failed to forward event', response.status, text);

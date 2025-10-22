@@ -33,6 +33,7 @@ export default function DesignConstraintsModal({
   const [mood, setMood] = useState(
     currentPreferences?.mood || DEFAULT_DESIGN_PREFERENCES.mood
   );
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
 
   // Reset form when currentPreferences changes
   useEffect(() => {
@@ -81,7 +82,7 @@ export default function DesignConstraintsModal({
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="bg-[#1e1e1e] border border-[#3e3e3e] rounded-xl shadow-2xl
-                         w-full max-w-2xl max-h-[90vh] overflow-hidden pointer-events-auto"
+                         w-full max-w-5xl max-h-[85vh] overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -100,73 +101,106 @@ export default function DesignConstraintsModal({
                 </button>
               </div>
 
-              {/* Content */}
-              <div className="px-6 py-6 overflow-y-auto max-h-[calc(90vh-180px)] space-y-8">
-                {/* Colors Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-200">Color Palette</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <ColorPicker
-                      label="Primary"
-                      description="Main brand color for CTAs, buttons"
-                      value={colors.primary}
-                      onChange={(c) => setColors({ ...colors, primary: c })}
-                    />
-                    <ColorPicker
-                      label="Secondary"
-                      description="Supporting color for secondary actions"
-                      value={colors.secondary}
-                      onChange={(c) => setColors({ ...colors, secondary: c })}
-                    />
-                    <ColorPicker
-                      label="Accent"
-                      description="Highlights, badges, important elements"
-                      value={colors.accent}
-                      onChange={(c) => setColors({ ...colors, accent: c })}
-                    />
-                    <ColorPicker
-                      label="Neutral Light"
-                      description="Light backgrounds, cards"
-                      value={colors.neutralLight}
-                      onChange={(c) => setColors({ ...colors, neutralLight: c })}
-                    />
-                    <ColorPicker
-                      label="Neutral Dark"
-                      description="Text, dark backgrounds"
-                      value={colors.neutralDark}
-                      onChange={(c) => setColors({ ...colors, neutralDark: c })}
-                    />
+              {/* Content - Two Column Layout */}
+              <div className="grid grid-cols-[1fr,400px] gap-6 p-6 overflow-hidden max-h-[calc(85vh-140px)]">
+                {/* Left Column - Controls (scrollable) */}
+                <div className="overflow-y-auto pr-4 space-y-8">
+                  {/* Colors Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-200">Color Palette</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <ColorPicker
+                        label="Primary"
+                        description="Main brand color for CTAs, buttons"
+                        value={colors.primary}
+                        onChange={(c) => setColors({ ...colors, primary: c })}
+                      />
+                      <ColorPicker
+                        label="Secondary"
+                        description="Supporting color for secondary actions"
+                        value={colors.secondary}
+                        onChange={(c) => setColors({ ...colors, secondary: c })}
+                      />
+                      <ColorPicker
+                        label="Accent"
+                        description="Highlights, badges, important elements"
+                        value={colors.accent}
+                        onChange={(c) => setColors({ ...colors, accent: c })}
+                      />
+                      <ColorPicker
+                        label="Neutral Light"
+                        description="Light backgrounds, cards"
+                        value={colors.neutralLight}
+                        onChange={(c) => setColors({ ...colors, neutralLight: c })}
+                      />
+                      <ColorPicker
+                        label="Neutral Dark"
+                        description="Text, dark backgrounds"
+                        value={colors.neutralDark}
+                        onChange={(c) => setColors({ ...colors, neutralDark: c })}
+                      />
+                    </div>
                   </div>
+
+                  {/* Typography Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-200">Typography</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FontSelector
+                        label="Heading Font"
+                        value={typography.heading}
+                        onChange={(f) => setTypography({ ...typography, heading: f })}
+                        type="heading"
+                      />
+                      <FontSelector
+                        label="Body Font"
+                        value={typography.body}
+                        onChange={(f) => setTypography({ ...typography, body: f })}
+                        type="body"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mood Section */}
+                  <MoodSelector
+                    selected={mood}
+                    onChange={setMood}
+                    maxSelections={4}
+                  />
                 </div>
 
-                {/* Typography Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-200">Typography</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FontSelector
-                      label="Heading Font"
-                      value={typography.heading}
-                      onChange={(f) => setTypography({ ...typography, heading: f })}
-                      type="heading"
-                    />
-                    <FontSelector
-                      label="Body Font"
-                      value={typography.body}
-                      onChange={(f) => setTypography({ ...typography, body: f })}
-                      type="body"
-                    />
+                {/* Right Column - Preview (fixed) */}
+                <div className="flex flex-col space-y-4">
+                  {/* Mode Toggle */}
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-200">Preview Mode</label>
+                    <div className="flex gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
+                      <button
+                        onClick={() => setColorMode('light')}
+                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                          colorMode === 'light'
+                            ? 'bg-white/10 text-white'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        Light
+                      </button>
+                      <button
+                        onClick={() => setColorMode('dark')}
+                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                          colorMode === 'dark'
+                            ? 'bg-white/10 text-white'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        Dark
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Preview */}
+                  <LivePreview colors={colors} typography={typography} colorMode={colorMode} />
                 </div>
-
-                {/* Mood Section */}
-                <MoodSelector
-                  selected={mood}
-                  onChange={setMood}
-                  maxSelections={4}
-                />
-
-                {/* Live Preview */}
-                <LivePreview colors={colors} typography={typography} />
               </div>
 
               {/* Footer */}

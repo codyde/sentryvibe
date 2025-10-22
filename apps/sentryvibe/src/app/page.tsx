@@ -2318,21 +2318,20 @@ function HomeContent() {
                           </svg>
                         </button>
                       </div>
-                      <div className="mt-3 flex justify-start">
-                        <AgentSelector className="w-full max-w-2xl" />
-                      </div>
+                      <div className="mt-3 flex justify-between items-center gap-4">
+                        <AgentSelector className="flex-1 max-w-2xl" />
 
-                      {/* Floating Design Button */}
-                      <button
-                        onClick={() => setIsDesignModalOpen(true)}
-                        className="absolute -bottom-16 right-0 flex items-center gap-2 px-4 py-2
-                                   bg-purple-500/20 hover:bg-purple-500/30 text-purple-300
-                                   border border-purple-500/50 rounded-lg transition-all shadow-lg
-                                   hover:shadow-purple-500/20"
-                      >
-                        <Palette className="w-4 h-4" />
-                        <span className="text-sm font-medium">Design</span>
-                      </button>
+                        <button
+                          onClick={() => setIsDesignModalOpen(true)}
+                          className="flex items-center gap-2 px-4 py-2
+                                     bg-purple-500/20 hover:bg-purple-500/30 text-purple-300
+                                     border border-purple-500/50 rounded-lg transition-all shadow-lg
+                                     hover:shadow-purple-500/20 flex-shrink-0"
+                        >
+                          <Palette className="w-4 h-4" />
+                          <span className="text-sm font-medium">Design</span>
+                        </button>
+                      </div>
                     </form>
                   </div>
                 </motion.div>
