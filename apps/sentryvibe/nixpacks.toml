@@ -21,4 +21,4 @@ cmds = [
 ]
 
 [start]
-cmd = "echo 'Starting from:' && pwd && echo 'Workspace check:' && cat pnpm-workspace.yaml && pnpm --filter sentryvibe start"
+cmd = "npm run start"
