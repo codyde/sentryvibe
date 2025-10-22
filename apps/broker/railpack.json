@@ -15,6 +15,7 @@
     }
   },
   "deploy": {
+    "base": "node:22-slim",
     "startCommand": "node apps/broker/dist/index.js",
     "inputs": ["$compile"]
   }
