@@ -1,4 +1,5 @@
 import type { AgentStrategy, AgentStrategyContext } from './strategy';
+import { MOOD_GUIDANCE } from '../../types/design';
 
 function buildClaudeSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
@@ -25,6 +26,54 @@ Review the current codebase and apply the requested changes without re-scaffoldi
 - Work inside the existing project structure.
 - Provide complete updates without placeholders.`);
 
+  // Inject design constraints if provided by user
+  if (context.designPreferences) {
+    const prefs = context.designPreferences;
+    const moodGuidance = prefs.mood
+      .map(m => `- ${m}: ${MOOD_GUIDANCE[m] || ''}`)
+      .join('\n');
+
+    sections.push(`## Design Constraints (User-Specified)
+
+CRITICAL: The user has specified EXACT design preferences. Follow these specifications precisely:
+
+**Color Palette (MANDATORY - DO NOT DEVIATE):**
+- Primary: ${prefs.colors.primary} (use for CTAs, primary buttons, brand elements)
+- Secondary: ${prefs.colors.secondary} (use for secondary actions, supporting elements)
+- Accent: ${prefs.colors.accent} (use for highlights, badges, important elements)
+- Neutral Light: ${prefs.colors.neutralLight} (use for light backgrounds, cards, containers)
+- Neutral Dark: ${prefs.colors.neutralDark} (use for text, dark backgrounds, borders)
+
+You MUST use ONLY these colors. Define them as CSS custom properties in your design system:
+
+\`\`\`css
+:root {
+  --color-primary: ${prefs.colors.primary};
+  --color-secondary: ${prefs.colors.secondary};
+  --color-accent: ${prefs.colors.accent};
+  --color-neutral-light: ${prefs.colors.neutralLight};
+  --color-neutral-dark: ${prefs.colors.neutralDark};
+}
+\`\`\`
+
+**Typography (MANDATORY):**
+- Heading Font: ${prefs.typography.heading} (use for all h1, h2, h3, h4, h5, h6)
+- Body Font: ${prefs.typography.body} (use for paragraphs, labels, body text, UI elements)
+
+Import these fonts from Google Fonts or use system fonts as specified.
+
+**Style Direction:**
+The user wants a design that feels: ${prefs.mood.join(', ')}
+
+Interpret these mood descriptors to guide your design decisions:
+${moodGuidance}
+
+**Critical Reminders:**
+- Do NOT add any colors outside the specified 5-color palette
+- Do NOT use any fonts other than the 2 specified
+- Match the mood descriptors in your typography scale, spacing, and component design
+- Define colors as CSS variables, never use hex values directly in components`);
+  }
   if (context.fileTree) {
     sections.push(`## Project Structure Snapshot
 ${context.fileTree}`);

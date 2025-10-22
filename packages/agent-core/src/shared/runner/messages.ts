@@ -1,4 +1,5 @@
 import type { AgentId as CoreAgentId, ClaudeModelId as CoreClaudeModelId } from '../../types/agent';
+import type { DesignPreferences } from '../../types/design';
 
 export type AgentId = CoreAgentId;
 export type ClaudeModelId = CoreClaudeModelId;
@@ -63,6 +64,7 @@ export interface StartBuildCommand extends BaseCommand {
       repository: string;
       branch: string;
     }; // NEW: Frontend-selected template metadata
+    designPreferences?: DesignPreferences; // User-specified design constraints
   };
 }
 

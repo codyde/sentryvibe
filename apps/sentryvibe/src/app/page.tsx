@@ -44,6 +44,9 @@ import {
 } from "@sentryvibe/agent-core/lib/build-helpers";
 import { processCodexEvent } from "@sentryvibe/agent-core/lib/agents/codex/events";
 import ElementChangeCard from "@/components/ElementChangeCard";
+import DesignConstraintsModal from "@/components/design/DesignConstraintsModal";
+import type { DesignPreferences } from "@sentryvibe/agent-core/types/design";
+import { Palette } from "lucide-react";
 
 interface MessagePart {
   type: string;
@@ -101,6 +104,8 @@ function HomeContent() {
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
+  const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
+  const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
   >(null);
@@ -1222,6 +1227,7 @@ function HomeContent() {
           agent: selectedAgentId,
           claudeModel:
             selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+          designPreferences: designPreferences || undefined, // Include if set
           context: isElementChange
             ? {
                 elementSelector: "unknown", // Will be enhanced later
@@ -2211,6 +2217,16 @@ function HomeContent() {
             }}
           />
         )}
+        <DesignConstraintsModal
+          isOpen={isDesignModalOpen}
+          onClose={() => setIsDesignModalOpen(false)}
+          currentPreferences={designPreferences}
+          onApply={async (prefs) => {
+            setDesignPreferences(prefs);
+            // Note: Design preferences are sent with build request, not saved to DB here
+            // They'll be saved to the project DB after the project is created
+          }}
+        />
         {deletingProject && (
           <DeleteProjectModal
             isOpen={!!deletingProject}
@@ -2305,6 +2321,18 @@ function HomeContent() {
                       <div className="mt-3 flex justify-start">
                         <AgentSelector className="w-full max-w-2xl" />
                       </div>
+
+                      {/* Floating Design Button */}
+                      <button
+                        onClick={() => setIsDesignModalOpen(true)}
+                        className="absolute -bottom-16 right-0 flex items-center gap-2 px-4 py-2
+                                   bg-purple-500/20 hover:bg-purple-500/30 text-purple-300
+                                   border border-purple-500/50 rounded-lg transition-all shadow-lg
+                                   hover:shadow-purple-500/20"
+                      >
+                        <Palette className="w-4 h-4" />
+                        <span className="text-sm font-medium">Design</span>
+                      </button>
                     </form>
                   </div>
                 </motion.div>

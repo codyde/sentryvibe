@@ -1,4 +1,5 @@
 import type { AgentId } from '../../types/agent';
+import type { DesignPreferences } from '../../types/design';
 
 export interface AgentStrategyContext {
   projectId: string;
@@ -20,6 +21,7 @@ export interface AgentStrategyContext {
     rationale?: string;
     confidence?: number;
   };
+  designPreferences?: DesignPreferences; // User-specified design constraints
 }
 
 export interface AgentStrategy {

@@ -4,6 +4,7 @@
  */
 import type { AgentId } from './agent';
 import type { ClaudeModelId } from '../shared/runner/messages';
+import type { DesignPreferences } from './design';
 
 export type BuildOperationType =
   | 'initial-build'      // First time build, needs template download
@@ -35,6 +36,7 @@ export interface BuildRequest {
   agent?: AgentId; // Selected coding agent provider (Claude Code, OpenAI Codex, etc.)
   claudeModel?: ClaudeModelId;
   template?: TemplateMetadata; // Frontend-selected template (NEW: for parity improvements)
+  designPreferences?: DesignPreferences; // User-specified design constraints
   context?: {
     elementSelector?: string;
     elementInfo?: {

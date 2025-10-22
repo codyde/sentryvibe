@@ -19,6 +19,7 @@ export const projects = pgTable('projects', {
   tunnelUrl: text('tunnel_url'),
   runnerId: text('runner_id'), // Runner that created/manages this project
   generationState: text('generation_state'),
+  designPreferences: jsonb('design_preferences'), // User-specified design constraints
   lastActivityAt: timestamp('last_activity_at').defaultNow(),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
