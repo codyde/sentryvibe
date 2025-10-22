@@ -68,18 +68,18 @@ export default function DesignConstraintsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-[90vw] h-[600px] p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-3 border-b border-white/10">
-          <DialogTitle>Design Constraints</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="!max-w-[1000px] w-[95vw] !h-auto p-0 gap-0 bg-[#1e1e1e] border-[#3e3e3e]">
+        <DialogHeader className="px-6 pt-6 pb-3 space-y-1.5">
+          <DialogTitle className="text-white">Design Constraints</DialogTitle>
+          <DialogDescription className="text-gray-400">
             Define your design preferences for consistent, on-brand builds
           </DialogDescription>
         </DialogHeader>
 
-        {/* Two-column layout: Controls left, Preview right */}
-        <div className="grid grid-cols-[1fr,320px] h-[calc(600px-140px)] overflow-hidden">
-          {/* Left Column - Controls (scrollable) */}
-          <div className="overflow-y-auto px-6 py-4 space-y-6">
+        {/* Two-column layout: Controls LEFT, Preview RIGHT */}
+        <div className="flex px-6 pb-4 gap-6" style={{ height: '460px' }}>
+          {/* LEFT COLUMN - Controls */}
+          <div className="flex-1 overflow-y-auto pr-2 space-y-6">
             {/* Colors */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-200">Color Palette</h3>
@@ -136,12 +136,12 @@ export default function DesignConstraintsModal({
               </div>
             </div>
 
-            {/* Mood */}
+            {/* Mood - Using shadcn multi-select */}
             <MoodSelector selected={mood} onChange={setMood} maxSelections={4} />
           </div>
 
-          {/* Right Column - Preview (fixed) */}
-          <div className="border-l border-white/10 p-4 flex flex-col h-full overflow-hidden">
+          {/* RIGHT COLUMN - Preview */}
+          <div className="w-[320px] flex-shrink-0 border-l border-white/10 pl-6 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-medium text-gray-400">Preview</label>
               <div className="flex gap-1 bg-white/5 border border-white/10 rounded p-0.5">
@@ -168,19 +168,24 @@ export default function DesignConstraintsModal({
               </div>
             </div>
 
-            <div className="flex-1 min-h-0">
+            <div className="flex-1">
               <LivePreview colors={colors} typography={typography} colorMode={colorMode} />
             </div>
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t border-white/10">
-          <Button variant="outline" onClick={handleReset}>
+        <DialogFooter className="px-6 py-4 border-t border-white/10 flex justify-between">
+          <Button variant="outline" onClick={handleReset} className="bg-white/5 border-white/10 hover:bg-white/10 text-gray-200">
             Reset
           </Button>
-          <Button onClick={handleApply} className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/50">
-            Apply
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} className="bg-white/5 border-white/10 hover:bg-white/10 text-gray-200">
+              Cancel
+            </Button>
+            <Button onClick={handleApply} className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/50">
+              Apply
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

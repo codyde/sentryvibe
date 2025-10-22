@@ -57,7 +57,7 @@ export default function MoodSelector({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between text-sm h-auto min-h-[2.5rem]"
+            className="w-full justify-between text-sm h-auto min-h-[2.5rem] bg-white/5 border-white/10 hover:bg-white/10 text-gray-200"
           >
             <span className="flex flex-wrap gap-1">
               {selected.length === 0 ? (
@@ -70,13 +70,13 @@ export default function MoodSelector({
                 ))
               )}
             </span>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-gray-400" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[400px] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="Search moods..." />
-            <CommandEmpty>No mood found.</CommandEmpty>
+        <PopoverContent className="w-[400px] p-0 bg-[#1e1e1e] border-[#3e3e3e]" align="start">
+          <Command className="bg-[#1e1e1e]">
+            <CommandInput placeholder="Search moods..." className="text-gray-200 bg-white/5 border-white/10" />
+            <CommandEmpty className="text-gray-400">No mood found.</CommandEmpty>
             <CommandGroup className="max-h-64 overflow-auto">
               {MOOD_OPTIONS.map((mood) => {
                 const isSelected = selected.includes(mood);
@@ -92,11 +92,11 @@ export default function MoodSelector({
                       }
                     }}
                     disabled={isDisabled}
-                    className="cursor-pointer"
+                    className="cursor-pointer text-gray-200 aria-selected:bg-purple-500/20 aria-selected:text-purple-300"
                   >
                     <Check
                       className={`mr-2 h-4 w-4 ${
-                        isSelected ? 'opacity-100' : 'opacity-0'
+                        isSelected ? 'opacity-100 text-purple-300' : 'opacity-0'
                       }`}
                     />
                     {mood}
