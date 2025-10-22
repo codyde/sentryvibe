@@ -3,6 +3,13 @@ import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { isPortReady } from './port-checker.js';
 
+// Silent mode for TUI
+let isSilentMode = false;
+
+export function setSilentMode(silent: boolean): void {
+  isSilentMode = silent;
+}
+
 /**
  * Get API configuration (evaluated at runtime, not module load time)
  */
@@ -61,9 +68,9 @@ const activeProcesses = new Map<string, DevServerProcess>();
 export function startDevServer(options: DevServerOptions): DevServerProcess {
   const { projectId, command, cwd, env } = options;
 
-  console.log(`[process-manager] Starting dev server for project: ${projectId}`);
-  console.log(`[process-manager] Command: ${command}`);
-  console.log(`[process-manager] CWD: ${cwd}`);
+  if (!isSilentMode) console.log(`[process-manager] Starting dev server for project: ${projectId}`);
+  if (!isSilentMode) console.log(`[process-manager] Command: ${command}`);
+  if (!isSilentMode) console.log(`[process-manager] CWD: ${cwd}`);
 
   // Stop any existing process for this project
   stopDevServer(projectId);
@@ -87,7 +94,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     shell: '/bin/bash', // Explicitly use bash instead of default shell
   });
 
-  console.log(`[process-manager] Child process spawned, PID: ${childProcess.pid}`);
+  if (!isSilentMode) console.log(`[process-manager] Child process spawned, PID: ${childProcess.pid}`);
 
   const devProcess: DevServerProcess = {
     process: childProcess,
@@ -110,7 +117,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       }),
     })
       .then(() => {
-        console.log(`[process-manager] ✅ Registered process via API: PID ${childProcess.pid}, Runner ${runnerId}`);
+        if (!isSilentMode) console.log(`[process-manager] ✅ Registered process via API: PID ${childProcess.pid}, Runner ${runnerId}`);
       })
       .catch((err: unknown) => {
         console.error(`[process-manager] ❌ Failed to register process via API:`, err);
@@ -135,14 +142,14 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
           portVerificationInProgress = true;
 
           // Verify port is actually listening before emitting
-          console.log(`[process-manager] Detected potential port ${port}, verifying...`);
+          if (!isSilentMode) console.log(`[process-manager] Detected potential port ${port}, verifying...`);
 
           // Give the server a moment to fully bind
           setTimeout(async () => {
             const ready = await isPortReady(port, 'localhost', 2000);
             if (ready && !portEmitted) {
               portEmitted = true;
-              console.log(`[process-manager] ✅ Verified port ${port} is listening`);
+              if (!isSilentMode) console.log(`[process-manager] ✅ Verified port ${port} is listening`);
               emitter.emit('port', port);
 
               // Update port via API
@@ -151,13 +158,13 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
                 body: JSON.stringify({ port }),
               })
                 .then(() => {
-                  console.log(`[process-manager] ✅ Updated port ${port} via API`);
+                  if (!isSilentMode) console.log(`[process-manager] ✅ Updated port ${port} via API`);
                 })
                 .catch((err: unknown) => {
                   console.error(`[process-manager] ❌ Failed to update port via API:`, err);
                 });
             } else if (!ready) {
-              console.log(`[process-manager] ⚠️  Port ${port} not ready, will retry on next output`);
+              if (!isSilentMode) console.log(`[process-manager] ⚠️  Port ${port} not ready, will retry on next output`);
               portVerificationInProgress = false;
             }
           }, 500);
@@ -181,7 +188,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       method: 'DELETE',
     })
       .then(() => {
-        console.log(`[process-manager] ✅ Unregistered process via API`);
+        if (!isSilentMode) console.log(`[process-manager] ✅ Unregistered process via API`);
       })
       .catch((err: unknown) => {
         console.error(`[process-manager] ❌ Failed to unregister process via API:`, err);

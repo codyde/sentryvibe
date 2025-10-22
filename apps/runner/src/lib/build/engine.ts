@@ -47,13 +47,13 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   const actualWorkingDir = resolvedDir ?? workingDirectory;
 
   if (resolvedDir) {
-    console.log(`[engine] Strategy adjusted CWD to: ${actualWorkingDir}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`[engine] Strategy adjusted CWD to: ${actualWorkingDir}`);
   } else if (!existsSync(workingDirectory)) {
     mkdirSync(workingDirectory, { recursive: true });
   }
 
   if (!resolvedDir) {
-    console.log(`[engine] Using project directory as CWD: ${actualWorkingDir}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`[engine] Using project directory as CWD: ${actualWorkingDir}`);
   }
 
   // Store the original CWD to restore it later

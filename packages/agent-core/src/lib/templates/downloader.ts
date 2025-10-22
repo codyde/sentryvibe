@@ -18,10 +18,10 @@ export async function downloadTemplate(
 ): Promise<string> {
   const targetPath = join(getWorkspaceRoot(), projectName);
 
-  console.log(`📥 Downloading template: ${template.name}`);
-  console.log(`   Repository: ${template.repository}`);
-  console.log(`   Branch: ${template.branch}`);
-  console.log(`   Target: ${targetPath}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`📥 Downloading template: ${template.name}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Repository: ${template.repository}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Branch: ${template.branch}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Target: ${targetPath}`);
 
   // Check if target already exists
   if (existsSync(targetPath)) {
@@ -38,20 +38,20 @@ export async function downloadTemplate(
     // Use npx degit (no install needed)
     const command = `npx degit ${repoUrl} "${targetPath}"`;
 
-    console.log(`   Running: ${command}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Running: ${command}`);
     const { stdout, stderr } = await execAsync(command, {
       cwd: getWorkspaceRoot(),
     });
 
     if (stderr && !stderr.includes('degit') && !stderr.includes('cloned')) {
-      console.warn(`   Warning: ${stderr}`);
+      if (process.env.DEBUG_BUILD === '1') console.warn(`   Warning: ${stderr}`);
     }
 
     if (stdout) {
-      console.log(`   ${stdout}`);
+      if (process.env.DEBUG_BUILD === '1') console.log(`   ${stdout}`);
     }
 
-    console.log(`✅ Template downloaded successfully`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`✅ Template downloaded successfully`);
 
     // Update package.json name(s)
     await updatePackageName(targetPath, projectName);
@@ -70,10 +70,10 @@ export async function downloadTemplate(
     return targetPath;
 
   } catch (error) {
-    console.error(`❌ Failed to download template:`, error);
+    if (process.env.DEBUG_BUILD === '1') console.error(`❌ Failed to download template:`, error);
 
     // Fallback to git clone if degit fails
-    console.log(`⚠️  Falling back to git clone...`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`⚠️  Falling back to git clone...`);
     return await downloadTemplateWithGit(template, projectName);
   }
 }
@@ -87,7 +87,7 @@ export async function downloadTemplateWithGit(
 ): Promise<string> {
   const targetPath = join(getWorkspaceRoot(), projectName);
 
-  console.log(`📥 Cloning template with git: ${template.name}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`📥 Cloning template with git: ${template.name}`);
 
   // Parse GitHub URL
   // "github:username/repo" → "https://github.com/username/repo.git"
@@ -96,7 +96,7 @@ export async function downloadTemplateWithGit(
   // Shallow clone (depth 1, no history)
   const command = `git clone --depth 1 --branch ${template.branch} "${repoUrl}" "${targetPath}"`;
 
-  console.log(`   Running: ${command}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`   Running: ${command}`);
 
   try {
     const { stdout, stderr } = await execAsync(command, {
@@ -109,19 +109,19 @@ export async function downloadTemplateWithGit(
     // Remove .git directory (we don't need version history)
     try {
       await execAsync(`rm -rf "${join(targetPath, '.git')}"`);
-      console.log(`   Cleaned .git directory`);
+      if (process.env.DEBUG_BUILD === '1') console.log(`   Cleaned .git directory`);
     } catch {
       // Ignore errors cleaning .git
     }
 
-    console.log(`✅ Template cloned successfully`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`✅ Template cloned successfully`);
 
     await updatePackageName(targetPath, projectName);
 
     return targetPath;
 
   } catch (error) {
-    console.error(`❌ Failed to clone template:`, error);
+    if (process.env.DEBUG_BUILD === '1') console.error(`❌ Failed to clone template:`, error);
     throw new Error(`Template download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -133,7 +133,7 @@ async function updatePackageName(projectPath: string, newName: string): Promise<
   const pkgPath = join(projectPath, 'package.json');
 
   if (!existsSync(pkgPath)) {
-    console.log(`   No package.json found in ${projectPath}, skipping name update`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   No package.json found in ${projectPath}, skipping name update`);
     return;
   }
 
@@ -143,9 +143,9 @@ async function updatePackageName(projectPath: string, newName: string): Promise<
     pkg.name = newName;
     await writeFile(pkgPath, JSON.stringify(pkg, null, 2));
 
-    console.log(`   Updated package.json name to: ${newName}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Updated package.json name to: ${newName}`);
   } catch (error) {
-    console.warn(`   Failed to update package.json:`, error);
+    if (process.env.DEBUG_BUILD === '1') console.warn(`   Failed to update package.json:`, error);
   }
 }
 

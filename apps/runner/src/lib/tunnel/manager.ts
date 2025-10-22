@@ -11,6 +11,23 @@ interface TunnelInfo {
 export class TunnelManager extends EventEmitter {
   private tunnels = new Map<number, TunnelInfo>();
   private cloudflaredPath: string | null = null;
+  private silent = false; // Suppress console output
+
+  /**
+   * Set silent mode (for TUI)
+   */
+  setSilent(silent: boolean): void {
+    this.silent = silent;
+  }
+
+  /**
+   * Conditional logging
+   */
+  private log(...args: unknown[]): void {
+    if (!this.silent) {
+      console.log(...args);
+    }
+  }
 
   /**
    * Create a tunnel for a specific port
@@ -20,13 +37,13 @@ export class TunnelManager extends EventEmitter {
     // Check if tunnel already exists for this port
     if (this.tunnels.has(port)) {
       const existing = this.tunnels.get(port)!;
-      console.log(`🔗 Tunnel already exists for port ${port}: ${existing.url}`);
+      this.log(`🔗 Tunnel already exists for port ${port}: ${existing.url}`);
       return existing.url;
     }
 
     // Ensure cloudflared is installed
     if (!this.cloudflaredPath) {
-      this.cloudflaredPath = await ensureCloudflared();
+      this.cloudflaredPath = await ensureCloudflared(this.silent);
     }
 
     // Try creating tunnel with smart retries
@@ -52,7 +69,7 @@ export class TunnelManager extends EventEmitter {
         const baseDelay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s
         const jitter = Math.random() * 1000; // 0-1s random jitter
         const delay = baseDelay + jitter;
-        console.log(`Retrying in ${Math.round(delay)}ms...`);
+        this.log(`Retrying in ${Math.round(delay)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -95,7 +112,7 @@ export class TunnelManager extends EventEmitter {
     const startTime = Date.now();
     const checkInterval = 1000; // Check every 1 second (less aggressive)
 
-    console.log(`🔍 [Background] Verifying tunnel is ready: ${url}`);
+    this.log(`🔍 [Background] Verifying tunnel is ready: ${url}`);
 
     while (Date.now() - startTime < maxWaitMs) {
       try {
@@ -113,7 +130,7 @@ export class TunnelManager extends EventEmitter {
         // We just need to verify it's resolving and routing
         if (response.status < 500 || response.ok) {
           const elapsed = Date.now() - startTime;
-          console.log(`✅ [Background] Tunnel verified in ${elapsed}ms`);
+          this.log(`✅ [Background] Tunnel verified in ${elapsed}ms`);
           return true;
         }
       } catch (error) {
@@ -124,7 +141,7 @@ export class TunnelManager extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, checkInterval));
     }
 
-    console.log(`⏱️  [Background] Verification timeout after ${maxWaitMs}ms (tunnel may still work)`);
+    this.log(`⏱️  [Background] Verification timeout after ${maxWaitMs}ms (tunnel may still work)`);
     return false;
   }
 
@@ -133,7 +150,7 @@ export class TunnelManager extends EventEmitter {
    */
   private async _createTunnelAttempt(port: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      console.log(`[tunnel] Creating tunnel for port ${port}...`);
+      this.log(`[tunnel] Creating tunnel for port ${port}...`);
 
       // Direct binary execution with unbuffered streams
       const proc = spawn(this.cloudflaredPath!, [
@@ -155,7 +172,7 @@ export class TunnelManager extends EventEmitter {
         proc.stderr.resume();
       }
 
-      console.log(`[tunnel] Cloudflared spawned with PID: ${proc.pid}`);
+      this.log(`[tunnel] Cloudflared spawned with PID: ${proc.pid}`);
 
       let resolved = false;
       let tunnelUrl: string | null = null;
@@ -177,7 +194,7 @@ export class TunnelManager extends EventEmitter {
           const url = this._extractTunnelUrl(output);
           if (url) {
             tunnelUrl = url;
-            console.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
+            this.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
             this.tunnels.set(port, { url, port, process: proc });
           }
         }
@@ -185,10 +202,10 @@ export class TunnelManager extends EventEmitter {
         // Step 2: Wait for tunnel registration (edge connection established)
         if (tunnelUrl && !tunnelRegistered && output.includes('Registered tunnel connection')) {
           tunnelRegistered = true;
-          console.log(`✅ Tunnel registered with Cloudflare edge (DNS propagating)`);
+          this.log(`✅ Tunnel registered with Cloudflare edge (DNS propagating)`);
 
           // Wait 3 seconds after registration for DNS to propagate
-          console.log(`⏳ Waiting 3 seconds for DNS to fully propagate...`);
+          this.log(`⏳ Waiting 3 seconds for DNS to fully propagate...`);
           await new Promise(r => setTimeout(r, 3000));
 
           // Step 3: Return only after registration + 3 second buffer
@@ -196,7 +213,7 @@ export class TunnelManager extends EventEmitter {
             resolved = true;
             clearTimeout(timeout);
 
-            console.log(`✅ Tunnel ready: ${tunnelUrl}`);
+            this.log(`✅ Tunnel ready: ${tunnelUrl}`);
 
             // Note: Backend verification skipped for localhost tunnels
             // The tunnel connects localhost to Cloudflare - backend can't verify it
@@ -213,8 +230,13 @@ export class TunnelManager extends EventEmitter {
         const output = data.toString();
 
         // Log errors (cloudflared uses stderr for all output)
-        if (output.toLowerCase().includes('error') || output.toLowerCase().includes('fatal')) {
-          console.error(`[cloudflared:${port}] ${output.trim()}`);
+        // Only show real errors, not shutdown messages
+        const lower = output.toLowerCase();
+        if ((lower.includes('error') || lower.includes('fatal')) &&
+            !lower.includes('context canceled') &&
+            !lower.includes('connection terminated') &&
+            !lower.includes('no more connections active')) {
+          this.log(`[cloudflared:${port}] ${output.trim()}`);
         }
 
         // Check for tunnel URL in stderr too
@@ -222,7 +244,7 @@ export class TunnelManager extends EventEmitter {
       });
 
       proc.on('exit', (code, signal) => {
-        console.log(`Tunnel exited for port ${port} with code ${code} signal ${signal}`);
+        this.log(`Tunnel exited for port ${port} with code ${code} signal ${signal}`);
         this.tunnels.delete(port);
         this.emit('tunnel-closed', port);
       });
@@ -242,20 +264,38 @@ export class TunnelManager extends EventEmitter {
   async closeTunnel(port: number): Promise<void> {
     const tunnel = this.tunnels.get(port);
     if (!tunnel) {
-      console.log(`No tunnel found for port ${port}`);
+      this.log(`No tunnel found for port ${port}`);
       return;
     }
 
-    console.log(`🔗 Closing tunnel for port ${port}...`);
-    tunnel.process.kill('SIGTERM');
-    this.tunnels.delete(port);
+    this.log(`🔗 Closing tunnel for port ${port}...`);
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        // Force kill if not dead after 1 second
+        if (!tunnel.process.killed) {
+          tunnel.process.kill('SIGKILL');
+        }
+        this.tunnels.delete(port);
+        resolve();
+      }, 1000);
+
+      tunnel.process.once('exit', () => {
+        clearTimeout(timeout);
+        this.tunnels.delete(port);
+        resolve();
+      });
+
+      // Send SIGTERM
+      tunnel.process.kill('SIGTERM');
+    });
   }
 
   /**
    * Close all active tunnels
    */
   async closeAll(): Promise<void> {
-    console.log(`🔗 Closing ${this.tunnels.size} active tunnel(s)...`);
+    this.log(`🔗 Closing ${this.tunnels.size} active tunnel(s)...`);
 
     const ports = Array.from(this.tunnels.keys());
     await Promise.all(ports.map(port => this.closeTunnel(port)));

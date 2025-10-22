@@ -59,10 +59,24 @@ export interface RunnerOptions {
   runnerId?: string;
   workspace?: string;
   heartbeatInterval?: number;
+  silent?: boolean; // Suppress console output (for TUI mode)
 }
 
+let isSilentMode = false;
+
+// Build logging can be controlled separately
+const DEBUG_BUILD = process.env.DEBUG_BUILD === '1' || false;
+
 const log = (...args: unknown[]) => {
-  console.log("[runner]", ...args);
+  if (!isSilentMode) {
+    console.log("[runner]", ...args);
+  }
+};
+
+const buildLog = (...args: unknown[]) => {
+  if (!isSilentMode && DEBUG_BUILD) {
+    console.log("[build]", ...args);
+  }
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
@@ -153,9 +167,9 @@ async function* convertCodexEventsToAgentMessages(
     console.log(
       `[codex-events] ═══════════════════════════════════════════════`
     );
-    console.log(`[codex-events] RAW EVENT #${eventCount}`);
-    console.log(`[codex-events] Type: ${event.type}`);
-    console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] RAW EVENT #${eventCount}`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] Type: ${event.type}`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
     console.log(
       `[codex-events] ═══════════════════════════════════════════════`
     );
@@ -400,7 +414,7 @@ function createCodexQuery(): BuildQueryFn {
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
     // ========================================
-    console.log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
+    if (!isSilentMode && DEBUG_BUILD) console.log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
     turnCount++;
 
     const planningPrompt = `${combinedPrompt}
@@ -415,13 +429,13 @@ All tasks should start as "pending" except the first one which should be "in_pro
 
     let taskPlan;
     try {
-      console.log('📋 [codex-query] Requesting structured task plan...');
+      if (!isSilentMode && DEBUG_BUILD) console.log('📋 [codex-query] Requesting structured task plan...');
       const planningTurn = await thread.run(planningPrompt, {
         outputSchema: getTaskPlanJsonSchema(),
       });
 
       taskPlan = JSON.parse(planningTurn.finalResponse);
-      console.log('✅ [codex-query] Got structured task plan!');
+      if (!isSilentMode && DEBUG_BUILD) console.log('✅ [codex-query] Got structured task plan!');
       console.log(`   Analysis: ${taskPlan.analysis}`);
       console.log(`   Tasks: ${taskPlan.todos.length}`);
 
@@ -438,7 +452,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
         status: 'pending' as const, // All real tasks start as pending
       }))];
 
-      console.log('✅ [codex-query] Added synthetic "Getting Started" task at index 0');
+      if (!isSilentMode && DEBUG_BUILD) console.log('✅ [codex-query] Added synthetic "Getting Started" task at index 0');
       console.log(`   Total tasks: ${allTasks.length} (1 synthetic + ${taskPlan.todos.length} real)`);
 
       // Initialize smart tracker with all tasks (including synthetic)
@@ -471,7 +485,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
       };
 
       // Send TodoWrite event with ALL tasks (including synthetic Getting Started)
-      console.log('📤 [codex-query] Sending initial TodoWrite to UI with Getting Started task...');
+      if (!isSilentMode && DEBUG_BUILD) console.log('📤 [codex-query] Sending initial TodoWrite to UI with Getting Started task...');
       const todoWriteEvent = {
         type: 'assistant',
         message: {
@@ -493,12 +507,12 @@ All tasks should start as "pending" except the first one which should be "in_pro
       throw error;
     }
 
-    console.log(`🔍 [codex-query] Smart tracker initialized with ${smartTracker?.todos.length} tasks`);
+    if (!isSilentMode && DEBUG_BUILD) console.log(`🔍 [codex-query] Smart tracker initialized with ${smartTracker?.todos.length} tasks`);
 
     // ========================================
     // PHASE 2: TASK EXECUTION LOOP
     // ========================================
-    console.log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
+    if (!isSilentMode && DEBUG_BUILD) console.log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
 
     while (turnCount < MAX_TURNS) {
       // Check if all tasks are complete
@@ -524,15 +538,15 @@ All tasks should start as "pending" except the first one which should be "in_pro
         break;
       }
 
-      console.log(`🚀 [codex-query] Next task: ${currentTask.content}`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] Next task: ${currentTask.content}`);
 
       // PRE-SET active todo index BEFORE executing turn
       // This ensures tool calls get associated with the right todo!
       const currentTaskIndex = smartTracker.currentIndex;
-      console.log(`📍 [codex-query] Setting active todo index to: ${currentTaskIndex}`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`📍 [codex-query] Setting active todo index to: ${currentTaskIndex}`);
 
       // Send synthetic TodoWrite to update active task BEFORE tools execute
-      console.log(`📤 [codex-query] Sending pre-task TodoWrite (task ${currentTaskIndex} active)...`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`📤 [codex-query] Sending pre-task TodoWrite (task ${currentTaskIndex} active)...`);
       const preTaskUpdate = {
         type: 'assistant',
         message: {
@@ -558,8 +572,8 @@ Don't just plan - TAKE ACTION and create/modify files.`;
       // EXECUTE NEXT TURN
       // ========================================
       turnCount++;
-      console.log(`🚀 [codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
-      console.log(`📝 [codex-query] Prompt: ${nextPrompt.substring(0, 150)}...`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
+      if (!isSilentMode && DEBUG_BUILD) console.log(`📝 [codex-query] Prompt: ${nextPrompt.substring(0, 150)}...`);
 
       buildLogger.codexQuery.turnStarted(turnCount, MAX_TURNS, nextPrompt.length);
 
@@ -614,10 +628,10 @@ Don't just plan - TAKE ACTION and create/modify files.`;
         const isSyntheticTask = currentTaskIndex === 0 && taskName.includes('Getting started');
 
         if (isSyntheticTask) {
-          console.log(`✅ [codex-query] Completed synthetic "Getting Started" task`);
-          console.log(`🚀 [codex-query] Now starting real work...`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ [codex-query] Completed synthetic "Getting Started" task`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] Now starting real work...`);
         } else {
-          console.log(`✅ [codex-query] Marked task ${currentTaskIndex} as completed: ${taskName}`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ [codex-query] Marked task ${currentTaskIndex} as completed: ${taskName}`);
         }
 
         if (currentTaskIndex + 1 < smartTracker.todos.length) {
@@ -625,11 +639,11 @@ Don't just plan - TAKE ACTION and create/modify files.`;
           smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
 
           const nextTaskName = smartTracker.todos[currentTaskIndex + 1].content;
-          console.log(`⏳ [codex-query] Advanced to task ${currentTaskIndex + 1}: ${nextTaskName}`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`⏳ [codex-query] Advanced to task ${currentTaskIndex + 1}: ${nextTaskName}`);
         }
 
         // Send updated todos to UI
-        console.log(`📤 [codex-query] Sending post-task TodoWrite (task ${currentTaskIndex} done, task ${currentTaskIndex + 1} active)...`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`📤 [codex-query] Sending post-task TodoWrite (task ${currentTaskIndex} done, task ${currentTaskIndex + 1} active)...`);
         const postTaskUpdate = {
           type: 'assistant',
           message: {
@@ -647,7 +661,7 @@ Don't just plan - TAKE ACTION and create/modify files.`;
         yield postTaskUpdate;
 
         const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
-        console.log(`📊 [codex-query] Progress: ${completed}/${smartTracker.todos.length} tasks complete`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`📊 [codex-query] Progress: ${completed}/${smartTracker.todos.length} tasks complete`);
       }
     }
 
@@ -690,7 +704,9 @@ async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3
  * Cleanup orphaned processes on startup
  */
 async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
-  console.log('🧹 Cleaning up orphaned processes from previous runs...');
+  if (!isSilentMode) {
+    console.log('🧹 Cleaning up orphaned processes from previous runs...');
+  }
 
   try {
     // Get list of processes from API (filtered by this runner's ID)
@@ -706,13 +722,15 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
     }
 
     const { processes } = await response.json();
-    console.log(`   Found ${processes.length} processes to check for this runner`);
+    if (!isSilentMode) {
+      console.log(`   Found ${processes.length} processes to check for this runner`);
+    }
 
     for (const row of processes) {
       try {
         // Check if process still exists locally (signal 0 = check existence, doesn't kill)
         process.kill(row.pid, 0);
-        console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
       } catch (err) {
         // Process doesn't exist - orphaned, unregister via API
         console.log(`   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(0, 8)}), cleaning up`);
@@ -726,7 +744,9 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
       }
     }
 
-    console.log('✅ Orphaned process cleanup complete');
+    if (!isSilentMode) {
+      if (!isSilentMode && DEBUG_BUILD) console.log('✅ Orphaned process cleanup complete');
+    }
   } catch (error) {
     console.error('❌ Error during cleanup:', error);
     throw error;
@@ -747,7 +767,9 @@ async function checkPortInUse(port: number): Promise<boolean> {
 
     socket.once('connect', () => {
       // Successfully connected = server is running
-      console.log(`   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`);
+      if (!isSilentMode) {
+        console.log(`   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`);
+      }
       socket.destroy();
       resolve(true);
     });
@@ -773,7 +795,9 @@ async function checkPortInUse(port: number): Promise<boolean> {
  * Start periodic health checks for running processes
  */
 function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
-  console.log('🏥 Starting periodic port health checks (every 30s)...');
+  if (!isSilentMode) {
+    console.log('🏥 Starting periodic port health checks (every 30s)...');
+  }
 
   const doHealthCheck = async () => {
     try {
@@ -797,7 +821,7 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
         // Check port locally (runner can access localhost)
         const isListening = await checkPortInUse(row.port);
 
-        console.log(`   🔍 Health check for port ${row.port}: ${isListening ? 'HEALTHY ✅' : 'UNHEALTHY ❌'}`);
+        if (!isSilentMode && DEBUG_BUILD) console.log(`   🔍 Health check for port ${row.port}: ${isListening ? 'HEALTHY ✅' : 'UNHEALTHY ❌'}`);
 
         const newFailCount = isListening ? 0 : (row.healthCheckFailCount || 0) + 1;
 
@@ -844,7 +868,22 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
 /**
  * Start the runner with the given options
  */
-export function startRunner(options: RunnerOptions = {}) {
+export async function startRunner(options: RunnerOptions = {}) {
+  // Set silent mode if requested (for TUI)
+  isSilentMode = options.silent || false;
+
+  // Also set silent mode for all modules
+  if (isSilentMode) {
+    const { setSilentMode: setProcessManagerSilent } = await import('./lib/process-manager.js');
+    setProcessManagerSilent(true);
+
+    const { setSilentMode: setPortCheckerSilent } = await import('./lib/port-checker.js');
+    setPortCheckerSilent(true);
+
+    // Set silent mode on tunnel manager globally
+    tunnelManager.setSilent(true);
+  }
+
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
   log("workspace root:", WORKSPACE_ROOT);
 
@@ -899,6 +938,7 @@ export function startRunner(options: RunnerOptions = {}) {
   let pingTimer: NodeJS.Timeout | null = null;
   let loggedFirstChunk = false;
   let reconnectAttempts = 0;
+  let isShuttingDown = false; // Prevent reconnection during shutdown
   const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
   const PING_INTERVAL = 30000; // Ping every 30 seconds
 
@@ -911,7 +951,7 @@ export function startRunner(options: RunnerOptions = {}) {
 
   function sendEvent(event: RunnerEvent) {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      console.warn(
+      log(
         `[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`
       );
       return;
@@ -921,28 +961,28 @@ export function startRunner(options: RunnerOptions = {}) {
 
       // Only log important events
       if (event.type === "error") {
-        console.error(`[runner] ❌ Error: ${event.error}`);
+        log(`❌ Error: ${event.error}`);
         if (event.stack) {
-          console.error(`[runner]   Stack: ${event.stack.substring(0, 500)}`);
+          log(`Stack: ${event.stack.substring(0, 500)}`);
         }
       } else if (event.type === "port-detected") {
-        console.log(`[runner] 🔌 Port detected: ${event.port}`);
+        log(`🔌 Port detected: ${event.port}`);
       } else if (event.type === "tunnel-created") {
-        console.log(
-          `[runner] 🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`
+        log(
+          `🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`
         );
       } else if (event.type === "build-completed") {
-        console.log(
-          `[runner] ✅ Build completed for project: ${event.projectId}`
+        log(
+          `✅ Build completed for project: ${event.projectId}`
         );
       } else if (event.type === "build-failed") {
-        console.error(`[runner] ❌ Build failed: ${event.error}`);
+        log(`❌ Build failed: ${event.error}`);
       }
       // Suppress: build-stream, runner-status, ack, etc.
 
       socket.send(eventJson);
     } catch (error) {
-      console.error(`[runner] ❌ Failed to send event ${event.type}:`, error);
+      log(`❌ Failed to send event ${event.type}:`, error);
     }
   }
 
@@ -955,31 +995,31 @@ export function startRunner(options: RunnerOptions = {}) {
   }
 
   async function handleCommand(command: RunnerCommand) {
-    console.log(
-      `[runner] 📥 Received command: ${command.type} for project: ${command.projectId}`
+    log(
+      `📥 Received command: ${command.type} for project: ${command.projectId}`
     );
-    console.log(`[runner]   Command ID: ${command.id}`);
-    console.log(`[runner]   Timestamp: ${command.timestamp}`);
+    log(`  Command ID: ${command.id}`);
+    log(`  Timestamp: ${command.timestamp}`);
 
     // Log command-specific details
     if (command.type === "start-build") {
-      console.log(
-        `[runner]   Build operation: ${command.payload.operationType}`
+      log(
+        `  Build operation: ${command.payload.operationType}`
       );
-      console.log(`[runner]   Project slug: ${command.payload.projectSlug}`);
-      console.log(
-        `[runner]   Prompt length: ${command.payload.prompt?.length || 0} chars`
+      log(`  Project slug: ${command.payload.projectSlug}`);
+      log(
+        `  Prompt length: ${command.payload.prompt?.length || 0} chars`
       );
     } else if (command.type === "start-dev-server") {
-      console.log(
-        `[runner]   Working directory: ${command.payload.workingDirectory}`
+      log(
+        `  Working directory: ${command.payload.workingDirectory}`
       );
-      console.log(`[runner]   Run command: ${command.payload.runCommand}`);
+      log(`  Run command: ${command.payload.runCommand}`);
     } else if (
       command.type === "start-tunnel" ||
       command.type === "stop-tunnel"
     ) {
-      console.log(`[runner]   Port: ${command.payload.port}`);
+      log(`  Port: ${command.payload.port}`);
     }
 
     sendEvent({
@@ -1037,7 +1077,7 @@ export function startRunner(options: RunnerOptions = {}) {
           devProcess.emitter.on("port", async (port: number) => {
             // Store VERIFIED listening port for this project (single source of truth)
             verifiedPortsByProject.set(command.projectId, port);
-            console.log(
+            log(
               `✅ Verified listening port ${port} for project ${command.projectId}`
             );
 
@@ -1055,7 +1095,7 @@ export function startRunner(options: RunnerOptions = {}) {
             // Use verified port for cleanup (single source of truth)
             const verifiedPort = verifiedPortsByProject.get(command.projectId);
             if (verifiedPort) {
-              console.log(
+              log(
                 `🔗 Closing tunnel for verified port ${verifiedPort}`
               );
               await tunnelManager.closeTunnel(verifiedPort);
@@ -1108,19 +1148,22 @@ export function startRunner(options: RunnerOptions = {}) {
       case "start-tunnel": {
         try {
           const { port } = command.payload;
-          console.log(`🔗 Starting tunnel for port ${port}...`);
+          log(`🔗 Starting tunnel for port ${port}...`);
 
           // Wait for the port to be ready before creating tunnel
-          console.log(`⏳ Waiting for port ${port} to be ready...`);
+          log(`⏳ Waiting for port ${port} to be ready...`);
           const isReady = await waitForPort(port, 15, 1000); // 15 retries, 1s apart = max 15s
 
           if (!isReady) {
             throw new Error(`Port ${port} is not ready or not accessible`);
           }
 
+          // Ensure tunnel manager is in silent mode
+          tunnelManager.setSilent(isSilentMode);
+
           // Create tunnel
           const tunnelUrl = await tunnelManager.createTunnel(port);
-          console.log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
+          log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
 
           sendEvent({
             type: "tunnel-created",
@@ -1145,9 +1188,13 @@ export function startRunner(options: RunnerOptions = {}) {
       case "stop-tunnel": {
         try {
           const { port } = command.payload;
-          console.log(`🔗 Stopping tunnel for port ${port}...`);
+          log(`🔗 Stopping tunnel for port ${port}...`);
+
+          // Ensure tunnel manager is in silent mode
+          tunnelManager.setSilent(isSilentMode);
+
           await tunnelManager.closeTunnel(port);
-          console.log(`✅ Tunnel closed for port ${port}`);
+          log(`✅ Tunnel closed for port ${port}`);
 
           sendEvent({
             type: "tunnel-closed",
@@ -1221,10 +1268,10 @@ export function startRunner(options: RunnerOptions = {}) {
               `[runner] ✅ Successfully deleted project files: ${projectPath}`
             );
           } catch (rmError) {
-            console.warn(
+            log(
               `[runner] ⚠️  rm -rf failed, trying fs.rm with maxRetries...`
             );
-            console.warn(`[runner]   Error:`, rmError instanceof Error ? rmError.message : String(rmError));
+            log(`[runner]   Error:`, rmError instanceof Error ? rmError.message : String(rmError));
 
             // Strategy 2: Fall back to fs.rm with maxRetries option
             const { rm } = await import("fs/promises");
@@ -1376,7 +1423,7 @@ export function startRunner(options: RunnerOptions = {}) {
             })
           );
 
-          console.log(`[runner] ✅ Found ${files.length} entries`);
+          if (!isSilentMode && DEBUG_BUILD) console.log(`[runner] ✅ Found ${files.length} entries`);
 
           sendEvent({
             type: "file-list",
@@ -1480,15 +1527,12 @@ export function startRunner(options: RunnerOptions = {}) {
             });
           }
 
-          console.log(
-            `[build] 🚀 Starting build stream for project: ${command.projectId}`
+          buildLog(` 🚀 Starting build stream for project: ${command.projectId}`
           );
-          console.log(`[build]   Directory: ${projectDirectory}`);
-          console.log(
-            `[build]   Is new project: ${orchestration.isNewProject}`
+          buildLog(`   Directory: ${projectDirectory}`);
+          buildLog(`   Is new project: ${orchestration.isNewProject}`
           );
-          console.log(
-            `[build]   Template: ${orchestration.template?.name || "none"}`
+          buildLog(`   Template: ${orchestration.template?.name || "none"}`
           );
 
           const stream = await createBuildStream({
@@ -1505,8 +1549,7 @@ export function startRunner(options: RunnerOptions = {}) {
             isNewProject: orchestration.isNewProject,
           });
 
-          console.log(
-            `[build] 📡 Build stream created, starting to process chunks...`
+          buildLog(` 📡 Build stream created, starting to process chunks...`
           );
 
           const reader = stream.getReader();
@@ -1516,8 +1559,7 @@ export function startRunner(options: RunnerOptions = {}) {
           while (true) {
             const { value, done } = await reader.read();
             if (done) {
-              console.log(
-                `[build] Stream reader reports DONE after ${chunkCount} chunks`
+              buildLog(` Stream reader reports DONE after ${chunkCount} chunks`
               );
               break;
             }
@@ -1562,7 +1604,7 @@ export function startRunner(options: RunnerOptions = {}) {
             } else if (typeof value === "object") {
               agentMessage = value;
             } else {
-              console.warn(
+              log(
                 "Unsupported chunk type from build stream:",
                 typeof value
               );
@@ -1570,8 +1612,8 @@ export function startRunner(options: RunnerOptions = {}) {
             }
 
             if (!loggedFirstChunk) {
-              console.log(`[build] 📨 First chunk received from ${agentLabel}`);
-              console.log("[build] 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
+              buildLog(` 📨 First chunk received from ${agentLabel}`);
+              buildLog(" 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
               loggedFirstChunk = true;
             }
 
@@ -1591,8 +1633,7 @@ export function startRunner(options: RunnerOptions = {}) {
                 for (const block of actualMessage.content) {
                   // Log text content
                   if (block.type === "text" && block.text) {
-                    console.log(
-                      `[build] 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
+                    buildLog(` 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
                         block.text.length > 200 ? "..." : ""
                       }`
                     );
@@ -1600,8 +1641,7 @@ export function startRunner(options: RunnerOptions = {}) {
 
                   // Log thinking blocks
                   if (block.type === "thinking" && block.thinking) {
-                    console.log(
-                      `[build] 🤔 Thinking: ${block.thinking.slice(0, 300)}${
+                    buildLog(` 🤔 Thinking: ${block.thinking.slice(0, 300)}${
                         block.thinking.length > 300 ? "..." : ""
                       }`
                     );
@@ -1612,11 +1652,9 @@ export function startRunner(options: RunnerOptions = {}) {
                     const toolName = block.name;
                     const toolId = block.id;
                     const input = JSON.stringify(block.input, null, 2);
-                    console.log(
-                      `[build] 🔧 Tool called: ${toolName} (${toolId})`
+                    buildLog(` 🔧 Tool called: ${toolName} (${toolId})`
                     );
-                    console.log(
-                      `[build]    Input: ${input.slice(0, 300)}${
+                    buildLog(`    Input: ${input.slice(0, 300)}${
                         input.length > 300 ? "..." : ""
                       }`
                     );
@@ -1652,16 +1690,14 @@ export function startRunner(options: RunnerOptions = {}) {
                     }
 
                     if (isError) {
-                      console.error(`[build] ❌ Tool error (${toolId}):`);
-                      console.error(
-                        `[build]    ${content.slice(0, 500)}${
+                      buildLog(` ❌ Tool error (${toolId}):`);
+                      buildLog(`    ${content.slice(0, 500)}${
                           content.length > 500 ? "..." : ""
                         }`
                       );
                     } else {
-                      console.log(`[build] ✅ Tool result (${toolId}):`);
-                      console.log(
-                        `[build]    ${content.slice(0, 500)}${
+                      buildLog(` ✅ Tool result (${toolId}):`);
+                      buildLog(`    ${content.slice(0, 500)}${
                           content.length > 500 ? "..." : ""
                         }`
                       );
@@ -1685,18 +1721,15 @@ export function startRunner(options: RunnerOptions = {}) {
             }
           }
 
-          console.log(
-            `[build] ═══════════════════════════════════════════════`
+          buildLog(` ═══════════════════════════════════════════════`
           );
-          console.log(`[build] STREAM ENDED - Processing final chunks`);
-          console.log(
-            `[build] ═══════════════════════════════════════════════`
+          buildLog(` STREAM ENDED - Processing final chunks`);
+          buildLog(` ═══════════════════════════════════════════════`
           );
 
           const finalChunk = decoder.decode();
           if (finalChunk) {
-            console.log(
-              `[build] Final chunk decoded: ${finalChunk.length} chars`
+            buildLog(` Final chunk decoded: ${finalChunk.length} chars`
             );
             let payload = finalChunk.startsWith("data:")
               ? finalChunk
@@ -1711,7 +1744,7 @@ export function startRunner(options: RunnerOptions = {}) {
             });
           }
 
-          console.log(`[build] Sending [DONE] signal to client`);
+          buildLog(` Sending [DONE] signal to client`);
           sendEvent({
             type: "build-stream",
             ...buildEventBase(command.projectId, command.id),
@@ -1748,17 +1781,16 @@ export function startRunner(options: RunnerOptions = {}) {
                   },
                 } as RunnerEvent);
 
-                console.log(`✅ Detected runCommand: ${runCommand}`);
+                if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Detected runCommand: ${runCommand}`);
               }
             }
           } catch (error) {
-            console.warn("Failed to detect runCommand:", error);
+            log("Failed to detect runCommand:", error);
           }
 
-          console.log(
-            `[build] ✅ Build completed successfully for project: ${command.projectId}`
+          buildLog(` ✅ Build completed successfully for project: ${command.projectId}`
           );
-          console.log(`[build]   Total chunks processed: (stream ended)`);
+          buildLog(`   Total chunks processed: (stream ended)`);
 
           sendEvent({
             type: "build-completed",
@@ -1867,6 +1899,12 @@ export function startRunner(options: RunnerOptions = {}) {
         pingTimer = null;
       }
 
+      // Don't reconnect if we're shutting down
+      if (isShuttingDown) {
+        log('shutdown in progress, skipping reconnection');
+        return;
+      }
+
       // Exponential backoff with max delay
       reconnectAttempts++;
       const delay = Math.min(
@@ -1888,9 +1926,19 @@ export function startRunner(options: RunnerOptions = {}) {
   }
 
   process.on("SIGINT", async () => {
+    // Prevent duplicate shutdown calls
+    if (isShuttingDown) return;
+
     log("shutting down");
+    isShuttingDown = true; // Prevent reconnection attempts
+
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (pingTimer) clearInterval(pingTimer);
+
+    // Close WebSocket connection gracefully
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(1000, 'Shutdown requested');
+    }
 
     // Cleanup all tunnels
     await tunnelManager.closeAll();
@@ -1898,14 +1946,24 @@ export function startRunner(options: RunnerOptions = {}) {
     // Flush Sentry events before exiting
     await Sentry.flush(2000);
 
-    socket?.close();
-    process.exit(0);
+    // Don't call process.exit() - let the CLI's shutdown handler finish
+    // If running standalone (not via CLI), the process will exit naturally
   });
 
   process.on("SIGTERM", async () => {
+    // Prevent duplicate shutdown calls
+    if (isShuttingDown) return;
+
     log("shutting down (SIGTERM)");
+    isShuttingDown = true; // Prevent reconnection attempts
+
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (pingTimer) clearInterval(pingTimer);
+
+    // Close WebSocket connection gracefully
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(1000, 'Shutdown requested');
+    }
 
     // Cleanup all tunnels
     await tunnelManager.closeAll();
@@ -1913,8 +1971,7 @@ export function startRunner(options: RunnerOptions = {}) {
     // Flush Sentry events before exiting
     await Sentry.flush(2000);
 
-    socket?.close();
-    process.exit(0);
+    // Don't call process.exit() - let the CLI's shutdown handler finish
   });
 
   connect();

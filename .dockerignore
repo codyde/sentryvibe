@@ -5,6 +5,8 @@ node_modules
 # Build output
 dist
 **/dist
+.next
+**/.next
 
 # Logs
 *.log
@@ -12,6 +14,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Environment files
 .env
@@ -22,6 +25,7 @@ pnpm-debug.log*
 # Git
 .git
 .gitignore
+.github
 
 # IDE
 .vscode
@@ -29,19 +33,32 @@ pnpm-debug.log*
 *.swp
 *.swo
 *~
+.DS_Store
 
 # Testing
 coverage
 .nyc_output
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
 
-# Misc
-.DS_Store
+# Documentation
 *.md
 !README.md
-.dockerignore
-Dockerfile
-docker-compose.yml
 
-# Railway/Nixpacks config (not needed in container)
+# Other apps (only include broker dependencies)
+apps/sentryvibe
+apps/runner
+!apps/broker
+
+# Misc
+docker-compose.yml
+*.dockerfile
+Dockerfile
+!Dockerfile.broker
 railway.toml
+!apps/broker/railway.toml
 nixpacks.toml
+.dockerignore

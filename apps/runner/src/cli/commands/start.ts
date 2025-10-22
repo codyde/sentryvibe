@@ -1,280 +1,277 @@
-import { spawn, ChildProcess } from 'child_process';
-import chalk from 'chalk';
-import { logger } from '../utils/logger.js';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { configManager } from '../utils/config-manager.js';
-import { findMonorepoRoot, isInsideMonorepo } from '../utils/repo-detector.js';
-import { killProcessTree, killProcessOnPort } from '../utils/process-killer.js';
+/**
+ * Start command with TUI dashboard support
+ * Provides beautiful real-time monitoring of all services
+ */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { render } from 'ink';
+import React from 'react';
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
+import { configManager } from '../utils/config-manager.js';
+import { isInsideMonorepo } from '../utils/repo-detector.js';
+import { killProcessOnPort } from '../utils/process-killer.js';
+import { errors } from '../utils/cli-error.js';
+import { ServiceManager } from '../ui/service-manager.js';
+import { Dashboard } from '../ui/Dashboard.js';
+import { ConsoleInterceptor } from '../ui/console-interceptor.js';
 
 interface StartOptions {
   port?: string;
   brokerPort?: string;
+  noTui?: boolean; // Disable TUI, use traditional logs
 }
 
-interface ManagedProcess {
-  name: string;
-  process: ChildProcess;
-  port?: number;
+/**
+ * Check if we should use TUI
+ */
+function shouldUseTUI(options: StartOptions): boolean {
+  // Explicit flag
+  if (options.noTui) return false;
+
+  // CI/CD environments
+  if (process.env.CI === '1' || process.env.CI === 'true') return false;
+
+  // Not a TTY
+  if (!process.stdout.isTTY) return false;
+
+  // Explicit env var to disable
+  if (process.env.NO_TUI === '1') return false;
+
+  return true;
 }
 
 export async function startCommand(options: StartOptions) {
-  logger.section('Starting SentryVibe Full Stack');
-  logger.log('');
+  const useTUI = shouldUseTUI(options);
 
-  // Step 1: Find the monorepo root
+  // If TUI is disabled, use the traditional start command
+  if (!useTUI) {
+    const { startCommand: traditionalStart } = await import('./start.js');
+    return traditionalStart(options);
+  }
+
+  // ========================================
+  // TUI MODE
+  // ========================================
+
+  const s = p.spinner();
+
+  // Step 1: Find monorepo
+  s.start('Locating SentryVibe repository');
+
   let monorepoRoot: string | undefined;
-
-  // Check saved config first
   const config = configManager.get();
-  if (config.monorepoPath) {
-    logger.info('Using monorepo path from config...');
+
+  if (config.monorepoPath && existsSync(config.monorepoPath)) {
     monorepoRoot = config.monorepoPath;
   }
 
-  // If not in config, try to detect from current location
   if (!monorepoRoot) {
-    logger.info('Detecting monorepo location...');
     const repoCheck = await isInsideMonorepo();
-    if (repoCheck.inside) {
+    if (repoCheck.inside && repoCheck.root) {
       monorepoRoot = repoCheck.root;
-      // Save it for next time
       configManager.set('monorepoPath', monorepoRoot);
     }
   }
 
-  // If still not found, try going up from CLI location
   if (!monorepoRoot) {
-    const detected = await findMonorepoRoot(join(__dirname, '../../../../..'));
-    monorepoRoot = detected || undefined;
+    s.stop(pc.red('✗') + ' Repository not found');
+    throw errors.monorepoNotFound([
+      config.monorepoPath || 'none',
+      process.cwd(),
+    ]);
   }
 
-  // If we still can't find it, error out
-  if (!monorepoRoot) {
-    logger.error('Could not find SentryVibe repository');
-    logger.log('');
-    logger.info('Please run one of the following:');
-    logger.log(`  1. ${chalk.cyan('sentryvibe init')} - To clone and set up the repository`);
-    logger.log(`  2. Navigate to the repository and run ${chalk.cyan('sentryvibe run')} again`);
-    logger.log('');
-    process.exit(1);
-  }
+  s.stop(pc.green('✓') + ' Repository found');
 
-  logger.info(`Monorepo root: ${chalk.cyan(monorepoRoot)}`);
-  logger.info(`Web app port: ${chalk.cyan(options.port || '3000')}`);
-  logger.info(`Broker port: ${chalk.cyan(options.brokerPort || '4000')}`);
-  logger.log('');
-
-  // Check if dependencies are installed
-  const { existsSync } = await import('fs');
+  // Step 2: Check dependencies
   const nodeModulesPath = join(monorepoRoot, 'node_modules');
 
   if (!existsSync(nodeModulesPath)) {
-    logger.warn('Dependencies not installed');
-    logger.info('Installing dependencies...');
-    logger.log('');
-
+    s.start('Installing dependencies');
     const { installDependencies } = await import('../utils/repo-cloner.js');
     await installDependencies(monorepoRoot);
-
-    logger.log('');
+    s.stop(pc.green('✓') + ' Dependencies installed');
   }
 
-  // Get ports
-  const webPort = options.port || '3000';
-  const brokerPort = options.brokerPort || '4000';
+  // Step 3: Check database
+  if (!config.databaseUrl) {
+    throw errors.monorepoNotFound([]);
+  }
 
-  // Clean up any zombie processes on these ports before starting
-  logger.info('Checking for processes on ports...');
-  await killProcessOnPort(Number(webPort));
-  await killProcessOnPort(Number(brokerPort));
+  // Step 4: Clean up zombie processes
+  const webPort = Number(options.port || '3000');
+  const brokerPort = Number(options.brokerPort || '4000');
 
-  const processes: ManagedProcess[] = [];
+  s.start('Checking for port conflicts');
+  await killProcessOnPort(webPort);
+  await killProcessOnPort(brokerPort);
+  s.stop(pc.green('✓') + ' Ports available');
 
-  // Handle cleanup on exit
-  const cleanup = async (exitCode: number = 0) => {
-    logger.log('');
-    logger.warn('Shutting down all services...');
+  // Step 5: Create ServiceManager and Console Interceptor FIRST
+  const serviceManager = new ServiceManager();
+  const consoleInterceptor = new ConsoleInterceptor(serviceManager);
+  const sharedSecret = config.broker?.secret || 'dev-secret';
 
-    // Kill all tracked processes by PID (process tree)
-    for (const { name, process: proc, port } of processes) {
-      if (proc.pid) {
-        try {
-          logger.info(`Killing ${name} (PID: ${proc.pid})...`);
-          await killProcessTree(proc.pid, 'SIGTERM');
-        } catch (error) {
-          logger.debug(`Failed to kill ${name}: ${error}`);
-        }
-      }
-    }
+  // Disable all verbose logging in child processes and runner
+  process.env.DEBUG_BUILD = '0';
+  process.env.SILENT_MODE = '1';
 
-    // Give processes time to clean up
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // Clear screen for clean TUI start
+  console.clear();
 
-    // Force kill by port as backup
-    for (const { name, port } of processes) {
-      if (port) {
-        try {
-          const killed = await killProcessOnPort(port);
-          if (killed) {
-            logger.warn(`Force killed ${name} on port ${port}`);
-          }
-        } catch (error) {
-          // Best effort
-        }
-      }
-    }
+  // Start intercepting console output IMMEDIATELY after clear
+  // This captures ALL subsequent output and routes it through TUI
+  consoleInterceptor.start();
 
-    logger.success('All services stopped');
-    process.exit(exitCode);
-  };
+  // Show starting message using original console (before interception fully active)
+  const originalLog = consoleInterceptor.getOriginal().log;
+  originalLog();
+  originalLog(pc.bold('Starting TUI Dashboard...'));
+  originalLog(pc.dim('Press Ctrl+C or q to quit'));
+  originalLog();
 
-  // Register cleanup handlers
-  process.on('SIGINT', async () => await cleanup(0));
-  process.on('SIGTERM', async () => await cleanup(0));
-  process.on('uncaughtException', async (error) => {
-    logger.error(`Uncaught exception: ${error.message}`);
-    await cleanup(1);
+  // Small delay to let user read the message
+  await new Promise(resolve => setTimeout(resolve, 800));
+
+  // Register web app
+  serviceManager.register({
+    name: 'web',
+    displayName: 'Web App',
+    port: webPort,
+    command: 'pnpm',
+    args: ['--filter', 'sentryvibe', 'dev'],
+    cwd: monorepoRoot,
+    env: {
+      PORT: String(webPort),
+      DATABASE_URL: config.databaseUrl!,
+      RUNNER_SHARED_SECRET: sharedSecret,
+      RUNNER_BROKER_URL: `ws://localhost:${brokerPort}/socket`,
+      RUNNER_BROKER_HTTP_URL: `http://localhost:${brokerPort}`,
+      WORKSPACE_ROOT: config.workspace,
+      RUNNER_ID: config.runner?.id || 'local',
+      RUNNER_DEFAULT_ID: config.runner?.id || 'local',
+    },
   });
 
-  try {
-    // Get configuration
-    const sharedSecret = config.broker?.secret || 'dev-secret';
-    const databaseUrl = config.databaseUrl;
+  // Register broker
+  serviceManager.register({
+    name: 'broker',
+    displayName: 'Broker',
+    port: brokerPort,
+    command: 'pnpm',
+    args: ['--filter', 'sentryvibe-broker', 'dev'],
+    cwd: monorepoRoot,
+    env: {
+      PORT: String(brokerPort),
+      BROKER_PORT: String(brokerPort),
+      RUNNER_SHARED_SECRET: sharedSecret,
+      RUNNER_EVENT_TARGET_URL: `http://localhost:${webPort}`,
+    },
+  });
 
-    // Check if database is configured
-    if (!databaseUrl) {
-      logger.warn('DATABASE_URL not configured');
-      logger.info('The web app requires a database. Run one of:');
-      logger.log(`  1. ${chalk.cyan('sentryvibe init')} - To set up database`);
-      logger.log(`  2. ${chalk.cyan('sentryvibe config set databaseUrl <url>')}`);
-      logger.log('');
-      process.exit(1);
+  // Register runner (special handling - not spawned, imported directly)
+  serviceManager.register({
+    name: 'runner',
+    displayName: 'Runner',
+    command: 'internal', // Not actually spawned
+    args: [],
+    cwd: monorepoRoot,
+    env: {},
+  });
+
+  // Step 6: Clear screen again right before TUI to catch any output that snuck through
+  process.stdout.write('\x1Bc'); // Full terminal reset
+
+  // Render TUI immediately
+  const { waitUntilExit, clear } = render(
+    React.createElement(Dashboard, {
+      serviceManager,
+      apiUrl: `http://localhost:${webPort}`,
+      webPort
+    })
+  );
+
+  // Flush buffered console output now that TUI is rendered
+  // Small delay to ensure TUI is fully painted
+  setTimeout(() => {
+    consoleInterceptor.flush();
+  }, 100);
+
+  // Step 7: Start services
+  try {
+    // Start web and broker (runner will be started separately)
+    await serviceManager.start('web');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    await serviceManager.start('broker');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Mark runner as starting
+    const runnerService = serviceManager['services'].get('runner');
+    if (runnerService) {
+      runnerService.state.status = 'starting';
+      runnerService.startTime = Date.now();
+      serviceManager.emit('service:status-change', 'runner', 'starting');
     }
 
-    logger.info('Starting services...');
-    logger.log('');
-
-    // Start Web App
-    logger.info(`${chalk.bold('1/3')} Starting web app...`);
-    const webApp = spawn('pnpm', ['--filter', 'sentryvibe', 'dev'], {
-      cwd: monorepoRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      env: {
-        ...process.env,
-        PORT: webPort,
-        DATABASE_URL: databaseUrl,
-        RUNNER_SHARED_SECRET: sharedSecret,
-        RUNNER_BROKER_URL: `ws://localhost:${brokerPort}/socket`,
-        RUNNER_BROKER_HTTP_URL: `http://localhost:${brokerPort}`,
-        WORKSPACE_ROOT: config.workspace,
-        RUNNER_ID: config.runner?.id || 'local',
-        RUNNER_DEFAULT_ID: config.runner?.id || 'local', // Web app needs this to target the runner
-      },
-    });
-
-    processes.push({ name: 'Web App', process: webApp, port: Number(webPort) });
-
-    webApp.stdout?.on('data', (data) => {
-      const text = data.toString();
-      if (text.trim()) {
-        logger.log(`${chalk.blue('[web]')} ${text.trim()}`);
-      }
-    });
-
-    webApp.stderr?.on('data', (data) => {
-      const text = data.toString();
-      if (text.trim() && !text.includes('warn') && !text.includes('deprecated')) {
-        logger.log(`${chalk.yellow('[web]')} ${text.trim()}`);
-      }
-    });
-
-    webApp.on('exit', (code) => {
-      if (code !== 0 && code !== null) {
-        logger.error(`Web app exited with code ${code}`);
-        cleanup(1);
-      }
-    });
-
-    // Wait a bit for web app to start
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Start Broker
-    logger.info(`${chalk.bold('2/3')} Starting broker...`);
-    const broker = spawn('pnpm', ['--filter', 'sentryvibe-broker', 'dev'], {
-      cwd: monorepoRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      env: {
-        ...process.env,
-        PORT: brokerPort,
-        BROKER_PORT: brokerPort,
-        RUNNER_SHARED_SECRET: sharedSecret,
-        RUNNER_EVENT_TARGET_URL: `http://localhost:${webPort}`,
-      },
-    });
-
-    processes.push({ name: 'Broker', process: broker, port: Number(brokerPort) });
-
-    broker.stdout?.on('data', (data) => {
-      const text = data.toString();
-      if (text.trim()) {
-        logger.log(`${chalk.green('[broker]')} ${text.trim()}`);
-      }
-    });
-
-    broker.stderr?.on('data', (data) => {
-      const text = data.toString();
-      if (text.trim() && !text.includes('warn') && !text.includes('deprecated')) {
-        logger.log(`${chalk.yellow('[broker]')} ${text.trim()}`);
-      }
-    });
-
-    broker.on('exit', (code) => {
-      if (code !== 0 && code !== null) {
-        logger.error(`Broker exited with code ${code}`);
-        cleanup(1);
-      }
-    });
-
-    // Wait a bit for broker to start
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Start Runner
-    logger.info(`${chalk.bold('3/3')} Starting runner...`);
-
-    // Import and start the runner directly
+    // Start runner directly (this blocks until shutdown)
     const { startRunner } = await import('../../index.js');
 
-    logger.log('');
-    logger.success('All services started!');
-    logger.log('');
-    logger.info('Services running:');
-    logger.log(`  ${chalk.blue('Web App:')} http://localhost:${webPort}`);
-    logger.log(`  ${chalk.green('Broker:')} http://localhost:${brokerPort}`);
-    logger.log(`  ${chalk.magenta('Runner:')} Connected to broker`);
-    logger.log('');
-    logger.info(`Press ${chalk.cyan('Ctrl+C')} to stop all services`);
-    logger.log('');
+    // Mark as running
+    if (runnerService) {
+      runnerService.state.status = 'running';
+      serviceManager.emit('service:status-change', 'runner', 'running');
+    }
 
-    // Start the runner (this will block)
-    startRunner({
+    // Start runner in background (non-blocking for TUI)
+    const runnerPromise = startRunner({
       brokerUrl: `ws://localhost:${brokerPort}/socket`,
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
+      silent: true, // Suppress console output in TUI mode
     });
 
+    // Wait for TUI to exit
+    await waitUntilExit();
+
+    // Stop console interception and restore normal console
+    consoleInterceptor.stop();
+
+    // Clear TUI immediately
+    clear();
+
+    // Show shutdown message
+    console.log();
+    console.log(pc.yellow('⚠'), 'Stopping all services...');
+
+    // Stop all services with timeout
+    const shutdownPromise = Promise.race([
+      (async () => {
+        // Close any active tunnels first (give it 1s)
+        await serviceManager.closeTunnel('web').catch(() => {});
+
+        // Then stop services
+        await serviceManager.stopAll();
+        // Runner will handle its own shutdown via SIGINT handler
+        console.log(pc.green('✓'), 'All services stopped');
+      })(),
+      new Promise((resolve) => setTimeout(() => {
+        console.log(pc.yellow('⚠'), 'Shutdown timeout - forcing exit');
+        resolve(undefined);
+      }, 5000)) // Increased from 3s to 5s to allow tunnel cleanup
+    ]);
+
+    await shutdownPromise;
+
+    // Force exit to ensure we return to prompt
+    process.exit(0);
   } catch (error) {
-    logger.error('Failed to start services:');
-    logger.error(error instanceof Error ? error.message : 'Unknown error');
-    if (error instanceof Error && error.stack) {
-      logger.debug(error.stack);
-    }
-    await cleanup(1);
+    // Stop console interception on error
+    consoleInterceptor.stop();
+    clear();
+    throw error;
   }
 }

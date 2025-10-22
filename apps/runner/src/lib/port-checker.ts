@@ -1,5 +1,13 @@
 import { createConnection } from 'net';
 
+
+// Silent mode for TUI
+let isSilentMode = false;
+
+export function setSilentMode(silent: boolean): void {
+  isSilentMode = silent;
+}
+
 /**
  * Check if a port is actually listening and ready to accept connections
  * @param port The port to check
@@ -52,16 +60,16 @@ export async function waitForPort(
 ): Promise<boolean> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     if (await isPortReady(port)) {
-      console.log(`✅ Port ${port} is ready (attempt ${attempt}/${maxRetries})`);
+      if (!isSilentMode) console.log(`✅ Port ${port} is ready (attempt ${attempt}/${maxRetries})`);
       return true;
     }
 
     if (attempt < maxRetries) {
-      console.log(`⏳ Port ${port} not ready yet, retrying in ${delayMs}ms... (${attempt}/${maxRetries})`);
+      if (!isSilentMode) console.log(`⏳ Port ${port} not ready yet, retrying in ${delayMs}ms... (${attempt}/${maxRetries})`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
 
-  console.error(`❌ Port ${port} never became ready after ${maxRetries} attempts`);
+  if (!isSilentMode) console.error(`❌ Port ${port} never became ready after ${maxRetries} attempts`);
   return false;
 }

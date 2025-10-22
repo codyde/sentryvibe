@@ -6,13 +6,14 @@ AI-powered project generation platform that uses Claude AI and OpenAI Codex to b
 
 **Install CLI:**
 ```bash
-npm install -g @sentryvibe/runner-cli
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
 sentryvibe init -y    # Accept all defaults (generates secure secret)
-sentryvibe run
+sentryvibe run        # Launches TUI Dashboard with real-time monitoring
 ```
 
 Open http://localhost:3000 and start building!
 
+> **New**: The CLI now features a beautiful TUI (Terminal User Interface) dashboard for real-time service monitoring, log viewing, and tunnel management.
 > **Tip**: Use `sentryvibe init` (without `-y`) for interactive setup with custom configuration.
 
 ## What is SentryVibe?
@@ -20,14 +21,16 @@ Open http://localhost:3000 and start building!
 SentryVibe lets you describe what you want to build ("Create a React todo app with TypeScript and Tailwind") and AI generates a complete, runnable project on your local machine. Watch Claude AI work in real-time, preview your app instantly via tunnels, and iterate with follow-up prompts.
 
 **Key Features:**
+- **TUI Dashboard** - Real-time monitoring with keyboard controls
 - AI project generation with Claude AI and OpenAI Codex
 - Real-time build streaming with full transparency
 - Automatic dev server management and port detection
-- Cloudflare tunnel creation for instant previews
+- Cloudflare tunnel creation for instant previews (with TUI toggle)
 - Code editor with Monaco for file viewing/editing
 - Multi-agent support (Claude Code, OpenAI Codex)
 - MCP (Model Context Protocol) integration
 - Project management dashboard
+- Enhanced error handling and graceful shutdown
 
 ## Architecture
 
@@ -77,10 +80,11 @@ sentryvibe --runner
 
 ## Installation
 
-### Option 1: Install from npm (Recommended)
+### Option 1: Automated Install Script (Recommended)
 
 ```bash
-npm install -g @sentryvibe/runner-cli
+# Download and run install script
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
 
 # Initialize with defaults (recommended for first-time setup)
 sentryvibe init -y
@@ -90,6 +94,17 @@ sentryvibe init
 
 # Start full stack locally
 sentryvibe run
+```
+
+The install script automatically:
+- Detects the latest release version
+- Installs from GitHub releases (not npm registry)
+- Supports both pnpm and npm
+- Validates Node.js version (20+ required)
+
+**Alternative: Direct install from latest release**
+```bash
+npm install -g https://github.com/codyde/sentryvibe/releases/latest/download/sentryvibe-cli.tgz
 ```
 
 ### Option 2: Build from Source
@@ -114,13 +129,39 @@ sentryvibe run
 ## CLI Commands
 
 ### `sentryvibe` or `sentryvibe run`
-Start the full stack locally (web app + broker + runner):
+Start the full stack locally with TUI Dashboard (web app + broker + runner):
 ```bash
 sentryvibe run
 
 # With custom ports
 sentryvibe run --port 3001 --broker-port 4001
+
+# Disable TUI (use traditional logs)
+sentryvibe run --no-tui
+
+# Enable debug mode
+sentryvibe run --debug
 ```
+
+**TUI Dashboard Features:**
+- Real-time service status monitoring (web app, broker, runner)
+- Live log streaming with service filtering
+- Keyboard shortcuts for navigation and control
+- Tunnel management (create/close Cloudflare tunnels)
+- Plain text log export for easy copy/paste
+
+**Keyboard Shortcuts:**
+- `q` or `Ctrl+C` - Quit and stop all services
+- `r` - Restart all services
+- `t` - Toggle Cloudflare tunnel (create/close)
+- `c` - Clear logs
+- `l` - Toggle plain text log view (for copy/paste)
+- `?` - Show help
+- `Esc` - Return to dashboard
+- `↑/↓` - Scroll logs line by line
+- `g/G` - Jump to top/bottom of logs
+
+> The TUI automatically disables in CI environments or when stdout is not a TTY.
 
 ### `sentryvibe --runner` or `sentryvibe runner`
 Start runner only (connects to existing broker):
@@ -145,6 +186,9 @@ sentryvibe init
 
 # Non-interactive with defaults (-y flag)
 sentryvibe init -y
+
+# Enable debug mode for troubleshooting
+sentryvibe init --debug
 ```
 
 **Default configuration when using `-y`:**
@@ -228,9 +272,23 @@ sentryvibe cleanup --project my-project
 # Delete all projects
 sentryvibe cleanup --all
 
-# Show help
-sentryvibe cleanup
+# Close all active tunnels
+sentryvibe cleanup --tunnels
+
+# Kill all dev server processes
+sentryvibe cleanup --processes
 ```
+
+### `sentryvibe database` or `sentryvibe db`
+Set up a new PostgreSQL database and initialize schema:
+```bash
+sentryvibe database
+
+# Alias
+sentryvibe db
+```
+
+Guides you through setting up a Neon PostgreSQL database for the web app.
 
 ## Project Structure
 
@@ -246,7 +304,14 @@ sentryvibe/
 │   ├── broker/                  # WebSocket broker service
 │   │   └── src/index.ts         # Express + WebSocket server
 │   ├── runner/                  # Runner CLI
-│   │   ├── cli/                 # CLI commands (init, run, config, etc.)
+│   │   ├── cli/
+│   │   │   ├── commands/        # CLI commands (init, run, config, etc.)
+│   │   │   ├── ui/              # TUI Dashboard components (Ink)
+│   │   │   │   ├── components/  # Banner, ServicePanel, LogViewer, StatusBar
+│   │   │   │   ├── Dashboard.tsx # Main TUI component
+│   │   │   │   ├── service-manager.ts # Service lifecycle & events
+│   │   │   │   └── console-interceptor.ts # Console output capture
+│   │   │   └── utils/           # Config, prompts, error handling
 │   │   ├── lib/                 # Build engine, templates, tunnels
 │   │   └── src/index.ts         # Runner WebSocket client
 │   └── projects/                # Project templates
@@ -275,8 +340,9 @@ sentryvibe/
 | **AI/ML** | Claude AI (Anthropic SDK), OpenAI Codex, MCP |
 | **Database** | PostgreSQL with Drizzle ORM |
 | **Real-time** | WebSocket (ws library) |
-| **CLI** | Commander.js, Inquirer, Chalk, Ora |
-| **Tunneling** | Cloudflare tunnel |
+| **CLI** | Commander.js, Ink (TUI), Clack Prompts, Inquirer |
+| **TUI** | Ink, React 19, Picocolors |
+| **Tunneling** | Cloudflare tunnel (with silent operation) |
 | **Observability** | Sentry (experimental PR #17844) |
 | **Build System** | pnpm monorepo, TypeScript |
 
@@ -358,6 +424,20 @@ See `.env.example` files in each app directory for all available options.
 
 ## Features in Detail
 
+### TUI Dashboard
+The CLI features a modern Terminal User Interface built with Ink for real-time monitoring:
+
+- **Service Status** - Live status of web app, broker, and runner services
+- **Log Viewer** - Real-time log streaming with service filtering
+- **Tunnel Management** - Create/close Cloudflare tunnels with a keypress
+- **Keyboard Controls** - Intuitive shortcuts for all operations
+- **Plain Text Export** - Toggle plain text mode for easy log copy/paste
+- **Auto-scroll** - Automatically follows new logs, pause by scrolling
+- **Console Interception** - All console output is captured and routed through TUI
+- **Graceful Shutdown** - Clean exit with proper service cleanup
+
+The TUI automatically falls back to traditional log output in CI environments or non-TTY terminals.
+
 ### AI Project Generation
 - **Claude Code** - Default agent with MCP support and Sentry docs access
 - **OpenAI Codex** - Alternative agent for different generation styles
@@ -389,8 +469,10 @@ See `.env.example` files in each app directory for all available options.
 - Automatic port detection and allocation
 - Process lifecycle management (start/stop/restart)
 - Health checking on dev server ports
-- Cloudflare tunnel auto-creation
-- Tunnel URLs displayed for instant access
+- Cloudflare tunnel creation with TUI toggle (`t` key)
+- Tunnel URLs displayed in TUI status bar
+- Silent tunnel operation (no console spam)
+- Automatic tunnel cleanup on shutdown
 - Environment variable injection
 
 ### Security & Isolation
@@ -487,6 +569,7 @@ Each runner receives build commands and executes them in isolation.
 - Check shared secret matches broker
 - Ensure firewall allows WebSocket connections
 - Check broker is running (`curl http://localhost:4000/status`)
+- Use `--debug` flag for detailed error output
 
 ### Builds failing
 - Verify workspace directory exists and is writable
@@ -494,6 +577,13 @@ Each runner receives build commands and executes them in isolation.
 - Ensure git is installed: `git --version`
 - Check AI API keys are valid
 - Review runner logs with `--verbose` flag
+- Enable debug mode: `sentryvibe run --debug`
+
+### TUI not displaying correctly
+- Ensure terminal supports ANSI colors and Unicode
+- Try traditional mode: `sentryvibe run --no-tui`
+- Resize terminal to at least 80x25 characters
+- Check that terminal is a TTY (not piped or redirected)
 
 ### Tunnel not working
 - Verify Cloudflare tunnel is installed
@@ -527,7 +617,7 @@ rm -rf ~/Library/Application\ Support/sentryvibe-runner-cli  # macOS
 rm -rf ~/.config/sentryvibe-runner-cli  # Linux
 
 # Reinstall
-npm install -g @sentryvibe/runner-cli
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
 sentryvibe init
 ```
 

@@ -60,7 +60,7 @@ export async function loadTemplateConfig(): Promise<TemplateConfig> {
   const content = await readFile(configPath, 'utf-8');
   cachedConfig = JSON.parse(content) as TemplateConfig;
 
-  console.log(`✅ Loaded ${cachedConfig.templates.length} templates from ${configPath}`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`✅ Loaded ${cachedConfig.templates.length} templates from ${configPath}`);
   return cachedConfig;
 }
 
@@ -132,12 +132,12 @@ export async function selectTemplateFromPrompt(userPrompt: string): Promise<Temp
 
   // Return best match if score > 0
   if (scores[0].score > 0) {
-    console.log(`🎯 Auto-selected template: ${scores[0].template.name}`);
-    console.log(`   Matched keywords: ${scores[0].matchedKeywords.join(', ')}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`🎯 Auto-selected template: ${scores[0].template.name}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`   Matched keywords: ${scores[0].matchedKeywords.join(', ')}`);
     return scores[0].template;
   }
 
   // Default to React + Vite if no matches (simplest option)
-  console.log(`🎯 No keyword matches, defaulting to react-vite (basic template)`);
+  if (process.env.DEBUG_BUILD === '1') console.log(`🎯 No keyword matches, defaulting to react-vite (basic template)`);
   return templates.find(t => t.id === 'react-vite') ?? templates[0];
 }

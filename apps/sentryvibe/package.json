@@ -1,6 +1,6 @@
 {
   "name": "sentryvibe",
-  "version": "0.4.5",
+  "version": "0.6.0",
   "description": "AI-powered project generation web application with real-time build tracking and code preview",
   "private": true,
   "author": "Cody De Arkland",
@@ -14,7 +14,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.21",
     "@ai-sdk/react": "^2.0.57",
-    "@anthropic-ai/claude-agent-sdk": "^0.1.23",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.25",
     "@anthropic-ai/sdk": "^0.65.0",
     "@monaco-editor/react": "^4.7.0",
     "@openai/codex-sdk": "^0.47.0",
@@ -33,7 +33,7 @@
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentryvibe/agent-core": "workspace:*",
     "ai": "^5.0.57",
-    "ai-sdk-provider-claude-code": "^1.1.4",
+    "ai-sdk-provider-claude-code": "^2.1.0",
     "ansi-to-html": "^0.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
