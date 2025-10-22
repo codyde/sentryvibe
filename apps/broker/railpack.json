@@ -15,9 +15,6 @@
     }
   },
   "deploy": {
-    "base": {
-      "image": "node:22-slim"
-    },
     "startCommand": "node apps/broker/dist/index.js",
     "inputs": ["$setup", "$compile"]
   }
