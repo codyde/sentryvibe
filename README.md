@@ -1,6 +1,9 @@
 # SentryVibe
 
+
 AI-powered project generation platform that uses Claude AI and OpenAI Codex to build web projects with real-time streaming, live previews, and tunnel support.
+
+![SentryVibe Running](media/sentryviberunning.png)
 
 ## Quick Start
 
@@ -11,6 +14,8 @@ sentryvibe init -y    # Accept all defaults (generates secure secret)
 sentryvibe run        # Launches TUI Dashboard with real-time monitoring
 ```
 
+![SentryVibe CLI Install](media/SentryVibeCLI-Install.gif)
+
 Open http://localhost:3000 and start building!
 
 > **New**: The CLI now features a beautiful TUI (Terminal User Interface) dashboard for real-time service monitoring, log viewing, and tunnel management.
@@ -18,7 +23,9 @@ Open http://localhost:3000 and start building!
 
 ## What is SentryVibe?
 
-SentryVibe lets you describe what you want to build ("Create a React todo app with TypeScript and Tailwind") and AI generates a complete, runnable project on your local machine. Watch Claude AI work in real-time, preview your app instantly via tunnels, and iterate with follow-up prompts.
+SentryVibe lets you describe what you want to build ("Create a React todo app with TypeScript and Tailwind") and AI generates a complete, runnable project on your local machine. Watch Claude AI work in real-time, preview your app instantly either locally or remotely via Cloudflare Tunnels, and iterate with follow-up prompts.
+
+SentryVibe also features a runner model that lets you run a remote runner anywhere and connect it back to your frontend - letting you provision headless on remote systems if you wish.
 
 **Key Features:**
 - **TUI Dashboard** - Real-time monitoring with keyboard controls
