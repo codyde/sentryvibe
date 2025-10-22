@@ -215,5 +215,18 @@ program
     }
   });
 
+program
+  .command('upgrade')
+  .description('Upgrade to latest version (preserves configuration)')
+  .option('--branch <branch>', 'Upgrade to specific branch (default: main)')
+  .option('--force', 'Skip safety checks (uncommitted changes)')
+  .action(async (options) => {
+    try {
+      const { upgradeCommand } = await import('./commands/upgrade.js');
+      await upgradeCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
+  });
 
-  program.parse();
+program.parse();

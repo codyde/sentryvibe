@@ -43,6 +43,13 @@
       "when": 1760854538648,
       "tag": "0005_add_runner_id_and_generation_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1761173179871,
+      "tag": "0006_puzzling_hobgoblin",
+      "breakpoints": true
     }
   ]
 }
