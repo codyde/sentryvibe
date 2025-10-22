@@ -271,12 +271,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // - Remote frontend: Fetches from tunnel (requires tunnel to exist)
 
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     setKey(prev => prev + 1);
     // Reset after iframe loads
     setTimeout(() => setIsRefreshing(false), 1000);
-  };
+  }, []);
+
+  // Listen for refresh requests (e.g., after element changes complete)
+  useEffect(() => {
+    const handleRefreshEvent = () => {
+      handleRefresh();
+    };
+
+    window.addEventListener('refresh-iframe', handleRefreshEvent);
+    return () => window.removeEventListener('refresh-iframe', handleRefreshEvent);
+  }, [handleRefresh]);
 
   const handleCopyUrl = async () => {
     // Copy the actual URL (tunnel for remote, localhost for local)

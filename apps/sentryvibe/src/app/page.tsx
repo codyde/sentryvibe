@@ -1044,6 +1044,9 @@ function HomeContent() {
           prev.filter((c) => c.id !== changeId)
         );
 
+        // Trigger iframe refresh after element change completes
+        window.dispatchEvent(new CustomEvent('refresh-iframe'));
+
         // Save to database
         const saveRes = await fetch(`/api/projects/${projectId}/messages`, {
           method: "POST",

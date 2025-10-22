@@ -5,9 +5,6 @@
 
 export const SELECTION_SCRIPT = `
 (function() {
-  console.log('🎯 SentryVibe selection script loaded (dormant)');
-  console.log('   window.parent exists:', !!window.parent);
-  console.log('   window.parent.postMessage exists:', typeof window.parent.postMessage);
 
   // Selection state - DORMANT by default
   let isInspectorActive = false;
@@ -437,7 +434,6 @@ export const SELECTION_SCRIPT = `
       }
     }
 
-    console.log('🎯 Selection mode:', isInspectorActive ? 'ENABLED' : 'DISABLED');
   }
 
   // Listen for activation/deactivation from parent
@@ -446,9 +442,6 @@ export const SELECTION_SCRIPT = `
       setInspectorActive(e.data.enabled);
     }
   });
-
-  // NO event listeners added here - script is DORMANT until activated
-  console.log('✅ Selection script ready (dormant, waiting for activation)');
 
   // Announce ready to parent
   window.parent.postMessage({ type: 'sentryvibe:ready' }, '*');
@@ -506,6 +499,4 @@ export function toggleSelectionMode(iframe: HTMLIFrameElement, enabled: boolean)
     type: 'sentryvibe:toggle-selection-mode',
     enabled,
   }, '*');
-
-  console.log(`🎯 Selection mode toggled:`, enabled);
 }
