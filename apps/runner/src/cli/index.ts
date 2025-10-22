@@ -119,6 +119,7 @@ program
   .description('Start the full stack (web app + broker + runner)')
   .option('-p, --port <port>', 'Web app port (default: 3000)')
   .option('-b, --broker-port <port>', 'Broker port (default: 4000)')
+  .option('--prod', 'Use production mode (build + start, faster performance)')
   .action(async (options) => {
     try {
       const { startCommand } = await import('./commands/start.js');
