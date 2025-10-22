@@ -2,8 +2,15 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "steps": {
+    "source": {
+      "inputs": [
+        {
+          "include": ["."]
+        }
+      ]
+    },
     "setup": {
-      "inputs": ["."],
+      "inputs": ["$source"],
       "commands": [
         "pnpm install --filter=@sentryvibe/agent-core --filter=sentryvibe-broker"
       ]
