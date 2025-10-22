@@ -12,7 +12,7 @@ import pc from 'picocolors';
 import { configManager } from '../utils/config-manager.js';
 import { isInsideMonorepo } from '../utils/repo-detector.js';
 import { killProcessOnPort } from '../utils/process-killer.js';
-import { errors } from '../utils/cli-error.js';
+import { CLIError, errors } from '../utils/cli-error.js';
 import { ServiceManager } from '../ui/service-manager.js';
 import { Dashboard } from '../ui/Dashboard.js';
 import { ConsoleInterceptor } from '../ui/console-interceptor.js';
@@ -47,7 +47,7 @@ export async function startCommand(options: StartOptions) {
 
   // If TUI is disabled, use the traditional start command
   if (!useTUI) {
-    const { startCommand: traditionalStart } = await import('./start.js');
+    const { startCommand: traditionalStart } = await import('./start-traditional.js');
     return traditionalStart(options);
   }
 
@@ -97,7 +97,16 @@ export async function startCommand(options: StartOptions) {
 
   // Step 3: Check database
   if (!config.databaseUrl) {
-    throw errors.monorepoNotFound([]);
+    throw new CLIError({
+      code: 'MISSING_REQUIRED_CONFIG',
+      message: 'Database URL not configured',
+      suggestions: [
+        'Run initialization: sentryvibe init',
+        'Or set manually: sentryvibe config set databaseUrl <url>',
+        'Or setup database: sentryvibe db',
+      ],
+      docs: 'https://github.com/codyde/sentryvibe#database-setup',
+    });
   }
 
   // Step 4: Clean up zombie processes
