@@ -3,16 +3,22 @@ nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
 cmds = [
+  "echo '=== Workspace Debug Info ==='",
+  "pwd",
   "ls -la",
-  "cat pnpm-workspace.yaml",
+  "echo '=== pnpm-workspace.yaml ==='",
+  "cat pnpm-workspace.yaml || echo 'NOT FOUND'",
+  "echo '=== Installing workspace ==='",
   "pnpm install"
 ]
 
 [phases.build]
 cmds = [
+  "echo '=== Building agent-core ==='",
   "pnpm --filter @sentryvibe/agent-core build",
+  "echo '=== Building sentryvibe ==='",
   "pnpm --filter sentryvibe build"
 ]
 
 [start]
-cmd = "pnpm --filter sentryvibe start"
+cmd = "echo 'Starting from:' && pwd && echo 'Workspace check:' && cat pnpm-workspace.yaml && pnpm --filter sentryvibe start"

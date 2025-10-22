@@ -1,0 +1,8 @@
+# Only ignore build artifacts and local files
+node_modules
+.next
+.env*.local
+*.log
+
+# Don't ignore anything from the workspace
+# We need packages/agent-core to be included
