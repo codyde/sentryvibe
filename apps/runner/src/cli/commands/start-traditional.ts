@@ -17,7 +17,8 @@ import { shutdownHandler } from '../index.js';
 interface StartOptions {
   port?: string;
   brokerPort?: string;
-  prod?: boolean; // Use production mode (build + start)
+  dev?: boolean; // Use development mode (hot reload)
+  rebuild?: boolean; // Rebuild services before starting
 }
 
 interface ManagedProcess {
@@ -82,9 +83,9 @@ export async function startCommand(options: StartOptions) {
     }
   }
 
-  // Step 2.5: Build for production mode
-  if (options.prod) {
-    s.start('Building services (production mode)');
+  // Step 2.5: Rebuild services if requested
+  if (options.rebuild) {
+    s.start('Rebuilding services');
 
     try {
       // Use turbo to build all services with caching
@@ -106,16 +107,16 @@ export async function startCommand(options: StartOptions) {
         buildProcess.on('error', reject);
       });
 
-      s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
+      s.stop(pc.green('✓') + ' Rebuild complete (using Turborepo cache)');
     } catch (error) {
       s.stop(pc.red('✗') + ' Build failed');
       throw new CLIError({
         code: 'BUILD_FAILED',
-        message: 'Failed to build services for production mode',
+        message: 'Failed to rebuild services',
         suggestions: [
           'Check that all dependencies are installed',
           'Try running: pnpm build:all',
-          'Run without --prod flag to use dev mode',
+          'Run with --dev flag to skip build and use dev mode',
         ],
       });
     }
@@ -184,7 +185,8 @@ export async function startCommand(options: StartOptions) {
   try {
     // Start Web App
     console.log(pc.cyan('1/3'), 'Starting web app...');
-    const webCommand = options.prod ? 'start' : 'dev';
+    // Default to production mode unless --dev flag is present
+    const webCommand = options.dev ? 'dev' : 'start';
     const webApp = spawn('pnpm', ['--filter', 'sentryvibe', webCommand], {
       cwd: monorepoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -233,7 +235,8 @@ export async function startCommand(options: StartOptions) {
 
     // Start Broker
     console.log(pc.cyan('2/3'), 'Starting broker...');
-    const brokerCommand = options.prod ? 'start' : 'dev';
+    // Default to production mode unless --dev flag is present
+    const brokerCommand = options.dev ? 'dev' : 'start';
     const broker = spawn('pnpm', ['--filter', 'sentryvibe-broker', brokerCommand], {
       cwd: monorepoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],

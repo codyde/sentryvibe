@@ -21,7 +21,8 @@ interface StartOptions {
   port?: string;
   brokerPort?: string;
   noTui?: boolean; // Disable TUI, use traditional logs
-  prod?: boolean; // Use production mode (build + start)
+  dev?: boolean; // Use development mode (hot reload)
+  rebuild?: boolean; // Rebuild services before starting
 }
 
 /**
@@ -96,11 +97,10 @@ export async function startCommand(options: StartOptions) {
     s.stop(pc.green('✓') + ' Dependencies installed');
   }
 
-  // Step 2.5: Build for production mode
-  if (options.prod) {
-    s.start('Building services (production mode)');
+  // Step 2.5: Rebuild services if requested
+  if (options.rebuild) {
+    s.start('Rebuilding services');
     const { spawn } = await import('child_process');
-    const { promisify } = await import('util');
 
     try {
       // Use turbo to build all services with caching
@@ -121,16 +121,16 @@ export async function startCommand(options: StartOptions) {
         buildProcess.on('error', reject);
       });
 
-      s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
+      s.stop(pc.green('✓') + ' Rebuild complete (using Turborepo cache)');
     } catch (error) {
       s.stop(pc.red('✗') + ' Build failed');
       throw new CLIError({
         code: 'BUILD_FAILED',
-        message: 'Failed to build services for production mode',
+        message: 'Failed to rebuild services',
         suggestions: [
           'Check that all dependencies are installed',
           'Try running: pnpm build:all',
-          'Run without --prod flag to use dev mode',
+          'Run with --dev flag to skip build and use dev mode',
         ],
       });
     }
@@ -186,7 +186,8 @@ export async function startCommand(options: StartOptions) {
   await new Promise(resolve => setTimeout(resolve, 800));
 
   // Register web app
-  const webCommand = options.prod ? 'start' : 'dev';
+  // Default to production mode unless --dev flag is present
+  const webCommand = options.dev ? 'dev' : 'start';
   serviceManager.register({
     name: 'web',
     displayName: 'Web App',
@@ -207,7 +208,8 @@ export async function startCommand(options: StartOptions) {
   });
 
   // Register broker
-  const brokerCommand = options.prod ? 'start' : 'dev';
+  // Default to production mode unless --dev flag is present
+  const brokerCommand = options.dev ? 'dev' : 'start';
   serviceManager.register({
     name: 'broker',
     displayName: 'Broker',
