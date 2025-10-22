@@ -48,17 +48,11 @@ coverage
 *.md
 !README.md
 
-# Other apps (only include broker dependencies)
-apps/sentryvibe
-apps/runner
-!apps/broker
+# Note: All apps included for multi-service monorepo deployment
+# Each Railway service uses its own build config via nixpacks.toml or Root Directory
 
 # Misc
 docker-compose.yml
 *.dockerfile
 Dockerfile
 !Dockerfile.broker
-railway.toml
-!apps/broker/railway.toml
-nixpacks.toml
-.dockerignore
