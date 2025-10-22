@@ -11,17 +11,19 @@
   "author": "Cody De Arkland",
   "license": "MIT",
   "scripts": {
-    "dev": "pnpm --filter sentryvibe dev",
-    "build": "pnpm --filter sentryvibe build",
-    "build:all": "pnpm --filter sentryvibe build && pnpm --filter @sentryvibe/runner-cli build && pnpm --filter sentryvibe-broker build",
-    "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
-    "build:agent-core": "pnpm --filter @sentryvibe/agent-core build",
-    "start": "pnpm --filter sentryvibe start",
-    "start:broker": "pnpm --filter sentryvibe-broker start",
-    "lint": "pnpm --filter sentryvibe lint",
-    "dev:all": "pnpm --filter sentryvibe dev & sleep 3 && pnpm --parallel --filter sentryvibe-broker --filter @sentryvibe/runner-cli run dev",
-    "broker": "pnpm --filter sentryvibe-broker dev",
-    "runner": "pnpm --filter @sentryvibe/runner-cli dev"
+    "dev": "turbo run dev --filter=sentryvibe",
+    "build": "turbo run build --filter=sentryvibe",
+    "build:all": "turbo run build",
+    "build:cli": "turbo run build --filter=@sentryvibe/runner-cli",
+    "build:agent-core": "turbo run build --filter=@sentryvibe/agent-core",
+    "start": "turbo run start --filter=sentryvibe",
+    "start:all": "turbo run start",
+    "start:broker": "turbo run start --filter=sentryvibe-broker",
+    "lint": "turbo run lint",
+    "dev:all": "turbo run dev",
+    "broker": "turbo run dev --filter=sentryvibe-broker",
+    "runner": "turbo run dev --filter=@sentryvibe/runner-cli",
+    "local:prod": "turbo run build && turbo run start --filter=sentryvibe"
   },
   "pnpm": {
     "overrides": {
@@ -30,5 +32,8 @@
       "@sentry/node-core": "file:./apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz",
       "@sentry/nextjs": "file:./apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz"
     }
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
   }
 }

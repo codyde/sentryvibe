@@ -9,7 +9,7 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "pnpm install && pnpm --filter @sentryvibe/agent-core build && pnpm --filter sentryvibe build && pnpm --filter sentryvibe-broker build"
+  "pnpm build:all"
 ]
 
 [start]

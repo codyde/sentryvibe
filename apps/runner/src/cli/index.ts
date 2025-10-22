@@ -119,6 +119,8 @@ program
   .description('Start the full stack (web app + broker + runner)')
   .option('-p, --port <port>', 'Web app port (default: 3000)')
   .option('-b, --broker-port <port>', 'Broker port (default: 4000)')
+  .option('--dev', 'Use development mode (hot reload, slower performance)')
+  .option('--rebuild', 'Rebuild services before starting')
   .action(async (options) => {
     try {
       const { startCommand } = await import('./commands/start.js');
@@ -128,6 +130,18 @@ program
     }
   });
 
+program
+  .command('build')
+  .description('Build all services without starting (useful while app is running)')
+  .option('--watch', 'Watch for changes and rebuild automatically')
+  .action(async (options) => {
+    try {
+      const { buildCommand } = await import('./commands/build.js');
+      await buildCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
+  });
 
 program
   .command('runner')
