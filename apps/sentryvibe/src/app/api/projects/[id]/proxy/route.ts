@@ -24,6 +24,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let proj: typeof projects.$inferSelect | undefined;
+  
   try {
     const { id } = await params;
     const url = new URL(req.url);
@@ -35,7 +37,7 @@ export async function GET(
       return new NextResponse('Project not found', { status: 404 });
     }
 
-    const proj = project[0];
+    proj = project[0];
 
     // Check if server running
     if (proj.devServerStatus !== 'running' || !proj.devServerPort) {
