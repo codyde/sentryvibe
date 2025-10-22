@@ -1045,7 +1045,6 @@ function HomeContent() {
         );
 
         // Save to database
-        if (DEBUG_PAGE) console.log("💾 Saving element change to database...");
         const saveRes = await fetch(`/api/projects/${projectId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1061,7 +1060,7 @@ function HomeContent() {
         });
 
         if (saveRes.ok) {
-          if (DEBUG_PAGE) console.log("✅ Element change saved successfully");
+          // Success
         } else {
           console.error(
             "❌ Failed to save element change:",
@@ -1191,7 +1190,6 @@ function HomeContent() {
       claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
     });
 
-    if (DEBUG_PAGE) console.log("✅ Created fresh generationState:", freshState.id);
     updateGenerationState(freshState);
 
     await startGenerationStream(
@@ -1328,10 +1326,6 @@ function HomeContent() {
                 (
                   window as unknown as { saveGenStateTimeout?: NodeJS.Timeout }
                 ).saveGenStateTimeout = setTimeout(() => {
-                  if (DEBUG_PAGE) console.log(
-                    "💾 Saving text update (debounced), projectId:",
-                    updated.projectId
-                  );
                   saveGenerationState(updated.projectId, updated);
                 }, 1000);
 
@@ -1421,18 +1415,9 @@ function HomeContent() {
                   activeTodoIndex: activeIndex,
                 };
 
-                if (DEBUG_PAGE) console.log(
-                  "✅ Updated generationState with",
-                  todos.length,
-                  "todos"
-                );
                 if (DEBUG_PAGE) console.log("   Active index set to:", activeIndex);
 
                 // Save to DB using projectId from state (always available!)
-                if (DEBUG_PAGE) console.log(
-                  "💾 Saving TodoWrite update, projectId:",
-                  updated.projectId
-                );
                 saveGenerationState(updated.projectId, updated);
 
                 if (DEBUG_PAGE) console.log("🧠 Generation state snapshot:", {
@@ -1510,10 +1495,6 @@ function HomeContent() {
                 );
 
                 // Save to DB using projectId from state
-                if (DEBUG_PAGE) console.log(
-                  "💾 Saving tool addition, projectId:",
-                  updated.projectId
-                );
                 saveGenerationState(updated.projectId, updated);
 
                 return updated;
@@ -1568,10 +1549,6 @@ function HomeContent() {
               };
 
               // Save to DB (tool completion is a checkpoint)
-              if (DEBUG_PAGE) console.log(
-                "💾 Saving tool completion, projectId:",
-                updated.projectId
-              );
               saveGenerationState(updated.projectId, updated);
 
               return updated;
@@ -1830,10 +1807,6 @@ function HomeContent() {
         };
 
         // CRITICAL: Save final state to DB
-        if (DEBUG_PAGE) console.log(
-          "💾💾💾 Saving FINAL generationState to DB, projectId:",
-          completed.projectId
-        );
         saveGenerationState(completed.projectId, completed);
 
         return completed;
@@ -1867,10 +1840,6 @@ function HomeContent() {
         };
 
         // Save failed state to DB
-        if (DEBUG_PAGE) console.log(
-          "💾 Saving FAILED generationState to DB, projectId:",
-          failed.projectId
-        );
         saveGenerationState(failed.projectId, failed);
 
         return failed;
