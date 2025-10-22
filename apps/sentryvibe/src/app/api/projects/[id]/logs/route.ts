@@ -11,6 +11,8 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const stream = searchParams.get('stream') === 'true';
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
+    const search = searchParams.get('search') || undefined;
+    const level = searchParams.get('level') as 'all' | 'error' | 'warn' | undefined;
 
     if (stream) {
       // Streaming logs using Server-Sent Events
@@ -93,12 +95,54 @@ export async function GET(
         },
       });
     } else {
-      // Return logs as JSON
-      const logs = getRunnerLogs(id, limit);
+      // Return logs as JSON with filtering
+      let logs = getRunnerLogs(id, limit);
+
+      // Filter by search keyword (case-insensitive)
+      if (search) {
+        const searchLower = search.toLowerCase();
+        logs = logs.filter(log => log.data.toLowerCase().includes(searchLower));
+      }
+
+      // Filter by log level
+      if (level === 'error') {
+        logs = logs.filter(log => {
+          const lower = log.data.toLowerCase();
+          return log.type === 'stderr' ||
+                 lower.includes('error') ||
+                 lower.includes('failed') ||
+                 lower.includes('exception') ||
+                 lower.includes('cannot') ||
+                 lower.includes('missing');
+        });
+      } else if (level === 'warn') {
+        logs = logs.filter(log => {
+          const lower = log.data.toLowerCase();
+          return lower.includes('warn') || lower.includes('warning');
+        });
+      }
+
+      // Count errors and warnings
+      const errorCount = logs.filter(log => {
+        const lower = log.data.toLowerCase();
+        return log.type === 'stderr' ||
+               lower.includes('error') ||
+               lower.includes('failed') ||
+               lower.includes('exception');
+      }).length;
+
+      const warningCount = logs.filter(log => {
+        const lower = log.data.toLowerCase();
+        return lower.includes('warn') || lower.includes('warning');
+      }).length;
 
       return NextResponse.json({
         logs,
         running: logs.length > 0,
+        totalLines: logs.length,
+        errorCount,
+        warningCount,
+        hasErrors: errorCount > 0,
       });
     }
 

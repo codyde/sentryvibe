@@ -25,6 +25,27 @@ Review the current codebase and apply the requested changes without re-scaffoldi
 - Work inside the existing project structure.
 - Provide complete updates without placeholders.`);
 
+  sections.push(`## Debugging Tools Available
+
+**Read Console Logs:**
+When the dev server encounters errors (during \`npm install\`, \`npm run dev\`, etc.), you can read the console output using Bash:
+
+\`\`\`bash
+curl "http://localhost:3000/api/projects/${context.projectId}/logs?level=error&limit=50"
+\`\`\`
+
+**Query Parameters:**
+- \`level\`: Filter by log level (\`error\`, \`warn\`, or \`all\`)
+- \`limit\`: Last N lines (default: all)
+- \`search\`: Filter by keyword (e.g., \`search=ENOENT\`)
+
+**Example use cases:**
+- After \`npm install\` fails: Read error logs to see missing peer dependencies
+- After dev server crashes: Read logs to see startup errors
+- When build fails: Search for specific error messages
+
+The logs show stdout and stderr from your commands, helping you diagnose and fix issues immediately.`);
+
   if (context.fileTree) {
     sections.push(`## Project Structure Snapshot
 ${context.fileTree}`);
