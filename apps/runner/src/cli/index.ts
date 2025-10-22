@@ -130,6 +130,18 @@ program
     }
   });
 
+program
+  .command('build')
+  .description('Build all services without starting (useful while app is running)')
+  .option('--watch', 'Watch for changes and rebuild automatically')
+  .action(async (options) => {
+    try {
+      const { buildCommand } = await import('./commands/build.js');
+      await buildCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
+  });
 
 program
   .command('runner')
