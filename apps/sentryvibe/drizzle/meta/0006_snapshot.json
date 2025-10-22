@@ -1,6 +1,6 @@
 {
-  "id": "20e72d83-b9be-4656-a34f-770fe25a9b9b",
-  "prevId": "763ad537-55b2-46bc-ae51-3e97326ec7b3",
+  "id": "d365cad8-0957-41ef-bce5-7705eb040315",
+  "prevId": "20e72d83-b9be-4656-a34f-770fe25a9b9b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -114,6 +114,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "design_preferences": {
+          "name": "design_preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "last_activity_at": {
           "name": "last_activity_at",
           "type": "timestamp",
@@ -142,7 +148,53 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "projects_runner_id_idx": {
+          "name": "projects_runner_id_idx",
+          "columns": [
+            {
+              "expression": "runner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "projects_status_idx": {
+          "name": "projects_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "projects_last_activity_idx": {
+          "name": "projects_last_activity_idx",
+          "columns": [
+            {
+              "expression": "last_activity_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
@@ -297,6 +349,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "runner_id": {
+          "name": "runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "started_at": {
           "name": "started_at",
           "type": "timestamp",
@@ -318,7 +376,23 @@
           "default": 0
         }
       },
-      "indexes": {},
+      "indexes": {
+        "running_processes_runner_id_idx": {
+          "name": "running_processes_runner_id_idx",
+          "columns": [
+            {
+              "expression": "runner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "running_processes_project_id_projects_id_fk": {
           "name": "running_processes_project_id_projects_id_fk",

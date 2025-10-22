@@ -24,19 +24,17 @@ export default function MoodSelector({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-gray-200">
-          Style & Mood
-        </label>
+        <h3 className="text-sm font-semibold text-gray-200">Style & Mood</h3>
         <span className="text-xs text-gray-400">
-          {selected.length}/{maxSelections} selected
+          {selected.length}/{maxSelections}
         </span>
       </div>
 
       <p className="text-xs text-gray-400">
-        Select 2-4 words describing your desired aesthetic
+        Select 2-4 descriptors for your design aesthetic
       </p>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {MOOD_OPTIONS.map(mood => {
           const isSelected = selected.includes(mood);
           const isDisabled = !isSelected && selected.length >= maxSelections;
@@ -47,12 +45,12 @@ export default function MoodSelector({
               onClick={() => toggleMood(mood)}
               disabled={isDisabled}
               className={`
-                px-3 py-1.5 rounded-full text-sm transition-all
+                px-2.5 py-1 rounded-md text-xs font-medium transition-all border
                 ${isSelected
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500'
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500'
                   : isDisabled
-                    ? 'bg-white/5 text-gray-600 border border-white/5 cursor-not-allowed opacity-50'
-                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200 hover:border-white/20'
+                    ? 'bg-white/5 text-gray-600 border-white/5 cursor-not-allowed opacity-50'
+                    : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-gray-200 hover:border-white/20'
                 }
               `}
             >
@@ -64,7 +62,7 @@ export default function MoodSelector({
 
       {selected.length < 2 && (
         <p className="text-xs text-yellow-400/80">
-          Select at least 2 moods for best results
+          Select at least 2 moods
         </p>
       )}
     </div>

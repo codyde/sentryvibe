@@ -24,7 +24,7 @@ export const DEFAULT_COLORS = {
 
 export const DEFAULT_TYPOGRAPHY = {
   heading: "Inter",
-  body: "System UI",
+  body: "Inter",
 };
 
 export const MOOD_OPTIONS = [
