@@ -55,12 +55,38 @@ interface DevServerOptions {
   env: Record<string, string>;
 }
 
+interface ConsoleLogEntry {
+  timestamp: Date;
+  type: 'stdout' | 'stderr';
+  text: string;
+}
+
 interface DevServerProcess {
   process: ChildProcess;
   emitter: EventEmitter;
+  consoleLogs: ConsoleLogEntry[]; // Circular buffer of recent logs
 }
 
 const activeProcesses = new Map<string, DevServerProcess>();
+const MAX_CONSOLE_LOGS = 500; // Store last 500 log entries per project
+
+/**
+ * Add log entry to circular buffer
+ */
+function addLogEntry(devProcess: DevServerProcess, type: 'stdout' | 'stderr', text: string): void {
+  const entry: ConsoleLogEntry = {
+    timestamp: new Date(),
+    type,
+    text,
+  };
+
+  devProcess.consoleLogs.push(entry);
+
+  // Implement circular buffer: remove oldest entries if over limit
+  if (devProcess.consoleLogs.length > MAX_CONSOLE_LOGS) {
+    devProcess.consoleLogs.shift(); // Remove oldest
+  }
+}
 
 /**
  * Start a development server for a project
@@ -99,6 +125,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
   const devProcess: DevServerProcess = {
     process: childProcess,
     emitter,
+    consoleLogs: [], // Initialize empty log buffer
   };
 
   activeProcesses.set(projectId, devProcess);
@@ -131,6 +158,10 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
   // Handle stdout
   childProcess.stdout?.on('data', (data: Buffer) => {
     const text = data.toString();
+
+    // Add to console log buffer
+    addLogEntry(devProcess, 'stdout', text);
+
     emitter.emit('log', { type: 'stdout', data: text });
 
     // Try to detect port (only emit once per project)
@@ -175,7 +206,12 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   // Handle stderr
   childProcess.stderr?.on('data', (data: Buffer) => {
-    emitter.emit('log', { type: 'stderr', data: data.toString() });
+    const text = data.toString();
+
+    // Add to console log buffer
+    addLogEntry(devProcess, 'stderr', text);
+
+    emitter.emit('log', { type: 'stderr', data: text });
   });
 
   // Handle exit
@@ -223,4 +259,52 @@ export function stopDevServer(projectId: string): boolean {
  */
 export function getDevServer(projectId: string): DevServerProcess | undefined {
   return activeProcesses.get(projectId);
+}
+
+/**
+ * Get console logs for a project
+ */
+export function getConsoleLogs(
+  projectId: string,
+  options?: {
+    lines?: number;      // Last N lines, default all
+    search?: string;     // Filter by keyword (case-insensitive)
+    level?: 'all' | 'error' | 'warn'; // Filter by log level
+  }
+): ConsoleLogEntry[] {
+  const devProcess = activeProcesses.get(projectId);
+  if (!devProcess) {
+    return [];
+  }
+
+  let logs = [...devProcess.consoleLogs]; // Copy array
+
+  // Filter by search keyword
+  if (options?.search) {
+    const searchLower = options.search.toLowerCase();
+    logs = logs.filter(log => log.text.toLowerCase().includes(searchLower));
+  }
+
+  // Filter by level (errors and warnings based on common patterns)
+  if (options?.level === 'error') {
+    logs = logs.filter(log => {
+      const lower = log.text.toLowerCase();
+      return log.type === 'stderr' ||
+             lower.includes('error') ||
+             lower.includes('failed') ||
+             lower.includes('exception');
+    });
+  } else if (options?.level === 'warn') {
+    logs = logs.filter(log => {
+      const lower = log.text.toLowerCase();
+      return lower.includes('warn') || lower.includes('warning');
+    });
+  }
+
+  // Limit to last N lines
+  if (options?.lines && options.lines > 0) {
+    logs = logs.slice(-options.lines);
+  }
+
+  return logs;
 }

@@ -157,28 +157,33 @@ When you encounter errors, follow these systematic recovery patterns:
 **During Dependency Installation:**
 
 If \`npm install\` or \`pnpm install\` fails:
-1. Read the FULL error message carefully
+1. **Read console logs** to see the full error (use the debugging tools provided in your context)
 2. Identify the root cause:
    - Missing peer dependencies? Add them to package.json
    - Version conflicts? Adjust version constraints
    - Network issues? Retry with error handling
 3. Fix the package.json
 4. Re-run installation
-5. Verify success before moving on
+5. **Read logs again** to verify success
+6. Proceed only after clean installation
 
 **During Dev Server Start:**
 
 If \`npm run dev\` fails or crashes:
-1. Capture the error output (it will be shown to you)
-2. Common issues:
+1. **Read console logs immediately** (see "Debugging Tools Available" section in your context)
+2. Analyze the error output:
    - Missing environment variables? Check what's required
    - Port already in use? Choose different port
    - Missing config files? Create them
    - TypeScript errors? Fix type issues
+   - Module not found? Install missing dependency
 3. Use Grep to search for related config files (vite.config, next.config, etc.)
 4. Fix the root cause (not just symptoms)
 5. Re-test the dev server
-6. NEVER mark todo complete if server won't start
+6. **Read logs again** to verify the fix worked
+7. NEVER mark todo complete if server won't start
+
+**CRITICAL:** Always read console logs after running commands that might fail. The logs contain the exact error messages you need to fix issues.
 
 **During Build/Compile Errors:**
 
