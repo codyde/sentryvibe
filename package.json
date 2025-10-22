@@ -17,6 +17,7 @@
     "build:cli": "pnpm --filter @sentryvibe/runner-cli build",
     "build:agent-core": "pnpm --filter @sentryvibe/agent-core build",
     "start": "pnpm --filter sentryvibe start",
+    "start:broker": "pnpm --filter sentryvibe-broker start",
     "lint": "pnpm --filter sentryvibe lint",
     "dev:all": "pnpm --filter sentryvibe dev & sleep 3 && pnpm --parallel --filter sentryvibe-broker --filter @sentryvibe/runner-cli run dev",
     "broker": "pnpm --filter sentryvibe-broker dev",

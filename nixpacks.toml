@@ -9,8 +9,12 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "pnpm install && pnpm --filter @sentryvibe/agent-core build && pnpm --filter sentryvibe build"
+  "pnpm install && pnpm --filter @sentryvibe/agent-core build && pnpm --filter sentryvibe build && pnpm --filter sentryvibe-broker build"
 ]
 
 [start]
 cmd = "pnpm start"
+
+# Note: This builds all services. Override the start command in Railway settings:
+# - Sentryvibe service: pnpm start (or pnpm --filter sentryvibe start)
+# - Broker service: pnpm start:broker (or pnpm --filter sentryvibe-broker start)
