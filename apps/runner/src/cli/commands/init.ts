@@ -197,6 +197,46 @@ export async function initCommand(options: InitOptions) {
             s.start('Building @sentryvibe/agent-core');
             await buildAgentCore(monorepoPath);
             s.stop(pc.green('✓') + ' Build complete');
+
+            // Ask about pre-building services
+            const shouldPreBuild = await p.confirm({
+              message: 'Pre-build all services for production performance?',
+              initialValue: true,
+            });
+
+            if (p.isCancel(shouldPreBuild)) {
+              handleCancel();
+              return;
+            }
+
+            if (shouldPreBuild) {
+              s.start('Building all services (this may take a minute)');
+              const { spawn } = await import('child_process');
+
+              try {
+                await new Promise<void>((resolve, reject) => {
+                  const buildProcess = spawn('pnpm', ['build:all'], {
+                    cwd: monorepoPath,
+                    stdio: 'pipe',
+                    shell: true,
+                  });
+
+                  buildProcess.on('close', (code) => {
+                    if (code === 0) {
+                      resolve();
+                    } else {
+                      reject(new Error(`Build failed with code ${code}`));
+                    }
+                  });
+
+                  buildProcess.on('error', reject);
+                });
+
+                s.stop(pc.green('✓') + ' All services built for production');
+              } catch (error) {
+                s.stop(pc.yellow('⚠') + ' Build failed (you can build later with: pnpm build:all)');
+              }
+            }
           } catch (error) {
             throw new CLIError({
               code: 'MONOREPO_CLONE_FAILED',
@@ -466,6 +506,34 @@ export async function initCommand(options: InitOptions) {
         s.start('Building packages');
         await buildAgentCore(monorepoPath);
         s.stop(pc.green('✓') + ' Packages built');
+
+        // Auto-build all services in -y mode for production performance
+        s.start('Building all services for production');
+        const { spawn } = await import('child_process');
+
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const buildProcess = spawn('pnpm', ['build:all'], {
+              cwd: monorepoPath,
+              stdio: 'pipe',
+              shell: true,
+            });
+
+            buildProcess.on('close', (code) => {
+              if (code === 0) {
+                resolve();
+              } else {
+                reject(new Error(`Build failed with code ${code}`));
+              }
+            });
+
+            buildProcess.on('error', reject);
+          });
+
+          s.stop(pc.green('✓') + ' All services built for production');
+        } catch (buildError) {
+          s.stop(pc.yellow('⚠') + ' Build failed (you can build later with: pnpm build:all)');
+        }
       } catch (error) {
         throw new CLIError({
           code: 'MONOREPO_CLONE_FAILED',
