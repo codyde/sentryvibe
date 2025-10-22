@@ -1249,7 +1249,8 @@ function HomeContent() {
 
         try {
           const data = JSON.parse(payload);
-          if (DEBUG_PAGE) console.log("📨 SSE event received:", data.type, data);
+          const eventTimestamp = new Date().toISOString();
+          if (DEBUG_PAGE) console.log(`\n🌊 [${eventTimestamp}] SSE Event: ${data.type}`, data.toolName ? `(${data.toolName})` : "");
 
           if (data.type === "start") {
             // Don't create messages during generation - they're captured in generationState
@@ -1386,27 +1387,24 @@ function HomeContent() {
             if (data.toolName === "TodoWrite") {
               const inputData = data.input as { todos?: TodoItem[] };
               const todos = inputData?.todos || [];
+              const timestamp = new Date().toISOString();
 
-              if (DEBUG_PAGE) console.log("📝 TodoWrite - updating generation state");
-              if (DEBUG_PAGE) console.log("   Todos count:", todos.length);
+              if (DEBUG_PAGE) console.log(`\n━━━ [${timestamp}] 📝 TodoWrite Event Received ━━━`);
+              if (DEBUG_PAGE) console.log("   BEFORE: Current state todos:", generationStateRef.current?.todos?.map(
+                (t, i) => `[${i}] ${t.status}: ${t.content.substring(0, 40)}`
+              ));
+              if (DEBUG_PAGE) console.log("   INCOMING: New todos:", todos.length);
               if (DEBUG_PAGE) console.log(
-                "   Current generationState exists?",
-                !!generationState
-              );
-              if (DEBUG_PAGE) console.log(
-                "   Current todos in state:",
-                generationState?.todos?.length
+                "   INCOMING: Todo details:",
+                todos.map((t, i) => `[${i}] ${t.status}: ${t.content.substring(0, 40)}`)
               );
 
               // Find the active todo index (first in_progress, or -1 if none)
               const activeIndex = todos.findIndex(
                 (t) => t.status === "in_progress"
               );
-              if (DEBUG_PAGE) console.log("   Active todo index:", activeIndex);
-              if (DEBUG_PAGE) console.log(
-                "   Incoming todos:",
-                todos.map((t) => `${t.status}:${t.content}`).join(" | ")
-              );
+              if (DEBUG_PAGE) console.log("   ACTIVE INDEX:", activeIndex >= 0 ? activeIndex : "none");
+              if (DEBUG_PAGE) console.log("   ACTIVE TODO:", activeIndex >= 0 ? todos[activeIndex]?.content : "none");
 
               updateGenerationState((prev) => {
                 const baseState = ensureGenerationState(prev);
@@ -1447,11 +1445,16 @@ function HomeContent() {
               });
             } else {
               // Route other tools to generation state (nested under active todo)
-              if (DEBUG_PAGE) console.log(
-                "🔧 Tool",
-                data.toolName,
-                "- updating generation state"
-              );
+              const timestamp = new Date().toISOString();
+              const activeTodoIndex = generationStateRef.current?.activeTodoIndex ?? -1;
+              if (DEBUG_PAGE) console.log(`\n━━━ [${timestamp}] 🔧 Tool Call Event ━━━`);
+              if (DEBUG_PAGE) console.log(`   TOOL: ${data.toolName} (${data.toolCallId})`);
+              if (DEBUG_PAGE) console.log(`   ACTIVE TODO INDEX: ${activeTodoIndex}`);
+              if (activeTodoIndex >= 0 && generationStateRef.current?.todos?.[activeTodoIndex]) {
+                if (DEBUG_PAGE) console.log(`   ACTIVE TODO: ${generationStateRef.current.todos[activeTodoIndex].content.substring(0, 50)}`);
+              } else {
+                if (DEBUG_PAGE) console.log(`   ACTIVE TODO: none (will associate with index 0 or wait for TodoWrite)`);
+              }
 
               updateGenerationState((prev) => {
                 const baseState = ensureGenerationState(prev);
@@ -1460,7 +1463,7 @@ function HomeContent() {
                 // CRITICAL: Don't nest if we don't have todos yet!
                 if (!baseState.todos || baseState.todos.length === 0) {
                   if (DEBUG_PAGE) console.log(
-                    "⚠️  No todos yet, skipping tool nesting (will re-associate from DB later)"
+                    "   ⚠️  No todos yet, skipping tool nesting (will re-associate from DB later)"
                   );
                   return prev;
                 }
@@ -1522,6 +1525,10 @@ function HomeContent() {
             // No need to update messages for tools
           } else if (data.type === "tool-output-available") {
             // Update tool in generation state
+            const timestamp = new Date().toISOString();
+            if (DEBUG_PAGE) console.log(`\n━━━ [${timestamp}] ✅ Tool Output Event ━━━`);
+            if (DEBUG_PAGE) console.log(`   TOOL ID: ${data.toolCallId}`);
+
             updateGenerationState((prev) => {
               const baseState = ensureGenerationState(prev);
               if (!baseState) return prev;
@@ -1529,6 +1536,7 @@ function HomeContent() {
               const newToolsByTodo = { ...baseState.toolsByTodo };
 
               // Find and update the tool
+              let foundTodoIndex = -1;
               for (const todoIndexStr in newToolsByTodo) {
                 const todoIndex = parseInt(todoIndexStr);
                 const tools = newToolsByTodo[todoIndex];
@@ -1536,6 +1544,7 @@ function HomeContent() {
                   (t) => t.id === data.toolCallId
                 );
                 if (toolIndex >= 0) {
+                  foundTodoIndex = todoIndex;
                   const updatedTools = [...tools];
                   updatedTools[toolIndex] = {
                     ...updatedTools[toolIndex],
@@ -1544,8 +1553,13 @@ function HomeContent() {
                     endTime: new Date(),
                   };
                   newToolsByTodo[todoIndex] = updatedTools;
+                  if (DEBUG_PAGE) console.log(`   FOUND: Tool in todo[${todoIndex}], name: ${updatedTools[toolIndex].name}`);
                   break;
                 }
+              }
+
+              if (foundTodoIndex === -1 && DEBUG_PAGE) {
+                console.log(`   ⚠️  WARNING: Tool output received but tool not found in any todo!`);
               }
 
               const updated = {
