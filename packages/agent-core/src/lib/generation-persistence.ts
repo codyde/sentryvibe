@@ -142,8 +142,6 @@ export function deserializeGenerationState(json: string | null): GenerationState
  */
 export async function saveGenerationState(projectId: string, state: GenerationState): Promise<boolean> {
   try {
-    console.log('💾 Saving generationState to DB for project:', projectId);
-
     const serialized = serializeGenerationState(state);
 
     const res = await fetch(`/api/projects/${projectId}`, {
@@ -158,7 +156,6 @@ export async function saveGenerationState(projectId: string, state: GenerationSt
       return false;
     }
 
-    console.log('✅ generationState saved successfully!');
     return true;
   } catch (error) {
     console.error('❌ Save error:', error);

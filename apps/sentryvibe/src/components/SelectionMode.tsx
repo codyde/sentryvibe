@@ -64,10 +64,8 @@ export default function SelectionMode({ isEnabled, onToggle, onElementSelected }
       }
     };
 
-    console.log('👂 Adding message listener...');
     window.addEventListener('message', handleMessage);
     return () => {
-      console.log('👂 Removing message listener...');
       window.removeEventListener('message', handleMessage);
     };
   }, [onToggle, onElementSelected]);

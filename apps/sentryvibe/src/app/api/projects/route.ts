@@ -128,7 +128,7 @@ export async function POST(req: Request) {
             options: {
               model: 'claude-haiku-4-5',
               maxTurns: 1,
-              systemPrompt: 'Output valid JSON only. No markdown. No explanations.',
+              systemPrompt: 'You must output ONLY a single valid JSON object. Do not include markdown code fences, explanations, or multiple JSON objects. Output the JSON directly with no additional text before or after.',
             },
           });
 
@@ -181,13 +181,37 @@ export async function POST(req: Request) {
         cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
         cleanedResponse = cleanedResponse.trim();
 
-        // Try 2: Find JSON object in the text
-        const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          metadata = JSON.parse(jsonMatch[0]);
-          console.log('📋 Parsed metadata:', metadata);
+        // Try 2: Find ALL JSON objects in the text (AI sometimes generates multiple with explanations)
+        // Use non-greedy matching to find each JSON object separately
+        const jsonMatches = [...cleanedResponse.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g)];
+
+        if (jsonMatches.length === 0) {
+          console.warn('⚠️  No JSON object found in response');
         } else {
-          console.warn('⚠️  No JSON object found in Haiku response');
+          console.log(`   Found ${jsonMatches.length} potential JSON object(s), trying to parse...`);
+
+          // Try parsing each JSON object until one succeeds
+          for (let i = 0; i < jsonMatches.length; i++) {
+            try {
+              const candidate = jsonMatches[i][0];
+              const parsed = JSON.parse(candidate);
+
+              // Validate it has the required fields
+              if (parsed.slug && parsed.friendlyName && parsed.description && parsed.icon) {
+                metadata = parsed;
+                console.log(`📋 Successfully parsed metadata from JSON object #${i + 1}`);
+                break;
+              } else {
+                console.warn(`   JSON object #${i + 1} missing required fields, skipping...`);
+              }
+            } catch (parseError) {
+              console.warn(`   JSON object #${i + 1} failed to parse, trying next...`);
+            }
+          }
+
+          if (!metadata) {
+            console.warn('⚠️  No valid JSON object found with required fields');
+          }
         }
       } catch (parseError) {
         console.error('❌ JSON parsing failed:', parseError);
