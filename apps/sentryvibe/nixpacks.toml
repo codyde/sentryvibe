@@ -4,7 +4,11 @@ nixOverlays = ["https://github.com/railwayapp/nix-npm-overlay/archive/main.tar.g
 nixpkgsArchive = "ba913eda2df8eb72147259189d55932012df6301"
 
 [phases.install]
-cmds = ["pnpm install --frozen-lockfile --filter=sentryvibe..."]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@latest --activate",
+  "pnpm install --frozen-lockfile --filter=sentryvibe..."
+]
 
 [phases.build]
 cmds = ["pnpm --filter=sentryvibe run build"]
