@@ -2,26 +2,20 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "steps": {
-    "build-agent-core": {
-      "commands": [
-        "cd ../../packages/agent-core && pnpm install && pnpm run build"
-      ]
-    },
     "setup": {
-      "inputs": ["$build-agent-core"],
       "commands": [
-        "pnpm install"
+        "pnpm install --filter=@sentryvibe/agent-core --filter=sentryvibe-broker"
       ]
     },
     "compile": {
       "inputs": ["$setup"],
       "commands": [
-        "pnpm run build"
+        "pnpm --filter=sentryvibe-broker run build"
       ]
     }
   },
   "deploy": {
-    "startCommand": "pnpm start",
+    "startCommand": "cd apps/broker && pnpm start",
     "inputs": ["$compile"]
   }
 }
