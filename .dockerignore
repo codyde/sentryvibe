@@ -48,14 +48,17 @@ coverage
 *.md
 !README.md
 
-# Note: Comment out apps you want to exclude from the build
-# Currently configured for deploying sentryvibe frontend
-# apps/sentryvibe  # Uncomment to exclude sentryvibe
-# apps/runner      # Uncomment to exclude runner
-# apps/broker      # Uncomment to exclude broker
+# Other apps (only include broker dependencies)
+apps/sentryvibe
+apps/runner
+!apps/broker
 
 # Misc
 docker-compose.yml
 *.dockerfile
 Dockerfile
 !Dockerfile.broker
+railway.toml
+!apps/broker/railway.toml
+nixpacks.toml
+.dockerignore
