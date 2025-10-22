@@ -15,7 +15,7 @@
     }
   },
   "deploy": {
-    "startCommand": "cd apps/broker && pnpm start",
+    "startCommand": "node apps/broker/dist/index.js",
     "inputs": ["$compile"]
   }
 }
