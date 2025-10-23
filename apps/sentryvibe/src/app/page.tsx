@@ -19,7 +19,6 @@ import BuildProgress from "@/components/BuildProgress";
 import ChatUpdate from "@/components/ChatUpdate";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import { AppSidebar } from "@/components/app-sidebar";
-import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
@@ -3125,9 +3124,6 @@ function HomeContent() {
                             </button>
                           </div>
                         </form>
-                        <div className="mt-3 flex justify-start">
-                          <AgentSelector className="w-full max-w-2xl" />
-                        </div>
                       </div>
                     </div>
                   </motion.div>
