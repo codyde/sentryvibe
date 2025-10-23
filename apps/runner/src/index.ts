@@ -1040,6 +1040,8 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Run AI analysis (Claude Code or Codex SDK)
           const { analyzeProjectRequest } = await import('./lib/project-analysis.js');
+          log(`[create-project] About to call analyzeProjectRequest...`);
+
           const analysis = await analyzeProjectRequest(
             command.payload.prompt,
             command.payload.agent || 'claude-code',
@@ -1047,6 +1049,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             command.payload.claudeModel
           );
 
+          log(`[create-project] ✅ Got analysis result back`);
           log(`[create-project] Analysis complete: ${analysis.metadata.friendlyName}`);
 
           // Send analysis results back to frontend
