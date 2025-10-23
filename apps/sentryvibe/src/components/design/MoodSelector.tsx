@@ -73,7 +73,7 @@ export default function MoodSelector({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-gray-400" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[400px] p-0 bg-[#1e1e1e] border-[#3e3e3e]" align="start">
+        <PopoverContent className="w-[400px] p-0 bg-[#1e1e1e] border-[#3e3e3e]" align="start" side="top">
           <Command className="bg-[#1e1e1e]">
             <CommandInput placeholder="Search moods..." className="text-gray-200 bg-white/5 border-white/10" />
             <CommandEmpty className="text-gray-400">No mood found.</CommandEmpty>
