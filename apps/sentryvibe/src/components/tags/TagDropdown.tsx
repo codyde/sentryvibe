@@ -75,7 +75,7 @@ export function TagDropdown({
     const tagDefs = getTagDefinitions();
 
     return (
-      <div className="w-64">
+      <div className="w-full min-w-64">
         <div className="p-1 space-y-1">
           {tagDefs.map(def => (
             <button
@@ -103,7 +103,7 @@ export function TagDropdown({
 
   const renderSelect = (def: TagDefinition) => {
     return (
-      <div className="w-64">
+      <div className="w-full min-w-64">
         {/* Back button */}
         <div className="p-1 border-b border-gray-800">
           <button
@@ -142,7 +142,7 @@ export function TagDropdown({
 
   const renderNested = (def: TagDefinition) => {
     return (
-      <div className="w-64">
+      <div className="w-full min-w-64">
         {/* Back button */}
         <div className="p-1 border-b border-gray-800">
           <button
@@ -188,7 +188,7 @@ export function TagDropdown({
 
   const renderColor = (def: TagDefinition) => {
     return (
-      <div className="w-72">
+      <div className="w-full min-w-72 max-w-80">
         {/* Back button */}
         <div className="p-1 border-b border-gray-800">
           <button
