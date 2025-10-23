@@ -21,6 +21,7 @@ export const projects = pgTable('projects', {
   generationState: text('generation_state'),
   designPreferences: jsonb('design_preferences'), // User-specified design constraints (deprecated - use tags)
   tags: jsonb('tags'), // Tag-based configuration system
+  templateMetadata: jsonb('template_metadata'), // Full template info from runner analysis
   lastActivityAt: timestamp('last_activity_at').defaultNow(),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

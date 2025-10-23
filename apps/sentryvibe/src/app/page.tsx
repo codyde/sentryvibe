@@ -1260,6 +1260,9 @@ function HomeContent() {
       const runnerTag = appliedTags.find(t => t.key === 'runner');
       const effectiveRunnerId = runnerTag?.value || selectedRunnerId;
 
+      // Get current project for template metadata
+      const project = projects?.find(p => p.id === projectId) || currentProject;
+
       const res = await fetch(`/api/projects/${projectId}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1272,6 +1275,9 @@ function HomeContent() {
           claudeModel: effectiveClaudeModel,
           designPreferences: designPreferences || undefined, // Include if set (deprecated - use tags)
           tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
+          template: operationType === 'initial-build' && project?.templateMetadata
+            ? project.templateMetadata  // Use full template from runner analysis
+            : undefined,
           context: isElementChange
             ? {
                 elementSelector: "unknown", // Will be enhanced later
@@ -1950,9 +1956,70 @@ function HomeContent() {
 
         if (DEBUG_PAGE) console.log("✅ Project created:", project.slug);
 
-        // Template analysis happens automatically in the build API route
-        // We'll see the results in the build metadata event
-        setIsAnalyzingTemplate(false);
+        // Wait for PROJECT_ANALYZED event from runner before starting build
+        if (DEBUG_PAGE) console.log("⏳ Waiting for runner to analyze project...");
+
+        // Set up event listener for this specific project
+        const eventSource = new EventSource(`/api/projects/${project.id}/status-stream`);
+
+        const waitForAnalysis = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            eventSource.close();
+            reject(new Error('Analysis timeout - runner did not respond within 30s'));
+          }, 30000);
+
+          eventSource.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+
+              // Wait for status to change from 'analyzing' to 'pending'
+              if (data.status === 'pending' && data.name !== 'Analyzing...') {
+                clearTimeout(timeout);
+                eventSource.close();
+
+                // Update our local project with analyzed data
+                setCurrentProject(prev => prev ? { ...prev, ...data } : data);
+
+                if (DEBUG_PAGE) console.log("✅ Analysis complete:", data.name, data.slug);
+                resolve();
+              } else if (data.status === 'failed') {
+                clearTimeout(timeout);
+                eventSource.close();
+                reject(new Error(data.errorMessage || 'Analysis failed'));
+              }
+            } catch (err) {
+              // Ignore parse errors
+            }
+          };
+
+          eventSource.onerror = () => {
+            clearTimeout(timeout);
+            eventSource.close();
+            reject(new Error('Event stream connection failed'));
+          };
+        });
+
+        try {
+          await waitForAnalysis;
+          setIsAnalyzingTemplate(false);
+
+          if (DEBUG_PAGE) console.log("✅ Template analysis complete, proceeding with build");
+
+          // Fetch the updated project to get template metadata
+          const updatedProjectRes = await fetch(`/api/projects/${project.id}`);
+          if (updatedProjectRes.ok) {
+            const updatedData = await updatedProjectRes.json();
+            if (updatedData.project) {
+              setCurrentProject(updatedData.project);
+              if (DEBUG_PAGE) console.log("✅ Loaded updated project with template:", updatedData.project);
+            }
+          }
+        } catch (analysisError) {
+          console.error('❌ Analysis failed:', analysisError);
+          setIsAnalyzingTemplate(false);
+          setIsCreatingProject(false);
+          return; // Don't proceed with build if analysis failed
+        }
 
         // LOCK generation mode FIRST (before anything else!)
         isGeneratingRef.current = true;
@@ -1984,8 +2051,7 @@ function HomeContent() {
         if (DEBUG_PAGE) console.log("🎯 Switching to Build tab for new project");
         switchTab("build");
 
-        // Set project state
-        setCurrentProject(project);
+        // Set project state - use the updated project from analysis
         setIsCreatingProject(false);
 
         // Refresh project list IMMEDIATELY so sidebar updates

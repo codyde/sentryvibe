@@ -40,6 +40,7 @@ export function initializeProjectAnalysisHandler() {
           projectType: template.framework,
           runCommand: template.runCommand,
           port: template.port,
+          templateMetadata: template, // Store full template for build route
         }).where(eq(projects.id, event.projectId));
 
         console.log(`✅ [project-analysis-handler] Updated project: ${metadata.friendlyName} (${metadata.slug})`);
