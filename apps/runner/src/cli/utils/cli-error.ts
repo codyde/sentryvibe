@@ -37,6 +37,12 @@ export type ErrorCode =
   | 'MISSING_REQUIRED_CONFIG'
   | 'PERMISSION_DENIED'
 
+  // Upgrade errors
+  | 'UPGRADE_NOT_IN_REPO'
+  | 'UPGRADE_CLONE_FAILED'
+  | 'UPGRADE_INSTALL_FAILED'
+  | 'UPGRADE_BUILD_FAILED'
+
   // Unknown
   | 'UNKNOWN_ERROR';
 
