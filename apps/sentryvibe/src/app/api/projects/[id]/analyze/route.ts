@@ -1,26 +1,14 @@
-import { analyzePromptForTemplate } from '@/services/template-analysis';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
+import type { RunnerEvent } from '@/shared/runner/messages';
+import { randomUUID } from 'crypto';
 import {
   DEFAULT_CLAUDE_MODEL_ID,
   type AgentId,
   type ClaudeModelId,
 } from '@sentryvibe/agent-core/types/agent';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 
 export const maxDuration = 30;
-
-interface TemplateConfig {
-  version: string;
-  templates: Template[];
-}
-
-async function loadTemplates(): Promise<Template[]> {
-  const templatesPath = join(process.cwd(), 'templates.json');
-  const content = await readFile(templatesPath, 'utf-8');
-  const config: TemplateConfig = JSON.parse(content);
-  return config.templates;
-}
 
 export async function POST(
   req: Request,
@@ -61,43 +49,55 @@ export async function POST(
     console.log(`[analyze-route] Selected agent: ${selectedAgent}`);
     console.log(`[analyze-route] Prompt: ${prompt.substring(0, 100)}...`);
 
-    // Load available templates
-    const templates = await loadTemplates();
-    console.log(`[analyze-route] Loaded ${templates.length} templates`);
+    // NEW: Send analysis request to runner and wait for response
+    const commandId = randomUUID();
+    const runnerId = process.env.RUNNER_DEFAULT_ID || 'local';
 
-    // Analyze prompt using the agent's model
-    const resolvedClaudeModel =
-      selectedAgent === 'claude-code' && (claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5')
-        ? claudeModel
-        : DEFAULT_CLAUDE_MODEL_ID;
+    // Create a promise that resolves when we get the template-analyzed event
+    const analysisPromise = new Promise<any>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('Analysis timeout - runner did not respond within 30s'));
+      }, 30000);
 
-    const analysis = await analyzePromptForTemplate(
-      prompt,
-      selectedAgent,
-      templates,
-      selectedAgent === 'claude-code' ? resolvedClaudeModel : undefined,
-    );
+      const cleanup = addRunnerEventSubscriber((event: RunnerEvent) => {
+        if (event.commandId === commandId && event.type === 'template-analyzed') {
+          clearTimeout(timeout);
+          cleanup();
+          resolve(event.payload);
+        } else if (event.commandId === commandId && event.type === 'error') {
+          clearTimeout(timeout);
+          cleanup();
+          reject(new Error(event.error));
+        }
+      });
+    });
 
-    console.log(`[analyze-route] Analysis complete`);
-    console.log(`[analyze-route] Selected template: ${analysis.templateName}`);
-    console.log(`[analyze-route] Confidence: ${analysis.confidence}`);
-    console.log(`[analyze-route] Analyzed by: ${analysis.analyzedBy}`);
+    // Send command to runner
+    await sendCommandToRunner(runnerId, {
+      id: commandId,
+      type: 'analyze-template',
+      projectId: id,
+      timestamp: new Date().toISOString(),
+      payload: {
+        prompt,
+        agent: selectedAgent,
+        claudeModel: selectedAgent === 'claude-code' && (claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5')
+          ? claudeModel
+          : DEFAULT_CLAUDE_MODEL_ID,
+      },
+    });
+
+    console.log(`[analyze-route] Waiting for runner analysis...`);
+
+    // Wait for runner to respond
+    const analysis = await analysisPromise;
+
+    console.log(`[analyze-route] Analysis complete from runner`);
+    console.log(`[analyze-route] Selected template: ${analysis.template.name}`);
 
     return new Response(
-      JSON.stringify({
-        template: {
-          id: analysis.templateId,
-          name: analysis.templateName,
-          framework: analysis.framework,
-          port: analysis.defaultPort,
-          runCommand: analysis.devCommand,
-          repository: analysis.repository,
-          branch: analysis.branch,
-        },
-        reasoning: analysis.reasoning,
-        confidence: analysis.confidence,
-        analyzedBy: analysis.analyzedBy,
-      }),
+      JSON.stringify(analysis),
       {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

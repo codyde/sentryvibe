@@ -1071,6 +1071,61 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
 
+      case "analyze-template": {
+        // Template analysis only (for re-analysis UI)
+        try {
+          log(`[analyze-template] Analyzing prompt for project ${command.projectId}`);
+
+          // Load templates
+          const { getAllTemplates } = await import('./lib/templates/config.js');
+          const templates = await getAllTemplates();
+
+          // Run template analysis only (no metadata)
+          const { analyzePromptForTemplate } = await import('./lib/template-analysis.js');
+          const analysis = await analyzePromptForTemplate(
+            command.payload.prompt,
+            command.payload.agent,
+            templates,
+            command.payload.claudeModel
+          );
+
+          log(`[analyze-template] Analysis complete: ${analysis.templateName}`);
+
+          // Send template analysis result back
+          sendEvent({
+            type: 'template-analyzed',
+            commandId: command.id,
+            projectId: command.projectId,
+            payload: {
+              template: {
+                id: analysis.templateId,
+                name: analysis.templateName,
+                framework: analysis.framework,
+                port: analysis.defaultPort,
+                runCommand: analysis.devCommand,
+                repository: analysis.repository,
+                branch: analysis.branch,
+              },
+              reasoning: analysis.reasoning,
+              confidence: analysis.confidence,
+              analyzedBy: analysis.analyzedBy,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          log(`[analyze-template] Analysis failed:`, error);
+          sendEvent({
+            type: 'error',
+            commandId: command.id,
+            projectId: command.projectId,
+            error: error instanceof Error ? error.message : 'Template analysis failed',
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        break;
+      }
+
       case "runner-health-check": {
         publishStatus(command.projectId, command.id);
         break;
