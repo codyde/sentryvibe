@@ -76,7 +76,7 @@ export function TagDropdown({
 
     return (
       <div className="w-64">
-        <div className="p-2 space-y-1">
+        <div className="p-1 space-y-1">
           {tagDefs.map(def => (
             <button
               key={def.key}
@@ -87,13 +87,13 @@ export function TagDropdown({
                   pushView({ type: 'select', definition: def });
                 }
               }}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
+              className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
             >
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="font-medium text-gray-200">{def.label}</div>
                 <div className="text-xs text-gray-400 mt-0.5">{def.description}</div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300" />
+              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
             </button>
           ))}
         </div>
@@ -105,7 +105,7 @@ export function TagDropdown({
     return (
       <div className="w-64">
         {/* Back button */}
-        <div className="p-2 border-b border-gray-800">
+        <div className="p-1 border-b border-gray-800">
           <button
             onClick={popView}
             className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
@@ -116,18 +116,18 @@ export function TagDropdown({
         </div>
 
         {/* Header */}
-        <div className="p-3 border-b border-gray-800">
+        <div className="px-2 py-3 border-b border-gray-800">
           <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
           <p className="text-xs text-gray-400 mt-1">{def.description}</p>
         </div>
 
         {/* Options */}
-        <div className="p-2 space-y-1 max-h-80 overflow-y-auto">
+        <div className="p-1 space-y-1 max-h-80 overflow-y-auto">
           {def.options?.map(option => (
             <button
               key={option.value}
               onClick={() => handleSelectOption(def, option)}
-              className="w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
+              className="w-full px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
             >
               <div className="font-medium text-gray-200">{option.label}</div>
               {option.description && (
@@ -144,7 +144,7 @@ export function TagDropdown({
     return (
       <div className="w-64">
         {/* Back button */}
-        <div className="p-2 border-b border-gray-800">
+        <div className="p-1 border-b border-gray-800">
           <button
             onClick={popView}
             className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
@@ -155,13 +155,13 @@ export function TagDropdown({
         </div>
 
         {/* Header */}
-        <div className="p-3 border-b border-gray-800">
+        <div className="px-2 py-3 border-b border-gray-800">
           <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
           <p className="text-xs text-gray-400 mt-1">{def.description}</p>
         </div>
 
         {/* Child options */}
-        <div className="p-2 space-y-1">
+        <div className="p-1 space-y-1">
           {def.children?.map(child => (
             <button
               key={child.key}
@@ -172,13 +172,13 @@ export function TagDropdown({
                   pushView({ type: 'color', definition: child });
                 }
               }}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
+              className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
             >
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="font-medium text-gray-200">{child.label}</div>
                 <div className="text-xs text-gray-400 mt-0.5">{child.description}</div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300" />
+              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
             </button>
           ))}
         </div>
@@ -188,9 +188,9 @@ export function TagDropdown({
 
   const renderColor = (def: TagDefinition) => {
     return (
-      <div className="w-80">
+      <div className="w-72">
         {/* Back button */}
-        <div className="p-2 border-b border-gray-800">
+        <div className="p-1 border-b border-gray-800">
           <button
             onClick={popView}
             className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
