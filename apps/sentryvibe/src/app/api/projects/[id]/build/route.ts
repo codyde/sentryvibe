@@ -579,7 +579,23 @@ export async function POST(
             }
           }
 
-          // Messages saved to DB
+          // Finalize the generation session as completed
+          try {
+            await finalizeSession('completed', new Date());
+            console.log('[build-route] ✅ Finalized generation session as completed');
+          } catch (error) {
+            console.error('[build-route] Failed to finalize session:', error);
+          }
+
+          // Update project status to completed
+          try {
+            await db.update(projects)
+              .set({ status: 'completed', updatedAt: new Date() })
+              .where(eq(projects.id, id));
+            console.log('[build-route] ✅ Updated project status to completed');
+          } catch (error) {
+            console.error('[build-route] Failed to update project status:', error);
+          }
 
           unsubscribe();
 
