@@ -7,9 +7,13 @@ import {
   type ClaudeModelId,
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createClaudeCode } from 'ai-sdk-provider-claude-code';
 import { generateObject } from 'ai';
 import { TemplateAnalysisSchema } from '../schemas/metadata';
+
+// Create Claude Code provider instance
+// This picks up ANTHROPIC_API_KEY from environment automatically
+const claudeCode = createClaudeCode();
 
 interface AnalysisModelConfig {
   provider: 'anthropic' | 'openai';
@@ -104,7 +108,7 @@ export async function analyzePromptForTemplate(
     cleanedResponse = jsonMatch[0];
   }
 
-  let result;
+  let result: { templateId: string; reasoning: string; confidence: number };
   try {
     result = JSON.parse(cleanedResponse);
   } catch (error) {
@@ -147,7 +151,7 @@ async function analyzeWithClaude(
 
   try {
     const result = await generateObject({
-      model: anthropic(model),
+      model: claudeCode(model),
       schema: TemplateAnalysisSchema,
       prompt: combinedPrompt,
     });
@@ -199,8 +203,8 @@ Your task: Select the BEST template for YOU to start from.
 
 Available templates:
 ${templates
-  .map(
-    t => `
+      .map(
+        t => `
 ## ${t.name} (ID: ${t.id})
 ${t.description}
 
@@ -217,8 +221,8 @@ Tech: ${t.tech.framework} ${t.tech.version}, ${t.tech.language}, ${t.tech.stylin
 Default port: ${t.setup.defaultPort}
 Dev command: ${t.setup.devCommand}
 `
-  )
-  .join('\n---\n')}
+      )
+      .join('\n---\n')}
 
 Selection Guidelines:
 - **react-vite**: Simple SPAs, prototypes, basic UIs (default for unclear requests)

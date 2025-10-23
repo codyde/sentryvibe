@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
 import { createInstrumentedCodex } from '@sentry/node';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createClaudeCode } from 'ai-sdk-provider-claude-code';
 import { generateObject } from 'ai';
 import { ProjectMetadataSchema } from '@/schemas/metadata';
+
+// Create Claude Code provider instance
+// This picks up ANTHROPIC_API_KEY from environment automatically
+const claudeCode = createClaudeCode();
 
 const CODEX_MODEL = 'gpt-5-codex';
 
@@ -73,6 +76,8 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log('Selected tags:', tags);
+
     console.log(`[projects] Creating project from prompt: "${prompt.substring(0, 100)}..."`);
 
     const metadataPrompt = buildMetadataPrompt(prompt);
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
 
       try {
         const result = await generateObject({
-          model: anthropic('claude-haiku-4-5'),
+          model: claudeCode('claude-haiku-4-5'),
           schema: ProjectMetadataSchema,
           prompt: metadataPrompt,
         });
