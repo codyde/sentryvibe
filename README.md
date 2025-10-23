@@ -29,6 +29,7 @@ SentryVibe lets you describe what you want to build ("Create a React todo app wi
 SentryVibe also features a runner model that lets you run a remote runner anywhere and connect it back to your frontend - letting you provision headless on remote systems if you wish.
 
 **Key Features:**
+- **Tag-Based Configuration** - Flexible tag system for model, framework, design, and runner selection
 - **Production-first performance** - 5x faster startup and page loads with Turborepo
 - **TUI Dashboard** - Real-time monitoring with keyboard controls
 - AI project generation with Claude AI and OpenAI Codex
@@ -527,6 +528,41 @@ The TUI automatically falls back to traditional log output in CI environments or
 - **OpenAI Codex** - Alternative agent for different generation styles
 - **Template system** - Start from popular frameworks (React, Next.js, Vue, etc.)
 - **Streaming output** - Watch AI thinking, tool calls, and file edits in real-time
+
+### Tag-Based Configuration
+SentryVibe uses a flexible tag system for configuring project generation:
+
+**Model Tags** - Choose your AI model:
+- `model:sonnet4.5` - Claude Sonnet 4.5 (default, best quality)
+- `model:haiku4.5` - Claude Haiku 4.5 (faster, cheaper)
+- `model:gpt5-codex` - GPT-5 Codex (OpenAI)
+
+**Framework Tags** - Set your preferred framework:
+- `framework:nextjs` - Next.js with App Router
+- `framework:react` - Create React App
+- `framework:vue` - Vue 3 with Vite
+- `framework:astro` - Astro static site generator
+
+**Design Tags** - Configure visual styling:
+- **Brand Themes**: `brand:stripe`, `brand:vercel`, `brand:linear`, `brand:notion`, `brand:github`, `brand:airbnb`, `brand:spotify`
+- **Style Tags** (stackable): `style:modern`, `style:bold`, `style:minimal`, `style:playful`, `style:elegant`, `style:professional`
+- **Color Overrides**: `primaryColor:#6366f1`, `secondaryColor:#ec4899`, `accentColor:#8b5cf6`
+
+**Runner Tags** - Select which runner executes the build:
+- `runner:local` - Local runner (default)
+- `runner:<id>` - Specific remote runner ID
+
+**Example tag combinations:**
+```
+model:sonnet4.5 framework:nextjs brand:vercel style:modern style:minimal
+model:haiku4.5 framework:react brand:stripe style:bold primaryColor:#ff6b6b
+```
+
+Tags are:
+- **Stackable** - Combine multiple style tags for nuanced design
+- **Persistent** - Saved to database and loaded with existing projects
+- **Visual** - Display as monospace badges with color swatches
+- **Flexible** - Add tags progressively, no upfront commitment required
 
 ### Build Progress Tracking
 - Real-time streaming of AI thinking and reasoning
