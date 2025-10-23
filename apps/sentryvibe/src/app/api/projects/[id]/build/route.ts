@@ -17,10 +17,6 @@ import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvi
 import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
 import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
-import { analyzePromptForTemplate } from '@/services/template-analysis';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 
 async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -47,18 +43,6 @@ async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T |
 }
 
 export const maxDuration = 30;
-
-interface TemplateConfig {
-  version: string;
-  templates: Template[];
-}
-
-async function loadTemplates(): Promise<Template[]> {
-  const templatesPath = join(process.cwd(), 'templates.json');
-  const content = await readFile(templatesPath, 'utf-8');
-  const config: TemplateConfig = JSON.parse(content);
-  return config.templates;
-}
 
 export async function POST(
   req: Request,
@@ -98,35 +82,24 @@ export async function POST(
       console.log('[build-route] Claude model selected:', claudeModel);
     }
 
-    // NEW: Automatically analyze prompt for template selection if this is a new project
-    let templateMetadata = body.template; // Use provided template if available
+    // Template metadata should be provided by frontend (from PROJECT_ANALYZED event)
+    // If missing, this is an error - frontend should always run CREATE_PROJECT first
+    let templateMetadata = body.template;
 
     if (body.operationType === 'initial-build' && !templateMetadata) {
-      console.log('[build-route] New project detected, analyzing prompt for template selection...');
-      console.log(`[build-route] Using ${agentId} model for analysis`);
+      console.error('[build-route] ❌ No template metadata provided for initial-build');
+      console.error('[build-route] Frontend should have run CREATE_PROJECT first to get template');
 
-      try {
-        const templates = await loadTemplates();
-        const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates, claudeModel);
-
-        templateMetadata = {
-          id: analysis.templateId,
-          name: analysis.templateName,
-          framework: analysis.framework,
-          port: analysis.defaultPort,
-          runCommand: analysis.devCommand,
-          repository: analysis.repository,
-          branch: analysis.branch,
-        };
-
-        console.log(`[build-route] ✅ Template selected: ${analysis.templateName}`);
-        console.log(`[build-route]    Reasoning: ${analysis.reasoning}`);
-        console.log(`[build-route]    Confidence: ${analysis.confidence}`);
-        console.log(`[build-route]    Analyzed by: ${analysis.analyzedBy}`);
-      } catch (analysisError) {
-        console.error('[build-route] ⚠️ Template analysis failed, will fall back to runner auto-selection:', analysisError);
-        // Don't fail the build - let the runner handle template selection as fallback
-      }
+      return new Response(
+        JSON.stringify({
+          error: 'Template metadata required for initial-build',
+          details: 'Frontend must call CREATE_PROJECT command first to analyze and select template',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     const encoder = new TextEncoder();
