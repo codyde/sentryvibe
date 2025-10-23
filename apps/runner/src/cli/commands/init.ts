@@ -481,12 +481,18 @@ export async function initCommand(options: InitOptions) {
       const clonePath = getDefaultMonorepoPath();
 
       try {
-        // Remove existing if present
+        // Check if directory exists and abort if it does (safety check for -y mode)
         if (existsSync(clonePath)) {
-          s.start('Removing existing directory');
-          const { rmSync } = await import('fs');
-          rmSync(clonePath, { recursive: true, force: true });
-          s.stop(pc.green('✓') + ' Directory cleared');
+          throw new CLIError({
+            code: 'MONOREPO_CLONE_FAILED',
+            message: `Directory already exists: ${clonePath}`,
+            suggestions: [
+              'Run without -y flag to interactively handle existing directory',
+              'Or manually remove the directory first: rm -rf ' + clonePath,
+              'Or use a different path: sentryvibe init',
+            ],
+            fatal: true,
+          });
         }
 
         // Clone
