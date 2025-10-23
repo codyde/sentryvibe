@@ -244,6 +244,93 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         category: 'design',
         inputType: 'color',
         promptTemplate: 'Use {value} as the dark neutral color for text, borders, and dark mode backgrounds.'
+      },
+
+      // Style/Mood Selection
+      {
+        key: 'style',
+        label: 'Style',
+        description: 'Visual style and design aesthetic',
+        category: 'design',
+        inputType: 'select',
+        options: [
+          {
+            value: 'modern',
+            label: 'Modern',
+            description: 'Clean lines, contemporary patterns, ample white space'
+          },
+          {
+            value: 'minimal',
+            label: 'Minimal',
+            description: 'Essential elements only, generous spacing, restrained palette'
+          },
+          {
+            value: 'professional',
+            label: 'Professional',
+            description: 'Polished, consistent, attention to detail'
+          },
+          {
+            value: 'bold',
+            label: 'Bold',
+            description: 'Strong contrasts, large typography, confident statements'
+          },
+          {
+            value: 'elegant',
+            label: 'Elegant',
+            description: 'Refined details, subtle transitions, sophisticated spacing'
+          },
+          {
+            value: 'playful',
+            label: 'Playful',
+            description: 'Rounded shapes, friendly interactions, lighthearted touches'
+          },
+          {
+            value: 'luxurious',
+            label: 'Luxurious',
+            description: 'Premium feel, refined details, sophisticated presentation'
+          },
+          {
+            value: 'trustworthy',
+            label: 'Trustworthy',
+            description: 'Clear hierarchy, readable typography, familiar patterns'
+          },
+          {
+            value: 'friendly',
+            label: 'Friendly',
+            description: 'Approachable, warm colors, inviting interactions'
+          },
+          {
+            value: 'energetic',
+            label: 'Energetic',
+            description: 'Vibrant colors, dynamic layouts, active feeling'
+          },
+          {
+            value: 'clean',
+            label: 'Clean',
+            description: 'Uncluttered, focused, clear visual hierarchy'
+          },
+          {
+            value: 'sophisticated',
+            label: 'Sophisticated',
+            description: 'Refined aesthetics, balanced composition, mature style'
+          },
+          {
+            value: 'vibrant',
+            label: 'Vibrant',
+            description: 'Rich colors, high energy, lively presence'
+          },
+          {
+            value: 'warm',
+            label: 'Warm',
+            description: 'Inviting colors, soft edges, approachable feel'
+          },
+          {
+            value: 'tech-forward',
+            label: 'Tech-Forward',
+            description: 'Sharp edges, monospace accents, futuristic elements'
+          }
+        ],
+        promptTemplate: 'Design should feel {value}. Apply this aesthetic through typography, spacing, component design, and overall visual treatment. {value} means: {description}.'
       }
     ]
   }

@@ -51,6 +51,12 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
     resolved.runner = runnerTag.value;
   }
 
+  // Style tag
+  const styleTag = appliedTags.find(t => t.key === 'style');
+  if (styleTag) {
+    resolved.style = styleTag.value;
+  }
+
   return resolved;
 }
 
@@ -69,7 +75,7 @@ export function generatePromptFromTags(resolved: ResolvedTags): string {
   }
 
   // Design section
-  const hasDesignTags = resolved.primaryColor || resolved.brand;
+  const hasDesignTags = resolved.primaryColor || resolved.brand || resolved.style;
   if (hasDesignTags) {
     sections.push('\n## Design Constraints\n');
 
@@ -125,6 +131,20 @@ export function generatePromptFromTags(resolved: ResolvedTags): string {
         if (def?.promptTemplate) {
           sections.push(`- ${def.promptTemplate.replace('{value}', resolved.neutralDark)}`);
         }
+      }
+    }
+
+    // Style/aesthetic direction
+    if (resolved.style) {
+      const styleDef = findTagDefinition('style');
+      const styleOption = styleDef?.options?.find(o => o.value === resolved.style);
+
+      if (styleOption && styleDef?.promptTemplate) {
+        sections.push('\n**Style Direction:**');
+        let stylePrompt = styleDef.promptTemplate
+          .replace('{value}', resolved.style)
+          .replace('{description}', styleOption.description || '');
+        sections.push(stylePrompt);
       }
     }
 
