@@ -18,12 +18,14 @@ export interface TagDefinition {
   label: string;
   description: string;
   category: 'model' | 'framework' | 'design' | 'runner';
-  inputType: 'select' | 'color' | 'nested';
+  inputType: 'select' | 'color' | 'nested' | 'multi-select';
   options?: TagOption[];
   // For nested tags like "design" -> "primaryColor"
   children?: TagDefinition[];
   // How this tag's value gets injected into AI prompt
   promptTemplate?: string;
+  // Allow multiple instances of this tag
+  allowMultiple?: boolean;
 }
 
 export const TAG_DEFINITIONS: TagDefinition[] = [
@@ -252,7 +254,8 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         label: 'Style',
         description: 'Visual style and design aesthetic',
         category: 'design',
-        inputType: 'select',
+        inputType: 'multi-select',
+        allowMultiple: true,
         options: [
           {
             value: 'modern',
@@ -330,7 +333,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             description: 'Sharp edges, monospace accents, futuristic elements'
           }
         ],
-        promptTemplate: 'Design should feel {value}. Apply this aesthetic through typography, spacing, component design, and overall visual treatment. {value} means: {description}.'
+        promptTemplate: 'Design should feel {values}. Apply these aesthetics through typography, spacing, component design, and overall visual treatment.'
       }
     ]
   }

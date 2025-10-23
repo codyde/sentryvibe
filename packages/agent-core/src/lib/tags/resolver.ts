@@ -27,13 +27,20 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
   }
 
   // Second pass: Apply individual overrides
-  const colorKeys = ['primaryColor', 'secondaryColor', 'accentColor', 'neutralLight', 'neutralDark'];
-  for (const colorKey of colorKeys) {
-    const colorTag = appliedTags.find(t => t.key === colorKey);
-    if (colorTag) {
-      resolved[colorKey as keyof ResolvedTags] = colorTag.value;
-    }
-  }
+  const primaryColorTag = appliedTags.find(t => t.key === 'primaryColor');
+  if (primaryColorTag) resolved.primaryColor = primaryColorTag.value;
+
+  const secondaryColorTag = appliedTags.find(t => t.key === 'secondaryColor');
+  if (secondaryColorTag) resolved.secondaryColor = secondaryColorTag.value;
+
+  const accentColorTag = appliedTags.find(t => t.key === 'accentColor');
+  if (accentColorTag) resolved.accentColor = accentColorTag.value;
+
+  const neutralLightTag = appliedTags.find(t => t.key === 'neutralLight');
+  if (neutralLightTag) resolved.neutralLight = neutralLightTag.value;
+
+  const neutralDarkTag = appliedTags.find(t => t.key === 'neutralDark');
+  if (neutralDarkTag) resolved.neutralDark = neutralDarkTag.value;
 
   // Third pass: Apply non-design tags
   const modelTag = appliedTags.find(t => t.key === 'model');
@@ -51,10 +58,10 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
     resolved.runner = runnerTag.value;
   }
 
-  // Style tag
-  const styleTag = appliedTags.find(t => t.key === 'style');
-  if (styleTag) {
-    resolved.style = styleTag.value;
+  // Style tags (multiple allowed)
+  const styleTags = appliedTags.filter(t => t.key === 'style');
+  if (styleTags.length > 0) {
+    resolved.styles = styleTags.map(t => t.value);
   }
 
   return resolved;
@@ -75,7 +82,7 @@ export function generatePromptFromTags(resolved: ResolvedTags): string {
   }
 
   // Design section
-  const hasDesignTags = resolved.primaryColor || resolved.brand || resolved.style;
+  const hasDesignTags = resolved.primaryColor || resolved.brand || (resolved.styles && resolved.styles.length > 0);
   if (hasDesignTags) {
     sections.push('\n## Design Constraints\n');
 
@@ -135,15 +142,19 @@ export function generatePromptFromTags(resolved: ResolvedTags): string {
     }
 
     // Style/aesthetic direction
-    if (resolved.style) {
+    if (resolved.styles && resolved.styles.length > 0) {
       const styleDef = findTagDefinition('style');
-      const styleOption = styleDef?.options?.find(o => o.value === resolved.style);
 
-      if (styleOption && styleDef?.promptTemplate) {
+      if (styleDef?.promptTemplate) {
         sections.push('\n**Style Direction:**');
+        const styleDescriptions = resolved.styles.map(style => {
+          const option = styleDef.options?.find(o => o.value === style);
+          return `${style} (${option?.description || ''})`;
+        }).join(', ');
+
         let stylePrompt = styleDef.promptTemplate
-          .replace('{value}', resolved.style)
-          .replace('{description}', styleOption.description || '');
+          .replace('{values}', resolved.styles.join(' and '))
+          .replace('{descriptions}', styleDescriptions);
         sections.push(stylePrompt);
       }
     }

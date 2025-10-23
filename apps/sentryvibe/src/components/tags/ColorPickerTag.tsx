@@ -85,7 +85,7 @@ export function ColorPickerTag({
             value={hexInput}
             onChange={(e) => validateAndSetHex(e.target.value)}
             placeholder="#6366f1"
-            className="font-mono bg-gray-800 border-gray-700 text-sm"
+            className="font-mono bg-gray-800 border-gray-700 text-sm text-white"
           />
           {error && (
             <p className="text-xs text-red-400 mt-1">{error}</p>
@@ -113,7 +113,7 @@ export function ColorPickerTag({
           variant="outline"
           size="sm"
           onClick={onCancel}
-          className="bg-gray-800 border-gray-700 hover:bg-gray-700"
+          className="bg-gray-800 border-gray-700 hover:bg-gray-700 text-white"
         >
           Cancel
         </Button>

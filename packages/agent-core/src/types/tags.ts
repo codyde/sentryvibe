@@ -31,7 +31,7 @@ export interface ResolvedTags {
   accentColor?: string;
   neutralLight?: string;
   neutralDark?: string;
-  style?: string;
+  styles?: string[]; // Changed to array for multi-select
 
   // Track which brand was used (if any)
   brand?: string;
