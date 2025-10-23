@@ -19,7 +19,6 @@ import BuildProgress from "@/components/BuildProgress";
 import ChatUpdate from "@/components/ChatUpdate";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import { AppSidebar } from "@/components/app-sidebar";
-import AgentSelector from "@/components/AgentSelector";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
@@ -47,6 +46,11 @@ import ElementChangeCard from "@/components/ElementChangeCard";
 import DesignConstraintsModal from "@/components/design/DesignConstraintsModal";
 import type { DesignPreferences } from "@sentryvibe/agent-core/types/design";
 import { Palette } from "lucide-react";
+import { TagInput } from "@/components/tags/TagInput";
+import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
+import type { TagOption } from "@sentryvibe/agent-core/config/tags";
+import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
+import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
 
 interface MessagePart {
   type: string;
@@ -106,6 +110,7 @@ function HomeContent() {
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null);
+  const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
   >(null);
@@ -178,7 +183,7 @@ function HomeContent() {
   const router = useRouter();
   const selectedProjectSlug = searchParams?.get("project") ?? null;
   const { projects, refetch, runnerOnline, setActiveProjectId } = useProjects();
-  const { selectedRunnerId } = useRunner();
+  const { selectedRunnerId, availableRunners } = useRunner();
   const { selectedAgentId, selectedClaudeModelId, claudeModels } = useAgent();
   const selectedClaudeModel = claudeModels.find(
     (model) => model.id === selectedClaudeModelId,
@@ -196,6 +201,30 @@ function HomeContent() {
       setActiveView(stored);
     }
   }, []);
+
+  // Load tags from existing project or initialize defaults for new project
+  useEffect(() => {
+    if (currentProject?.tags) {
+      // Load tags from existing project
+      const loadedTags = deserializeTags(currentProject.tags as any);
+      setAppliedTags(loadedTags);
+    } else if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
+      // Initialize default tags for new project
+      const defaultTags: AppliedTag[] = [
+        {
+          key: 'runner',
+          value: selectedRunnerId,
+          appliedAt: new Date()
+        },
+        {
+          key: 'model',
+          value: 'claude-haiku-4-5',
+          appliedAt: new Date()
+        }
+      ];
+      setAppliedTags(defaultTags);
+    }
+  }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId]);
 
   useEffect(() => {
     generationStateRef.current = generationState;
@@ -1216,6 +1245,21 @@ function HomeContent() {
   ) => {
     const existingBuildId = generationStateRef.current?.id;
     try {
+      // Derive agent and model from tags if present, otherwise use context
+      const modelTag = appliedTags.find(t => t.key === 'model');
+      let effectiveAgent = selectedAgentId;
+      let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+
+      if (modelTag?.value) {
+        const parsed = parseModelTag(modelTag.value);
+        effectiveAgent = parsed.agent;
+        effectiveClaudeModel = parsed.claudeModel;
+      }
+
+      // Derive runner from tags if present, otherwise use context
+      const runnerTag = appliedTags.find(t => t.key === 'runner');
+      const effectiveRunnerId = runnerTag?.value || selectedRunnerId;
+
       const res = await fetch(`/api/projects/${projectId}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1223,11 +1267,11 @@ function HomeContent() {
           operationType,
           prompt,
           buildId: existingBuildId,
-          runnerId: selectedRunnerId,
-          agent: selectedAgentId,
-          claudeModel:
-            selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
-          designPreferences: designPreferences || undefined, // Include if set
+          runnerId: effectiveRunnerId,
+          agent: effectiveAgent,
+          claudeModel: effectiveClaudeModel,
+          designPreferences: designPreferences || undefined, // Include if set (deprecated - use tags)
+          tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
           context: isElementChange
             ? {
                 elementSelector: "unknown", // Will be enhanced later
@@ -1876,15 +1920,26 @@ function HomeContent() {
       setTemplateProvisioningInfo(null); // Clear previous template info
 
       try {
+        // Derive agent/model from tags
+        const modelTag = appliedTags.find(t => t.key === 'model');
+        let effectiveAgent = selectedAgentId;
+        let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+
+        if (modelTag?.value) {
+          const parsed = parseModelTag(modelTag.value);
+          effectiveAgent = parsed.agent;
+          effectiveClaudeModel = parsed.claudeModel;
+        }
+
         const res = await fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: userPrompt,
-            agent: selectedAgentId,
+            agent: effectiveAgent,
             runnerId: selectedRunnerId,
-            claudeModel:
-              selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+            claudeModel: effectiveClaudeModel,
+            tags: serializeTags(appliedTags), // Persist tags to DB
           }),
         });
 
@@ -2318,19 +2373,18 @@ function HomeContent() {
                           </svg>
                         </button>
                       </div>
-                      <div className="mt-3 flex justify-between items-center gap-4">
-                        <AgentSelector className="flex-1 max-w-2xl" />
 
-                        <button
-                          onClick={() => setIsDesignModalOpen(true)}
-                          className="flex items-center gap-2 px-4 py-2
-                                     bg-purple-500/20 hover:bg-purple-500/30 text-purple-300
-                                     border border-purple-500/50 rounded-lg transition-all shadow-lg
-                                     hover:shadow-purple-500/20 flex-shrink-0"
-                        >
-                          <Palette className="w-4 h-4" />
-                          <span className="text-sm font-medium">Design</span>
-                        </button>
+                      {/* Tag Input */}
+                      <div className="mt-4 px-2">
+                        <TagInput
+                          tags={appliedTags}
+                          onTagsChange={setAppliedTags}
+                          runnerOptions={availableRunners.map(r => ({
+                            value: r.runnerId,
+                            label: r.runnerId,
+                            description: `Runner: ${r.runnerId}`
+                          }))}
+                        />
                       </div>
                     </form>
                   </div>
@@ -3091,9 +3145,6 @@ function HomeContent() {
                             </button>
                           </div>
                         </form>
-                        <div className="mt-3 flex justify-start">
-                          <AgentSelector className="w-full max-w-2xl" />
-                        </div>
                       </div>
                     </div>
                   </motion.div>

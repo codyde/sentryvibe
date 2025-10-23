@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
       fullUrl: false,
     },
   },
+  // Explicitly expose server-side environment variables
+  env: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  },
 };
 
 export default withSentryConfig(nextConfig, {

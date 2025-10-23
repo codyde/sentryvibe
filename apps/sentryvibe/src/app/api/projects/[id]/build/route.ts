@@ -746,7 +746,8 @@ export async function POST(
         projectSlug: project[0].slug,
         projectName: project[0].name,
         context: body.context,
-        designPreferences: body.designPreferences, // Pass through to runner
+        designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
+        tags: body.tags, // Tag-based configuration
         agent: agentId,
         claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
         template: templateMetadata, // NEW: Pass analyzed template metadata to runner

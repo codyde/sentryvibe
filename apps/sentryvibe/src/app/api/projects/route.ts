@@ -64,7 +64,7 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
-    const { prompt, agent = 'claude-code' } = (await request.json()) as { prompt: string; agent?: AgentId };
+    const { prompt, agent = 'claude-code', tags } = (await request.json()) as { prompt: string; agent?: AgentId; tags?: any[] };
 
     if (!prompt) {
       return NextResponse.json(
@@ -179,6 +179,7 @@ export async function POST(request: Request) {
       icon: metadata.icon,
       status: 'pending',
       originalPrompt: prompt,
+      tags: tags || null, // Store tags if provided
     }).returning();
 
     console.log(`✅ Project created: ${project.id}`);
