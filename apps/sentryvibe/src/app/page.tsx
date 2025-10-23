@@ -182,7 +182,7 @@ function HomeContent() {
   const router = useRouter();
   const selectedProjectSlug = searchParams?.get("project") ?? null;
   const { projects, refetch, runnerOnline, setActiveProjectId } = useProjects();
-  const { selectedRunnerId } = useRunner();
+  const { selectedRunnerId, availableRunners } = useRunner();
   const { selectedAgentId, selectedClaudeModelId, claudeModels } = useAgent();
   const selectedClaudeModel = claudeModels.find(
     (model) => model.id === selectedClaudeModelId,
