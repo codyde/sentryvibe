@@ -115,12 +115,16 @@ Output ONLY valid JSON matching this schema:
     throw new Error('No text content in Anthropic response');
   }
 
+  console.log('[project-analysis] Raw metadata response:', textContent.text);
+
   // Parse JSON from response
   const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
+    console.error('[project-analysis] Failed to find JSON in response:', textContent.text);
     throw new Error('No JSON found in Claude response');
   }
 
+  console.log('[project-analysis] Extracted JSON:', jsonMatch[0]);
   const parsed = JSON.parse(jsonMatch[0]);
 
   // Validate required fields

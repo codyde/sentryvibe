@@ -169,12 +169,16 @@ async function analyzeWithClaude(
     throw new Error('No text content in Anthropic response');
   }
 
+  console.log('[template-analysis] Raw Claude response:', textContent.text);
+
   // Extract JSON from response
   const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
+    console.error('[template-analysis] Failed to find JSON in response:', textContent.text);
     throw new Error('No JSON found in Claude response');
   }
 
+  console.log('[template-analysis] Extracted JSON:', jsonMatch[0]);
   return jsonMatch[0];
 }
 
