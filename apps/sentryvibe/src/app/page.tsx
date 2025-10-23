@@ -50,6 +50,7 @@ import { Palette } from "lucide-react";
 import { TagInput } from "@/components/tags/TagInput";
 import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
 import type { TagOption } from "@sentryvibe/agent-core/config/tags";
+import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
 
 interface MessagePart {
   type: string;
@@ -1239,6 +1240,17 @@ function HomeContent() {
   ) => {
     const existingBuildId = generationStateRef.current?.id;
     try {
+      // Derive agent and model from tags if present, otherwise use context
+      const modelTag = appliedTags.find(t => t.key === 'model');
+      let effectiveAgent = selectedAgentId;
+      let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+
+      if (modelTag?.value) {
+        const parsed = parseModelTag(modelTag.value);
+        effectiveAgent = parsed.agent;
+        effectiveClaudeModel = parsed.claudeModel;
+      }
+
       const res = await fetch(`/api/projects/${projectId}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1247,9 +1259,8 @@ function HomeContent() {
           prompt,
           buildId: existingBuildId,
           runnerId: selectedRunnerId,
-          agent: selectedAgentId,
-          claudeModel:
-            selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+          agent: effectiveAgent,
+          claudeModel: effectiveClaudeModel,
           designPreferences: designPreferences || undefined, // Include if set (deprecated - use tags)
           tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
           context: isElementChange
@@ -2354,10 +2365,6 @@ function HomeContent() {
                             description: `Runner: ${r.runnerId}`
                           }))}
                         />
-                      </div>
-
-                      <div className="mt-3 flex justify-between items-center gap-4">
-                        <AgentSelector className="flex-1 max-w-2xl" />
                       </div>
                     </form>
                   </div>

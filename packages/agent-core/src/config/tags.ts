@@ -27,28 +27,33 @@ export interface TagDefinition {
 }
 
 export const TAG_DEFINITIONS: TagDefinition[] = [
-  // Model Selection
+  // Model Selection (agent + model combined)
   {
     key: 'model',
     label: 'Model',
-    description: 'AI model to use for generation',
+    description: 'AI agent and model to use for generation',
     category: 'model',
     inputType: 'select',
     options: [
       {
         value: 'claude-sonnet-4.5',
         label: 'Claude Sonnet 4.5',
-        description: 'Balanced performance and speed'
+        description: 'Anthropic Claude - Balanced performance and speed'
       },
       {
         value: 'claude-opus-4',
         label: 'Claude Opus 4',
-        description: 'Most capable, slower'
+        description: 'Anthropic Claude - Most capable, slower'
       },
       {
         value: 'claude-haiku-4.5',
         label: 'Claude Haiku 4.5',
-        description: 'Fastest, good for iterations'
+        description: 'Anthropic Claude - Fastest, good for iterations'
+      },
+      {
+        value: 'openai-gpt-5-codex',
+        label: 'GPT-5 Codex',
+        description: 'OpenAI Codex - Advanced code generation'
       }
     ]
   },
