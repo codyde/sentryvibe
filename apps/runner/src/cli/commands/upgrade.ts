@@ -247,6 +247,36 @@ export async function upgradeCommand(options: UpgradeOptions) {
     });
   }
 
+  // Step 7.5: Apply database migrations (if DATABASE_URL exists)
+  const databaseUrl =
+    envBackup.sentryvibe.env?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
+    envBackup.sentryvibe.envLocal?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
+    process.env.DATABASE_URL;
+
+  if (databaseUrl) {
+    s.start('Applying database migrations');
+
+    try {
+      execSync('npx drizzle-kit push --config=drizzle.config.ts', {
+        cwd: join(tempDir, 'apps/sentryvibe'),
+        stdio: 'pipe',
+        env: {
+          ...process.env,
+          DATABASE_URL: databaseUrl,
+        },
+      });
+
+      s.stop(pc.green('✓') + ' Database schema updated');
+    } catch (error) {
+      s.stop(pc.yellow('⚠') + ' Migration failed');
+      console.log(pc.dim('  You may need to run: sentryvibe database'));
+      console.log(pc.dim('  This won\'t prevent the upgrade from completing'));
+    }
+  } else {
+    s.start('Skipping database migrations (no DATABASE_URL found)');
+    s.stop(pc.yellow('⚠') + ' No database configured');
+  }
+
   // Step 8: Swap directories (atomic operation)
   s.start('Finalizing upgrade');
 

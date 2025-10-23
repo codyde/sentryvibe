@@ -57,8 +57,18 @@ export const shutdownHandler = setupShutdownHandler({
 // Display splash screen banner
 displayBanner();
 
-// Check for updates
-updateNotifier({ pkg: packageJson }).notify();
+// Check for updates with custom message
+const notifier = updateNotifier({
+  pkg: packageJson,
+  updateCheckInterval: 1000 * 60 * 60 * 24 // Check once per day
+});
+
+if (notifier.update) {
+  console.log();
+  console.log(`  Update available: ${notifier.update.current} → ${notifier.update.latest}`);
+  console.log(`  Run: sentryvibe upgrade`);
+  console.log();
+}
 
 const program = new Command();
 
