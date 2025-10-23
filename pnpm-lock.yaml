@@ -57,6 +57,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.25
         version: 0.1.25(zod@4.1.12)
+      '@anthropic-ai/sdk':
+        specifier: ^0.65.0
+        version: 0.65.0(zod@4.1.12)
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0

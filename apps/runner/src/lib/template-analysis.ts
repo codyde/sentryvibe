@@ -139,30 +139,38 @@ async function analyzeWithClaude(
   userPrompt: string,
   model: string
 ): Promise<string> {
-  // Use Claude Code SDK (same as builds)
-  const claudeQuery = Sentry.createInstrumentedClaudeQuery();
+  // For simple analysis, use direct Anthropic API (not Claude Code SDK)
+  // Claude Code SDK is for file operations, this is just text generation
+  const Anthropic = await import('@anthropic-ai/sdk').then(m => m.default);
+
+  const client = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
-  const generator = claudeQuery({
-    prompt: combinedPrompt,
-    options: {
-      systemPrompt: 'You are a template selection expert. Respond with ONLY valid JSON.',
-      model: model as any,
-      workingDirectory: process.cwd(),
-      maxTurns: 1,
-    },
+  console.log('[template-analysis] Calling Anthropic API for template selection...');
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 1024,
+    system: 'You are a template selection expert. Respond with ONLY valid JSON.',
+    messages: [{
+      role: 'user',
+      content: combinedPrompt,
+    }],
   });
 
-  let accumulated = '';
-  for await (const event of generator) {
-    if (typeof event === 'string') {
-      accumulated += event;
-    }
+  console.log('[template-analysis] Received response from Anthropic');
+
+  // Extract text from response
+  const textContent = response.content.find(c => c.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text content in Anthropic response');
   }
 
   // Extract JSON from response
-  const jsonMatch = accumulated.match(/\{[\s\S]*\}/);
+  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('No JSON found in Claude response');
   }

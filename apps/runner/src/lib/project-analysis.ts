@@ -75,18 +75,24 @@ async function extractMetadataWithCodex(prompt: string): Promise<ProjectMetadata
 }
 
 /**
- * Extract metadata using Claude Code SDK
+ * Extract metadata using Anthropic API
  */
 async function extractMetadataWithClaude(prompt: string): Promise<ProjectMetadata> {
   const metadataPrompt = buildMetadataPrompt(prompt);
 
-  // Use the same instrumented Claude query as builds
-  const claudeQuery = Sentry.createInstrumentedClaudeQuery();
+  // Use direct Anthropic API for simple text generation
+  const Anthropic = await import('@anthropic-ai/sdk').then(m => m.default);
 
-  const generator = claudeQuery({
-    prompt: metadataPrompt,
-    options: {
-      systemPrompt: `You are a project metadata expert. Extract structured metadata from user prompts.
+  const client = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+
+  console.log('[project-analysis] Calling Anthropic API for metadata extraction...');
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 1024,
+    system: `You are a project metadata expert. Extract structured metadata from user prompts.
 
 Output ONLY valid JSON matching this schema:
 {
@@ -95,22 +101,22 @@ Output ONLY valid JSON matching this schema:
   "description": "Brief description",
   "icon": "Code" // Must be one of: Folder, Code, Layout, Database, Zap, Globe, Lock, Users, ShoppingCart, Calendar, MessageSquare, FileText, Image, Music, Video, CheckCircle, Star
 }`,
-      model: 'claude-haiku-4-5',
-      workingDirectory: process.cwd(),
-      maxTurns: 1, // Single turn for simple extraction
-    },
+    messages: [{
+      role: 'user',
+      content: metadataPrompt,
+    }],
   });
 
-  let accumulated = '';
-  for await (const event of generator) {
-    // Collect all text from the response
-    if (typeof event === 'string') {
-      accumulated += event;
-    }
+  console.log('[project-analysis] Received metadata response');
+
+  // Extract text from response
+  const textContent = response.content.find(c => c.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text content in Anthropic response');
   }
 
   // Parse JSON from response
-  const jsonMatch = accumulated.match(/\{[\s\S]*\}/);
+  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('No JSON found in Claude response');
   }
