@@ -7,6 +7,9 @@ import {
   type ClaudeModelId,
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateObject } from 'ai';
+import { TemplateAnalysisSchema } from '../schemas/metadata';
 
 interface AnalysisModelConfig {
   provider: 'anthropic' | 'openai';
@@ -139,39 +142,22 @@ async function analyzeWithClaude(
   userPrompt: string,
   model: string
 ): Promise<string> {
-  // Use Sentry instrumented Claude Code SDK (same as runner)
-  const query = Sentry.createInstrumentedClaudeQuery({
-    name: 'template-analysis',
-  });
+  // Use AI SDK's generateObject for structured output
+  const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
-  // Just pass the user's request - system prompt already explains what to do
-  const combinedPrompt = `User's build request: ${userPrompt}`;
+  try {
+    const result = await generateObject({
+      model: anthropic(model),
+      schema: TemplateAnalysisSchema,
+      prompt: combinedPrompt,
+    });
 
-  // Run single-turn query for template selection
-  const generator = query({
-    prompt: combinedPrompt,
-    options: {
-      model,
-      systemPrompt,
-      maxTurns: 1, // Only need one response for template selection
-    },
-  });
-
-  let finalResponse = '';
-
-  // Collect the response
-  for await (const message of generator) {
-    const msgAny = message as any;
-    if (msgAny.type === 'assistant' && msgAny.message?.content) {
-      for (const block of msgAny.message.content) {
-        if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
-          finalResponse += block.text;
-        }
-      }
-    }
+    // Return as JSON string to match expected interface
+    return JSON.stringify(result.object);
+  } catch (error) {
+    console.error('[template-analysis] Structured output failed:', error);
+    throw error;
   }
-
-  return finalResponse;
 }
 
 async function analyzeWithOpenAI(

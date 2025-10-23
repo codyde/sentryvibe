@@ -5,23 +5,20 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
-
-// Note: This route extracts metadata via Claude (Haiku) by default and can fall back to Codex.
-const claudeMetadataQuery = Sentry.createInstrumentedClaudeQuery({
-  name: 'metadata-extraction',
-});
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateObject } from 'ai';
+import { ProjectMetadataSchema } from '@/schemas/metadata';
 
 const CODEX_MODEL = 'gpt-5-codex';
 
 function buildMetadataPrompt(userPrompt: string): string {
   return `User wants to build: "${userPrompt}"
 
-Generate project metadata as JSON.
+Generate project metadata based on this request.
 
-Icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter, Download, Upload, Share, Lock, Key, Bell, Clock
+Available icons: Folder, Code, Layout, Database, Zap, Globe, Lock, Users, ShoppingCart, Calendar, MessageSquare, FileText, Image, Music, Video, CheckCircle, Star
 
-Output ONLY this JSON (no text before or after):
-{"slug":"kebab-case-name","friendlyName":"Friendly Name","description":"Brief description","icon":"IconName"}`;
+Generate a slug (kebab-case), friendly name, description, and appropriate icon.`;
 }
 
 async function runCodexMetadataPrompt(promptText: string): Promise<string> {
@@ -55,189 +52,92 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
   return accumulated;
 }
 
-// GET /api/projects - List all projects from database
-export async function GET() {
+export async function POST(request: Request) {
   try {
-    const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
-    return NextResponse.json({ projects: allProjects });
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-    return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
-  }
-}
+    const { prompt, agent = 'claude-code' } = (await request.json()) as { prompt: string; agent?: AgentId };
 
-// POST /api/projects - Create new project with Haiku metadata extraction
-export async function POST(req: Request) {
-  try {
-    const { prompt, agent, runnerId } = (await req.json()) as { prompt?: string; agent?: AgentId; runnerId?: string };
-
-    if (!prompt || typeof prompt !== 'string') {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    if (!prompt) {
+      return NextResponse.json(
+        { error: 'Prompt is required' },
+        { status: 400 }
+      );
     }
 
-    const selectedAgent: AgentId = agent === 'openai-codex' ? 'openai-codex' : 'claude-code';
-
-    console.log('[projects] 🤖 Extracting project metadata...', {
-      agent: selectedAgent,
-    });
-    if (selectedAgent === 'claude-code') {
-      console.log('[projects] Using Claude Haiku for metadata extraction');
-    }
+    console.log(`[projects] Creating project from prompt: "${prompt.substring(0, 100)}..."`);
 
     const metadataPrompt = buildMetadataPrompt(prompt);
-
-    let jsonResponse = '';
-    if (selectedAgent === 'openai-codex') {
-      try {
-        jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
-      } catch (error) {
-        console.error('❌ Codex metadata extraction failed:', error);
-        return NextResponse.json(
-          {
-            error: 'Codex metadata extraction failed',
-            details: error instanceof Error ? error.message : 'Unknown error',
-          },
-          { status: 500 }
-        );
-      }
-
-      if (!jsonResponse || jsonResponse.trim().length === 0) {
-        console.error('❌ Codex returned an empty response for metadata prompt');
-        return NextResponse.json(
-          {
-            error: 'Codex metadata extraction failed',
-            details: 'Codex returned an empty response.',
-          },
-          { status: 502 }
-        );
-      }
-      console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
-    } else {
-        // Use Claude Haiku with retries
-      let attempts = 0;
-      const maxAttempts = 2;
-
-      while (jsonResponse.trim().length === 0 && attempts < maxAttempts) {
-        attempts++;
-        console.log(`   Attempt ${attempts}/${maxAttempts}...`);
-
-        try {
-          const metadataStream = claudeMetadataQuery({
-            prompt: metadataPrompt,
-            inputMessages: [],
-            options: {
-              model: 'claude-haiku-4-5',
-              maxTurns: 1,
-              systemPrompt: 'You must output ONLY a single valid JSON object. Do not include markdown code fences, explanations, or multiple JSON objects. Output the JSON directly with no additional text before or after.',
-            },
-          });
-
-          const timeout = setTimeout(() => {
-            console.warn('⚠️  Haiku response timeout after 8 seconds');
-          }, 15000);
-
-          for await (const message of metadataStream) {
-            const msgAny = message as { type: string; message?: { content?: Array<{ type: string; text?: string }> } };
-            if (msgAny.type === 'assistant' && msgAny.message?.content) {
-              for (const block of msgAny.message.content) {
-                if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
-                  jsonResponse += block.text;
-                }
-              }
-            }
-          }
-
-          clearTimeout(timeout);
-
-          if (jsonResponse && jsonResponse.trim().length > 0) {
-            console.log(`✅ Got response on attempt ${attempts}`);
-            break;
-          }
-        } catch (error) {
-          console.error(`❌ Attempt ${attempts} failed:`, error);
-          if (attempts === maxAttempts) {
-            console.log('⚠️  All Haiku attempts failed, using fallback logic');
-          }
-        }
-      }
-
-      console.log('📥 Raw Haiku response:', JSON.stringify(jsonResponse));
-    }
-
-    console.log('   Response length:', jsonResponse.length);
-
-    // Extract JSON - handle multiple formats
     let metadata;
 
-    // Check if response is empty
-    if (!jsonResponse || jsonResponse.trim().length === 0) {
-      console.warn('⚠️  Haiku returned empty response, using fallback');
-      // Skip parsing, go straight to fallback
-    } else {
+    // Use Claude Haiku with structured output via AI SDK
+    if (agent === 'claude-code') {
+      console.log('[projects] Using Claude Haiku for metadata extraction (structured output)');
+
       try {
-        // Try 1: Remove markdown code blocks if present
-        let cleanedResponse = jsonResponse.trim();
-        cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
-        cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
-        cleanedResponse = cleanedResponse.trim();
+        const result = await generateObject({
+          model: anthropic('claude-haiku-4-5'),
+          schema: ProjectMetadataSchema,
+          prompt: metadataPrompt,
+        });
 
-        // Try 2: Find ALL JSON objects in the text (AI sometimes generates multiple with explanations)
-        // Use non-greedy matching to find each JSON object separately
-        const jsonMatches = [...cleanedResponse.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g)];
+        metadata = result.object;
+        console.log('✅ Got structured metadata:', metadata);
+      } catch (error) {
+        console.error('❌ Claude structured output failed:', error);
+        console.log('🔄 Falling back to simple metadata generation...');
+      }
+    } else {
+      // Use Codex for metadata
+      console.log('[projects] Using Codex for metadata extraction');
 
-        if (jsonMatches.length === 0) {
-          console.warn('⚠️  No JSON object found in response');
+      try {
+        const jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
+
+        if (!jsonResponse || jsonResponse.trim().length === 0) {
+          console.error('❌ Codex returned an empty response for metadata prompt');
         } else {
-          console.log(`   Found ${jsonMatches.length} potential JSON object(s), trying to parse...`);
+          console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
 
-          // Try parsing each JSON object until one succeeds
+          // Try to parse Codex response
+          let cleanedResponse = jsonResponse.trim();
+          cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
+          cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
+          cleanedResponse = cleanedResponse.trim();
+
+          const jsonMatches = [...cleanedResponse.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g)];
+
           for (let i = 0; i < jsonMatches.length; i++) {
             try {
               const candidate = jsonMatches[i][0];
               const parsed = JSON.parse(candidate);
 
-              // Validate it has the required fields
               if (parsed.slug && parsed.friendlyName && parsed.description && parsed.icon) {
                 metadata = parsed;
-                console.log(`📋 Successfully parsed metadata from JSON object #${i + 1}`);
                 break;
-              } else {
-                console.warn(`   JSON object #${i + 1} missing required fields, skipping...`);
               }
             } catch (parseError) {
-              console.warn(`   JSON object #${i + 1} failed to parse, trying next...`);
+              // Try next match
             }
           }
-
-          if (!metadata) {
-            console.warn('⚠️  No valid JSON object found with required fields');
-          }
         }
-      } catch (parseError) {
-        console.error('❌ JSON parsing failed:', parseError);
-        console.error('   Raw response was:', jsonResponse);
+      } catch (error) {
+        console.error('❌ Codex metadata extraction failed:', error);
       }
     }
 
     // If metadata is still undefined, use fallback
     if (!metadata) {
-
       console.log('🔄 Falling back to simple metadata generation...');
 
       // Better slug generation
       const slug = prompt
         .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
-        .replace(/\s+/g, '-')          // Replace spaces with dashes
-        .replace(/-+/g, '-')            // Replace multiple dashes with single
-        .replace(/^-|-$/g, '')          // Remove leading/trailing dashes
-        .substring(0, 50)               // Limit length
-        .replace(/-$/, '');             // Remove trailing dash if any
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 50);
 
-      // Better friendly name (capitalize words)
-      const friendlyName = prompt
-        .substring(0, 50)
-        .split(' ')
+      const words = prompt.split(/\s+/).filter(w => w.length > 0);
+      const friendlyName = words
+        .slice(0, 8)
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
 
@@ -261,25 +161,28 @@ export async function POST(req: Request) {
       console.log(`⚠️  Slug collision detected, using: ${finalSlug}`);
     }
 
-    // Insert into database (path is calculated from slug, not stored)
-    const newProject = await db.insert(projects).values({
+    // Create the project
+    const [project] = await db.insert(projects).values({
       name: metadata.friendlyName,
       slug: finalSlug,
       description: metadata.description,
-      originalPrompt: prompt, // Store the original user prompt
-      icon: metadata.icon || 'Folder',
+      icon: metadata.icon,
       status: 'pending',
-      runnerId: runnerId || null, // Track which runner will manage this project
-      // path is deprecated - calculated from slug when needed
+      originalPrompt: prompt,
     }).returning();
 
-    console.log('✅ Project created:', newProject[0].id);
+    console.log(`✅ Project created: ${project.id}`);
 
-    return NextResponse.json({ project: newProject[0] });
+    return NextResponse.json({
+      project,
+    });
   } catch (error) {
-    console.error('❌ Error creating project:', error);
+    console.error('Failed to create project:', error);
     return NextResponse.json(
-      { error: 'Failed to create project', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to create project',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }
