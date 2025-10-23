@@ -1499,7 +1499,8 @@ export async function startRunner(options: RunnerOptions = {}) {
             workingDirectory: projectDirectory,
             agent,
             template: command.payload.template, // NEW: Pass template from frontend
-            designPreferences: command.payload.designPreferences, // User-specified design constraints
+            designPreferences: command.payload.designPreferences, // User-specified design constraints (deprecated - use tags)
+            tags: command.payload.tags, // Tag-based configuration
           });
 
           log("orchestration complete:", {

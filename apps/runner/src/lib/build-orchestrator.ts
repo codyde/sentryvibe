@@ -13,6 +13,7 @@ import { type AgentId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy, type AgentStrategyContext } from '@sentryvibe/agent-core/lib/agents';
 import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
 import type { DesignPreferences } from '@sentryvibe/agent-core/types/design';
+import type { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 
 export interface BuildContext {
   projectId: string;
@@ -30,7 +31,8 @@ export interface BuildContext {
     repository: string;
     branch: string;
   }; // Frontend-provided template (NEW: from analysis endpoint)
-  designPreferences?: DesignPreferences; // User-specified design constraints
+  designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
+  tags?: AppliedTag[]; // Tag-based configuration system
 }
 
 export interface OrchestrationResult {
@@ -53,7 +55,7 @@ export interface OrchestrationResult {
  * Orchestrate the build - handle templates, prompts, context
  */
 export async function orchestrateBuild(context: BuildContext): Promise<OrchestrationResult> {
-  const { projectId, projectName, prompt, workingDirectory, agent, operationType, template: providedTemplate, designPreferences } = context;
+  const { projectId, projectName, prompt, workingDirectory, agent, operationType, template: providedTemplate, designPreferences, tags } = context;
   const workspaceRoot = getWorkspaceRoot();
 
   // Check if this is a NEW project or EXISTING project
@@ -71,7 +73,8 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     operationType,
     isNewProject,
     workspaceRoot,
-    designPreferences, // Pass through to strategy
+    designPreferences, // Pass through to strategy (deprecated - use tags)
+    tags, // Tag-based configuration
   };
 
   // NEW: Check if frontend provided a template (from analysis endpoint)
