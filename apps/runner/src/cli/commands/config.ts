@@ -98,9 +98,15 @@ function handleList() {
   logger.log(`  ${config.workspace}`);
   logger.log('');
 
+  // API
+  logger.info(`${chalk.bold('API:')}`);
+  logger.log(`  URL: ${config.apiUrl || 'not set'}`);
+  logger.log('');
+
   // Broker
   logger.info(`${chalk.bold('Broker:')}`);
-  logger.log(`  URL: ${config.broker?.url || 'not set'}`);
+  logger.log(`  WebSocket URL: ${config.broker?.url || 'not set'}`);
+  logger.log(`  HTTP URL: ${config.broker?.httpUrl || 'not set'}`);
   logger.log(`  Secret: ${config.broker?.secret ? '***' : 'not set'}`);
   logger.log('');
 
@@ -110,6 +116,20 @@ function handleList() {
   logger.log(`  Reconnect Attempts: ${config.runner?.reconnectAttempts || 5}`);
   logger.log(`  Heartbeat Interval: ${config.runner?.heartbeatInterval || 15000}ms`);
   logger.log('');
+
+  // Database
+  if (config.databaseUrl) {
+    logger.info(`${chalk.bold('Database:')}`);
+    logger.log(`  URL: ${config.databaseUrl.replace(/:[^:@]+@/, ':***@')}`); // Mask password
+    logger.log('');
+  }
+
+  // Monorepo
+  if (config.monorepoPath) {
+    logger.info(`${chalk.bold('Monorepo:')}`);
+    logger.log(`  Path: ${config.monorepoPath}`);
+    logger.log('');
+  }
 
   // Tunnel
   if (config.tunnel) {

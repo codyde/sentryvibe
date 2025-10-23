@@ -58,6 +58,22 @@ function getDefaultMonorepoPath(): string {
   return join(process.cwd(), 'sentryvibe');
 }
 
+/**
+ * Derive HTTP URL from WebSocket URL
+ * ws://localhost:4000/socket → http://localhost:4000
+ * wss://broker.example.com/socket → https://broker.example.com
+ */
+function deriveBrokerHttpUrl(wsUrl: string): string {
+  try {
+    const url = new URL(wsUrl);
+    const protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+    return `${protocol}//${url.host}`;
+  } catch {
+    // Fallback if URL parsing fails
+    return wsUrl.replace(/^wss?:\/\//, (match) => match === 'wss://' ? 'https://' : 'http://').replace(/\/socket$/, '');
+  }
+}
+
 interface InitOptions {
   workspace?: string;
   broker?: string;
@@ -397,6 +413,7 @@ export async function initCommand(options: InitOptions) {
         configManager.set('apiUrl', normalizeUrl(apiUrl as string));
         configManager.set('broker', {
           url: brokerUrl,
+          httpUrl: deriveBrokerHttpUrl(brokerUrl as string),
           secret: secret,
         });
         configManager.set('runner', {
@@ -619,8 +636,10 @@ export async function initCommand(options: InitOptions) {
         configManager.set('databaseUrl', databaseUrl);
       }
       configManager.set('apiUrl', normalizeUrl(options.url || 'http://localhost:3000'));
+      const brokerUrl = options.broker || 'ws://localhost:4000/socket';
       configManager.set('broker', {
-        url: options.broker || 'ws://localhost:4000/socket',
+        url: brokerUrl,
+        httpUrl: deriveBrokerHttpUrl(brokerUrl),
         secret: generatedSecret,
       });
       configManager.set('runner', {

@@ -8,12 +8,14 @@ export interface RunnerConfig {
   workspace: string;
   monorepoPath?: string; // Path to cloned sentryvibe repository
   databaseUrl?: string; // PostgreSQL connection string
+  apiUrl?: string; // API base URL (e.g., http://localhost:3000)
   broker: {
-    url: string;
+    url: string; // WebSocket URL (e.g., ws://localhost:4000/socket)
+    httpUrl?: string; // HTTP URL for broker (e.g., http://localhost:4000)
     secret: string;
   };
   runner: {
-    id: string;
+    id: string; // This runner's ID and default ID for web app in local mode
     reconnectAttempts?: number;
     heartbeatInterval?: number;
   };
@@ -42,8 +44,10 @@ export class ConfigManager {
     return {
       version: '0.1.0',
       workspace: join(homedir(), 'sentryvibe-workspace'),
+      apiUrl: 'http://localhost:3000', // Default API URL
       broker: {
-        url: 'ws://localhost:4000/socket', // Default to local broker
+        url: 'ws://localhost:4000/socket', // Default WebSocket broker
+        httpUrl: 'http://localhost:4000', // Default HTTP broker
         secret: 'dev-secret', // Default local secret
       },
       runner: {

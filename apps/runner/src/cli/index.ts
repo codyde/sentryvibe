@@ -184,6 +184,19 @@ program
     }
   });
 
+// Alias for config validate
+program
+  .command('verify')
+  .description('Verify configuration is valid (alias for config validate)')
+  .action(async () => {
+    try {
+      const { configCommand } = await import('./commands/config.js');
+      await configCommand('validate');
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
+  });
+
 program
   .command('status')
   .description('Show runner status and configuration')
