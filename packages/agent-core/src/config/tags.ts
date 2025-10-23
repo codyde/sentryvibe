@@ -252,9 +252,9 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
       {
         key: 'style',
         label: 'Style',
-        description: 'Visual style and design aesthetic',
+        description: 'Visual style and design aesthetic (can add multiple)',
         category: 'design',
-        inputType: 'multi-select',
+        inputType: 'select',
         allowMultiple: true,
         options: [
           {

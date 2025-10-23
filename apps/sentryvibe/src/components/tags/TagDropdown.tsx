@@ -19,7 +19,6 @@ interface TagDropdownProps {
 type ViewState =
   | { type: 'main' }
   | { type: 'select'; definition: TagDefinition }
-  | { type: 'multi-select'; definition: TagDefinition }
   | { type: 'nested'; definition: TagDefinition }
   | { type: 'color'; definition: TagDefinition };
 
@@ -169,8 +168,6 @@ export function TagDropdown({
               onClick={() => {
                 if (child.inputType === 'select') {
                   pushView({ type: 'select', definition: child });
-                } else if (child.inputType === 'multi-select') {
-                  pushView({ type: 'multi-select', definition: child });
                 } else if (child.inputType === 'color') {
                   pushView({ type: 'color', definition: child });
                 }
@@ -182,46 +179,6 @@ export function TagDropdown({
                 <div className="text-xs text-gray-400 mt-0.5">{child.description}</div>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderMultiSelect = (def: TagDefinition) => {
-    return (
-      <div className="w-full min-w-64">
-        {/* Back button */}
-        <div className="p-1 border-b border-gray-800">
-          <button
-            onClick={popView}
-            className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
-        </div>
-
-        {/* Header */}
-        <div className="px-2 py-3 border-b border-gray-800">
-          <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
-          <p className="text-xs text-gray-400 mt-1">{def.description}</p>
-          <p className="text-xs text-purple-400 mt-1">Select multiple options</p>
-        </div>
-
-        {/* Options - can select multiple */}
-        <div className="p-1 space-y-1 max-h-80 overflow-y-auto">
-          {def.options?.map(option => (
-            <button
-              key={option.value}
-              onClick={() => handleSelectOption(def, option)}
-              className="w-full px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
-            >
-              <div className="font-medium text-gray-200">{option.label}</div>
-              {option.description && (
-                <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
-              )}
             </button>
           ))}
         </div>
@@ -262,8 +219,6 @@ export function TagDropdown({
         return renderMain();
       case 'select':
         return renderSelect(currentView.definition);
-      case 'multi-select':
-        return renderMultiSelect(currentView.definition);
       case 'nested':
         return renderNested(currentView.definition);
       case 'color':
