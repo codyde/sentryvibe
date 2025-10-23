@@ -1033,14 +1033,14 @@ export async function startRunner(options: RunnerOptions = {}) {
       case "create-project": {
         // NEW: Centralized AI analysis - template selection + metadata extraction
         try {
-          log(`[create-project] Analyzing prompt for project ${command.projectId}`);
+          console.log(`[create-project] Analyzing prompt for project ${command.projectId}`);
 
           // Load templates
           const { getAllTemplates } = await import('./lib/templates/config.js');
           const templates = await getAllTemplates();
 
           // Run AI analysis (Claude Code or Codex SDK)
-          log(`[create-project] About to call analyzeProjectRequest...`);
+          console.log(`[create-project] About to call analyzeProjectRequest...`);
 
           const analysis = await analyzeProjectRequest(
             command.payload.prompt,
@@ -1049,8 +1049,8 @@ export async function startRunner(options: RunnerOptions = {}) {
             command.payload.claudeModel
           );
 
-          log(`[create-project] ✅ Got analysis result back`);
-          log(`[create-project] Analysis complete: ${analysis.metadata.friendlyName}`);
+          console.log(`[create-project] ✅ Got analysis result back`);
+          console.log(`[create-project] Analysis complete: ${analysis.metadata.friendlyName}`);
 
           // Send analysis results back to frontend
           sendEvent({
@@ -1061,7 +1061,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             timestamp: new Date().toISOString(),
           });
         } catch (error) {
-          log(`[create-project] Analysis failed:`, error);
+          console.error(`[create-project] Analysis failed:`, error);
           sendEvent({
             type: 'error',
             commandId: command.id,
