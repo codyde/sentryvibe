@@ -156,36 +156,47 @@ export async function analyzeProjectRequest(
 }> {
   console.log(`[project-analysis] Analyzing prompt with ${agent}`);
 
-  // Run both analyses in parallel for speed
-  const [templateAnalysis, metadata] = await Promise.all([
-    analyzePromptForTemplate(prompt, agent, templates, claudeModel),
-    agent === 'claude-code'
-      ? extractMetadataWithClaude(prompt)
-      : extractMetadataWithCodex(prompt)
-  ]);
+  try {
+    console.log(`[project-analysis] Starting template analysis...`);
+    const templateAnalysis = await analyzePromptForTemplate(prompt, agent, templates, claudeModel);
+    console.log(`[project-analysis] ✅ Template analysis complete: ${templateAnalysis.templateName}`);
 
-  console.log(`[project-analysis] Analysis complete`);
-  console.log(`[project-analysis] Template: ${templateAnalysis.templateName}`);
-  console.log(`[project-analysis] Metadata: ${metadata.friendlyName} (${metadata.slug})`);
+    console.log(`[project-analysis] Starting metadata extraction...`);
+    const metadata = agent === 'claude-code'
+      ? await extractMetadataWithClaude(prompt)
+      : await extractMetadataWithCodex(prompt);
+    console.log(`[project-analysis] ✅ Metadata extraction complete: ${metadata.friendlyName}`);
 
-  return {
-    template: {
-      id: templateAnalysis.templateId,
-      name: templateAnalysis.templateName,
-      framework: templateAnalysis.framework,
-      port: templateAnalysis.defaultPort,
-      runCommand: templateAnalysis.devCommand,
-      repository: templateAnalysis.repository,
-      branch: templateAnalysis.branch,
-    },
-    metadata: {
-      slug: metadata.slug,
-      friendlyName: metadata.friendlyName,
-      description: metadata.description,
-      icon: metadata.icon,
-    },
-    reasoning: templateAnalysis.reasoning,
-    confidence: templateAnalysis.confidence,
-    analyzedBy: templateAnalysis.analyzedBy,
-  };
+    console.log(`[project-analysis] Analysis complete`);
+    console.log(`[project-analysis] Template: ${templateAnalysis.templateName}`);
+    console.log(`[project-analysis] Metadata: ${metadata.friendlyName} (${metadata.slug})`);
+
+    return {
+      template: {
+        id: templateAnalysis.templateId,
+        name: templateAnalysis.templateName,
+        framework: templateAnalysis.framework,
+        port: templateAnalysis.defaultPort,
+        runCommand: templateAnalysis.devCommand,
+        repository: templateAnalysis.repository,
+        branch: templateAnalysis.branch,
+      },
+      metadata: {
+        slug: metadata.slug,
+        friendlyName: metadata.friendlyName,
+        description: metadata.description,
+        icon: metadata.icon,
+      },
+      reasoning: templateAnalysis.reasoning,
+      confidence: templateAnalysis.confidence,
+      analyzedBy: templateAnalysis.analyzedBy,
+    };
+  } catch (error) {
+    console.error(`[project-analysis] ❌ Analysis failed:`, error);
+    console.error(`[project-analysis] Error details:`, error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error(`[project-analysis] Stack trace:`, error.stack);
+    }
+    throw error; // Re-throw so runner handler can catch and emit error event
+  }
 }
