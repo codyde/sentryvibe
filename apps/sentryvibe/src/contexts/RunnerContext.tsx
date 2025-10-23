@@ -86,7 +86,19 @@ export function RunnerProvider({ children }: { children: ReactNode }) {
 export function useRunner() {
   const context = useContext(RunnerContext);
   if (!context) {
-    throw new Error('useRunner must be used within RunnerProvider');
+    // During SSR or initial hydration, return safe defaults instead of throwing
+    // This prevents "availableRunners is not defined" errors
+    return {
+      selectedRunnerId: process.env.NEXT_PUBLIC_RUNNER_DEFAULT_ID ?? 'default',
+      setSelectedRunnerId: () => {
+        console.warn('useRunner: setSelectedRunnerId called before RunnerProvider initialized');
+      },
+      availableRunners: [],
+      isLoading: true,
+      refetchRunners: async () => {
+        console.warn('useRunner: refetchRunners called before RunnerProvider initialized');
+      },
+    };
   }
   return context;
 }
