@@ -48,6 +48,7 @@
     "cli": "node dist/cli/index.js"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.21",
     "@anthropic-ai/claude-agent-sdk": "^0.1.25",
     "@clack/prompts": "^0.11.0",
     "@openai/codex-sdk": "^0.47.0",
@@ -56,6 +57,7 @@
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentryvibe/agent-core": "workspace:*",
+    "ai": "^5.0.57",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",

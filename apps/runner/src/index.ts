@@ -1029,6 +1029,48 @@ export async function startRunner(options: RunnerOptions = {}) {
     });
 
     switch (command.type) {
+      case "create-project": {
+        // NEW: Centralized AI analysis - template selection + metadata extraction
+        try {
+          log(`[create-project] Analyzing prompt for project ${command.projectId}`);
+
+          // Load templates
+          const { getAllTemplates } = await import('./lib/templates/config.js');
+          const templates = await getAllTemplates();
+
+          // Run AI analysis (Claude Code or Codex SDK)
+          const { analyzeProjectRequest } = await import('./lib/project-analysis.js');
+          const analysis = await analyzeProjectRequest(
+            command.payload.prompt,
+            command.payload.agent || 'claude-code',
+            templates,
+            command.payload.claudeModel
+          );
+
+          log(`[create-project] Analysis complete: ${analysis.metadata.friendlyName}`);
+
+          // Send analysis results back to frontend
+          sendEvent({
+            type: 'project-analyzed',
+            commandId: command.id,
+            projectId: command.projectId,
+            payload: analysis,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          log(`[create-project] Analysis failed:`, error);
+          sendEvent({
+            type: 'error',
+            commandId: command.id,
+            projectId: command.projectId,
+            error: error instanceof Error ? error.message : 'Unknown analysis error',
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        break;
+      }
+
       case "runner-health-check": {
         publishStatus(command.projectId, command.id);
         break;
