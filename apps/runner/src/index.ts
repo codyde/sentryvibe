@@ -51,6 +51,7 @@ import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
+import { analyzeProjectRequest } from "./lib/project-analysis.js";
 
 export interface RunnerOptions {
   brokerUrl?: string;
@@ -1039,7 +1040,6 @@ export async function startRunner(options: RunnerOptions = {}) {
           const templates = await getAllTemplates();
 
           // Run AI analysis (Claude Code or Codex SDK)
-          const { analyzeProjectRequest } = await import('./lib/project-analysis.js');
           log(`[create-project] About to call analyzeProjectRequest...`);
 
           const analysis = await analyzeProjectRequest(
