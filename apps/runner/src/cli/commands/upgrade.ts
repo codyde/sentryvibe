@@ -10,6 +10,7 @@ import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { CLIError, errors } from '../utils/cli-error.js';
 import { isInsideMonorepo } from '../utils/repo-detector.js';
+import { configManager } from '../utils/config-manager.js';
 
 interface UpgradeOptions {
   branch?: string;
@@ -28,21 +29,36 @@ export async function upgradeCommand(options: UpgradeOptions) {
   // Step 1: Find current monorepo
   s.start('Locating SentryVibe installation');
 
-  const repoCheck = await isInsideMonorepo();
-  if (!repoCheck.inside || !repoCheck.root) {
-    s.stop(pc.red('✗') + ' Not inside SentryVibe monorepo');
+  let monorepoRoot: string | undefined;
+  const config = configManager.get();
+
+  // Try config first
+  if (config.monorepoPath && existsSync(config.monorepoPath)) {
+    monorepoRoot = config.monorepoPath;
+  }
+
+  // Try detection if not in config
+  if (!monorepoRoot) {
+    const repoCheck = await isInsideMonorepo();
+    if (repoCheck.inside && repoCheck.root) {
+      monorepoRoot = repoCheck.root;
+    }
+  }
+
+  if (!monorepoRoot) {
+    s.stop(pc.red('✗') + ' SentryVibe installation not found');
     throw new CLIError({
       code: 'UPGRADE_NOT_IN_REPO',
-      message: 'Upgrade must be run from within the SentryVibe directory',
+      message: 'Could not locate SentryVibe installation',
       suggestions: [
-        'Navigate to your SentryVibe installation directory',
-        'Example: cd /Users/yourname/sentryvibe',
+        'Run from within SentryVibe directory',
+        'Or run init first: sentryvibe init',
+        config.monorepoPath ? `Configured path not found: ${config.monorepoPath}` : 'No installation path configured',
       ],
       docs: 'https://github.com/codyde/sentryvibe#upgrade',
     });
   }
 
-  const monorepoRoot = repoCheck.root;
   s.stop(pc.green('✓') + ` Found: ${monorepoRoot}`);
 
   // Step 2: Check git status
