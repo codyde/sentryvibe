@@ -10,12 +10,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+PURPLE='\033[0;35m'
+BRIGHT_PURPLE='\033[0;95m'
 NC='\033[0m' # No Color
 
+# Display SentryVibe ASCII banner
 echo ""
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🚀 SentryVibe CLI Installer${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}███████╗███████╗███╗   ██╗████████╗██████╗ ██╗   ██╗${BRIGHT_PURPLE}██╗   ██╗██╗██████╗ ███████╗${NC}"
+echo -e "${CYAN}██╔════╝██╔════╝████╗  ██║╚══██╔══╝██╔══██╗╚██╗ ██╔╝${BRIGHT_PURPLE}██║   ██║██║██╔══██╗██╔════╝${NC}"
+echo -e "${CYAN}███████╗█████╗  ██╔██╗ ██║   ██║   ██████╔╝ ╚████╔╝ ${BRIGHT_PURPLE}██║   ██║██║██████╔╝█████╗${NC}"
+echo -e "${CYAN}╚════██║██╔══╝  ██║╚██╗██║   ██║   ██╔══██╗  ╚██╔╝  ${BRIGHT_PURPLE}╚██╗ ██╔╝██║██╔══██╗██╔══╝${NC}"
+echo -e "${CYAN}███████║███████╗██║ ╚████║   ██║   ██║  ██║   ██║   ${BRIGHT_PURPLE} ╚████╔╝ ██║██████╔╝███████╗${NC}"
+echo -e "${CYAN}╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ${BRIGHT_PURPLE}  ╚═══╝  ╚═╝╚═════╝ ╚══════╝${NC}"
+echo ""
+echo -e "${BLUE}                        CLI Installer${NC}"
 echo ""
 
 # Check for Node.js

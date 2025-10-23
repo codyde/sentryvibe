@@ -47,15 +47,8 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1761176659895,
-      "tag": "0006_short_fantastic_four",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1761197797641,
-      "tag": "0007_lame_random",
+      "when": 1761173179871,
+      "tag": "0006_puzzling_hobgoblin",
       "breakpoints": true
     }
   ]

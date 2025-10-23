@@ -1,5 +1,5 @@
 {
-  "id": "d365cad8-0957-41ef-bce5-7705eb040315",
+  "id": "8914a9d1-332c-48cf-ad81-c2fcde6530a0",
   "prevId": "20e72d83-b9be-4656-a34f-770fe25a9b9b",
   "version": "7",
   "dialect": "postgresql",
@@ -111,12 +111,6 @@
         "generation_state": {
           "name": "generation_state",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "design_preferences": {
-          "name": "design_preferences",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
