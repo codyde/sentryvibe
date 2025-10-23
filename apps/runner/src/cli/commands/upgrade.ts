@@ -325,6 +325,23 @@ export async function upgradeCommand(options: UpgradeOptions) {
   console.log();
   console.log(pc.green('✓') + pc.bold(' Upgrade complete!'));
   console.log();
+
+  // Check if user is currently inside the monorepo directory
+  const currentDir = process.cwd();
+  const isCurrentlyInMonorepo = currentDir.startsWith(monorepoRoot);
+
+  if (isCurrentlyInMonorepo) {
+    console.log(pc.yellow('⚠') + pc.bold('  IMPORTANT: Your shell directory is stale'));
+    console.log();
+    console.log(pc.dim('  The upgrade renamed directories while you were inside them.'));
+    console.log(pc.dim('  You need to refresh your shell location:'));
+    console.log();
+    console.log(pc.cyan('  cd .. && cd ' + monorepoRoot.split('/').pop()));
+    console.log();
+    console.log(pc.dim('  Or simply close and reopen your terminal.'));
+    console.log();
+  }
+
   console.log(pc.dim('  Note: Restart your terminal to use the updated CLI'));
   console.log(pc.dim('  Or run: hash -r'));
   console.log();
