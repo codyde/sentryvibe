@@ -12,24 +12,15 @@ import {
   type ClaudeModelId,
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import { z } from 'zod';
 import { analyzePromptForTemplate } from './template-analysis.js';
 
-// Metadata schema
-const ProjectMetadataSchema = z.object({
-  slug: z.string().describe('URL-friendly project identifier (lowercase, hyphens)'),
-  friendlyName: z.string().describe('Human-readable project name'),
-  description: z.string().describe('Brief description of what the project does'),
-  icon: z.enum([
-    'Folder', 'Code', 'Layout', 'Database', 'Zap', 'Globe', 'Lock',
-    'Users', 'ShoppingCart', 'Calendar', 'MessageSquare', 'FileText',
-    'Image', 'Music', 'Video', 'CheckCircle', 'Star'
-  ]).describe('Icon name from available Lucide icons'),
-});
-
-type ProjectMetadata = z.infer<typeof ProjectMetadataSchema>;
+// Project metadata type
+interface ProjectMetadata {
+  slug: string;
+  friendlyName: string;
+  description: string;
+  icon: string;
+}
 
 const CODEX_MODEL = 'gpt-5-codex';
 
@@ -84,18 +75,54 @@ async function extractMetadataWithCodex(prompt: string): Promise<ProjectMetadata
 }
 
 /**
- * Extract metadata using Claude with structured output
+ * Extract metadata using Claude Code SDK
  */
 async function extractMetadataWithClaude(prompt: string): Promise<ProjectMetadata> {
   const metadataPrompt = buildMetadataPrompt(prompt);
 
-  const result = await generateObject({
-    model: anthropic('claude-haiku-4-5'),
-    schema: ProjectMetadataSchema,
+  // Use the same instrumented Claude query as builds
+  const claudeQuery = Sentry.createInstrumentedClaudeQuery();
+
+  const generator = claudeQuery({
     prompt: metadataPrompt,
+    options: {
+      systemPrompt: `You are a project metadata expert. Extract structured metadata from user prompts.
+
+Output ONLY valid JSON matching this schema:
+{
+  "slug": "kebab-case-name",
+  "friendlyName": "Display Name",
+  "description": "Brief description",
+  "icon": "Code" // Must be one of: Folder, Code, Layout, Database, Zap, Globe, Lock, Users, ShoppingCart, Calendar, MessageSquare, FileText, Image, Music, Video, CheckCircle, Star
+}`,
+      model: 'claude-haiku-4-5',
+      workingDirectory: process.cwd(),
+      maxTurns: 1, // Single turn for simple extraction
+    },
   });
 
-  return result.object;
+  let accumulated = '';
+  for await (const event of generator) {
+    // Collect all text from the response
+    if (typeof event === 'string') {
+      accumulated += event;
+    }
+  }
+
+  // Parse JSON from response
+  const jsonMatch = accumulated.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in Claude response');
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  // Validate required fields
+  if (!parsed.slug || !parsed.friendlyName || !parsed.description || !parsed.icon) {
+    throw new Error('Invalid metadata structure from Claude');
+  }
+
+  return parsed;
 }
 
 /**

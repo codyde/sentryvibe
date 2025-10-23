@@ -7,18 +7,6 @@ import {
   type ClaudeModelId,
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import { z } from 'zod';
-
-// Template analysis schema
-const TemplateAnalysisSchema = z.object({
-  templateId: z.string(),
-  templateName: z.string(),
-  framework: z.string(),
-  reasoning: z.string(),
-  confidence: z.number().min(0).max(1),
-});
 
 interface AnalysisModelConfig {
   provider: 'anthropic' | 'openai';
@@ -151,22 +139,35 @@ async function analyzeWithClaude(
   userPrompt: string,
   model: string
 ): Promise<string> {
-  // Use AI SDK's generateObject for structured output
+  // Use Claude Code SDK (same as builds)
+  const claudeQuery = Sentry.createInstrumentedClaudeQuery();
+
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
-  try {
-    const result = await generateObject({
-      model: anthropic(model),
-      schema: TemplateAnalysisSchema,
-      prompt: combinedPrompt,
-    });
+  const generator = claudeQuery({
+    prompt: combinedPrompt,
+    options: {
+      systemPrompt: 'You are a template selection expert. Respond with ONLY valid JSON.',
+      model: model as any,
+      workingDirectory: process.cwd(),
+      maxTurns: 1,
+    },
+  });
 
-    // Return as JSON string to match expected interface
-    return JSON.stringify(result.object);
-  } catch (error) {
-    console.error('[template-analysis] Structured output failed:', error);
-    throw error;
+  let accumulated = '';
+  for await (const event of generator) {
+    if (typeof event === 'string') {
+      accumulated += event;
+    }
   }
+
+  // Extract JSON from response
+  const jsonMatch = accumulated.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in Claude response');
+  }
+
+  return jsonMatch[0];
 }
 
 async function analyzeWithOpenAI(
