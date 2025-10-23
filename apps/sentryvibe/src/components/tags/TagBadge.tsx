@@ -15,6 +15,14 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
 
   if (!def) return null;
 
+  // For brand tags, resolve expandedValues if not present
+  let expandedValues = tag.expandedValues;
+  if (tag.key === 'brand' && !expandedValues) {
+    const brandDef = findTagDefinition('brand');
+    const brandOption = brandDef?.options?.find(o => o.value === tag.value);
+    expandedValues = brandOption?.values;
+  }
+
   // Render color value with swatch
   const renderColorValue = (color: string) => (
     <span className="inline-flex items-center gap-1">
@@ -35,7 +43,7 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
   };
 
   // For brand tags, show expanded colors in hover card
-  const shouldShowHoverCard = tag.key === 'brand' && tag.expandedValues;
+  const shouldShowHoverCard = tag.key === 'brand' && expandedValues;
 
   const badge = (
     <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors">
@@ -68,7 +76,7 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
         <div className="space-y-2">
           <h4 className="font-semibold text-sm text-gray-200">Brand Colors</h4>
           <div className="space-y-1 text-sm font-mono">
-            {tag.expandedValues && Object.entries(tag.expandedValues).map(([key, value]) => (
+            {expandedValues && Object.entries(expandedValues).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between">
                 <span className="text-gray-400">{key}:</span>
                 <div className="flex items-center gap-2">

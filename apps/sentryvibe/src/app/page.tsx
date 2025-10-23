@@ -50,6 +50,7 @@ import { TagInput } from "@/components/tags/TagInput";
 import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
 import type { TagOption } from "@sentryvibe/agent-core/config/tags";
 import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
+import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
 
 interface MessagePart {
   type: string;
@@ -201,9 +202,14 @@ function HomeContent() {
     }
   }, []);
 
-  // Initialize default tags when no project selected
+  // Load tags from existing project or initialize defaults for new project
   useEffect(() => {
-    if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
+    if (currentProject?.tags) {
+      // Load tags from existing project
+      const loadedTags = deserializeTags(currentProject.tags as any);
+      setAppliedTags(loadedTags);
+    } else if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
+      // Initialize default tags for new project
       const defaultTags: AppliedTag[] = [
         {
           key: 'runner',
@@ -212,13 +218,13 @@ function HomeContent() {
         },
         {
           key: 'model',
-          value: 'claude-haiku-4.5',
+          value: 'claude-haiku-4-5',
           appliedAt: new Date()
         }
       ];
       setAppliedTags(defaultTags);
     }
-  }, [selectedProjectSlug, availableRunners, selectedRunnerId, appliedTags.length]);
+  }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId]);
 
   useEffect(() => {
     generationStateRef.current = generationState;
@@ -1250,6 +1256,10 @@ function HomeContent() {
         effectiveClaudeModel = parsed.claudeModel;
       }
 
+      // Derive runner from tags if present, otherwise use context
+      const runnerTag = appliedTags.find(t => t.key === 'runner');
+      const effectiveRunnerId = runnerTag?.value || selectedRunnerId;
+
       const res = await fetch(`/api/projects/${projectId}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1257,7 +1267,7 @@ function HomeContent() {
           operationType,
           prompt,
           buildId: existingBuildId,
-          runnerId: selectedRunnerId,
+          runnerId: effectiveRunnerId,
           agent: effectiveAgent,
           claudeModel: effectiveClaudeModel,
           designPreferences: designPreferences || undefined, // Include if set (deprecated - use tags)
@@ -1910,15 +1920,26 @@ function HomeContent() {
       setTemplateProvisioningInfo(null); // Clear previous template info
 
       try {
+        // Derive agent/model from tags
+        const modelTag = appliedTags.find(t => t.key === 'model');
+        let effectiveAgent = selectedAgentId;
+        let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+
+        if (modelTag?.value) {
+          const parsed = parseModelTag(modelTag.value);
+          effectiveAgent = parsed.agent;
+          effectiveClaudeModel = parsed.claudeModel;
+        }
+
         const res = await fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: userPrompt,
-            agent: selectedAgentId,
+            agent: effectiveAgent,
             runnerId: selectedRunnerId,
-            claudeModel:
-              selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+            claudeModel: effectiveClaudeModel,
+            tags: serializeTags(appliedTags), // Persist tags to DB
           }),
         });
 

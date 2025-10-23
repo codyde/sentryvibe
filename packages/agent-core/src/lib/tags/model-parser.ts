@@ -1,17 +1,13 @@
 /**
- * Model Tag Parser
+ * Model Tag Resolver
  *
- * Parses model tags to extract agent and model information.
- * Format: <agent>-<model>
- * Examples:
- * - "claude-sonnet-4.5" → agent: "claude-code", model: "claude-sonnet-4.5"
- * - "claude-opus-4" → agent: "claude-code", model: "claude-opus-4"
- * - "claude-haiku-4.5" → agent: "claude-code", model: "claude-haiku-4.5"
- * - "openai-gpt-5-codex" → agent: "openai-codex", model: "gpt-5-codex"
+ * Resolves model tags to provider and model using explicit mapping.
+ * No parsing - just direct lookup from tag configuration.
  */
 
 import type { AgentId } from '../../types/agent';
 import type { ClaudeModelId } from '../../shared/runner/messages';
+import { findTagDefinition } from '../../config/tags';
 
 export interface ParsedModel {
   agent: AgentId;
@@ -19,21 +15,23 @@ export interface ParsedModel {
 }
 
 /**
- * Parse a model tag value into agent and model components
+ * Resolve a model tag value to agent and model using config mapping
  */
-export function parseModelTag(modelTag: string): ParsedModel {
-  // OpenAI models
-  if (modelTag.startsWith('openai-')) {
+export function parseModelTag(modelTagValue: string): ParsedModel {
+  const modelDef = findTagDefinition('model');
+  const modelOption = modelDef?.options?.find(o => o.value === modelTagValue);
+
+  if (!modelOption) {
+    // Fallback to default
     return {
-      agent: 'openai-codex' as AgentId,
-      claudeModel: undefined
+      agent: 'claude-code' as AgentId,
+      claudeModel: 'claude-haiku-4.5' as ClaudeModelId
     };
   }
 
-  // Claude models (default)
-  // Format: claude-<model>-<version>
+  // Use explicit mapping from config
   return {
-    agent: 'claude-code' as AgentId,
-    claudeModel: modelTag as ClaudeModelId
+    agent: (modelOption.provider || 'claude-code') as AgentId,
+    claudeModel: modelOption.model as ClaudeModelId | undefined
   };
 }

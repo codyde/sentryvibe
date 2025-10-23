@@ -18,6 +18,12 @@ import { findTagDefinition } from '../../config/tags';
 export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
   const resolved: ResolvedTags = {};
 
+  try {
+    if (!appliedTags || !Array.isArray(appliedTags)) {
+      console.warn('[resolveTags] Invalid appliedTags:', appliedTags);
+      return resolved;
+    }
+
   // First pass: Apply brand theme colors (if any)
   const brandTag = appliedTags.find(t => t.key === 'brand');
   if (brandTag?.expandedValues) {
@@ -65,6 +71,10 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
   }
 
   return resolved;
+  } catch (error) {
+    console.error('[resolveTags] Error resolving tags:', error);
+    return resolved;
+  }
 }
 
 /**
@@ -145,17 +155,22 @@ export function generatePromptFromTags(resolved: ResolvedTags): string {
     if (resolved.styles && resolved.styles.length > 0) {
       const styleDef = findTagDefinition('style');
 
-      if (styleDef?.promptTemplate) {
+      if (styleDef) {
         sections.push('\n**Style Direction:**');
-        const styleDescriptions = resolved.styles.map(style => {
-          const option = styleDef.options?.find(o => o.value === style);
-          return `${style} (${option?.description || ''})`;
-        }).join(', ');
 
-        let stylePrompt = styleDef.promptTemplate
-          .replace('{values}', resolved.styles.join(' and '))
-          .replace('{descriptions}', styleDescriptions);
-        sections.push(stylePrompt);
+        const stylesList = resolved.styles.join(' and ');
+        sections.push(`Design should feel ${stylesList}.`);
+        sections.push('\n**Style Guidance:**');
+
+        // Add detailed description for each style
+        resolved.styles.forEach(style => {
+          const option = styleDef.options?.find(o => o.value === style);
+          if (option) {
+            sections.push(`- **${option.label}**: ${option.description}`);
+          }
+        });
+
+        sections.push('\nCombine these aesthetics through typography, spacing, component design, and overall visual treatment.');
       }
     }
 
@@ -191,4 +206,39 @@ export function validateTagValue(key: string, value: string): { valid: boolean; 
   }
 
   return { valid: true };
+}
+
+/**
+ * Validate a set of applied tags for conflicts
+ */
+export function validateTagSet(tags: AppliedTag[]): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  // Check for conflicting single-value tags
+  const tagCounts = new Map<string, number>();
+  tags.forEach(tag => {
+    const def = findTagDefinition(tag.key);
+    if (!def?.allowMultiple) {
+      tagCounts.set(tag.key, (tagCounts.get(tag.key) || 0) + 1);
+    }
+  });
+
+  tagCounts.forEach((count, key) => {
+    if (count > 1) {
+      errors.push(`Multiple values for tag '${key}' which only allows one`);
+    }
+  });
+
+  // Validate each tag value
+  tags.forEach(tag => {
+    const validation = validateTagValue(tag.key, tag.value);
+    if (!validation.valid) {
+      errors.push(`Invalid tag ${tag.key}:${tag.value} - ${validation.error}`);
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
 }

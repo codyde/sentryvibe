@@ -11,6 +11,9 @@ export interface TagOption {
   description?: string;
   // For theme/brand tags - bundle of values that get expanded
   values?: Record<string, string>;
+  // For model tags - provider and model mapping
+  provider?: string;
+  model?: string;
 }
 
 export interface TagDefinition {
@@ -29,7 +32,7 @@ export interface TagDefinition {
 }
 
 export const TAG_DEFINITIONS: TagDefinition[] = [
-  // Model Selection (agent + model combined)
+  // Model Selection (explicit provider + model mapping)
   {
     key: 'model',
     label: 'Model',
@@ -38,24 +41,25 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
     inputType: 'select',
     options: [
       {
-        value: 'claude-sonnet-4.5',
+        value: 'claude-sonnet-4-5',
         label: 'Claude Sonnet 4.5',
-        description: 'Anthropic Claude - Balanced performance and speed'
+        description: 'Anthropic Claude - Balanced performance and speed',
+        provider: 'claude-code',
+        model: 'claude-sonnet-4-5'
       },
       {
-        value: 'claude-opus-4',
-        label: 'Claude Opus 4',
-        description: 'Anthropic Claude - Most capable, slower'
-      },
-      {
-        value: 'claude-haiku-4.5',
+        value: 'claude-haiku-4-5',
         label: 'Claude Haiku 4.5',
-        description: 'Anthropic Claude - Fastest, good for iterations'
+        description: 'Anthropic Claude - Fastest, good for iterations',
+        provider: 'claude-code',
+        model: 'claude-haiku-4-5'
       },
       {
-        value: 'openai-gpt-5-codex',
+        value: 'gpt-5-codex',
         label: 'GPT-5 Codex',
-        description: 'OpenAI Codex - Advanced code generation'
+        description: 'OpenAI Codex - Advanced code generation',
+        provider: 'openai-codex',
+        model: 'gpt-5-codex'
       }
     ]
   },
