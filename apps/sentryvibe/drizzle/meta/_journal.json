@@ -50,6 +50,13 @@
       "when": 1761176659895,
       "tag": "0006_short_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1761197797641,
+      "tag": "0007_lame_random",
+      "breakpoints": true
     }
   ]
 }

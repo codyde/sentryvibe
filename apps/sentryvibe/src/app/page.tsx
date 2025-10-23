@@ -47,6 +47,9 @@ import ElementChangeCard from "@/components/ElementChangeCard";
 import DesignConstraintsModal from "@/components/design/DesignConstraintsModal";
 import type { DesignPreferences } from "@sentryvibe/agent-core/types/design";
 import { Palette } from "lucide-react";
+import { TagInput } from "@/components/tags/TagInput";
+import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
+import type { TagOption } from "@sentryvibe/agent-core/config/tags";
 
 interface MessagePart {
   type: string;
@@ -106,6 +109,7 @@ function HomeContent() {
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null);
+  const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
   >(null);
@@ -196,6 +200,25 @@ function HomeContent() {
       setActiveView(stored);
     }
   }, []);
+
+  // Initialize default tags when no project selected
+  useEffect(() => {
+    if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
+      const defaultTags: AppliedTag[] = [
+        {
+          key: 'runner',
+          value: selectedRunnerId,
+          appliedAt: new Date()
+        },
+        {
+          key: 'model',
+          value: 'claude-haiku-4.5',
+          appliedAt: new Date()
+        }
+      ];
+      setAppliedTags(defaultTags);
+    }
+  }, [selectedProjectSlug, availableRunners, selectedRunnerId, appliedTags.length]);
 
   useEffect(() => {
     generationStateRef.current = generationState;
@@ -1227,7 +1250,8 @@ function HomeContent() {
           agent: selectedAgentId,
           claudeModel:
             selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
-          designPreferences: designPreferences || undefined, // Include if set
+          designPreferences: designPreferences || undefined, // Include if set (deprecated - use tags)
+          tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
           context: isElementChange
             ? {
                 elementSelector: "unknown", // Will be enhanced later
@@ -2318,19 +2342,22 @@ function HomeContent() {
                           </svg>
                         </button>
                       </div>
+
+                      {/* Tag Input */}
+                      <div className="mt-4 px-2">
+                        <TagInput
+                          tags={appliedTags}
+                          onTagsChange={setAppliedTags}
+                          runnerOptions={availableRunners.map(r => ({
+                            value: r.runnerId,
+                            label: r.runnerId,
+                            description: `Runner: ${r.runnerId}`
+                          }))}
+                        />
+                      </div>
+
                       <div className="mt-3 flex justify-between items-center gap-4">
                         <AgentSelector className="flex-1 max-w-2xl" />
-
-                        <button
-                          onClick={() => setIsDesignModalOpen(true)}
-                          className="flex items-center gap-2 px-4 py-2
-                                     bg-purple-500/20 hover:bg-purple-500/30 text-purple-300
-                                     border border-purple-500/50 rounded-lg transition-all shadow-lg
-                                     hover:shadow-purple-500/20 flex-shrink-0"
-                        >
-                          <Palette className="w-4 h-4" />
-                          <span className="text-sm font-medium">Design</span>
-                        </button>
                       </div>
                     </form>
                   </div>

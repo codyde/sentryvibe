@@ -1,5 +1,6 @@
 import type { AgentStrategy, AgentStrategyContext } from './strategy';
 import { MOOD_GUIDANCE } from '../../types/design';
+import { resolveTags, generatePromptFromTags } from '../tags/resolver';
 
 function buildClaudeSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
@@ -26,8 +27,14 @@ Review the current codebase and apply the requested changes without re-scaffoldi
 - Work inside the existing project structure.
 - Provide complete updates without placeholders.`);
 
-  // Inject design constraints if provided by user
-  if (context.designPreferences) {
+  // Use tag-based configuration if available, otherwise fall back to designPreferences
+  if (context.tags && context.tags.length > 0) {
+    const resolved = resolveTags(context.tags);
+    const tagPrompt = generatePromptFromTags(resolved);
+    if (tagPrompt) {
+      sections.push(tagPrompt);
+    }
+  } else if (context.designPreferences) {
     const prefs = context.designPreferences;
     const moodGuidance = prefs.mood
       .map(m => `- ${m}: ${MOOD_GUIDANCE[m] || ''}`)

@@ -1,5 +1,6 @@
 import type { AgentId } from '../../types/agent';
 import type { DesignPreferences } from '../../types/design';
+import type { AppliedTag } from '../../types/tags';
 
 export interface AgentStrategyContext {
   projectId: string;
@@ -21,7 +22,8 @@ export interface AgentStrategyContext {
     rationale?: string;
     confidence?: number;
   };
-  designPreferences?: DesignPreferences; // User-specified design constraints
+  designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
+  tags?: AppliedTag[]; // Tag-based configuration system
 }
 
 export interface AgentStrategy {
