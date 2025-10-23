@@ -22,21 +22,23 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 
-async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 2): Promise<T | null> {
+async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
     } catch (error: any) {
-      const isTimeout = error?.code === 'ETIMEDOUT' || error?.errno === -60;
+      const isTimeout = error?.code === 'ETIMEDOUT' || error?.errno === -60 || error?.message?.includes('timeout');
       const isLastAttempt = attempt === retries;
 
       if (isTimeout && !isLastAttempt) {
-        console.warn(`[build-route] DB timeout on attempt ${attempt + 1}, retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
+        console.warn(`[build-route] DB timeout on attempt ${attempt + 1}/${retries}, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
 
       if (!isTimeout || isLastAttempt) {
+        console.error(`[build-route] DB operation failed after ${attempt + 1} attempts:`, error?.message || error);
         throw error;
       }
     }
@@ -352,25 +354,28 @@ export async function POST(
 
       // If toolName is missing and this is an output event, try to find the existing record
       if (!eventData.toolName && state === 'output-available') {
-        const existing = await db
-          .select()
-          .from(generationToolCalls)
-          .where(and(
-            eq(generationToolCalls.sessionId, sessionId),
-            eq(generationToolCalls.toolCallId, toolCallId),
-          ))
-          .limit(1);
+        const existing = await retryOnTimeout(() =>
+          db.select()
+            .from(generationToolCalls)
+            .where(and(
+              eq(generationToolCalls.sessionId, sessionId),
+              eq(generationToolCalls.toolCallId, toolCallId),
+            ))
+            .limit(1)
+        );
 
-        if (existing.length > 0) {
+        if (existing && existing.length > 0) {
           // Update existing record
-          await db.update(generationToolCalls)
-            .set({
-              output: eventData.output ?? null,
-              state,
-              endedAt: timestamp,
-              updatedAt: timestamp,
-            })
-            .where(eq(generationToolCalls.id, existing[0].id));
+          await retryOnTimeout(() =>
+            db.update(generationToolCalls)
+              .set({
+                output: eventData.output ?? null,
+                state,
+                endedAt: timestamp,
+                updatedAt: timestamp,
+              })
+              .where(eq(generationToolCalls.id, existing[0].id))
+          );
           return;
         }
         // If no existing record and no toolName, we can't insert - skip it
@@ -382,28 +387,30 @@ export async function POST(
         return;
       }
 
-      await db.insert(generationToolCalls).values({
-        sessionId,
-        todoIndex,
-        toolCallId,
-        name: eventData.toolName,
-        input: state === 'input-available' ? eventData.input ?? null : undefined,
-        output: state === 'output-available' ? eventData.output ?? null : undefined,
-        state,
-        startedAt: timestamp,
-        endedAt: state === 'output-available' ? timestamp : null,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      }).onConflictDoUpdate({
-        target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
-        set: {
-          input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
-          output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
+      await retryOnTimeout(() =>
+        db.insert(generationToolCalls).values({
+          sessionId,
+          todoIndex,
+          toolCallId,
+          name: eventData.toolName,
+          input: state === 'input-available' ? eventData.input ?? null : undefined,
+          output: state === 'output-available' ? eventData.output ?? null : undefined,
           state,
-          endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
+          startedAt: timestamp,
+          endedAt: state === 'output-available' ? timestamp : null,
+          createdAt: timestamp,
           updatedAt: timestamp,
-        },
-      });
+        }).onConflictDoUpdate({
+          target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
+          set: {
+            input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
+            output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
+            state,
+            endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
+            updatedAt: timestamp,
+          },
+        })
+      );
     };
 
     const appendNote = async (params: { textId?: string; content: string; kind: string; todoIndex: number }) => {

@@ -11,6 +11,16 @@ import { ProjectMetadataSchema } from '@/schemas/metadata';
 
 const CODEX_MODEL = 'gpt-5-codex';
 
+export async function GET() {
+  try {
+    const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
+    return NextResponse.json({ projects: allProjects });
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
+  }
+}
+
 function buildMetadataPrompt(userPrompt: string): string {
   return `User wants to build: "${userPrompt}"
 
