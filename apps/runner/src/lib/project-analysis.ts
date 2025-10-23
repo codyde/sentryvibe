@@ -181,7 +181,7 @@ export async function analyzeProjectRequest(
     console.log(`[project-analysis] Template: ${templateAnalysis.templateName}`);
     console.log(`[project-analysis] Metadata: ${metadata.friendlyName} (${metadata.slug})`);
 
-    return {
+    const result = {
       template: {
         id: templateAnalysis.templateId,
         name: templateAnalysis.templateName,
@@ -201,6 +201,9 @@ export async function analyzeProjectRequest(
       confidence: templateAnalysis.confidence,
       analyzedBy: templateAnalysis.analyzedBy,
     };
+
+    console.log(`[project-analysis] 🎉 Returning result to caller`);
+    return result;
   } catch (error) {
     console.error(`[project-analysis] ❌ Analysis failed:`, error);
     console.error(`[project-analysis] Error details:`, error instanceof Error ? error.message : String(error));
