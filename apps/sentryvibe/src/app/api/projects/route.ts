@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
-import { createInstrumentedCodex } from '@sentry/node';
+import { randomUUID } from 'crypto';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import type { AgentId } from '@sentryvibe/agent-core/types/agent';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import { ProjectMetadataSchema } from '@/schemas/metadata';
+import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
+import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
+import { initializeProjectAnalysisHandler } from '@/services/project-analysis-handler';
 
-const CODEX_MODEL = 'gpt-5-codex';
+// Initialize event handler once (handles PROJECT_ANALYZED events from runner)
+initializeProjectAnalysisHandler();
 
 export async function GET() {
   try {
@@ -21,50 +20,14 @@ export async function GET() {
   }
 }
 
-function buildMetadataPrompt(userPrompt: string): string {
-  return `User wants to build: "${userPrompt}"
-
-Generate project metadata based on this request.
-
-Available icons: Folder, Code, Layout, Database, Zap, Globe, Lock, Users, ShoppingCart, Calendar, MessageSquare, FileText, Image, Music, Video, CheckCircle, Star
-
-Generate a slug (kebab-case), friendly name, description, and appropriate icon.`;
-}
-
-async function runCodexMetadataPrompt(promptText: string): Promise<string> {
-  const codex = await createInstrumentedCodex({
-    workingDirectory: process.cwd(),
-  });
-
-  const thread = codex.startThread({
-    sandboxMode: "danger-full-access",
-    model: CODEX_MODEL,
-    workingDirectory: process.cwd(),
-    skipGitRepoCheck: true,
-  });
-
-  const { events } = await thread.runStreamed(promptText);
-  let accumulated = '';
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for await (const event of events as AsyncIterable<any>) {
-    if (event?.type === 'item.completed') {
-      const item = event.item as Record<string, unknown> | undefined;
-      const text = typeof item?.text === 'string' ? item.text : undefined;
-      if (text) {
-        accumulated += text;
-      }
-    } else if (event?.type === 'turn.completed' && typeof event.finalResponse === 'string') {
-      accumulated += event.finalResponse;
-    }
-  }
-
-  return accumulated;
-}
-
 export async function POST(request: Request) {
   try {
-    const { prompt, agent = 'claude-code', tags } = (await request.json()) as { prompt: string; agent?: AgentId; tags?: any[] };
+    const { prompt, agent = 'claude-code', tags, claudeModel } = (await request.json()) as {
+      prompt: string;
+      agent?: AgentId;
+      tags?: any[];
+      claudeModel?: ClaudeModelId;
+    };
 
     if (!prompt) {
       return NextResponse.json(
@@ -75,114 +38,53 @@ export async function POST(request: Request) {
 
     console.log(`[projects] Creating project from prompt: "${prompt.substring(0, 100)}..."`);
 
-    const metadataPrompt = buildMetadataPrompt(prompt);
-    let metadata;
+    // NEW FLOW: Create project immediately with temporary data
+    // Runner will analyze and send back real metadata via PROJECT_ANALYZED event
+    const projectId = randomUUID();
+    const tempSlug = `analyzing-${Date.now()}`;
 
-    // Use Claude Haiku with structured output via AI SDK
-    if (agent === 'claude-code') {
-      console.log('[projects] Using Claude Haiku for metadata extraction (structured output)');
-
-      try {
-        const result = await generateObject({
-          model: anthropic('claude-haiku-4-5'),
-          schema: ProjectMetadataSchema,
-          prompt: metadataPrompt,
-        });
-
-        metadata = result.object;
-        console.log('✅ Got structured metadata:', metadata);
-      } catch (error) {
-        console.error('❌ Claude structured output failed:', error);
-        console.log('🔄 Falling back to simple metadata generation...');
-      }
-    } else {
-      // Use Codex for metadata
-      console.log('[projects] Using Codex for metadata extraction');
-
-      try {
-        const jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
-
-        if (!jsonResponse || jsonResponse.trim().length === 0) {
-          console.error('❌ Codex returned an empty response for metadata prompt');
-        } else {
-          console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
-
-          // Try to parse Codex response
-          let cleanedResponse = jsonResponse.trim();
-          cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
-          cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
-          cleanedResponse = cleanedResponse.trim();
-
-          const jsonMatches = [...cleanedResponse.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g)];
-
-          for (let i = 0; i < jsonMatches.length; i++) {
-            try {
-              const candidate = jsonMatches[i][0];
-              const parsed = JSON.parse(candidate);
-
-              if (parsed.slug && parsed.friendlyName && parsed.description && parsed.icon) {
-                metadata = parsed;
-                break;
-              }
-            } catch (parseError) {
-              // Try next match
-            }
-          }
-        }
-      } catch (error) {
-        console.error('❌ Codex metadata extraction failed:', error);
-      }
-    }
-
-    // If metadata is still undefined, use fallback
-    if (!metadata) {
-      console.log('🔄 Falling back to simple metadata generation...');
-
-      // Better slug generation
-      const slug = prompt
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .substring(0, 50);
-
-      const words = prompt.split(/\s+/).filter(w => w.length > 0);
-      const friendlyName = words
-        .slice(0, 8)
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-
-      metadata = {
-        slug: slug || 'project-' + Date.now(),
-        friendlyName: friendlyName || 'New Project',
-        description: prompt.substring(0, 150) || 'A new project',
-        icon: 'Code',
-      };
-
-      console.log('📋 Fallback metadata:', metadata);
-    }
-
-    // Check for slug collision
-    let finalSlug = metadata.slug;
-    const existing = await db.select().from(projects).where(eq(projects.slug, finalSlug));
-
-    if (existing.length > 0) {
-      // Append timestamp to ensure uniqueness
-      finalSlug = `${metadata.slug}-${Date.now()}`;
-      console.log(`⚠️  Slug collision detected, using: ${finalSlug}`);
-    }
-
-    // Create the project
     const [project] = await db.insert(projects).values({
-      name: metadata.friendlyName,
-      slug: finalSlug,
-      description: metadata.description,
-      icon: metadata.icon,
-      status: 'pending',
+      id: projectId,
+      name: 'Analyzing...',
+      slug: tempSlug,
+      description: prompt.substring(0, 150),
+      icon: 'Code',
+      status: 'analyzing',
       originalPrompt: prompt,
-      tags: tags || null, // Store tags if provided
+      tags: tags || null,
     }).returning();
 
-    console.log(`✅ Project created: ${project.id}`);
+    console.log(`✅ Project created with temp data: ${project.id}`);
+
+    // Send CREATE_PROJECT command to runner for AI analysis
+    const runnerId = process.env.RUNNER_DEFAULT_ID || 'local';
+    try {
+      await sendCommandToRunner(runnerId, {
+        id: randomUUID(),
+        type: 'create-project',
+        projectId: project.id,
+        timestamp: new Date().toISOString(),
+        payload: {
+          prompt,
+          agent,
+          claudeModel,
+          tags,
+        },
+      });
+
+      console.log(`📤 CREATE_PROJECT command sent to runner`);
+
+      // Runner will send PROJECT_ANALYZED event with real metadata
+      // The event handler in /api/runner/events will update the project
+    } catch (error) {
+      console.error('❌ Failed to send command to runner:', error);
+
+      // Update project status to indicate error
+      await db.update(projects).set({
+        status: 'failed',
+        errorMessage: 'Failed to connect to runner for analysis',
+      }).where(eq(projects.id, project.id));
+    }
 
     return NextResponse.json({
       project,
