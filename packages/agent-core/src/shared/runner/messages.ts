@@ -6,6 +6,7 @@ export type AgentId = CoreAgentId;
 export type ClaudeModelId = CoreClaudeModelId;
 
 export type RunnerCommandType =
+  | 'create-project' // NEW: Analyze prompt and create project (replaces frontend template analysis)
   | 'start-build'
   | 'start-dev-server'
   | 'stop-dev-server'
@@ -20,6 +21,7 @@ export type RunnerCommandType =
 
 export type RunnerEventType =
   | 'ack'
+  | 'project-analyzed' // NEW: Template analysis and metadata extraction complete
   | 'log-chunk'
   | 'port-detected'
   | 'tunnel-created'
@@ -143,7 +145,18 @@ export interface ListFilesCommand extends BaseCommand {
   };
 }
 
+export interface CreateProjectCommand extends BaseCommand {
+  type: 'create-project';
+  payload: {
+    prompt: string;
+    agent?: AgentId;
+    claudeModel?: ClaudeModelId;
+    tags?: AppliedTag[];
+  };
+}
+
 export type RunnerCommand =
+  | CreateProjectCommand
   | StartBuildCommand
   | StartDevServerCommand
   | StopDevServerCommand
@@ -291,8 +304,33 @@ export interface ErrorEvent extends BaseEvent {
   stack?: string;
 }
 
+export interface ProjectAnalyzedEvent extends BaseEvent {
+  type: 'project-analyzed';
+  payload: {
+    template: {
+      id: string;
+      name: string;
+      framework: string;
+      port: number;
+      runCommand: string;
+      repository: string;
+      branch: string;
+    };
+    metadata: {
+      slug: string;
+      friendlyName: string;
+      description: string;
+      icon: string;
+    };
+    reasoning: string;
+    confidence: number;
+    analyzedBy: string; // Which model did the analysis
+  };
+}
+
 export type RunnerEvent =
   | AckEvent
+  | ProjectAnalyzedEvent
   | LogChunkEvent
   | PortDetectedEvent
   | TunnelCreatedEvent
@@ -313,6 +351,7 @@ export type RunnerEvent =
 export type RunnerMessage = RunnerCommand | RunnerEvent;
 
 const COMMAND_TYPES: RunnerCommandType[] = [
+  'create-project',
   'start-build',
   'start-dev-server',
   'stop-dev-server',
