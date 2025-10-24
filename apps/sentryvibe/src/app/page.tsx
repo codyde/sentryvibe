@@ -205,19 +205,22 @@ function HomeContent() {
       setAppliedTags(loadedTags);
     } else if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
       // Initialize default tags for new project
+      // Use first available runner as default (user can change it)
+      const defaultRunnerId = availableRunners[0]?.runnerId || selectedRunnerId;
       const defaultTags: AppliedTag[] = [
         {
           key: 'runner',
-          value: selectedRunnerId,
+          value: defaultRunnerId,
           appliedAt: new Date()
         },
         {
           key: 'model',
-          value: 'claude-haiku-4-5',
+          value: 'claude-haiku-4-5', // Default to Haiku for cost savings
           appliedAt: new Date()
         }
       ];
       setAppliedTags(defaultTags);
+      console.log('[page] ✓ Default tags set: runner=%s, model=claude-haiku-4-5', defaultRunnerId);
     }
   }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId]);
 
@@ -2368,6 +2371,7 @@ function HomeContent() {
                             label: r.runnerId,
                             description: `Runner: ${r.runnerId}`
                           }))}
+                          prompt={input}
                         />
                       </div>
                     </form>
