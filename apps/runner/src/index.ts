@@ -13,6 +13,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
+
+// Disable AI SDK warnings globally
+process.env.AI_SDK_LOG_WARNINGS = 'false';
+
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
