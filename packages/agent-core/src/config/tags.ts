@@ -75,27 +75,22 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
     inputType: 'select',
     options: [
       {
-        value: 'nextjs',
+        value: 'next',
         label: 'Next.js',
-        description: 'React with SSR and file-based routing'
+        description: 'Full-stack React with SSR, App Router, and file-based routing'
+      },
+      {
+        value: 'vite',
+        label: 'React + Vite',
+        description: 'Fast React SPA with Vite - perfect for client-side apps'
       },
       {
         value: 'astro',
         label: 'Astro',
-        description: 'Content-focused with islands architecture'
-      },
-      {
-        value: 'react',
-        label: 'React',
-        description: 'Component library for SPAs'
-      },
-      {
-        value: 'vue',
-        label: 'Vue',
-        description: 'Progressive framework'
+        description: 'Content-focused static sites with islands architecture'
       }
     ],
-    promptTemplate: 'Use {value} as the framework for this project. Set up the project structure according to {value} best practices.'
+    promptTemplate: 'Use {value} as the framework/template for this project. Set up the project structure according to best practices for this stack.'
   },
 
   // Runner Selection (options populated dynamically)
