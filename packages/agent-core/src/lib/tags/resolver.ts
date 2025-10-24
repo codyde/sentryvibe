@@ -344,7 +344,8 @@ export function validateTagValue(key: string, value: string): { valid: boolean; 
   }
 
   // For select inputs, ensure value is in options
-  if (def.inputType === 'select' && def.options) {
+  // Skip validation for dynamic tags (e.g., runner) where options are populated at runtime
+  if (def.inputType === 'select' && def.options && def.options.length > 0) {
     const validValues = def.options.map(o => o.value);
     if (!validValues.includes(value)) {
       return { valid: false, error: 'Invalid option selected' };
