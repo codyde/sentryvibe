@@ -129,7 +129,8 @@ export async function POST(
 
     // NEW: Conditional analysis - framework tag changes behavior
     let templateMetadata = body.template; // Use provided template if available
-    let generatedProjectName: string | undefined;
+    let generatedSlug: string | undefined;
+    let generatedFriendlyName: string | undefined;
 
     if (body.operationType === 'initial-build' && !templateMetadata) {
       // Check if framework tag is present
@@ -141,9 +142,12 @@ export async function POST(
         console.log(`[build-route] Framework: ${frameworkTag.value}`);
 
         try {
-          // Generate project name with Haiku (fast + cheap)
-          generatedProjectName = await generateProjectName(body.prompt, agentId, claudeModel);
-          console.log(`[build-route] ✅ Project name generated: ${generatedProjectName}`);
+          // Generate project names with Haiku (fast + cheap)
+          const names = await generateProjectName(body.prompt, agentId, claudeModel);
+          generatedSlug = names.slug;
+          generatedFriendlyName = names.friendlyName;
+          console.log(`[build-route] ✅ Project slug: ${generatedSlug}`);
+          console.log(`[build-route] ✅ Friendly name: ${generatedFriendlyName}`);
 
           // Get framework metadata from tag definition
           const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
@@ -162,7 +166,8 @@ export async function POST(
             runCommand: 'pnpm dev',
             repository: frameworkOption.repository,
             branch: frameworkOption.branch || 'main',
-            projectName: generatedProjectName, // AI-generated name
+            projectSlug: generatedSlug, // For directory name
+            projectFriendlyName: generatedFriendlyName, // For display
           };
 
           console.log(`[build-route] ✅ Template from tag: ${frameworkOption.label}`);
@@ -804,8 +809,9 @@ export async function POST(
       console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
       console.log(`[build-route]    ID: ${templateMetadata.id}`);
       console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
-      if (generatedProjectName) {
-        console.log(`[build-route]    Project Name: ${generatedProjectName} (AI-generated)`);
+      if (generatedSlug) {
+        console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
+        console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
       }
     } else {
       console.log('[build-route] 📤 No template metadata - runner will auto-select');
@@ -819,8 +825,9 @@ export async function POST(
       payload: {
         operationType: body.operationType,
         prompt: body.prompt,
-        projectSlug: project[0].slug,
-        projectName: generatedProjectName || project[0].name, // Use AI-generated name if available
+        projectSlug: generatedSlug || project[0].slug,
+        projectName: generatedSlug || project[0].name, // Slug for directory name
+        projectFriendlyName: generatedFriendlyName, // Optional - for display
         context: body.context,
         designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
         tags: body.tags, // Tag-based configuration

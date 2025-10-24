@@ -26,3 +26,13 @@ export const TemplateAnalysisSchema = z.object({
 });
 
 export type TemplateAnalysis = z.infer<typeof TemplateAnalysisSchema>;
+
+/**
+ * Project naming schema for structured output
+ */
+export const ProjectNamingSchema = z.object({
+  slug: z.string().describe('URL-friendly project identifier (lowercase, hyphens, 2-4 words)'),
+  friendlyName: z.string().describe('Human-readable project name (Title Case, 2-5 words)'),
+});
+
+export type ProjectNaming = z.infer<typeof ProjectNamingSchema>;

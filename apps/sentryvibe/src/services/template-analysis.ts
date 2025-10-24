@@ -9,7 +9,7 @@ import {
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
 import { generateObject, generateText } from 'ai';
-import { TemplateAnalysisSchema } from '../schemas/metadata';
+import { TemplateAnalysisSchema, ProjectNamingSchema } from '../schemas/metadata';
 
 // Create Claude Code provider instance
 // This picks up ANTHROPIC_API_KEY from environment automatically
@@ -67,56 +67,60 @@ export interface TemplateAnalysisResult {
 }
 
 /**
- * Generate a project name from user prompt using AI
+ * Generate project name and slug from user prompt using AI
  * Uses Haiku for speed and cost efficiency
+ * Returns both friendly name (Title Case) and slug (kebab-case)
  */
 export async function generateProjectName(
   prompt: string,
   selectedAgent: AgentId,
   claudeModel?: ClaudeModelId
-): Promise<string> {
-  const namePrompt = `Create a professional, descriptive project name in kebab-case format.
-
-Requirements:
-- Use lowercase letters, numbers, and hyphens only
-- 2-4 words maximum
-- Clear and descriptive
-- No emojis or special characters
-
-Examples:
-- "Build a todo app" → "todo-app"
-- "Create an error monitoring dashboard" → "error-monitoring-dashboard"
-- "Make a chat application with real-time messaging" → "realtime-chat-app"
-- "Build a blog for my personal site" → "personal-blog"
+): Promise<{ slug: string; friendlyName: string }> {
+  const namePrompt = `Analyze this project description and create appropriate names:
 
 User's project request: "${prompt}"
 
-Return ONLY the project name, nothing else. No explanations, no quotes, just the name.`;
+Generate:
+1. A URL-friendly slug (lowercase, hyphens, 2-4 words)
+2. A human-readable friendly name (Title Case, 2-5 words)
 
-  console.log('[template-analysis] Generating project name with Haiku');
+Examples:
+- "Build a todo app" → slug: "todo-app", friendlyName: "Todo App"
+- "Create an error monitoring dashboard" → slug: "error-monitoring-dashboard", friendlyName: "Error Monitoring Dashboard"
+- "Make a chat app with real-time messaging" → slug: "realtime-chat-app", friendlyName: "Realtime Chat App"
+- "Build a blog for my personal site" → slug: "personal-blog", friendlyName: "Personal Blog"
+
+Requirements:
+- Slug: lowercase, hyphens only, no special characters
+- Friendly name: Title Case, readable, professional
+- Both should be descriptive and clear`;
+
+  console.log('[template-analysis] Generating project names with Haiku');
 
   try {
     // Always use Haiku for name generation (fast + cheap)
-    const result = await generateText({
+    const result = await generateObject({
       model: claudeCode('claude-haiku-4-5'),
+      schema: ProjectNamingSchema,
       prompt: namePrompt,
-      maxTokens: 30,
       temperature: 0.3, // Lower temperature for consistent naming
     });
 
-    const projectName = result.text.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-    console.log(`[template-analysis] Generated project name: ${projectName}`);
+    const { slug, friendlyName } = result.object;
 
-    // Validate it's a reasonable name
-    if (projectName.length < 2 || projectName.length > 100) {
-      throw new Error('Generated name is invalid length');
+    console.log(`[template-analysis] Generated slug: ${slug}`);
+    console.log(`[template-analysis] Generated friendly name: ${friendlyName}`);
+
+    // Validate slug
+    if (slug.length < 2 || slug.length > 100 || !/^[a-z0-9-]+$/.test(slug)) {
+      throw new Error('Generated slug is invalid format');
     }
 
-    return projectName;
+    return { slug, friendlyName };
   } catch (error) {
     console.error('[template-analysis] Name generation failed, using fallback:', error);
 
-    // Fallback: generate simple slug
+    // Fallback: generate simple slug and title-case it for friendly name
     const words = prompt
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, '')
@@ -125,7 +129,12 @@ Return ONLY the project name, nothing else. No explanations, no quotes, just the
       .filter(w => !['the', 'and', 'for', 'with', 'build', 'create', 'make'].includes(w))
       .slice(0, 4);
 
-    return words.length > 0 ? words.join('-') : 'new-project';
+    const slug = words.length > 0 ? words.join('-') : 'new-project';
+    const friendlyName = words.length > 0
+      ? words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      : 'New Project';
+
+    return { slug, friendlyName };
   }
 }
 
