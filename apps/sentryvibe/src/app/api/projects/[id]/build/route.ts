@@ -97,9 +97,9 @@ export async function POST(
       const modelTag = body.tags.find(t => t.key === 'model');
       if (modelTag) {
         const parsed = parseModelTag(modelTag.value);
-        agentId = parsed.provider; // 'claude-code' or 'openai-codex'
-        if (agentId === 'claude-code' && parsed.model) {
-          claudeModel = parsed.model as ClaudeModelId;
+        agentId = parsed.agent; // 'claude-code' or 'openai-codex'
+        if (agentId === 'claude-code' && parsed.claudeModel) {
+          claudeModel = parsed.claudeModel as ClaudeModelId;
         }
         console.log('[build-route] ✓ Model enforced from tags:', agentId, agentId === 'claude-code' ? claudeModel : '');
       }

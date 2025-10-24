@@ -84,7 +84,8 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
       buildLogger.log('info', 'orchestrator', `✓ Framework enforced from tags: ${frameworkTag.value}`);
 
       // Load all templates and filter to only those matching the framework
-      const allTemplates = await import('./templates/config.js').then(m => m.getAllTemplates?.() || []);
+      const { getAllTemplates } = await import('./templates/config.js');
+      const allTemplates = (await getAllTemplates?.()) || [];
       const matchingTemplate = allTemplates.find((t: Template) =>
         t.tech.framework.toLowerCase() === frameworkTag.value.toLowerCase()
       );
@@ -107,8 +108,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     );
 
     // Find full template object from templates.json
-    const allTemplates = await import('./templates/config.js').then(m => m.getAllTemplates?.() || []);
-    const fullTemplate = await allTemplates.find((t: Template) => t.id === providedTemplate.id);
+    const { getAllTemplates } = await import('./templates/config.js');
+    const allTemplates = (await getAllTemplates?.()) || [];
+    const fullTemplate = allTemplates.find((t: Template) => t.id === providedTemplate.id);
 
     if (fullTemplate) {
       selectedTemplate = fullTemplate;
