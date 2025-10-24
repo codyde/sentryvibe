@@ -51,15 +51,12 @@ importers:
 
   apps/runner:
     dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.1.25
-        version: 0.1.25(zod@4.1.12)
+      '@ai-sdk/openai':
+        specifier: ^2.0.53
+        version: 2.0.53(zod@4.1.12)
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0
-      '@openai/codex-sdk':
-        specifier: ^0.47.0
-        version: 0.47.0
       '@sentry/core':
         specifier: file:../sentryvibe/vendor/sentry-core-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
@@ -75,6 +72,12 @@ importers:
       '@sentryvibe/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      ai:
+        specifier: ^5.0.57
+        version: 5.0.76(zod@4.1.12)
+      ai-sdk-provider-claude-code:
+        specifier: ^2.1.0
+        version: 2.1.0(zod@4.1.12)
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -359,6 +362,12 @@ packages:
 
   '@ai-sdk/gateway@2.0.0':
     resolution: {integrity: sha512-Gj0PuawK7NkZuyYgO/h5kDK/l6hFOjhLdTq3/Lli1FTl47iGmwhH1IZQpAL3Z09BeFYWakcwUmn02ovIm2wy9g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@2.0.53':
+    resolution: {integrity: sha512-GIkR3+Fyif516ftXv+YPSPstnAHhcZxNoR2s8uSHhQ1yBT7I7aQYTVwpjAuYoT3GR+TeP50q7onj2/nDRbT2FQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5599,6 +5608,12 @@ snapshots:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
       '@vercel/oidc': 3.0.3
+      zod: 4.1.12
+
+  '@ai-sdk/openai@2.0.53(zod@4.1.12)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
       zod: 4.1.12
 
   '@ai-sdk/provider-utils@3.0.12(zod@4.1.12)':
