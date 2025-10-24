@@ -301,7 +301,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
           { value: 'Roboto', label: 'Roboto', description: 'Neo-grotesque sans-serif - clean and neutral' },
           { value: 'Work Sans', label: 'Work Sans', description: 'Optimized for screen - clear and legible' },
           { value: 'Lato', label: 'Lato', description: 'Warm sans-serif - friendly and professional' },
-          { value: 'Source Sans 3', label: 'Source Sans 3', description: 'Adobe's sans-serif - clean and technical' }
+          { value: 'Source Sans 3', label: 'Source Sans 3', description: 'Adobe sans-serif - clean and technical' }
         ],
         promptTemplate: 'Use {value} as the body font for all paragraphs, labels, buttons, and UI text. Import from Google Fonts if not a system font.'
       },
