@@ -48,6 +48,7 @@ import {
   resetTransformerState,
   setExpectedCwd,
 } from "./lib/message-transformer.js";
+import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
@@ -383,9 +384,9 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
       },
     });
 
-    // Convert AI SDK stream to expected format
-    for await (const chunk of result.fullStream) {
-      yield chunk;
+    // Transform AI SDK stream format to our message format
+    for await (const message of transformAISDKStream(result.fullStream)) {
+      yield message;
     }
   };
 }
@@ -432,9 +433,9 @@ function createCodexQuery(): BuildQueryFn {
       },
     });
 
-    // Convert AI SDK stream to expected format
-    for await (const chunk of result.fullStream) {
-      yield chunk;
+    // Transform AI SDK stream format to our message format
+    for await (const message of transformAISDKStream(result.fullStream)) {
+      yield message;
     }
   };
 }
