@@ -17,11 +17,12 @@ import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvi
 import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
 import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
-import { analyzePromptForTemplate } from '@/services/template-analysis';
+import { analyzePromptForTemplate, generateProjectName } from '@/services/template-analysis';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { parseModelTag } from '@sentryvibe/agent-core/lib/tags/model-parser';
+import { TAG_DEFINITIONS } from '@sentryvibe/agent-core/config/tags';
 
 async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -126,34 +127,78 @@ export async function POST(
       console.log('[build-route] Claude model selected:', claudeModel);
     }
 
-    // NEW: Automatically analyze prompt for template selection if this is a new project
+    // NEW: Conditional analysis - framework tag changes behavior
     let templateMetadata = body.template; // Use provided template if available
+    let generatedProjectName: string | undefined;
 
     if (body.operationType === 'initial-build' && !templateMetadata) {
-      console.log('[build-route] New project detected, analyzing prompt for template selection...');
-      console.log(`[build-route] Using ${agentId} model for analysis`);
+      // Check if framework tag is present
+      const frameworkTag = body.tags?.find(t => t.key === 'framework');
 
-      try {
-        const templates = await loadTemplates();
-        const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates, claudeModel);
+      if (frameworkTag) {
+        // FAST PATH: Framework tag present - skip template analysis, only generate name
+        console.log('[build-route] Framework tag present - skipping template analysis');
+        console.log(`[build-route] Framework: ${frameworkTag.value}`);
 
-        templateMetadata = {
-          id: analysis.templateId,
-          name: analysis.templateName,
-          framework: analysis.framework,
-          port: analysis.defaultPort,
-          runCommand: analysis.devCommand,
-          repository: analysis.repository,
-          branch: analysis.branch,
-        };
+        try {
+          // Generate project name with Haiku (fast + cheap)
+          generatedProjectName = await generateProjectName(body.prompt, agentId, claudeModel);
+          console.log(`[build-route] ✅ Project name generated: ${generatedProjectName}`);
 
-        console.log(`[build-route] ✅ Template selected: ${analysis.templateName}`);
-        console.log(`[build-route]    Reasoning: ${analysis.reasoning}`);
-        console.log(`[build-route]    Confidence: ${analysis.confidence}`);
-        console.log(`[build-route]    Analyzed by: ${analysis.analyzedBy}`);
-      } catch (analysisError) {
-        console.error('[build-route] ⚠️ Template analysis failed, will fall back to runner auto-selection:', analysisError);
-        // Don't fail the build - let the runner handle template selection as fallback
+          // Get framework metadata from tag definition
+          const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
+          const frameworkOption = frameworkDef?.options?.find(o => o.value === frameworkTag.value);
+
+          if (!frameworkOption?.repository) {
+            throw new Error(`Framework tag ${frameworkTag.value} missing repository metadata`);
+          }
+
+          // Build template metadata from tag (no AI analysis needed)
+          templateMetadata = {
+            id: `${frameworkTag.value}-default`,
+            name: frameworkOption.label,
+            framework: frameworkTag.value,
+            port: 3000,
+            runCommand: 'pnpm dev',
+            repository: frameworkOption.repository,
+            branch: frameworkOption.branch || 'main',
+            projectName: generatedProjectName, // AI-generated name
+          };
+
+          console.log(`[build-route] ✅ Template from tag: ${frameworkOption.label}`);
+          console.log(`[build-route]    Repository: ${frameworkOption.repository}`);
+          console.log(`[build-route]    Cost savings: ~85% (skipped template analysis)`);
+        } catch (error) {
+          console.error('[build-route] ⚠️ Framework tag processing failed:', error);
+          throw error; // Don't fall back - tag enforcement should work
+        }
+      } else {
+        // FULL PATH: No framework tag - run complete template analysis
+        console.log('[build-route] No framework tag - running full template analysis');
+        console.log(`[build-route] Using ${agentId} model for analysis`);
+
+        try {
+          const templates = await loadTemplates();
+          const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates, claudeModel);
+
+          templateMetadata = {
+            id: analysis.templateId,
+            name: analysis.templateName,
+            framework: analysis.framework,
+            port: analysis.defaultPort,
+            runCommand: analysis.devCommand,
+            repository: analysis.repository,
+            branch: analysis.branch,
+          };
+
+          console.log(`[build-route] ✅ Template selected: ${analysis.templateName}`);
+          console.log(`[build-route]    Reasoning: ${analysis.reasoning}`);
+          console.log(`[build-route]    Confidence: ${analysis.confidence}`);
+          console.log(`[build-route]    Analyzed by: ${analysis.analyzedBy}`);
+        } catch (analysisError) {
+          console.error('[build-route] ⚠️ Template analysis failed, will fall back to runner auto-selection:', analysisError);
+          // Don't fail the build - let the runner handle template selection as fallback
+        }
       }
     }
 
@@ -759,6 +804,9 @@ export async function POST(
       console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
       console.log(`[build-route]    ID: ${templateMetadata.id}`);
       console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
+      if (generatedProjectName) {
+        console.log(`[build-route]    Project Name: ${generatedProjectName} (AI-generated)`);
+      }
     } else {
       console.log('[build-route] 📤 No template metadata - runner will auto-select');
     }
@@ -772,7 +820,7 @@ export async function POST(
         operationType: body.operationType,
         prompt: body.prompt,
         projectSlug: project[0].slug,
-        projectName: project[0].name,
+        projectName: generatedProjectName || project[0].name, // Use AI-generated name if available
         context: body.context,
         designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
         tags: body.tags, // Tag-based configuration

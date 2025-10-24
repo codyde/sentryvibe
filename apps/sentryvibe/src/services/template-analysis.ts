@@ -8,7 +8,7 @@ import {
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
-import { generateObject } from 'ai';
+import { generateObject, generateText } from 'ai';
 import { TemplateAnalysisSchema } from '../schemas/metadata';
 
 // Create Claude Code provider instance
@@ -63,6 +63,70 @@ export interface TemplateAnalysisResult {
   reasoning: string;
   confidence: number;
   analyzedBy: string;
+  projectName?: string; // Optional - included when generated separately
+}
+
+/**
+ * Generate a project name from user prompt using AI
+ * Uses Haiku for speed and cost efficiency
+ */
+export async function generateProjectName(
+  prompt: string,
+  selectedAgent: AgentId,
+  claudeModel?: ClaudeModelId
+): Promise<string> {
+  const namePrompt = `Create a professional, descriptive project name in kebab-case format.
+
+Requirements:
+- Use lowercase letters, numbers, and hyphens only
+- 2-4 words maximum
+- Clear and descriptive
+- No emojis or special characters
+
+Examples:
+- "Build a todo app" → "todo-app"
+- "Create an error monitoring dashboard" → "error-monitoring-dashboard"
+- "Make a chat application with real-time messaging" → "realtime-chat-app"
+- "Build a blog for my personal site" → "personal-blog"
+
+User's project request: "${prompt}"
+
+Return ONLY the project name, nothing else. No explanations, no quotes, just the name.`;
+
+  console.log('[template-analysis] Generating project name with Haiku');
+
+  try {
+    // Always use Haiku for name generation (fast + cheap)
+    const result = await generateText({
+      model: claudeCode('claude-haiku-4-5'),
+      prompt: namePrompt,
+      maxTokens: 30,
+      temperature: 0.3, // Lower temperature for consistent naming
+    });
+
+    const projectName = result.text.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    console.log(`[template-analysis] Generated project name: ${projectName}`);
+
+    // Validate it's a reasonable name
+    if (projectName.length < 2 || projectName.length > 100) {
+      throw new Error('Generated name is invalid length');
+    }
+
+    return projectName;
+  } catch (error) {
+    console.error('[template-analysis] Name generation failed, using fallback:', error);
+
+    // Fallback: generate simple slug
+    const words = prompt
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2)
+      .filter(w => !['the', 'and', 'for', 'with', 'build', 'create', 'make'].includes(w))
+      .slice(0, 4);
+
+    return words.length > 0 ? words.join('-') : 'new-project';
+  }
 }
 
 /**
