@@ -73,14 +73,21 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   // The buildQuery wrapper will configure the SDK with all options
   // Use actualWorkingDir so the query function gets the correct CWD
 
+  console.log('[build-engine] 🚀 Creating generator with query function...');
   const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent);
 
-
+  console.log('[build-engine] 📦 Creating ReadableStream from generator...');
   // Create a ReadableStream from the AsyncGenerator
   const stream = new ReadableStream({
     async start(controller) {
+      console.log('[build-engine] ▶️  Stream start() called, beginning to consume generator...');
+      let chunkCount = 0;
       try {
         for await (const chunk of generator) {
+          chunkCount++;
+          if (chunkCount % 5 === 0) {
+            console.log(`[build-engine] Processed ${chunkCount} chunks from generator`);
+          }
           // Convert chunk to appropriate format
           if (typeof chunk === 'string') {
             controller.enqueue(new TextEncoder().encode(chunk));
@@ -90,8 +97,10 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
             controller.enqueue(new TextEncoder().encode(JSON.stringify(chunk)));
           }
         }
+        console.log(`[build-engine] ✅ Generator exhausted after ${chunkCount} chunks, closing stream`);
         controller.close();
       } catch (error) {
+        console.error('[build-engine] ❌ Error consuming generator:', error);
         controller.error(error);
       } finally {
         // Restore the original working directory
@@ -100,5 +109,6 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
     },
   });
 
+  console.log('[build-engine] ✅ Stream created and returned');
   return stream;
 }
