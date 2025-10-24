@@ -3,6 +3,7 @@ import type { AgentStrategy, AgentStrategyContext } from './strategy';
 import { processCodexEvent } from './codex/events';
 import type { CodexSessionState } from '@/types/generation';
 import { loadTemplateSelectionContext } from '../templates/load-template-context';
+import { resolveTags, generatePromptFromTags } from '../tags/resolver';
 
 function getParentDirectory(filePath: string): string {
   if (!filePath) return filePath;
@@ -49,6 +50,15 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
   sections.push(`## Quality Expectations
 - Narrate key steps in the chat stream.
 - Include the mandatory todo list JSON in every response.`);
+
+  // Add tag-based configuration (same as claude-strategy)
+  if (context.tags && context.tags.length > 0) {
+    const resolved = resolveTags(context.tags);
+    const tagPrompt = generatePromptFromTags(resolved);
+    if (tagPrompt) {
+      sections.push(tagPrompt);
+    }
+  }
 
   // NEW: Only include template catalog if template wasn't pre-selected
   if (context.templateSelectionContext && !context.templateMetadata) {

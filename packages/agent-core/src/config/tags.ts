@@ -29,6 +29,8 @@ export interface TagDefinition {
   promptTemplate?: string;
   // Allow multiple instances of this tag
   allowMultiple?: boolean;
+  // Maximum number of selections (for multi-select)
+  maxSelections?: number;
 }
 
 export const TAG_DEFINITIONS: TagDefinition[] = [
@@ -121,7 +123,20 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         description: 'Pre-configured brand color themes',
         category: 'design',
         inputType: 'select',
+        maxSelections: 1,
         options: [
+          {
+            value: 'sentry',
+            label: 'Sentry',
+            description: 'Error monitoring and performance - vibrant purple and pink',
+            values: {
+              primaryColor: '#9D58BF',
+              secondaryColor: '#FF708C',
+              accentColor: '#FF9838',
+              neutralLight: '#F0ECF3',
+              neutralDark: '#2B2233'
+            }
+          },
           {
             value: 'stripe',
             label: 'Stripe',
@@ -252,14 +267,54 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         promptTemplate: 'Use {value} as the dark neutral color for text, borders, and dark mode backgrounds.'
       },
 
+      // Typography
+      {
+        key: 'headingFont',
+        label: 'Heading Font',
+        description: 'Font family for headings (h1-h6)',
+        category: 'design',
+        inputType: 'select',
+        maxSelections: 1,
+        options: [
+          { value: 'Inter', label: 'Inter', description: 'Clean, modern sans-serif - excellent readability' },
+          { value: 'Poppins', label: 'Poppins', description: 'Geometric sans-serif - friendly and approachable' },
+          { value: 'Montserrat', label: 'Montserrat', description: 'Urban sans-serif - professional and bold' },
+          { value: 'Space Grotesk', label: 'Space Grotesk', description: 'Tech-forward sans-serif - modern and unique' },
+          { value: 'Playfair Display', label: 'Playfair Display', description: 'Elegant serif - sophisticated and refined' },
+          { value: 'Merriweather', label: 'Merriweather', description: 'Classic serif - readable and trustworthy' },
+          { value: 'Lexend', label: 'Lexend', description: 'Highly legible sans-serif - accessibility focused' },
+          { value: 'DM Sans', label: 'DM Sans', description: 'Low-contrast sans-serif - clean and minimal' }
+        ],
+        promptTemplate: 'Use {value} as the heading font for all h1, h2, h3, h4, h5, h6 elements. Import from Google Fonts.'
+      },
+      {
+        key: 'bodyFont',
+        label: 'Body Font',
+        description: 'Font family for body text and UI elements',
+        category: 'design',
+        inputType: 'select',
+        maxSelections: 1,
+        options: [
+          { value: 'System UI', label: 'System UI', description: 'Native system fonts - fast and familiar' },
+          { value: 'Inter', label: 'Inter', description: 'Clean, modern sans-serif - excellent readability' },
+          { value: 'Open Sans', label: 'Open Sans', description: 'Friendly humanist sans-serif - highly readable' },
+          { value: 'Roboto', label: 'Roboto', description: 'Neo-grotesque sans-serif - clean and neutral' },
+          { value: 'Work Sans', label: 'Work Sans', description: 'Optimized for screen - clear and legible' },
+          { value: 'Lato', label: 'Lato', description: 'Warm sans-serif - friendly and professional' },
+          { value: 'Source Sans 3', label: 'Source Sans 3', description: 'Adobe's sans-serif - clean and technical' }
+        ],
+        promptTemplate: 'Use {value} as the body font for all paragraphs, labels, buttons, and UI text. Import from Google Fonts if not a system font.'
+      },
+
       // Style/Mood Selection
       {
         key: 'style',
         label: 'Style',
-        description: 'Visual style and design aesthetic (can add multiple)',
+        description: 'Visual style and design aesthetic (select up to 3)',
         category: 'design',
         inputType: 'select',
         allowMultiple: true,
+        maxSelections: 3,
         options: [
           {
             value: 'modern',

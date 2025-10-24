@@ -77,8 +77,29 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     tags, // Tag-based configuration
   };
 
-  // NEW: Check if frontend provided a template (from analysis endpoint)
-  if (providedTemplate) {
+  // PRIORITY: Check if tags specify a framework - if so, enforce it (tags override everything)
+  if (tags && tags.length > 0) {
+    const frameworkTag = tags.find(t => t.key === 'framework');
+    if (frameworkTag) {
+      buildLogger.log('info', 'orchestrator', `✓ Framework enforced from tags: ${frameworkTag.value}`);
+
+      // Load all templates and filter to only those matching the framework
+      const allTemplates = await import('./templates/config.js').then(m => m.getAllTemplates?.() || []);
+      const matchingTemplate = allTemplates.find((t: Template) =>
+        t.tech.framework.toLowerCase() === frameworkTag.value.toLowerCase()
+      );
+
+      if (matchingTemplate) {
+        selectedTemplate = matchingTemplate;
+        buildLogger.orchestrator.templateSelected(matchingTemplate.name, matchingTemplate.id);
+      } else {
+        throw new Error(`No template found for framework: ${frameworkTag.value}. Available templates must match the tag selection.`);
+      }
+    }
+  }
+
+  // If no framework tag, check if frontend provided a template (from analysis endpoint)
+  if (!selectedTemplate && providedTemplate) {
     buildLogger.orchestrator.templateProvided(
       providedTemplate.name,
       providedTemplate.id,
