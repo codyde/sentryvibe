@@ -33,6 +33,10 @@ export interface ResolvedTags {
   neutralDark?: string;
   styles?: string[]; // Changed to array for multi-select
 
+  // Typography
+  headingFont?: string;
+  bodyFont?: string;
+
   // Track which brand was used (if any)
   brand?: string;
 }

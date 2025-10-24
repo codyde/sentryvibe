@@ -21,6 +21,7 @@ import { analyzePromptForTemplate } from '@/services/template-analysis';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
+import { parseModelTag } from '@sentryvibe/agent-core/lib/tags/model-parser';
 
 async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -87,12 +88,39 @@ export async function POST(
     }
 
     commandId = randomUUID();
-    const runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
-    const agentId = body.agent ?? DEFAULT_AGENT_ID;
-    const claudeModel: ClaudeModelId =
-      agentId === 'claude-code' && (body.claudeModel === 'claude-haiku-4-5' || body.claudeModel === 'claude-sonnet-4-5')
-        ? body.claudeModel
-        : DEFAULT_CLAUDE_MODEL_ID;
+
+    // PRIORITY 1: Extract model from tags if present (tags take precedence)
+    let agentId = body.agent ?? DEFAULT_AGENT_ID;
+    let claudeModel: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID;
+
+    if (body.tags && body.tags.length > 0) {
+      const modelTag = body.tags.find(t => t.key === 'model');
+      if (modelTag) {
+        const parsed = parseModelTag(modelTag.value);
+        agentId = parsed.agent; // 'claude-code' or 'openai-codex'
+        if (agentId === 'claude-code' && parsed.claudeModel) {
+          claudeModel = parsed.claudeModel as ClaudeModelId;
+        }
+        console.log('[build-route] ✓ Model enforced from tags:', agentId, agentId === 'claude-code' ? claudeModel : '');
+      }
+    } else {
+      // Fallback to body parameters if no model tag
+      claudeModel =
+        agentId === 'claude-code' && (body.claudeModel === 'claude-haiku-4-5' || body.claudeModel === 'claude-sonnet-4-5')
+          ? body.claudeModel
+          : DEFAULT_CLAUDE_MODEL_ID;
+    }
+
+    // PRIORITY 2: Extract runner from tags if present (tags take precedence)
+    let runnerId = body.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
+    if (body.tags && body.tags.length > 0) {
+      const runnerTag = body.tags.find(t => t.key === 'runner');
+      if (runnerTag) {
+        runnerId = runnerTag.value;
+        console.log('[build-route] ✓ Runner enforced from tags:', runnerId);
+      }
+    }
+
     console.log('[build-route] Using agent for build:', agentId);
     if (agentId === 'claude-code') {
       console.log('[build-route] Claude model selected:', claudeModel);
