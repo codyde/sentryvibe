@@ -73,7 +73,7 @@ export async function* transformAISDKStream(
   let yieldCount = 0;
 
   // ALWAYS log start (not behind DEBUG flag)
-  console.log('[ai-sdk-adapter] ✅ Starting stream transformation...');
+  console.log('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...');
 
   for await (const part of stream) {
     eventCount++;
@@ -81,7 +81,7 @@ export async function* transformAISDKStream(
 
     // Log every 10 events to show progress
     if (eventCount % 10 === 0) {
-      console.log(`[ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages`);
+      console.log(`[runner] [ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages`);
     }
 
     switch (part.type) {
@@ -164,7 +164,7 @@ export async function* transformAISDKStream(
             },
           };
           yieldCount++;
-          console.log(`[ai-sdk-adapter] 🔧 Tool call: ${toolName}`); // ALWAYS log tools
+          console.log(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}`); // ALWAYS log tools
           if (DEBUG) console.log('[ai-sdk-adapter] Full tool call:', toolName, toolCallId, toolInput);
           yield message;
         }
@@ -247,5 +247,5 @@ export async function* transformAISDKStream(
   }
 
   // ALWAYS log completion
-  console.log(`[ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages`);
+  console.log(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages`);
 }

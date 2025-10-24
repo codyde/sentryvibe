@@ -1,6 +1,13 @@
 // Note: Vendor packages are initialized by cli/index.ts before this module loads
 // This ensures agent-core is available for imports
 
+// VERSION CHECK - This will log immediately when module loads
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🚀 RUNNER INDEX.TS LOADED - AI SDK VERSION');
+console.log('   Built at:', new Date().toISOString());
+console.log('   This proves the new code is running');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { config as loadEnv } from "dotenv";
@@ -348,10 +355,10 @@ async function* convertCodexEventsToAgentMessages(
  */
 function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt) {
-    console.log('[createClaudeQuery] 🎯 Query function called');
-    console.log('[createClaudeQuery] Model:', modelId);
-    console.log('[createClaudeQuery] Working dir:', workingDirectory);
-    console.log('[createClaudeQuery] Prompt length:', prompt.length);
+    console.log('[runner] [createClaudeQuery] 🎯 Query function called');
+    console.log('[runner] [createClaudeQuery] Model:', modelId);
+    console.log('[runner] [createClaudeQuery] Working dir:', workingDirectory);
+    console.log('[runner] [createClaudeQuery] Prompt length:', prompt.length);
 
     // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
