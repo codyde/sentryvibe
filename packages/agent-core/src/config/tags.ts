@@ -14,6 +14,9 @@ export interface TagOption {
   // For model tags - provider and model mapping
   provider?: string;
   model?: string;
+  // For framework tags - template repository information
+  repository?: string;
+  branch?: string;
 }
 
 export interface TagDefinition {
@@ -77,20 +80,26 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
       {
         value: 'next',
         label: 'Next.js',
-        description: 'Full-stack React with SSR, App Router, and file-based routing'
+        description: 'Full-stack React with SSR, App Router, and file-based routing',
+        repository: 'github:codyde/template-nextjs15',
+        branch: 'main'
       },
       {
         value: 'vite',
         label: 'React + Vite',
-        description: 'Fast React SPA with Vite - perfect for client-side apps'
+        description: 'Fast React SPA with Vite - perfect for client-side apps',
+        repository: 'github:codyde/template-reactvite',
+        branch: 'main'
       },
       {
         value: 'astro',
         label: 'Astro',
-        description: 'Content-focused static sites with islands architecture'
+        description: 'Content-focused static sites with islands architecture',
+        repository: 'github:codyde/template-astro',
+        branch: 'main'
       }
     ],
-    promptTemplate: 'Use {value} as the framework/template for this project. Set up the project structure according to best practices for this stack.'
+    promptTemplate: 'CRITICAL: You MUST use the {label} template. Clone it using: npx degit {repository}#{branch} {{projectName}}'
   },
 
   // Runner Selection (options populated dynamically)

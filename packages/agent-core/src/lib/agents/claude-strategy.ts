@@ -30,7 +30,7 @@ Review the current codebase and apply the requested changes without re-scaffoldi
   // Use tag-based configuration if available, otherwise fall back to designPreferences
   if (context.tags && context.tags.length > 0) {
     const resolved = resolveTags(context.tags);
-    const tagPrompt = generatePromptFromTags(resolved);
+    const tagPrompt = generatePromptFromTags(resolved, context.projectName);
     if (tagPrompt) {
       sections.push(tagPrompt);
     }

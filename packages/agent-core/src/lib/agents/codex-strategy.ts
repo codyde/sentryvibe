@@ -54,7 +54,7 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
   // Add tag-based configuration (same as claude-strategy)
   if (context.tags && context.tags.length > 0) {
     const resolved = resolveTags(context.tags);
-    const tagPrompt = generatePromptFromTags(resolved);
+    const tagPrompt = generatePromptFromTags(resolved, context.projectName);
     if (tagPrompt) {
       sections.push(tagPrompt);
     }

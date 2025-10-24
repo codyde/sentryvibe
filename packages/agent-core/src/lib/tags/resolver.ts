@@ -91,17 +91,33 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
 /**
  * Generate AI prompt section from resolved tags
  */
-export function generatePromptFromTags(resolved: ResolvedTags): string {
+export function generatePromptFromTags(resolved: ResolvedTags, projectName?: string): string {
   const sections: string[] = [];
 
-  // Framework section - MANDATORY
+  // Framework section - MANDATORY with explicit degit command
   if (resolved.framework) {
-    sections.push(`## Framework Requirement (MANDATORY)
+    const frameworkDef = findTagDefinition('framework');
+    const frameworkOption = frameworkDef?.options?.find(o => o.value === resolved.framework);
+
+    if (frameworkOption && frameworkDef?.promptTemplate) {
+      // Substitute template variables
+      let prompt = frameworkDef.promptTemplate
+        .replace('{label}', frameworkOption.label)
+        .replace('{value}', frameworkOption.value)
+        .replace('{repository}', frameworkOption.repository || '')
+        .replace('{branch}', frameworkOption.branch || 'main')
+        .replace('{{projectName}}', projectName || '<project-name>');
+
+      sections.push(`## Framework Requirement (MANDATORY)\n\n${prompt}`);
+    } else {
+      // Fallback if no template defined
+      sections.push(`## Framework Requirement (MANDATORY)
 
 CRITICAL: The user has explicitly selected ${resolved.framework} as the framework.
 You MUST use ${resolved.framework} for this project. Do NOT suggest or use any other framework.
 
 Set up the project structure according to ${resolved.framework} best practices and conventions.`);
+    }
   }
 
   // Design section - MANDATORY
