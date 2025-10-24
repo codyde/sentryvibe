@@ -43,9 +43,6 @@ import {
 } from "@sentryvibe/agent-core/lib/build-helpers";
 import { processCodexEvent } from "@sentryvibe/agent-core/lib/agents/codex/events";
 import ElementChangeCard from "@/components/ElementChangeCard";
-import DesignConstraintsModal from "@/components/design/DesignConstraintsModal";
-import type { DesignPreferences } from "@sentryvibe/agent-core/types/design";
-import { Palette } from "lucide-react";
 import { TagInput } from "@/components/tags/TagInput";
 import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
 import type { TagOption } from "@sentryvibe/agent-core/config/tags";
@@ -108,8 +105,6 @@ function HomeContent() {
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
-  const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
-  const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null);
   const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
@@ -1270,7 +1265,6 @@ function HomeContent() {
           runnerId: effectiveRunnerId,
           agent: effectiveAgent,
           claudeModel: effectiveClaudeModel,
-          designPreferences: designPreferences || undefined, // Include if set (deprecated - use tags)
           tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
           context: isElementChange
             ? {
@@ -2272,16 +2266,6 @@ function HomeContent() {
             }}
           />
         )}
-        <DesignConstraintsModal
-          isOpen={isDesignModalOpen}
-          onClose={() => setIsDesignModalOpen(false)}
-          currentPreferences={designPreferences}
-          onApply={async (prefs) => {
-            setDesignPreferences(prefs);
-            // Note: Design preferences are sent with build request, not saved to DB here
-            // They'll be saved to the project DB after the project is created
-          }}
-        />
         {deletingProject && (
           <DeleteProjectModal
             isOpen={!!deletingProject}
