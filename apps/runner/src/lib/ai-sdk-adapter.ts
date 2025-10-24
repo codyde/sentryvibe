@@ -69,11 +69,20 @@ export async function* transformAISDKStream(
   let currentTextContent = '';
   let toolInputBuffer: Map<string, { name: string; input: string }> = new Map();
   let toolResults: Map<string, any> = new Map();
+  let eventCount = 0;
+  let yieldCount = 0;
 
-  if (DEBUG) console.log('[ai-sdk-adapter] Starting stream transformation...');
+  // ALWAYS log start (not behind DEBUG flag)
+  console.log('[ai-sdk-adapter] ✅ Starting stream transformation...');
 
   for await (const part of stream) {
+    eventCount++;
     if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
+
+    // Log every 10 events to show progress
+    if (eventCount % 10 === 0) {
+      console.log(`[ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages`);
+    }
 
     switch (part.type) {
       case 'response-metadata':
@@ -97,6 +106,7 @@ export async function* transformAISDKStream(
                 content: [{ type: 'text', text: currentTextContent }],
               },
             };
+            yieldCount++;
             if (DEBUG) console.log('[ai-sdk-adapter] Yielding text:', textChunk.length, 'chars');
             yield message;
           }
@@ -153,7 +163,9 @@ export async function* transformAISDKStream(
               ],
             },
           };
-          if (DEBUG) console.log('[ai-sdk-adapter] Yielding tool call:', toolName, toolCallId);
+          yieldCount++;
+          console.log(`[ai-sdk-adapter] 🔧 Tool call: ${toolName}`); // ALWAYS log tools
+          if (DEBUG) console.log('[ai-sdk-adapter] Full tool call:', toolName, toolCallId, toolInput);
           yield message;
         }
         break;
@@ -233,4 +245,7 @@ export async function* transformAISDKStream(
         break;
     }
   }
+
+  // ALWAYS log completion
+  console.log(`[ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages`);
 }
