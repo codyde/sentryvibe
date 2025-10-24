@@ -65,7 +65,7 @@ export async function* transformAISDKStream(
 ): AsyncGenerator<TransformedMessage, void, unknown> {
   const DEBUG = process.env.DEBUG_BUILD === '1';
 
-  let currentMessageId: string | null = null;
+  let currentMessageId: string = `msg-${Date.now()}`; // Always have a default ID
   let currentTextContent = '';
   let toolInputBuffer: Map<string, { name: string; input: string }> = new Map();
   let toolResults: Map<string, any> = new Map();
@@ -92,31 +92,45 @@ export async function* transformAISDKStream(
     }
 
     switch (part.type) {
-      case 'response-metadata':
-        // Start a new message
-        currentMessageId = part.id || `msg-${Date.now()}`;
-        if (DEBUG) console.log('[ai-sdk-adapter] Started message:', currentMessageId);
+      case 'start':
+      case 'start-step':
+        // Update message ID if provided
+        if (part.id) {
+          currentMessageId = part.id;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Updated message ID: ${currentMessageId}\n`);
+        }
+        break;
+
+      case 'text-start':
+        // Capture message ID from text-start event
+        if (part.id) {
+          currentMessageId = part.id;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Message ID from text-start: ${currentMessageId}\n`);
+        }
         break;
 
       case 'text-delta':
         // Accumulate text content
-        const textChunk = part.delta ?? part.text;
+        const textChunk = part.delta ?? part.text ?? part.textDelta;
         if (typeof textChunk === 'string') {
           currentTextContent += textChunk;
 
-          // Yield incremental text update
-          if (currentMessageId) {
-            const message = {
-              type: 'assistant' as const,
-              message: {
-                id: currentMessageId,
-                content: [{ type: 'text', text: currentTextContent }],
-              },
-            };
-            yieldCount++;
-            if (DEBUG) console.log('[ai-sdk-adapter] Yielding text:', textChunk.length, 'chars');
-            yield message;
+          // Update message ID if provided in the event
+          if (part.id) {
+            currentMessageId = part.id;
           }
+
+          // Yield incremental text update
+          const message = {
+            type: 'assistant' as const,
+            message: {
+              id: currentMessageId,
+              content: [{ type: 'text', text: currentTextContent }],
+            },
+          };
+          yieldCount++;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding text: ${textChunk.length} chars\n`);
+          yield message;
         }
         break;
 
@@ -141,7 +155,7 @@ export async function* transformAISDKStream(
         // Tool call is complete - emit it
         const toolCallId = part.toolCallId || part.id;
         const toolName = part.toolName;
-        let toolInput = part.args;
+        let toolInput = part.args || part.input;
 
         // If we have buffered input, parse it
         if (!toolInput && toolInputBuffer.has(toolCallId)) {
@@ -154,7 +168,7 @@ export async function* transformAISDKStream(
           toolInputBuffer.delete(toolCallId);
         }
 
-        if (currentMessageId && toolName) {
+        if (toolName) {
           const message = {
             type: 'assistant' as const,
             message: {
@@ -172,7 +186,7 @@ export async function* transformAISDKStream(
           };
           yieldCount++;
           process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`); // ALWAYS log tools
-          if (DEBUG) console.log('[ai-sdk-adapter] Full tool call:', toolName, toolCallId, toolInput);
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Full tool call: ${toolName} ${toolCallId}\n`);
           yield message;
         }
         break;
@@ -183,6 +197,7 @@ export async function* transformAISDKStream(
         toolResults.set(resultId, part.result ?? part.output);
 
         // Emit tool result as a user message
+        yieldCount++;
         yield {
           type: 'user',
           message: {
@@ -201,6 +216,7 @@ export async function* transformAISDKStream(
       case 'tool-error':
         // Emit tool error as a user message
         const errorId = part.toolCallId || part.id;
+        yieldCount++;
         yield {
           type: 'user',
           message: {
@@ -218,8 +234,10 @@ export async function* transformAISDKStream(
         break;
 
       case 'finish':
-        // Final message with complete content
-        if (currentMessageId) {
+      case 'finish-step':
+        // Final message with complete content (if we have any text)
+        if (currentTextContent.trim().length > 0) {
+          yieldCount++;
           yield {
             type: 'assistant',
             message: {
@@ -236,12 +254,9 @@ export async function* transformAISDKStream(
         break;
 
       // Ignore other event types
-      case 'start':
-      case 'start-step':
       case 'stream-start':
-      case 'text-start':
       case 'text-end':
-      case 'finish-step':
+      case 'response-metadata':
         break;
 
       default:
