@@ -203,9 +203,9 @@ function HomeContent() {
       // Load tags from existing project
       const loadedTags = deserializeTags(currentProject.tags as any);
       setAppliedTags(loadedTags);
-    } else if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
-      // Initialize default tags for new project
-      // Use first available runner as default (user can change it)
+    } else if (!selectedProjectSlug && availableRunners.length > 0) {
+      // Reset to default tags when viewing new project screen
+      // This ensures tags are reset after deleting a project or switching from project view
       const defaultRunnerId = availableRunners[0]?.runnerId || selectedRunnerId;
       const defaultTags: AppliedTag[] = [
         {
@@ -2279,9 +2279,28 @@ function HomeContent() {
             onDeleteComplete={() => {
               setDeletingProject(null);
               refetch();
-              // If viewing deleted project, navigate home
+              // If viewing deleted project, navigate home and reset tags
               if (selectedProjectSlug === deletingProject.slug) {
                 router.push('/');
+                // Reset tags to default state for fresh start
+                if (availableRunners.length > 0) {
+                  const defaultRunnerId = availableRunners[0]?.runnerId || selectedRunnerId;
+                  const defaultTags: AppliedTag[] = [
+                    {
+                      key: 'runner',
+                      value: defaultRunnerId,
+                      appliedAt: new Date()
+                    },
+                    {
+                      key: 'model',
+                      value: 'claude-haiku-4-5',
+                      appliedAt: new Date()
+                    }
+                  ];
+                  setAppliedTags(defaultTags);
+                } else {
+                  setAppliedTags([]);
+                }
               }
             }}
           />
