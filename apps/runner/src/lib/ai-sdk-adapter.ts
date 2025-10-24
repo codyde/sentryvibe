@@ -72,22 +72,23 @@ export async function* transformAISDKStream(
   let eventCount = 0;
   let yieldCount = 0;
 
-  // ALWAYS log start (not behind DEBUG flag)
-  console.log('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...');
+  // ALWAYS log start - write to stderr to bypass TUI console interceptor
+  process.stderr.write('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...\n');
 
   for await (const part of stream) {
     eventCount++;
 
     // ALWAYS log first 20 events to see what we're actually getting
     if (eventCount <= 20) {
-      console.log(`[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}"`, JSON.stringify(part).substring(0, 200));
+      const eventInfo = `[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}" ${JSON.stringify(part).substring(0, 200)}\n`;
+      process.stderr.write(eventInfo);
     }
 
     if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
 
-    // Log every 10 events to show progress
+    // Log every 10 events to show progress - write to stderr
     if (eventCount % 10 === 0) {
-      console.log(`[runner] [ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages`);
+      process.stderr.write(`[runner] [ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages\n`);
     }
 
     switch (part.type) {
@@ -170,7 +171,7 @@ export async function* transformAISDKStream(
             },
           };
           yieldCount++;
-          console.log(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}`); // ALWAYS log tools
+          process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`); // ALWAYS log tools
           if (DEBUG) console.log('[ai-sdk-adapter] Full tool call:', toolName, toolCallId, toolInput);
           yield message;
         }
@@ -252,6 +253,6 @@ export async function* transformAISDKStream(
     }
   }
 
-  // ALWAYS log completion
-  console.log(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages`);
+  // ALWAYS log completion - write to stderr
+  process.stderr.write(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages\n`);
 }

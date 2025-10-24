@@ -355,10 +355,10 @@ async function* convertCodexEventsToAgentMessages(
  */
 function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt) {
-    console.log('[runner] [createClaudeQuery] 🎯 Query function called');
-    console.log('[runner] [createClaudeQuery] Model:', modelId);
-    console.log('[runner] [createClaudeQuery] Working dir:', workingDirectory);
-    console.log('[runner] [createClaudeQuery] Prompt length:', prompt.length);
+    process.stderr.write('[runner] [createClaudeQuery] 🎯 Query function called\n');
+    process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
+    process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
+    process.stderr.write(`[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`);
 
     // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
