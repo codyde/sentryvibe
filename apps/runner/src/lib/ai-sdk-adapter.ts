@@ -77,6 +77,12 @@ export async function* transformAISDKStream(
 
   for await (const part of stream) {
     eventCount++;
+
+    // ALWAYS log first 20 events to see what we're actually getting
+    if (eventCount <= 20) {
+      console.log(`[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}"`, JSON.stringify(part).substring(0, 200));
+    }
+
     if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
 
     // Log every 10 events to show progress
