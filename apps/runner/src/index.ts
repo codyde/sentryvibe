@@ -385,8 +385,19 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     });
 
     // Transform AI SDK stream format to our message format
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log('[createClaudeQuery] Starting stream consumption...');
+    }
+
     for await (const message of transformAISDKStream(result.fullStream)) {
+      if (process.env.DEBUG_BUILD === '1') {
+        console.log('[createClaudeQuery] Yielding message:', message.type);
+      }
       yield message;
+    }
+
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log('[createClaudeQuery] Stream consumption complete');
     }
   };
 }
@@ -434,8 +445,19 @@ function createCodexQuery(): BuildQueryFn {
     });
 
     // Transform AI SDK stream format to our message format
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log('[createCodexQuery] Starting stream consumption...');
+    }
+
     for await (const message of transformAISDKStream(result.fullStream)) {
+      if (process.env.DEBUG_BUILD === '1') {
+        console.log('[createCodexQuery] Yielding message:', message.type);
+      }
       yield message;
+    }
+
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log('[createCodexQuery] Stream consumption complete');
     }
   };
 }

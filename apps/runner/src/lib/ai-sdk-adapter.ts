@@ -63,16 +63,23 @@ type TransformedMessage = AssistantMessage | UserMessage;
 export async function* transformAISDKStream(
   stream: AsyncIterable<AISDKStreamPart>
 ): AsyncGenerator<TransformedMessage, void, unknown> {
+  const DEBUG = process.env.DEBUG_BUILD === '1';
+
   let currentMessageId: string | null = null;
   let currentTextContent = '';
   let toolInputBuffer: Map<string, { name: string; input: string }> = new Map();
   let toolResults: Map<string, any> = new Map();
 
+  if (DEBUG) console.log('[ai-sdk-adapter] Starting stream transformation...');
+
   for await (const part of stream) {
+    if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
+
     switch (part.type) {
       case 'response-metadata':
         // Start a new message
         currentMessageId = part.id || `msg-${Date.now()}`;
+        if (DEBUG) console.log('[ai-sdk-adapter] Started message:', currentMessageId);
         break;
 
       case 'text-delta':
@@ -83,13 +90,15 @@ export async function* transformAISDKStream(
 
           // Yield incremental text update
           if (currentMessageId) {
-            yield {
-              type: 'assistant',
+            const message = {
+              type: 'assistant' as const,
               message: {
                 id: currentMessageId,
                 content: [{ type: 'text', text: currentTextContent }],
               },
             };
+            if (DEBUG) console.log('[ai-sdk-adapter] Yielding text:', textChunk.length, 'chars');
+            yield message;
           }
         }
         break;
@@ -129,8 +138,8 @@ export async function* transformAISDKStream(
         }
 
         if (currentMessageId && toolName) {
-          yield {
-            type: 'assistant',
+          const message = {
+            type: 'assistant' as const,
             message: {
               id: currentMessageId,
               content: [
@@ -144,6 +153,8 @@ export async function* transformAISDKStream(
               ],
             },
           };
+          if (DEBUG) console.log('[ai-sdk-adapter] Yielding tool call:', toolName, toolCallId);
+          yield message;
         }
         break;
 
