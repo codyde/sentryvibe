@@ -164,9 +164,9 @@ export async function startCommand(options: StartOptions) {
   const consoleInterceptor = new ConsoleInterceptor(serviceManager);
   const sharedSecret = config.broker?.secret || 'dev-secret';
 
-  // Disable all verbose logging in child processes and runner
-  process.env.DEBUG_BUILD = '0';
-  process.env.SILENT_MODE = '1';
+  // Enable debug logging for runner events
+  process.env.DEBUG_BUILD = '1'; // Changed from '0' to enable logging
+  // SILENT_MODE removed - we want to see logs
 
   // Clear screen for clean TUI start
   console.clear();
@@ -285,7 +285,7 @@ export async function startCommand(options: StartOptions) {
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
-      silent: true, // Suppress console output in TUI mode
+      silent: false, // Changed to false - show all logs
     });
 
     // Wait for TUI to exit

@@ -77,15 +77,13 @@ let isSilentMode = false;
 const DEBUG_BUILD = process.env.DEBUG_BUILD === '1' || false;
 
 const log = (...args: unknown[]) => {
-  if (!isSilentMode) {
-    console.log("[runner]", ...args);
-  }
+  // Always log with [runner] prefix for TUI routing
+  console.log("[runner]", ...args);
 };
 
 const buildLog = (...args: unknown[]) => {
-  if (!isSilentMode && DEBUG_BUILD) {
-    console.log("[build]", ...args);
-  }
+  // Always log build events (removed silent mode check)
+  console.log("[runner] [build]", ...args);
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
