@@ -18,6 +18,8 @@ import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
 import ChatUpdate from "@/components/ChatUpdate";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
+import { BuildChatTabs } from "@/components/BuildChatTabs";
+import { ActiveTodoIndicator } from "@/components/ActiveTodoIndicator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
@@ -87,6 +89,7 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
@@ -2594,11 +2597,27 @@ function HomeContent() {
                           </motion.div>
                         )}
 
-                        {/* UNIFIED VIEW - Chat messages with BuildProgress inline */}
+                        {/* TABBED VIEW - Separate Chat and Build tabs */}
                         {!isCreatingProject && (
-                          <div className="space-y-4">
-                            {/* Chat messages - CHANGED: Always show, even during active builds */}
-                            {messages.map((message) => {
+                          <BuildChatTabs
+                            activeTab={activeTab}
+                            onTabChange={setActiveTab}
+                            chatContent={
+                              <div className="space-y-4 p-4">
+                                {/* Active Todo Indicator (Chat Tab Only) */}
+                                {generationState && generationState.isActive && generationState.todos && generationState.activeTodoIndex >= 0 && (
+                                  <ActiveTodoIndicator
+                                    todo={generationState.todos[generationState.activeTodoIndex]}
+                                    currentTool={
+                                      generationState.toolsByTodo[generationState.activeTodoIndex]
+                                        ?.filter(t => t.state !== 'output-available')
+                                        .pop()
+                                    }
+                                  />
+                                )}
+
+                                {/* Chat Messages */}
+                                {messages.map((message) => {
                               // Skip element changes
                               if (message.elementChange) return null;
 
@@ -2636,37 +2655,40 @@ function HomeContent() {
                                 </div>
                               );
                             })}
+                              </div>
+                            }
+                            buildContent={
+                              <div className="space-y-4 p-4">
+                                {/* Project Metadata Loading Card - Shows before todos arrive */}
+                                {generationState &&
+                                  generationState.isActive &&
+                                  (!generationState.todos || generationState.todos.length === 0) &&
+                                  currentProject && (
+                                  <ProjectMetadataCard
+                                    projectName={currentProject.name}
+                                    description={currentProject.description}
+                                    icon={currentProject.icon}
+                                    slug={currentProject.slug}
+                                  />
+                                )}
 
-                            {/* Project Metadata Loading Card - Shows before todos arrive */}
-                            {generationState &&
-                              generationState.isActive &&
-                              (!generationState.todos || generationState.todos.length === 0) &&
-                              currentProject && (
-                              <ProjectMetadataCard
-                                projectName={currentProject.name}
-                                description={currentProject.description}
-                                icon={currentProject.icon}
-                                slug={currentProject.slug}
-                              />
-                            )}
+                                {/* Current Build (Active Only - completed builds show in history) */}
+                                {generationState && generationState.todos && generationState.todos.length > 0 && generationState.isActive && (
+                                  <BuildProgress
+                                    state={generationState}
+                                    templateInfo={selectedTemplate}
+                                    defaultCollapsed={false}
+                                    onClose={() => updateGenerationState(null)}
+                                    onViewFiles={() => {
+                                      window.dispatchEvent(
+                                        new CustomEvent("switch-to-editor")
+                                      );
+                                    }}
+                                    onStartServer={startDevServer}
+                                  />
+                                )}
 
-                            {/* Current Build (Active Only - completed builds show in history) */}
-                            {generationState && generationState.todos && generationState.todos.length > 0 && generationState.isActive && (
-                              <BuildProgress
-                                state={generationState}
-                                templateInfo={selectedTemplate}
-                                defaultCollapsed={false}
-                                onClose={() => updateGenerationState(null)}
-                                onViewFiles={() => {
-                                  window.dispatchEvent(
-                                    new CustomEvent("switch-to-editor")
-                                  );
-                                }}
-                                onStartServer={startDevServer}
-                              />
-                            )}
-
-                            {/* Active Element Changes */}
+                                {/* Active Element Changes */}
                             {activeElementChanges.length > 0 && (
                               <div>
                                 <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
@@ -2741,21 +2763,23 @@ function HomeContent() {
                               </div>
                             )}
 
-                            {/* Empty state */}
-                            {messages.length === 0 && !generationState && (
-                              <div className="flex items-center justify-center min-h-[400px]">
-                                <div className="text-center space-y-3 text-gray-400">
-                                  <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                                  <p className="text-lg">
-                                    Start a conversation
-                                  </p>
-                                  <p className="text-sm">
-                                    Enter a prompt below to begin building
-                                  </p>
-                                </div>
+                                {/* Empty state */}
+                                {messages.length === 0 && !generationState && (
+                                  <div className="flex items-center justify-center min-h-[400px]">
+                                    <div className="text-center space-y-3 text-gray-400">
+                                      <Sparkles className="w-12 h-12 mx-auto opacity-50" />
+                                      <p className="text-lg">
+                                        Start a conversation
+                                      </p>
+                                      <p className="text-sm">
+                                        Enter a prompt below to begin building
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            }
+                          />
                         )}
 
                         {/* OLD DUPLICATE CHAT VIEW - DISABLED */}
