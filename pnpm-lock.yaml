@@ -20,12 +20,6 @@ importers:
 
   apps/broker:
     dependencies:
-      '@sentry/node':
-        specifier: file:../sentryvibe/vendor/sentry-node-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
-      '@sentry/profiling-node':
-        specifier: ^8.47.0
-        version: 8.55.0
       '@sentryvibe/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
@@ -74,7 +68,7 @@ importers:
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
       '@sentry/node-core':
         specifier: file:../sentryvibe/vendor/sentry-node-core-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.206.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
+        version: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentryvibe/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
@@ -2240,11 +2234,6 @@ packages:
       '@opentelemetry/core': ^1.30.1 || ^2.1.0
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
       '@opentelemetry/semantic-conventions': ^1.37.0
-
-  '@sentry/profiling-node@8.55.0':
-    resolution: {integrity: sha512-rYrlxbMlfQLHhkBUEC7bviuja1rojCb4+TtXi4NGnB4PppZeveGeuVTdJDWt3Ed6IBd20EEYoXv4+0aETbEnpw==}
-    engines: {node: '>=14.18'}
-    hasBin: true
 
   '@sentry/react@10.17.0':
     resolution: {integrity: sha512-vSJ1+HruWBoQtWlK8r/SSTUyA6cQ2Xc+NNRzIdsVHWUCSo/lAA4UvxqLXyIkEtftqS1+N/+WrMOCf09XuHWpqg==}
@@ -4549,10 +4538,6 @@ packages:
         optional: true
       sass:
         optional: true
-
-  node-abi@3.78.0:
-    resolution: {integrity: sha512-E2wEyrgX/CqvicaQYU3Ze1PFGjc4QYPGsjUrlYkqAE0WjHEZwgOsGMPMzkMse4LjJbDmaEuDX3CM036j5K2DSQ==}
-    engines: {node: '>=10'}
 
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
@@ -7424,15 +7409,6 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.37.0
       '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
-  '@sentry/profiling-node@8.55.0':
-    dependencies:
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
-      '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
-      detect-libc: 2.1.2
-      node-abi: 3.78.0
-    transitivePeerDependencies:
-      - supports-color
-
   '@sentry/react@10.17.0(react@19.1.0)':
     dependencies:
       '@sentry/browser': 10.17.0
@@ -10097,10 +10073,6 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
-
-  node-abi@3.78.0:
-    dependencies:
-      semver: 7.7.3
 
   node-fetch@2.7.0:
     dependencies:
