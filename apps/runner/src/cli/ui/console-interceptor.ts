@@ -1,143 +1,104 @@
 /**
  * Console Interceptor for TUI Mode
- * Captures console.log/error/warn and routes them to TUI log system
+ * Intercepts stdout/stderr writes to write to log file
  * Prevents logs from bleeding above the TUI
  */
 
 import { ServiceManager } from './service-manager.js';
-
-interface InterceptedConsole {
-  log: typeof console.log;
-  error: typeof console.error;
-  warn: typeof console.warn;
-  info: typeof console.info;
-}
+import { LogFileManager } from './log-file-manager.js';
 
 export class ConsoleInterceptor {
-  private originalConsole: InterceptedConsole;
   private serviceManager: ServiceManager;
+  private logFileManager: LogFileManager;
   private isActive = false;
-  private buffer: Array<{ message: string; service: string; stream: 'stdout' | 'stderr' }> = [];
-  private isBuffering = true;
   private originalStdoutWrite: any;
   private originalStderrWrite: any;
 
-  constructor(serviceManager: ServiceManager) {
+  constructor(serviceManager: ServiceManager, logFileManager: LogFileManager) {
     this.serviceManager = serviceManager;
-
-    // Save original console methods
-    this.originalConsole = {
-      log: console.log.bind(console),
-      error: console.error.bind(console),
-      warn: console.warn.bind(console),
-      info: console.info.bind(console),
-    };
+    this.logFileManager = logFileManager;
 
     // Save original stdout/stderr write methods
+    // Console methods (log, error, warn, info) all use these under the hood
     this.originalStdoutWrite = process.stdout.write.bind(process.stdout);
     this.originalStderrWrite = process.stderr.write.bind(process.stderr);
   }
 
   /**
-   * Start intercepting console output (buffers until flush is called)
+   * Start intercepting console output and writing to log file
+   * We only intercept stdout/stderr writes since console.* methods call these under the hood
    */
   start(): void {
     if (this.isActive) return;
     this.isActive = true;
 
-    // Override console methods to buffer output (do NOT call original console)
-    console.log = (...args: unknown[]) => {
-      const message = this.formatMessage(args);
-      const serviceName = this.detectService(message);
+    // Intercept stdout writes - this catches console.log, console.info, and direct writes
+    process.stdout.write = (chunk: any, encoding?: any, callback?: any): boolean => {
+      const message = typeof chunk === 'string' ? chunk : chunk.toString();
 
-      if (this.isBuffering) {
-        this.buffer.push({ message, service: serviceName, stream: 'stdout' });
-      } else {
-        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
+      // ONLY pass through ANSI escape codes (for Ink rendering)
+      // Block all other output from reaching the terminal
+      if (message.match(/^\x1b\[/)) {
+        // This is Ink's control sequence - let it through
+        return this.originalStdoutWrite(chunk, encoding, callback);
       }
-      // DO NOT call this.originalConsole.log - we're intercepting, not forwarding
+
+      // Everything else: write to log file only (don't show on terminal)
+      // Don't trim or filter - write the raw message to preserve formatting
+      if (message && message.length > 0) {
+        const serviceName = this.detectService(message);
+        this.logFileManager.write(serviceName, message.trim(), 'stdout');
+      }
+
+      // Report success but don't actually write to terminal
+      if (callback) callback();
+      return true;
     };
 
-    console.error = (...args: unknown[]) => {
-      const message = this.formatMessage(args);
-      const serviceName = this.detectService(message);
+    // Intercept stderr writes
+    process.stderr.write = (chunk: any, encoding?: any, callback?: any): boolean => {
+      const message = typeof chunk === 'string' ? chunk : chunk.toString();
 
-      if (this.isBuffering) {
-        this.buffer.push({ message, service: serviceName, stream: 'stderr' });
-      } else {
-        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stderr');
+      // ONLY pass through ANSI escape codes (for Ink rendering)
+      // Block all other output from reaching the terminal
+      if (message.match(/^\x1b\[/)) {
+        // This is Ink's control sequence - let it through
+        return this.originalStderrWrite(chunk, encoding, callback);
       }
-    };
 
-    console.warn = (...args: unknown[]) => {
-      const message = this.formatMessage(args);
-      const serviceName = this.detectService(message);
-
-      if (this.isBuffering) {
-        this.buffer.push({ message, service: serviceName, stream: 'stderr' });
-      } else {
-        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stderr');
+      // Everything else: write to log file only (don't show on terminal)
+      // Don't trim or filter - write the raw message to preserve formatting
+      if (message && message.length > 0) {
+        const serviceName = this.detectService(message);
+        this.logFileManager.write(serviceName, message.trim(), 'stderr');
       }
-    };
 
-    console.info = (...args: unknown[]) => {
-      const message = this.formatMessage(args);
-      const serviceName = this.detectService(message);
-
-      if (this.isBuffering) {
-        this.buffer.push({ message, service: serviceName, stream: 'stdout' });
-      } else {
-        this.serviceManager.emit('service:output', serviceName, message + '\n', 'stdout');
-      }
+      // Report success but don't actually write to terminal
+      if (callback) callback();
+      return true;
     };
   }
 
   /**
-   * Flush buffered logs and stop buffering (call after TUI renders)
+   * Get the log file path
    */
-  flush(): void {
-    this.isBuffering = false;
-
-    // Emit all buffered logs
-    for (const entry of this.buffer) {
-      this.serviceManager.emit('service:output', entry.service as any, entry.message + '\n', entry.stream);
-    }
-
-    // Clear buffer
-    this.buffer = [];
+  getLogFilePath(): string {
+    return this.logFileManager.getLogFilePath();
   }
 
   /**
-   * Stop intercepting and restore original console
+   * Stop intercepting and restore original stdout/stderr
    */
   stop(): void {
     if (!this.isActive) return;
     this.isActive = false;
 
-    console.log = this.originalConsole.log;
-    console.error = this.originalConsole.error;
-    console.warn = this.originalConsole.warn;
-    console.info = this.originalConsole.info;
-  }
+    // Restore stdout/stderr - this also restores console.* methods since they use these
+    process.stdout.write = this.originalStdoutWrite;
+    process.stderr.write = this.originalStderrWrite;
 
-  /**
-   * Format console arguments into a string
-   */
-  private formatMessage(args: unknown[]): string {
-    return args
-      .map(arg => {
-        if (typeof arg === 'string') return arg;
-        if (arg instanceof Error) return arg.message;
-        if (typeof arg === 'object') {
-          try {
-            return JSON.stringify(arg, null, 2);
-          } catch {
-            return String(arg);
-          }
-        }
-        return String(arg);
-      })
-      .join(' ');
+    // Stop log file writing
+    this.logFileManager.stop();
   }
 
   /**
@@ -159,12 +120,5 @@ export class ConsoleInterceptor {
 
     // Default to runner (most console.log calls come from runner)
     return 'runner';
-  }
-
-  /**
-   * Get original console for emergency use
-   */
-  getOriginal(): InterceptedConsole {
-    return this.originalConsole;
   }
 }

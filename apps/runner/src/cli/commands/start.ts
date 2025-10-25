@@ -16,6 +16,7 @@ import { CLIError, errors } from '../utils/cli-error.js';
 import { ServiceManager } from '../ui/service-manager.js';
 import { Dashboard } from '../ui/Dashboard.js';
 import { ConsoleInterceptor } from '../ui/console-interceptor.js';
+import { LogFileManager } from '../ui/log-file-manager.js';
 
 interface StartOptions {
   port?: string;
@@ -159,31 +160,28 @@ export async function startCommand(options: StartOptions) {
   await killProcessOnPort(brokerPort);
   s.stop(pc.green('✓') + ' Ports available');
 
-  // Step 5: Create ServiceManager and Console Interceptor FIRST
+  // Step 5: Create ServiceManager, LogFileManager, and Console Interceptor FIRST
   const serviceManager = new ServiceManager();
-  const consoleInterceptor = new ConsoleInterceptor(serviceManager);
+  const logFileManager = new LogFileManager();
+  logFileManager.start(); // Start log file writing immediately
+  const consoleInterceptor = new ConsoleInterceptor(serviceManager, logFileManager);
+
+  // Start intercepting IMMEDIATELY before anything else can print
+  consoleInterceptor.start();
+
   const sharedSecret = config.broker?.secret || 'dev-secret';
 
-  // Enable debug logging for runner events
-  process.env.DEBUG_BUILD = '1'; // Changed from '0' to enable logging
-  // SILENT_MODE removed - we want to see logs
+  // Hook up service manager output to log file (for child process logs)
+  serviceManager.on('service:output', (name, output, stream) => {
+    logFileManager.write(name, output.trim(), stream);
+  });
+
+  // Enable debug logging for runner events - logs will be captured by LogFileManager
+  process.env.DEBUG_BUILD = '1';
+  process.env.SILENT_MODE = '1'; // Keep silent mode for TUI, logs go to file
 
   // Clear screen for clean TUI start
   console.clear();
-
-  // Start intercepting console output IMMEDIATELY after clear
-  // This captures ALL subsequent output and routes it through TUI
-  consoleInterceptor.start();
-
-  // Show starting message using original console (before interception fully active)
-  const originalLog = consoleInterceptor.getOriginal().log;
-  originalLog();
-  originalLog(pc.bold('Starting TUI Dashboard...'));
-  originalLog(pc.dim('Press Ctrl+C or q to quit'));
-  originalLog();
-
-  // Small delay to let user read the message
-  await new Promise(resolve => setTimeout(resolve, 800));
 
   // Register web app
   // Default to production mode unless --dev flag is present
@@ -235,23 +233,56 @@ export async function startCommand(options: StartOptions) {
     env: {},
   });
 
-  // Step 6: Clear screen again right before TUI to catch any output that snuck through
-  process.stdout.write('\x1Bc'); // Full terminal reset
+  // Step 6: Clear screen and move cursor to home before TUI renders
+  // Use ANSI codes that will pass through our interceptor
+  process.stdout.write('\x1b[2J\x1b[H'); // Clear screen + move cursor to top-left
 
-  // Render TUI immediately
+  // Ensure stdin is in raw mode for keyboard input
+  if (process.stdin.setRawMode) {
+    process.stdin.setRawMode(true);
+  }
+  process.stdin.resume();
+
+  // Add backup SIGINT handler for Ctrl+C (in case Ink's doesn't fire)
+  let isShuttingDown = false;
+  const handleSigInt = async () => {
+    if (isShuttingDown) {
+      // Force exit if already shutting down
+      process.exit(1);
+    }
+    isShuttingDown = true;
+
+    console.log('\n⚠ Received Ctrl+C, stopping services...');
+    await serviceManager.stopAll().catch(() => {});
+    consoleInterceptor.stop();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', handleSigInt);
+
+  // One final clear right before rendering
+  process.stdout.write('\x1b[2J\x1b[H');
+
+  // Enable alternate screen buffer to prevent scrolling above TUI
+  process.stdout.write('\x1b[?1049h'); // Enter alternate screen
+  process.stdout.write('\x1b[2J\x1b[H'); // Clear and home
+
+  // Render TUI immediately with log file path
   const { waitUntilExit, clear } = render(
     React.createElement(Dashboard, {
       serviceManager,
       apiUrl: `http://localhost:${webPort}`,
-      webPort
-    })
+      webPort,
+      logFilePath: consoleInterceptor.getLogFilePath()
+    }),
+    {
+      stdin: process.stdin,
+      stdout: process.stdout,
+      stderr: process.stderr,
+      exitOnCtrlC: true,
+      patchConsole: false // Don't let Ink patch console since we already intercept
+    }
   );
-
-  // Flush buffered console output now that TUI is rendered
-  // Small delay to ensure TUI is fully painted
-  setTimeout(() => {
-    consoleInterceptor.flush();
-  }, 100);
 
   // Step 7: Start services
   try {
@@ -297,6 +328,9 @@ export async function startCommand(options: StartOptions) {
     // Clear TUI immediately
     clear();
 
+    // Exit alternate screen buffer
+    process.stdout.write('\x1b[?1049l');
+
     // Show shutdown message
     console.log();
     console.log(pc.yellow('⚠'), 'Stopping all services...');
@@ -326,6 +360,8 @@ export async function startCommand(options: StartOptions) {
     // Stop console interception on error
     consoleInterceptor.stop();
     clear();
+    // Exit alternate screen buffer
+    process.stdout.write('\x1b[?1049l');
     throw error;
   }
 }

@@ -463,6 +463,8 @@ function createCodexQuery(): BuildQueryFn {
       systemParts.push(systemPrompt.trim());
     }
 
+    // Combine system prompt and user prompt for planning
+    // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
     const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
 
     const thread = codex.startThread({

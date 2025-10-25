@@ -20,6 +20,12 @@ importers:
 
   apps/broker:
     dependencies:
+      '@sentry/node':
+        specifier: file:../sentryvibe/vendor/sentry-node-LOCAL.tgz
+        version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
+      '@sentry/profiling-node':
+        specifier: ^8.47.0
+        version: 8.55.0
       '@sentryvibe/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
@@ -76,8 +82,8 @@ importers:
         specifier: ^5.0.57
         version: 5.0.76(zod@4.1.12)
       ai-sdk-provider-claude-code:
-        specifier: ^2.1.0
-        version: 2.1.0(zod@4.1.12)
+        specifier: file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz
+        version: file:apps/runner/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@4.1.12)
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -221,8 +227,8 @@ importers:
         specifier: ^5.0.57
         version: 5.0.76(zod@4.1.12)
       ai-sdk-provider-claude-code:
-        specifier: ^2.1.0
-        version: 2.1.0(zod@4.1.12)
+        specifier: file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz
+        version: file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@4.1.12)
       ansi-to-html:
         specifier: ^0.7.2
         version: 0.7.2
@@ -2235,6 +2241,11 @@ packages:
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
       '@opentelemetry/semantic-conventions': ^1.37.0
 
+  '@sentry/profiling-node@8.55.0':
+    resolution: {integrity: sha512-rYrlxbMlfQLHhkBUEC7bviuja1rojCb4+TtXi4NGnB4PppZeveGeuVTdJDWt3Ed6IBd20EEYoXv4+0aETbEnpw==}
+    engines: {node: '>=14.18'}
+    hasBin: true
+
   '@sentry/react@10.17.0':
     resolution: {integrity: sha512-vSJ1+HruWBoQtWlK8r/SSTUyA6cQ2Xc+NNRzIdsVHWUCSo/lAA4UvxqLXyIkEtftqS1+N/+WrMOCf09XuHWpqg==}
     engines: {node: '>=18'}
@@ -2695,6 +2706,20 @@ packages:
 
   ai-sdk-provider-claude-code@2.1.0:
     resolution: {integrity: sha512-g+Nb+TKQs7RMP8PEn7NBjEHwVyIqHthXKSUqADO37oGPwOeMATuWCcuYAFmbeSdpIirV6iKRXRhdFipv2yTzqQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0 || ^4.0.0
+
+  ai-sdk-provider-claude-code@file:apps/runner/vendor/ai-sdk-provider-claude-code-LOCAL.tgz:
+    resolution: {integrity: sha512-7sgBAsSpc6CCrJxcZgdr4+GihyjzUQBVLOPnE9as6512ZBA12I6EFQp1ZkGSUxQCCE4AcQaJPSF+ikWEPa1E8Q==, tarball: file:apps/runner/vendor/ai-sdk-provider-claude-code-LOCAL.tgz}
+    version: 2.1.0
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0 || ^4.0.0
+
+  ai-sdk-provider-claude-code@file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz:
+    resolution: {integrity: sha512-7sgBAsSpc6CCrJxcZgdr4+GihyjzUQBVLOPnE9as6512ZBA12I6EFQp1ZkGSUxQCCE4AcQaJPSF+ikWEPa1E8Q==, tarball: file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz}
+    version: 2.1.0
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0 || ^4.0.0
@@ -4524,6 +4549,10 @@ packages:
         optional: true
       sass:
         optional: true
+
+  node-abi@3.78.0:
+    resolution: {integrity: sha512-E2wEyrgX/CqvicaQYU3Ze1PFGjc4QYPGsjUrlYkqAE0WjHEZwgOsGMPMzkMse4LjJbDmaEuDX3CM036j5K2DSQ==}
+    engines: {node: '>=10'}
 
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
@@ -7395,6 +7424,15 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.37.0
       '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
+  '@sentry/profiling-node@8.55.0':
+    dependencies:
+      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
+      '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
+      detect-libc: 2.1.2
+      node-abi: 3.78.0
+    transitivePeerDependencies:
+      - supports-color
+
   '@sentry/react@10.17.0(react@19.1.0)':
     dependencies:
       '@sentry/browser': 10.17.0
@@ -7897,6 +7935,22 @@ snapshots:
       - supports-color
 
   ai-sdk-provider-claude-code@2.1.0(zod@4.1.12):
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.9(zod@4.1.12)
+      '@anthropic-ai/claude-agent-sdk': 0.1.25(zod@4.1.12)
+      jsonc-parser: 3.3.1
+      zod: 4.1.12
+
+  ai-sdk-provider-claude-code@file:apps/runner/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@4.1.12):
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.9(zod@4.1.12)
+      '@anthropic-ai/claude-agent-sdk': 0.1.25(zod@4.1.12)
+      jsonc-parser: 3.3.1
+      zod: 4.1.12
+
+  ai-sdk-provider-claude-code@file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@4.1.12):
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.9(zod@4.1.12)
@@ -10043,6 +10097,10 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
+
+  node-abi@3.78.0:
+    dependencies:
+      semver: 7.7.3
 
   node-fetch@2.7.0:
     dependencies:
