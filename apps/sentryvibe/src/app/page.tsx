@@ -2617,12 +2617,25 @@ function HomeContent() {
                                   />
                                 )}
 
-                                {/* Build Complete Card (Chat Tab Only - when build is complete) */}
-                                {generationState && !generationState.isActive && generationState.todos && generationState.todos.every(t => t.status === 'completed') && currentProject && (
-                                  <BuildCompleteCard
-                                    projectName={currentProject.name}
-                                    onStartServer={startDevServer}
-                                  />
+                                {/* Build Complete Card (Chat Tab Only - shows at 100% progress) */}
+                                {generationState && generationState.todos && generationState.todos.length > 0 && currentProject && (
+                                  (() => {
+                                    const completed = generationState.todos.filter(t => t.status === 'completed').length;
+                                    const total = generationState.todos.length;
+                                    const progress = (completed / total) * 100;
+
+                                    // Show when we hit 100% (finishing up) or when fully complete
+                                    if (progress >= 100) {
+                                      return (
+                                        <BuildCompleteCard
+                                          projectName={currentProject.name}
+                                          onStartServer={startDevServer}
+                                          progress={progress}
+                                        />
+                                      );
+                                    }
+                                    return null;
+                                  })()
                                 )}
 
                                 {/* Chat Messages */}

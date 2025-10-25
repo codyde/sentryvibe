@@ -1,53 +1,82 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { CheckCircle2, Play } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, Play, Loader2 } from 'lucide-react';
 
 interface BuildCompleteCardProps {
   projectName: string;
   onStartServer: () => void;
+  progress: number; // 0-100
 }
 
-export function BuildCompleteCard({ projectName, onStartServer }: BuildCompleteCardProps) {
+export function BuildCompleteCard({ projectName, onStartServer, progress }: BuildCompleteCardProps) {
+  const [phase, setPhase] = useState<'finishing' | 'complete'>('finishing');
+
+  // Transition from finishing to complete after a short delay
+  useEffect(() => {
+    if (progress >= 100) {
+      const timer = setTimeout(() => {
+        setPhase('complete');
+      }, 1500); // Show "Finishing up" for 1.5s
+
+      return () => clearTimeout(timer);
+    }
+  }, [progress]);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="p-4 rounded-lg border border-green-500/30 bg-gradient-to-r from-green-950/40 to-green-900/20"
-    >
-      <div className="flex items-start gap-4">
-        {/* Success Icon */}
+    <AnimatePresence mode="wait">
+      {phase === 'finishing' ? (
         <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 15 }}
-          className="flex-shrink-0"
+          key="finishing"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: 0.3 }}
+          className="mb-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-950/20"
         >
-          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-            <CheckCircle2 className="w-6 h-6 text-green-400" />
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-yellow-400 animate-spin flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white">Finishing up...</p>
+              <p className="text-xs text-gray-400">Finalizing build and cleaning up</p>
+            </div>
           </div>
         </motion.div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-white mb-1">Build Complete!</h3>
-          <p className="text-sm text-gray-300 mb-3">
-            Your project <span className="font-mono text-green-400">{projectName}</span> is ready to run.
-          </p>
-
-          {/* Start Server Button */}
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onStartServer}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors shadow-lg shadow-green-500/20"
-          >
-            <Play className="w-4 h-4" />
-            <span>Start Dev Server</span>
-          </motion.button>
-        </div>
-      </div>
-    </motion.div>
+      ) : (
+        <motion.div
+          key="complete"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="mb-4 p-3 rounded-lg border border-green-500/30 bg-green-950/20"
+        >
+          <div className="flex items-center gap-3">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+            >
+              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+            </motion.div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">Build Complete!</p>
+              <p className="text-xs text-gray-400">
+                <span className="font-mono text-green-400">{projectName}</span> is ready to run
+              </p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onStartServer}
+              className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-green-500/20"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>Start</span>
+            </motion.button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
