@@ -2650,13 +2650,13 @@ function HomeContent() {
                               />
                             )}
 
-                            {/* Current Build (Active or Completed) */}
-                            {generationState && generationState.todos && generationState.todos.length > 0 && (
+                            {/* Current Build (Active Only - completed builds show in history) */}
+                            {generationState && generationState.todos && generationState.todos.length > 0 && generationState.isActive && (
                               <BuildProgress
                                 state={generationState}
                                 templateInfo={selectedTemplate}
-                                defaultCollapsed={!generationState.isActive}
-                                onClose={generationState.isActive ? () => updateGenerationState(null) : undefined}
+                                defaultCollapsed={false}
+                                onClose={() => updateGenerationState(null)}
                                 onViewFiles={() => {
                                   window.dispatchEvent(
                                     new CustomEvent("switch-to-editor")
