@@ -24,8 +24,8 @@ importers:
         specifier: file:../sentryvibe/vendor/sentry-node-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
       '@sentry/profiling-node':
-        specifier: ^8.47.0
-        version: 8.55.0
+        specifier: ^10.22.0
+        version: 10.22.0
       '@sentryvibe/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
@@ -2129,6 +2129,10 @@ packages:
     resolution: {integrity: sha512-KIIF/dDQqYENbx4vn6B0evy/qx1QtEZsSZRvXNX6tUm14CCyrZeDymBMyEzu8RQ5PeZXibbPEkz7xOXiG3q+eQ==}
     engines: {node: '>=18'}
 
+  '@sentry-internal/node-cpu-profiler@2.2.0':
+    resolution: {integrity: sha512-oLHVYurqZfADPh5hvmQYS5qx8t0UZzT2u6+/68VXsFruQEOnYJTODKgU3BVLmemRs3WE6kCJjPeFdHVYOQGSzQ==}
+    engines: {node: '>=18'}
+
   '@sentry-internal/replay-canvas@10.17.0':
     resolution: {integrity: sha512-GXKZIraXrboP03+XS+KwkkKVJO+cSlM0HrfjePSfFqiNbbnjRhOLekoLuDvvH/ZEXPUoUJD1We5IPBg+sZZQfQ==}
     engines: {node: '>=18'}
@@ -2241,9 +2245,9 @@ packages:
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
       '@opentelemetry/semantic-conventions': ^1.37.0
 
-  '@sentry/profiling-node@8.55.0':
-    resolution: {integrity: sha512-rYrlxbMlfQLHhkBUEC7bviuja1rojCb4+TtXi4NGnB4PppZeveGeuVTdJDWt3Ed6IBd20EEYoXv4+0aETbEnpw==}
-    engines: {node: '>=14.18'}
+  '@sentry/profiling-node@10.22.0':
+    resolution: {integrity: sha512-aeOxTP5YCuaqicKs2AjbjaxEVlZ+msSoASghHOElwbp5eiFLfc/15NrFbZEeY6i+MS6SY1korLA4PutihwF0tw==}
+    engines: {node: '>=18'}
     hasBin: true
 
   '@sentry/react@10.17.0':
@@ -7215,6 +7219,11 @@ snapshots:
     dependencies:
       '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
+  '@sentry-internal/node-cpu-profiler@2.2.0':
+    dependencies:
+      detect-libc: 2.1.2
+      node-abi: 3.78.0
+
   '@sentry-internal/replay-canvas@10.17.0':
     dependencies:
       '@sentry-internal/replay': 10.17.0
@@ -7424,12 +7433,11 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.37.0
       '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
 
-  '@sentry/profiling-node@8.55.0':
+  '@sentry/profiling-node@10.22.0':
     dependencies:
+      '@sentry-internal/node-cpu-profiler': 2.2.0
       '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz
       '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
-      detect-libc: 2.1.2
-      node-abi: 3.78.0
     transitivePeerDependencies:
       - supports-color
 

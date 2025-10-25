@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 
 // Initialize Sentry FIRST before any other imports
 Sentry.init({
@@ -7,7 +8,10 @@ Sentry.init({
   // Performance monitoring
   tracesSampleRate: 1.0,
 
+  // Profiling
+  profilesSampleRate: 1.0,
   integrations: [
+    nodeProfilingIntegration(),
     Sentry.httpIntegration(), // For HTTP trace propagation
   ],
 
