@@ -158,12 +158,28 @@ export async function* transformAISDKStream(
         }
 
         if (toolName) {
-          const message = {
+          // First, yield any accumulated text as a separate message
+          if (currentTextContent.trim().length > 0) {
+            const textMessage = {
+              type: 'assistant' as const,
+              message: {
+                id: currentMessageId,
+                content: [{ type: 'text', text: currentTextContent }],
+              },
+            };
+            yieldCount++;
+            process.stderr.write(`[runner] [ai-sdk-adapter] 💬 Yielding text before tool: ${currentTextContent.length} chars\n`);
+            yield textMessage;
+            // Reset so it's not included in the tool message
+            currentTextContent = '';
+          }
+
+          // Now yield the tool call as a separate message
+          const toolMessage = {
             type: 'assistant' as const,
             message: {
-              id: currentMessageId,
+              id: `${currentMessageId}-tool-${toolCallId}`,
               content: [
-                { type: 'text', text: currentTextContent },
                 {
                   type: 'tool_use',
                   id: toolCallId,
@@ -176,8 +192,8 @@ export async function* transformAISDKStream(
           yieldCount++;
           process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`);
           process.stderr.write(`[runner] [ai-sdk-adapter]   Tool input JSON: ${JSON.stringify(toolInput, null, 2)}\n`);
-          process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(message, null, 2)}\n`);
-          yield message;
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(toolMessage, null, 2)}\n`);
+          yield toolMessage;
         }
         break;
 
