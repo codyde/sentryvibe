@@ -1,3 +1,5 @@
+import { streamLog } from './file-logger.js';
+
 /**
  * Adapter to transform AI SDK fullStream events into the format expected by our message transformer
  *
@@ -74,9 +76,15 @@ export async function* transformAISDKStream(
 
   // ALWAYS log start - write to stderr to bypass TUI console interceptor
   process.stderr.write('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...\n');
+  streamLog.info('━━━ STREAM TRANSFORMATION STARTED ━━━');
 
   for await (const part of stream) {
     eventCount++;
+
+    // Log ALL events to file (first 50)
+    if (eventCount <= 50) {
+      streamLog.event(eventCount, part.type, part);
+    }
 
     // ALWAYS log first 20 events with full JSON to see what we're actually getting
     if (eventCount <= 20) {
@@ -193,6 +201,10 @@ export async function* transformAISDKStream(
           process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`);
           process.stderr.write(`[runner] [ai-sdk-adapter]   Tool input JSON: ${JSON.stringify(toolInput, null, 2)}\n`);
           process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(toolMessage, null, 2)}\n`);
+
+          // Log to file
+          streamLog.yield('tool-call', { toolName, toolCallId, toolInput, message: toolMessage });
+
           yield toolMessage;
         }
         break;
@@ -304,4 +316,8 @@ export async function* transformAISDKStream(
 
   // ALWAYS log completion - write to stderr
   process.stderr.write(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages\n`);
+
+  streamLog.info('━━━ STREAM TRANSFORMATION COMPLETE ━━━');
+  streamLog.info(`Total events: ${eventCount}`);
+  streamLog.info(`Total yields: ${yieldCount}`);
 }

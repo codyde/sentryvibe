@@ -1,12 +1,18 @@
 // Note: Vendor packages are initialized by cli/index.ts before this module loads
 // This ensures agent-core is available for imports
 
+// File logger for debugging (always works, bypasses TUI)
+import { fileLog } from './lib/file-logger.js';
+
 // VERSION CHECK - This will log immediately when module loads
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('🚀 RUNNER INDEX.TS LOADED - AI SDK VERSION');
 console.log('   Built at:', new Date().toISOString());
 console.log('   This proves the new code is running');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+fileLog.info('Runner module loaded - AI SDK VERSION');
+fileLog.info('Built at:', new Date().toISOString());
 
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
@@ -1251,6 +1257,15 @@ export async function startRunner(options: RunnerOptions = {}) {
         log("📥 Received start-build command");
         log("   Project ID:", command.projectId);
         log("   Prompt:", command.payload?.prompt?.substring(0, 100) + '...');
+
+        // Also log to file
+        fileLog.info('━━━ START-BUILD COMMAND RECEIVED ━━━');
+        fileLog.info('Project ID:', command.projectId);
+        fileLog.info('Command ID:', command.id);
+        fileLog.info('Prompt:', command.payload?.prompt);
+        fileLog.info('Operation:', command.payload?.operationType);
+        fileLog.info('Agent:', command.payload?.agent);
+        fileLog.info('Template:', command.payload?.template);
 
         // Each build is a discrete unit of work - create a new trace for proper isolation and sampling
         await Sentry.startNewTrace(async () => {
