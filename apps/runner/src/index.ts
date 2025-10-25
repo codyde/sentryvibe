@@ -1247,6 +1247,11 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
+        // Log immediately when start-build is received
+        log("📥 Received start-build command");
+        log("   Project ID:", command.projectId);
+        log("   Prompt:", command.payload?.prompt?.substring(0, 100) + '...');
+
         // Each build is a discrete unit of work - create a new trace for proper isolation and sampling
         await Sentry.startNewTrace(async () => {
           try {
