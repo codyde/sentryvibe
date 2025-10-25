@@ -110,7 +110,8 @@ export async function* transformAISDKStream(
         break;
 
       case 'text-delta':
-        // Accumulate text content
+        // Just accumulate text content - DON'T yield for every token!
+        // We'll only yield when there's a tool call or the message finishes
         const textChunk = part.delta ?? part.text ?? part.textDelta;
         if (typeof textChunk === 'string') {
           currentTextContent += textChunk;
@@ -119,18 +120,6 @@ export async function* transformAISDKStream(
           if (part.id) {
             currentMessageId = part.id;
           }
-
-          // Yield incremental text update
-          const message = {
-            type: 'assistant' as const,
-            message: {
-              id: currentMessageId,
-              content: [{ type: 'text', text: currentTextContent }],
-            },
-          };
-          yieldCount++;
-          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding text: ${textChunk.length} chars\n`);
-          yield message;
         }
         break;
 
@@ -233,11 +222,29 @@ export async function* transformAISDKStream(
         };
         break;
 
-      case 'finish':
-      case 'finish-step':
-        // Final message with complete content (if we have any text)
+      case 'text-end':
+        // Text block is complete - yield the accumulated text
         if (currentTextContent.trim().length > 0) {
           yieldCount++;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding complete text block: ${currentTextContent.length} chars\n`);
+          yield {
+            type: 'assistant',
+            message: {
+              id: currentMessageId,
+              content: [{ type: 'text', text: currentTextContent }],
+            },
+          };
+          // Reset text content for next block
+          currentTextContent = '';
+        }
+        break;
+
+      case 'finish':
+      case 'finish-step':
+        // Final message - yield any remaining text
+        if (currentTextContent.trim().length > 0) {
+          yieldCount++;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding final text: ${currentTextContent.length} chars\n`);
           yield {
             type: 'assistant',
             message: {
@@ -255,7 +262,6 @@ export async function* transformAISDKStream(
 
       // Ignore other event types
       case 'stream-start':
-      case 'text-end':
       case 'response-metadata':
         break;
 
