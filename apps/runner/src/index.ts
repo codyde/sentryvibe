@@ -40,8 +40,7 @@ import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import {
-  CLAUDE_SYSTEM_PROMPT,
-  CODEX_SYSTEM_PROMPT,
+  CLAUDE_SYSTEM_PROMPT, // UNIFIED: Used for both Claude and Codex
   DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
@@ -434,7 +433,8 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
 /**
  * Create Codex query function using ORIGINAL Codex SDK (NOT AI SDK)
  *
- * NOTE: This function prepends CODEX_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * UNIFIED: Both Claude and Codex now use the same base prompt for consistency.
  * The orchestrator provides context-specific sections only (no base prompt).
  *
  * Uses two-phase execution:
@@ -445,7 +445,7 @@ function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
-      CODEX_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
+      CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
       prompt.length
     );
 
@@ -458,7 +458,7 @@ function createCodexQuery(): BuildQueryFn {
       workingDirectory,
     });
 
-    const systemParts: string[] = [CODEX_SYSTEM_PROMPT.trim()];
+    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
