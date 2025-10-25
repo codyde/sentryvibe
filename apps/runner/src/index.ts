@@ -456,7 +456,6 @@ function createCodexQuery(): BuildQueryFn {
 
     const codex = await createInstrumentedCodex({
       apiKey: process.env.OPENAI_API_KEY,
-      workingDirectory,
     });
 
     const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
@@ -465,9 +464,9 @@ function createCodexQuery(): BuildQueryFn {
     }
     const combinedSystemPrompt = systemParts.join("\n\n");
 
-    const thread = await codex.createThread({
-      model: CODEX_MODEL,
-      systemPrompt: combinedSystemPrompt,
+    // Start thread with working directory
+    const thread = codex.startThread({
+      workingDirectory,
     });
 
     buildLogger.codexQuery.threadStarting();
@@ -477,7 +476,8 @@ function createCodexQuery(): BuildQueryFn {
     let smartTracker: SmartTodoTracker | null = null;
 
     // Combine system prompt and user prompt for planning
-    const combinedPrompt = `${prompt}`;
+    // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
+    const combinedPrompt = `${combinedSystemPrompt}\n\n${prompt}`;
 
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
