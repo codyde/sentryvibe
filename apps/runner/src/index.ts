@@ -374,6 +374,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
 
     // Create model with settings
     const model = claudeCode(aiSdkModelId, {
+      pathToClaudeCodeExecutable: 'claude', // Use system PATH
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
       permissionMode: "default",
