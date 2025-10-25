@@ -42,17 +42,23 @@ export function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
       return cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd;
     }
 
-    // For file operations, show relative path from workspace
+    // For WebSearch, show part of the query
+    if (tool.name === 'WebSearch' && inputObj.query) {
+      const query = inputObj.query as string;
+      return query.length > 50 ? query.substring(0, 50) + '...' : query;
+    }
+
+    // For file operations, show path relative to project root (drop project directory)
     if (inputObj.file_path) {
       const fullPath = inputObj.file_path as string;
-      // Extract project-relative path: /Users/.../sentryvibe-workspace/my-project/src/app.tsx → my-project/src/app.tsx
-      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/(.+)$/);
+      // Extract path after project directory: .../workspace/my-project/src/app.tsx → src/app.tsx
+      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/[^/]+\/(.+)$/);
       return workspaceMatch ? workspaceMatch[1] : fullPath;
     }
 
     if (inputObj.path) {
       const fullPath = inputObj.path as string;
-      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/(.+)$/);
+      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/[^/]+\/(.+)$/);
       return workspaceMatch ? workspaceMatch[1] : fullPath;
     }
 

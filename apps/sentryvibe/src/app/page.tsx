@@ -50,6 +50,7 @@ import { TagInput } from "@/components/tags/TagInput";
 import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
 import type { TagOption } from "@sentryvibe/agent-core/config/tags";
 import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
+import { getClaudeModelLabel } from "@sentryvibe/agent-core/client";
 import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
 
 interface MessagePart {
@@ -2499,9 +2500,19 @@ function HomeContent() {
                                 <p className="text-gray-400">
                                   {isAnalyzingTemplate
                                     ? `${
-                                        selectedAgentId === "claude-code"
-                                          ? selectedClaudeModelLabel
-                                          : "GPT-5 Codex"
+                                        (() => {
+                                          // Use model from tags if present, otherwise use selected model
+                                          const modelTag = appliedTags.find(t => t.key === 'model');
+                                          if (modelTag) {
+                                            const parsed = parseModelTag(modelTag.value);
+                                            return parsed.agent === 'claude-code' && parsed.claudeModel
+                                              ? getClaudeModelLabel(parsed.claudeModel)
+                                              : 'GPT-5 Codex';
+                                          }
+                                          return selectedAgentId === "claude-code"
+                                            ? selectedClaudeModelLabel
+                                            : "GPT-5 Codex";
+                                        })()
                                       } is selecting the best template...`
                                     : "Setting up the perfect environment..."}
                                 </p>
