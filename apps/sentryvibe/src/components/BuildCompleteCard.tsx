@@ -2,15 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Play, Loader2 } from 'lucide-react';
+import { CheckCircle2, Play, Loader2, Square } from 'lucide-react';
 
 interface BuildCompleteCardProps {
   projectName: string;
   onStartServer: () => void;
+  onStopServer: () => void;
   progress: number; // 0-100
+  serverStatus: 'stopped' | 'starting' | 'running' | 'failed' | null;
+  isStartingServer: boolean;
+  isStoppingServer: boolean;
 }
 
-export function BuildCompleteCard({ projectName, onStartServer, progress }: BuildCompleteCardProps) {
+export function BuildCompleteCard({
+  projectName,
+  onStartServer,
+  onStopServer,
+  progress,
+  serverStatus,
+  isStartingServer,
+  isStoppingServer
+}: BuildCompleteCardProps) {
   const [phase, setPhase] = useState<'finishing' | 'complete'>('finishing');
 
   // Transition from finishing to complete after a short delay
@@ -65,15 +77,42 @@ export function BuildCompleteCard({ projectName, onStartServer, progress }: Buil
                 <span className="font-mono text-green-400">{projectName}</span> is ready to run
               </p>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onStartServer}
-              className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-green-500/20"
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span>Start</span>
-            </motion.button>
+            {/* Server Control Button - Synced with Preview Pane */}
+            {serverStatus === 'running' ? (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onStopServer}
+                disabled={isStoppingServer}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-red-500/20"
+              >
+                {isStoppingServer ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Square className="w-3.5 h-3.5" />
+                )}
+                <span>{isStoppingServer ? 'Stopping...' : 'Stop'}</span>
+              </motion.button>
+            ) : serverStatus === 'starting' || isStartingServer ? (
+              <motion.button
+                disabled
+                className="px-3 py-1.5 bg-green-500/50 text-white text-xs font-medium rounded-lg flex items-center gap-1.5"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Starting...</span>
+              </motion.button>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onStartServer}
+                disabled={isStartingServer}
+                className="px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-green-500/50 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-green-500/20"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Start</span>
+              </motion.button>
+            )}
           </div>
         </motion.div>
       )}
