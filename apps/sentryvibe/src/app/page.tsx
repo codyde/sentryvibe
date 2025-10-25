@@ -208,9 +208,9 @@ function HomeContent() {
       // Load tags from existing project
       const loadedTags = deserializeTags(currentProject.tags as any);
       setAppliedTags(loadedTags);
-    } else if (!selectedProjectSlug && availableRunners.length > 0) {
-      // Reset to default tags when viewing new project screen
-      // This ensures tags are reset after deleting a project or switching from project view
+    } else if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
+      // Set default tags ONLY if no tags are currently applied
+      // This prevents overwriting user's tag selections when availableRunners updates
       const defaultRunnerId = availableRunners[0]?.runnerId || selectedRunnerId;
       const defaultTags: AppliedTag[] = [
         {
@@ -227,7 +227,7 @@ function HomeContent() {
       setAppliedTags(defaultTags);
       console.log('[page] ✓ Default tags set: runner=%s, model=claude-haiku-4-5', defaultRunnerId);
     }
-  }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId]);
+  }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId, appliedTags.length]);
 
   useEffect(() => {
     generationStateRef.current = generationState;
