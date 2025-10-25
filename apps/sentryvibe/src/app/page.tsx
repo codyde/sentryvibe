@@ -20,6 +20,7 @@ import ChatUpdate from "@/components/ChatUpdate";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import { BuildChatTabs } from "@/components/BuildChatTabs";
 import { ActiveTodoIndicator } from "@/components/ActiveTodoIndicator";
+import { BuildCompleteCard } from "@/components/BuildCompleteCard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
@@ -2604,7 +2605,7 @@ function HomeContent() {
                             onTabChange={setActiveTab}
                             chatContent={
                               <div className="space-y-4 p-4">
-                                {/* Active Todo Indicator (Chat Tab Only) */}
+                                {/* Active Todo Indicator (Chat Tab Only - when build is active) */}
                                 {generationState && generationState.isActive && generationState.todos && generationState.activeTodoIndex >= 0 && (
                                   <ActiveTodoIndicator
                                     todo={generationState.todos[generationState.activeTodoIndex]}
@@ -2613,6 +2614,14 @@ function HomeContent() {
                                         ?.filter(t => t.state !== 'output-available')
                                         .pop()
                                     }
+                                  />
+                                )}
+
+                                {/* Build Complete Card (Chat Tab Only - when build is complete) */}
+                                {generationState && !generationState.isActive && generationState.todos && generationState.todos.every(t => t.status === 'completed') && currentProject && (
+                                  <BuildCompleteCard
+                                    projectName={currentProject.name}
+                                    onStartServer={startDevServer}
                                   />
                                 )}
 

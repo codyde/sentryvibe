@@ -32,7 +32,7 @@ export function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
   const StatusIcon = getStatusIcon();
   const isRunning = tool.state === 'input-available' || tool.state === 'input-streaming';
 
-  // Get summary from input
+  // Get summary from input with relative paths
   const getSummary = (): string => {
     if (!tool.input) return '';
     const inputObj = tool.input as any;
@@ -41,8 +41,22 @@ export function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
       const cmd = inputObj.command as string;
       return cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd;
     }
-    if (inputObj.file_path) return inputObj.file_path as string;
-    if (inputObj.path) return inputObj.path as string;
+
+    // For file operations, show relative path from workspace
+    if (inputObj.file_path) {
+      const fullPath = inputObj.file_path as string;
+      // Extract project-relative path: /Users/.../sentryvibe-workspace/my-project/src/app.tsx → my-project/src/app.tsx
+      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/(.+)$/);
+      return workspaceMatch ? workspaceMatch[1] : fullPath;
+    }
+
+    if (inputObj.path) {
+      const fullPath = inputObj.path as string;
+      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/(.+)$/);
+      return workspaceMatch ? workspaceMatch[1] : fullPath;
+    }
+
+    if (inputObj.pattern) return inputObj.pattern as string;
     return '';
   };
 
