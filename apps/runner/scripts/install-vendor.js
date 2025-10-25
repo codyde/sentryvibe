@@ -38,10 +38,11 @@ function findNodeModules() {
 const nodeModules = findNodeModules();
 
 const packages = [
-  { name: 'core', tarball: 'sentry-core-LOCAL.tgz' },
-  { name: 'node', tarball: 'sentry-node-LOCAL.tgz' },
-  { name: 'node-core', tarball: 'sentry-node-core-LOCAL.tgz' },
-  { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz' },
+  { name: 'core', tarball: 'sentry-core-LOCAL.tgz', scope: '@sentry' },
+  { name: 'node', tarball: 'sentry-node-LOCAL.tgz', scope: '@sentry' },
+  { name: 'node-core', tarball: 'sentry-node-core-LOCAL.tgz', scope: '@sentry' },
+  { name: 'nextjs', tarball: 'sentry-nextjs-LOCAL.tgz', scope: '@sentry' },
+  { name: 'ai-sdk-provider-claude-code', tarball: 'ai-sdk-provider-claude-code-LOCAL.tgz', scope: '' }, // No scope for this package
 ];
 
 // Silent mode by default, only show output if VERBOSE env var is set
@@ -74,9 +75,11 @@ try {
   mkdirSync(nodeModules, { recursive: true });
   mkdirSync(path.join(nodeModules, '@sentry'), { recursive: true });
 
-  for (const { name, tarball } of packages) {
+  for (const { name, tarball, scope } of packages) {
     const source = path.join(vendorDir, tarball);
-    const destination = path.join(nodeModules, '@sentry', name);
+    const destination = scope
+      ? path.join(nodeModules, scope, name)
+      : path.join(nodeModules, name);
     const extractTarget = resolveExtractionTarget(destination);
 
     execFileSync(
