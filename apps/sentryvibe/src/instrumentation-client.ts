@@ -32,6 +32,7 @@ spotlight: true,
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
+  tracePropagationTargets: ['localhost:4000', /^https:\/\/localhost:\d+$/],
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
