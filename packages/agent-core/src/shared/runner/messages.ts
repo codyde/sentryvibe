@@ -42,6 +42,10 @@ export interface BaseCommand {
   type: RunnerCommandType;
   projectId: string;
   timestamp: string;
+  _sentry?: {
+    trace?: string;
+    baggage?: string;
+  };
 }
 
 export interface StartBuildCommand extends BaseCommand {

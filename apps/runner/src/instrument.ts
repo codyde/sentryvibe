@@ -5,11 +5,13 @@ type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
   integrations?: Array<
     | ReturnType<typeof Sentry.vercelAIIntegration>
     | ReturnType<typeof Sentry.consoleLoggingIntegration>
+    | ReturnType<typeof Sentry.httpIntegration>
   >;
   tracesSampleRate?: number;
   debug?: boolean;
   enableLogs?: boolean;
   sendDefaultPii?: boolean;
+  tracePropagationTargets?: Array<string | RegExp>;
 };
 
 const sentryOptions: RunnerSentryOptions = {
@@ -20,11 +22,20 @@ const sentryOptions: RunnerSentryOptions = {
       force: true, // Force enable since we're using AI SDK
     }),
     Sentry.consoleLoggingIntegration(),
+    Sentry.httpIntegration(), // For HTTP trace propagation
   ],
   tracesSampleRate: 1.0,
   enableLogs: true,
   debug: false,
   sendDefaultPii: true,
+
+  // Configure trace propagation
+  tracePropagationTargets: [
+    'localhost',
+    'localhost:3000',
+    'localhost:4000',
+    /^https?:\/\/localhost:\d+$/,
+  ],
 };
 
 Sentry.init(sentryOptions);

@@ -127,7 +127,19 @@ app.post('/commands', auth, (req, res) => {
   }
 
   try {
-    connection.socket.send(JSON.stringify(command));
+    // Extract current trace context to pass through WebSocket
+    const traceData = Sentry.getTraceData();
+
+    // Add trace context to command payload
+    const commandWithTrace = {
+      ...command,
+      _sentry: {
+        trace: traceData['sentry-trace'],
+        baggage: traceData.baggage,
+      },
+    };
+
+    connection.socket.send(JSON.stringify(commandWithTrace));
     totalCommands++;
     return res.json({ ok: true });
   } catch (error) {
