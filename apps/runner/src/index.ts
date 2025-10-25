@@ -375,6 +375,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
     process.stderr.write(`[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`);
 
+
     // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
     if (systemPrompt && systemPrompt.trim().length > 0) {
@@ -442,7 +443,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
  * 2. Execution phase: Work through tasks sequentially
  */
 function createCodexQuery(): BuildQueryFn {
-  return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
+  return async function* openaiQuery(prompt, workingDirectory, systemPrompt) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
       CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
@@ -462,14 +463,11 @@ function createCodexQuery(): BuildQueryFn {
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
+    const combinedSystemPrompt = systemParts.join("\n\n");
 
-    const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
-
-    const thread = codex.startThread({
-      sandboxMode: "danger-full-access",
+    const thread = await codex.createThread({
       model: CODEX_MODEL,
-      workingDirectory,
-      skipGitRepoCheck: true,
+      systemPrompt: combinedSystemPrompt,
     });
 
     buildLogger.codexQuery.threadStarting();
@@ -477,6 +475,9 @@ function createCodexQuery(): BuildQueryFn {
     const MAX_TURNS = 50;
     let turnCount = 0;
     let smartTracker: SmartTodoTracker | null = null;
+
+    // Combine system prompt and user prompt for planning
+    const combinedPrompt = `${prompt}`;
 
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
