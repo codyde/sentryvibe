@@ -398,6 +398,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
       maxTurns: 100,
       additionalDirectories: [workingDirectory],
       canUseTool: createProjectScopedPermissionHandler(workingDirectory),
+      streamingInput: 'always', // REQUIRED when using canUseTool - enables tool callbacks
       settingSources: ['project', 'local'], // Load project-level settings
     });
 
