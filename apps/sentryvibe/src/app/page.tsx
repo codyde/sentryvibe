@@ -1321,70 +1321,8 @@ function HomeContent() {
 
             // Accumulate text
             textBlock.text += data.delta;
-            // Also add to generation state if active
-            if (generationStateRef.current?.isActive) {
-              updateGenerationState((prev) => {
-                if (!prev) return null;
 
-                const activeIndex =
-                  prev.activeTodoIndex >= 0 ? prev.activeTodoIndex : 0;
-                const existing = prev.textByTodo[activeIndex] || [];
-
-                // Find or create text message for this block
-                const existingTextIndex = existing.findIndex(
-                  (t) => t.id === blockId
-                );
-                const updatedTexts = [...existing];
-
-                if (existingTextIndex >= 0) {
-                  updatedTexts[existingTextIndex] = {
-                    ...updatedTexts[existingTextIndex],
-                    text: textBlock.text,
-                  };
-                } else {
-                  updatedTexts.push({
-                    id: blockId,
-                    text: textBlock.text,
-                    timestamp: new Date(),
-                  });
-                }
-
-                const updated = {
-                  ...prev,
-                  textByTodo: {
-                    ...prev.textByTodo,
-                    [activeIndex]: updatedTexts,
-                  },
-                };
-
-                // Debounced save to DB (text updates frequently)
-                if (
-                  (
-                    window as unknown as {
-                      saveGenStateTimeout?: NodeJS.Timeout;
-                    }
-                  ).saveGenStateTimeout
-                ) {
-                  clearTimeout(
-                    (
-                      window as unknown as {
-                        saveGenStateTimeout?: NodeJS.Timeout;
-                      }
-                    ).saveGenStateTimeout
-                  );
-                }
-                (
-                  window as unknown as { saveGenStateTimeout?: NodeJS.Timeout }
-                ).saveGenStateTimeout = setTimeout(() => {
-                  saveGenerationState(updated.projectId, updated);
-                }, 1000);
-
-                return updated;
-              });
-            }
-
-            // CHANGED: Always add text to main conversation (chat area)
-            // Todos and tools stay in BuildProgress, text messages go to chat
+            // Add text to main conversation (chat area) - NOT to textByTodo
             if (currentMessage?.id) {
               const textParts = Array.from(textBlocksMap.values());
               const filteredParts = currentMessage.parts.filter(
