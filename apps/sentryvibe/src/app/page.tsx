@@ -1383,9 +1383,9 @@ function HomeContent() {
               });
             }
 
-            // During active builds, text messages go to textByTodo only (shown in BuildProgress)
-            // Only add text to main conversation when NOT in active build
-            if (currentMessage?.id && !generationStateRef.current?.isActive) {
+            // CHANGED: Always add text to main conversation (chat area)
+            // Todos and tools stay in BuildProgress, text messages go to chat
+            if (currentMessage?.id) {
               const textParts = Array.from(textBlocksMap.values());
               const filteredParts = currentMessage.parts.filter(
                 (p) => !p.type.startsWith("text")
@@ -2659,8 +2659,8 @@ function HomeContent() {
                         {/* UNIFIED VIEW - Chat messages with BuildProgress inline */}
                         {!isCreatingProject && (
                           <div className="space-y-4">
-                            {/* Chat messages - Only show if no generationState (prevents duplication) */}
-                            {!generationState && messages.map((message) => {
+                            {/* Chat messages - CHANGED: Always show, even during active builds */}
+                            {messages.map((message) => {
                               // Skip element changes
                               if (message.elementChange) return null;
 
