@@ -1,6 +1,19 @@
 // Note: Vendor packages are initialized by cli/index.ts before this module loads
 // This ensures agent-core is available for imports
 
+// File logger for debugging (always works, bypasses TUI)
+import { fileLog } from './lib/file-logger.js';
+
+// VERSION CHECK - This will log immediately when module loads
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🚀 RUNNER INDEX.TS LOADED - AI SDK VERSION');
+console.log('   Built at:', new Date().toISOString());
+console.log('   This proves the new code is running');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+fileLog.info('Runner module loaded - AI SDK VERSION');
+fileLog.info('Built at:', new Date().toISOString());
+
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { config as loadEnv } from "dotenv";
@@ -19,14 +32,15 @@ process.env.AI_SDK_LOG_WARNINGS = 'false';
 // AI SDK imports
 import { streamText } from 'ai';
 import { claudeCode } from 'ai-sdk-provider-claude-code';
-import { openai } from '@ai-sdk/openai';
+
+// Codex SDK import (NOT AI SDK - using original Codex SDK)
+import { createInstrumentedCodex } from '@sentry/node';
 
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import {
-  CLAUDE_SYSTEM_PROMPT,
-  CODEX_SYSTEM_PROMPT,
+  CLAUDE_SYSTEM_PROMPT, // UNIFIED: Used for both Claude and Codex
   DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
@@ -49,6 +63,14 @@ import {
   setExpectedCwd,
 } from "./lib/message-transformer.js";
 import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
+import { transformCodexStream } from "./lib/codex-sdk-adapter.js";
+import {
+  createSmartTracker,
+  isComplete as isTrackerComplete,
+  getCurrentTask,
+  type SmartTodoTracker,
+} from "./lib/smart-todo-tracker.js";
+import { getTaskPlanJsonSchema } from "./lib/codex-task-schema.js";
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
@@ -70,18 +92,18 @@ let isSilentMode = false;
 const DEBUG_BUILD = process.env.DEBUG_BUILD === '1' || false;
 
 const log = (...args: unknown[]) => {
-  if (!isSilentMode) {
-    console.log("[runner]", ...args);
-  }
+  // Always log with [runner] prefix for TUI routing
+  console.log("[runner]", ...args);
 };
 
 const buildLog = (...args: unknown[]) => {
-  if (!isSilentMode && DEBUG_BUILD) {
-    console.log("[build]", ...args);
-  }
+  // Always log build events (removed silent mode check)
+  console.log("[runner] [build]", ...args);
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
+const CODEX_MODEL = "gpt-5-codex";
+
 type CodexEvent = {
   type: string;
   item?: Record<string, unknown>;
@@ -348,6 +370,12 @@ async function* convertCodexEventsToAgentMessages(
  */
 function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt) {
+    process.stderr.write('[runner] [createClaudeQuery] 🎯 Query function called\n');
+    process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
+    process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
+    process.stderr.write(`[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`);
+
+
     // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
     if (systemPrompt && systemPrompt.trim().length > 0) {
@@ -363,6 +391,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     const aiSdkModelId = modelIdMap[modelId] || 'sonnet';
 
     // Create model with settings
+    // DON'T set pathToClaudeCodeExecutable - let it use bundled cli.js from node_modules
     const model = claudeCode(aiSdkModelId, {
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
@@ -403,62 +432,191 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
 }
 
 /**
- * Create OpenAI query function using AI SDK
+ * Create Codex query function using ORIGINAL Codex SDK (NOT AI SDK)
  *
- * NOTE: This function prepends CODEX_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * UNIFIED: Both Claude and Codex now use the same base prompt for consistency.
  * The orchestrator provides context-specific sections only (no base prompt).
  *
- * Simplified from the original Codex implementation - uses direct streaming without
- * two-phase task planning. This can be enhanced later if needed.
+ * Uses two-phase execution:
+ * 1. Planning phase: Get structured task list with JSON schema
+ * 2. Execution phase: Work through tasks sequentially
  */
 function createCodexQuery(): BuildQueryFn {
   return async function* openaiQuery(prompt, workingDirectory, systemPrompt) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
-      CODEX_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
+      CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
       prompt.length
     );
 
-    // Build combined system prompt
-    const systemParts: string[] = [CODEX_SYSTEM_PROMPT.trim()];
+    fileLog.info('━━━ CODEX QUERY STARTED ━━━');
+    fileLog.info('Working directory:', workingDirectory);
+    fileLog.info('Prompt length:', prompt.length);
+
+    const codex = await createInstrumentedCodex({
+      apiKey: process.env.OPENAI_API_KEY,
+      workingDirectory,
+    });
+
+    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
     const combinedSystemPrompt = systemParts.join("\n\n");
 
-    // Use GPT-4o as the model (replacement for codex)
-    // You can configure this via environment variable if needed
-    const modelName = process.env.OPENAI_MODEL || 'gpt-4o';
-
-    const model = openai(modelName);
-
-    // Stream with telemetry enabled for Sentry
-    const result = streamText({
-      model,
-      system: combinedSystemPrompt,
-      prompt,
-      experimental_telemetry: {
-        isEnabled: true,
-        recordInputs: true,
-        recordOutputs: true,
-      },
+    const thread = await codex.createThread({
+      model: CODEX_MODEL,
+      systemPrompt: combinedSystemPrompt,
     });
 
-    // Transform AI SDK stream format to our message format
-    if (process.env.DEBUG_BUILD === '1') {
-      console.log('[createCodexQuery] Starting stream consumption...');
+    buildLogger.codexQuery.threadStarting();
+
+    const MAX_TURNS = 50;
+    let turnCount = 0;
+    let smartTracker: SmartTodoTracker | null = null;
+
+    // Combine system prompt and user prompt for planning
+    const combinedPrompt = `${prompt}`;
+
+    // ========================================
+    // PHASE 1: STRUCTURED TASK PLANNING
+    // ========================================
+    log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
+    turnCount++;
+
+    const planningPrompt = `${combinedPrompt}
+
+Analyze this request and create a task plan. Break it into 3-8 high-level tasks focusing on USER-FACING FEATURES.
+
+Return your response as JSON with:
+- analysis: Brief overview of what you'll build (2-3 sentences)
+- todos: Array of tasks with content, activeForm, and status
+
+All tasks should start as "pending" except the first one which should be "in_progress".`;
+
+    let taskPlan;
+    try {
+      log('📋 [codex-query] Requesting structured task plan...');
+      const planningTurn = await thread.run(planningPrompt, {
+        outputSchema: getTaskPlanJsonSchema(),
+      });
+
+      taskPlan = JSON.parse(planningTurn.finalResponse);
+      log('✅ [codex-query] Got structured task plan!');
+      log(`   Analysis: ${taskPlan.analysis}`);
+      log(`   Tasks: ${taskPlan.todos.length}`);
+
+      // Initialize smart tracker
+      smartTracker = createSmartTracker(taskPlan.todos);
+
+      // Send initial TodoWrite
+      const todoWriteEvent = {
+        type: 'assistant',
+        message: {
+          id: `codex-planning-${Date.now()}`,
+          content: [{
+            type: 'tool_use',
+            id: `todo-init-${Date.now()}`,
+            name: 'TodoWrite',
+            input: { todos: taskPlan.todos },
+          }],
+        },
+      };
+
+      yield todoWriteEvent;
+
+    } catch (error) {
+      buildLogger.codexQuery.error('ERROR in structured planning', error);
+      throw error;
     }
 
-    for await (const message of transformAISDKStream(result.fullStream)) {
-      if (process.env.DEBUG_BUILD === '1') {
-        console.log('[createCodexQuery] Yielding message:', message.type);
+    // ========================================
+    // PHASE 2: TASK EXECUTION LOOP
+    // ========================================
+    log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
+
+    while (turnCount < MAX_TURNS) {
+      if (!smartTracker || isTrackerComplete(smartTracker)) {
+        log('✅ [codex-query] All tasks complete!');
+        break;
       }
-      yield message;
+
+      const currentTask = getCurrentTask(smartTracker);
+      if (!currentTask) {
+        log('❌ [codex-query] No current task - cannot continue');
+        break;
+      }
+
+      const currentTaskIndex = smartTracker.currentIndex;
+      log(`🚀 [codex-query] Working on task ${currentTaskIndex + 1}: ${currentTask.content}`);
+
+      // Send pre-task TodoWrite to set active index
+      const preTaskUpdate = {
+        type: 'assistant',
+        message: {
+          id: `pre-task-${Date.now()}`,
+          content: [{
+            type: 'tool_use',
+            id: `pre-todo-${Date.now()}`,
+            name: 'TodoWrite',
+            input: { todos: smartTracker.todos },
+          }],
+        },
+      };
+      yield preTaskUpdate;
+
+      // Execute turn for this specific task
+      const taskPrompt = `Work on this specific task NOW: "${currentTask.content}"
+
+Execute ALL necessary file operations and commands to fully complete this task.
+Don't just plan - TAKE ACTION and create/modify files.`;
+
+      turnCount++;
+      log(`🚀 [codex-query] Turn ${turnCount}: ${taskPrompt.substring(0, 80)}...`);
+
+      // Stream events through Codex SDK adapter
+      const streamedTurn = await thread.runStreamed(taskPrompt);
+
+      // StreamedTurn has an 'events' property that's an AsyncGenerator<ThreadEvent>
+      for await (const event of streamedTurn.events) {
+        // Transform single event - create simple async generator wrapper
+        async function* singleEvent() {
+          yield event;
+        }
+
+        // Transform Codex events to unified format
+        for await (const message of transformCodexStream(singleEvent())) {
+          yield message;
+        }
+      }
+
+      // Mark task as complete
+      smartTracker.todos[currentTaskIndex].status = 'completed';
+      if (currentTaskIndex + 1 < smartTracker.todos.length) {
+        smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
+        smartTracker.currentIndex = currentTaskIndex + 1;
+      }
+
+      // Send post-task TodoWrite
+      const postTaskUpdate = {
+        type: 'assistant',
+        message: {
+          id: `post-task-${Date.now()}`,
+          content: [{
+            type: 'tool_use',
+            id: `post-todo-${Date.now()}`,
+            name: 'TodoWrite',
+            input: { todos: smartTracker.todos },
+          }],
+        },
+      };
+      yield postTaskUpdate;
     }
 
-    if (process.env.DEBUG_BUILD === '1') {
-      console.log('[createCodexQuery] Stream consumption complete');
-    }
+    buildLogger.codexQuery.sessionComplete(turnCount);
+    fileLog.info('━━━ CODEX QUERY COMPLETE ━━━');
+    fileLog.info(`Total turns: ${turnCount}`);
   };
 }
 
@@ -1236,6 +1394,20 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
+        // Log immediately when start-build is received
+        log("📥 Received start-build command");
+        log("   Project ID:", command.projectId);
+        log("   Prompt:", command.payload?.prompt?.substring(0, 100) + '...');
+
+        // Also log to file
+        fileLog.info('━━━ START-BUILD COMMAND RECEIVED ━━━');
+        fileLog.info('Project ID:', command.projectId);
+        fileLog.info('Command ID:', command.id);
+        fileLog.info('Prompt:', command.payload?.prompt);
+        fileLog.info('Operation:', command.payload?.operationType);
+        fileLog.info('Agent:', command.payload?.agent);
+        fileLog.info('Template:', command.payload?.template);
+
         // Each build is a discrete unit of work - create a new trace for proper isolation and sampling
         await Sentry.startNewTrace(async () => {
           try {

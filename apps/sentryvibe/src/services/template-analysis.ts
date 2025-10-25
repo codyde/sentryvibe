@@ -100,7 +100,7 @@ Requirements:
   try {
     // Always use Haiku for name generation (fast + cheap)
     const result = await generateObject({
-      model: claudeCode('claude-haiku-4-5'),
+      model: claudeCode('haiku'),
       schema: ProjectNamingSchema,
       prompt: namePrompt,
       temperature: 0.3, // Lower temperature for consistent naming

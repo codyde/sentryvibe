@@ -1,3 +1,5 @@
+import { streamLog } from './file-logger.js';
+
 /**
  * Adapter to transform AI SDK fullStream events into the format expected by our message transformer
  *
@@ -65,40 +67,66 @@ export async function* transformAISDKStream(
 ): AsyncGenerator<TransformedMessage, void, unknown> {
   const DEBUG = process.env.DEBUG_BUILD === '1';
 
-  let currentMessageId: string | null = null;
+  let currentMessageId: string = `msg-${Date.now()}`; // Always have a default ID
   let currentTextContent = '';
   let toolInputBuffer: Map<string, { name: string; input: string }> = new Map();
   let toolResults: Map<string, any> = new Map();
+  let eventCount = 0;
+  let yieldCount = 0;
 
-  if (DEBUG) console.log('[ai-sdk-adapter] Starting stream transformation...');
+  // ALWAYS log start - write to stderr to bypass TUI console interceptor
+  process.stderr.write('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...\n');
+  streamLog.info('━━━ STREAM TRANSFORMATION STARTED ━━━');
 
   for await (const part of stream) {
+    eventCount++;
+
+    // Log ALL events to file (first 50)
+    if (eventCount <= 50) {
+      streamLog.event(eventCount, part.type, part);
+    }
+
+    // ALWAYS log first 20 events with full JSON to see what we're actually getting
+    if (eventCount <= 20) {
+      process.stderr.write(`[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}"\n`);
+      process.stderr.write(`[runner] [ai-sdk-adapter]   Full JSON: ${JSON.stringify(part, null, 2)}\n`);
+    }
+
     if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
 
+    // Log every 10 events to show progress - write to stderr
+    if (eventCount % 10 === 0) {
+      process.stderr.write(`[runner] [ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages\n`);
+    }
+
     switch (part.type) {
-      case 'response-metadata':
-        // Start a new message
-        currentMessageId = part.id || `msg-${Date.now()}`;
-        if (DEBUG) console.log('[ai-sdk-adapter] Started message:', currentMessageId);
+      case 'start':
+      case 'start-step':
+        // Update message ID if provided
+        if (part.id) {
+          currentMessageId = part.id;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Updated message ID: ${currentMessageId}\n`);
+        }
+        break;
+
+      case 'text-start':
+        // Capture message ID from text-start event
+        if (part.id) {
+          currentMessageId = part.id;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Message ID from text-start: ${currentMessageId}\n`);
+        }
         break;
 
       case 'text-delta':
-        // Accumulate text content
-        const textChunk = part.delta ?? part.text;
+        // Just accumulate text content - DON'T yield for every token!
+        // We'll only yield when there's a tool call or the message finishes
+        const textChunk = part.delta ?? part.text ?? part.textDelta;
         if (typeof textChunk === 'string') {
           currentTextContent += textChunk;
 
-          // Yield incremental text update
-          if (currentMessageId) {
-            const message = {
-              type: 'assistant' as const,
-              message: {
-                id: currentMessageId,
-                content: [{ type: 'text', text: currentTextContent }],
-              },
-            };
-            if (DEBUG) console.log('[ai-sdk-adapter] Yielding text:', textChunk.length, 'chars');
-            yield message;
+          // Update message ID if provided in the event
+          if (part.id) {
+            currentMessageId = part.id;
           }
         }
         break;
@@ -124,7 +152,7 @@ export async function* transformAISDKStream(
         // Tool call is complete - emit it
         const toolCallId = part.toolCallId || part.id;
         const toolName = part.toolName;
-        let toolInput = part.args;
+        let toolInput = part.args || part.input;
 
         // If we have buffered input, parse it
         if (!toolInput && toolInputBuffer.has(toolCallId)) {
@@ -137,13 +165,29 @@ export async function* transformAISDKStream(
           toolInputBuffer.delete(toolCallId);
         }
 
-        if (currentMessageId && toolName) {
-          const message = {
+        if (toolName) {
+          // First, yield any accumulated text as a separate message
+          if (currentTextContent.trim().length > 0) {
+            const textMessage = {
+              type: 'assistant' as const,
+              message: {
+                id: currentMessageId,
+                content: [{ type: 'text', text: currentTextContent }],
+              },
+            };
+            yieldCount++;
+            process.stderr.write(`[runner] [ai-sdk-adapter] 💬 Yielding text before tool: ${currentTextContent.length} chars\n`);
+            yield textMessage;
+            // Reset so it's not included in the tool message
+            currentTextContent = '';
+          }
+
+          // Now yield the tool call as a separate message
+          const toolMessage = {
             type: 'assistant' as const,
             message: {
-              id: currentMessageId,
+              id: `${currentMessageId}-tool-${toolCallId}`,
               content: [
-                { type: 'text', text: currentTextContent },
                 {
                   type: 'tool_use',
                   id: toolCallId,
@@ -153,37 +197,50 @@ export async function* transformAISDKStream(
               ],
             },
           };
-          if (DEBUG) console.log('[ai-sdk-adapter] Yielding tool call:', toolName, toolCallId);
-          yield message;
+          yieldCount++;
+          process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Tool input JSON: ${JSON.stringify(toolInput, null, 2)}\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(toolMessage, null, 2)}\n`);
+
+          // Log to file
+          streamLog.yield('tool-call', { toolName, toolCallId, toolInput, message: toolMessage });
+
+          yield toolMessage;
         }
         break;
 
       case 'tool-result':
         // Store tool result
         const resultId = part.toolCallId;
-        toolResults.set(resultId, part.result ?? part.output);
+        const toolResult = part.result ?? part.output;
+        toolResults.set(resultId, toolResult);
 
         // Emit tool result as a user message
-        yield {
-          type: 'user',
+        const resultMessage = {
+          type: 'user' as const,
           message: {
             id: `result-${resultId}`,
             content: [
               {
                 type: 'tool_result',
                 tool_use_id: resultId,
-                content: JSON.stringify(part.result ?? part.output),
+                content: JSON.stringify(toolResult),
               },
             ],
           },
         };
+        yieldCount++;
+        process.stderr.write(`[runner] [ai-sdk-adapter] 📥 Tool result for: ${part.toolName || resultId}\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Result JSON: ${JSON.stringify(toolResult, null, 2).substring(0, 500)}...\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(resultMessage, null, 2)}\n`);
+        yield resultMessage;
         break;
 
       case 'tool-error':
         // Emit tool error as a user message
         const errorId = part.toolCallId || part.id;
-        yield {
-          type: 'user',
+        const errorMessage = {
+          type: 'user' as const,
           message: {
             id: `error-${errorId}`,
             content: [
@@ -196,11 +253,38 @@ export async function* transformAISDKStream(
             ],
           },
         };
+        yieldCount++;
+        process.stderr.write(`[runner] [ai-sdk-adapter] ⚠️  Tool error: ${part.toolName || errorId}\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Error: ${JSON.stringify(part.error)}\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(errorMessage, null, 2)}\n`);
+        yield errorMessage;
+        break;
+
+      case 'text-end':
+        // Text block is complete - yield the accumulated text
+        if (currentTextContent.trim().length > 0) {
+          const message = {
+            type: 'assistant' as const,
+            message: {
+              id: currentMessageId,
+              content: [{ type: 'text', text: currentTextContent }],
+            },
+          };
+          yieldCount++;
+          process.stderr.write(`[runner] [ai-sdk-adapter] Yielding complete text block: ${currentTextContent.length} chars\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(message, null, 2)}\n`);
+          yield message;
+          // Reset text content for next block
+          currentTextContent = '';
+        }
         break;
 
       case 'finish':
-        // Final message with complete content
-        if (currentMessageId) {
+      case 'finish-step':
+        // Final message - yield any remaining text
+        if (currentTextContent.trim().length > 0) {
+          yieldCount++;
+          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding final text: ${currentTextContent.length} chars\n`);
           yield {
             type: 'assistant',
             message: {
@@ -217,12 +301,8 @@ export async function* transformAISDKStream(
         break;
 
       // Ignore other event types
-      case 'start':
-      case 'start-step':
       case 'stream-start':
-      case 'text-start':
-      case 'text-end':
-      case 'finish-step':
+      case 'response-metadata':
         break;
 
       default:
@@ -233,4 +313,11 @@ export async function* transformAISDKStream(
         break;
     }
   }
+
+  // ALWAYS log completion - write to stderr
+  process.stderr.write(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages\n`);
+
+  streamLog.info('━━━ STREAM TRANSFORMATION COMPLETE ━━━');
+  streamLog.info(`Total events: ${eventCount}`);
+  streamLog.info(`Total yields: ${yieldCount}`);
 }

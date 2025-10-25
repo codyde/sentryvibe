@@ -176,9 +176,9 @@ export async function startCommand(options: StartOptions) {
     logFileManager.write(name, output.trim(), stream);
   });
 
-  // Disable all verbose logging in child processes and runner
-  process.env.DEBUG_BUILD = '0';
-  process.env.SILENT_MODE = '1';
+  // Enable debug logging for runner events - logs will be captured by LogFileManager
+  process.env.DEBUG_BUILD = '1';
+  process.env.SILENT_MODE = '1'; // Keep silent mode for TUI, logs go to file
 
   // Clear screen for clean TUI start
   console.clear();
@@ -316,7 +316,7 @@ export async function startCommand(options: StartOptions) {
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
-      silent: true, // Suppress console output in TUI mode
+      silent: false, // Changed to false - show all logs
     });
 
     // Wait for TUI to exit
