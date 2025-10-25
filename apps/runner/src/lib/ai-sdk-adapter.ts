@@ -78,10 +78,10 @@ export async function* transformAISDKStream(
   for await (const part of stream) {
     eventCount++;
 
-    // ALWAYS log first 20 events to see what we're actually getting
+    // ALWAYS log first 20 events with full JSON to see what we're actually getting
     if (eventCount <= 20) {
-      const eventInfo = `[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}" ${JSON.stringify(part).substring(0, 200)}\n`;
-      process.stderr.write(eventInfo);
+      process.stderr.write(`[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}"\n`);
+      process.stderr.write(`[runner] [ai-sdk-adapter]   Full JSON: ${JSON.stringify(part, null, 2)}\n`);
     }
 
     if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
@@ -174,8 +174,9 @@ export async function* transformAISDKStream(
             },
           };
           yieldCount++;
-          process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`); // ALWAYS log tools
-          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Full tool call: ${toolName} ${toolCallId}\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Tool input JSON: ${JSON.stringify(toolInput, null, 2)}\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(message, null, 2)}\n`);
           yield message;
         }
         break;
@@ -183,31 +184,35 @@ export async function* transformAISDKStream(
       case 'tool-result':
         // Store tool result
         const resultId = part.toolCallId;
-        toolResults.set(resultId, part.result ?? part.output);
+        const toolResult = part.result ?? part.output;
+        toolResults.set(resultId, toolResult);
 
         // Emit tool result as a user message
-        yieldCount++;
-        yield {
-          type: 'user',
+        const resultMessage = {
+          type: 'user' as const,
           message: {
             id: `result-${resultId}`,
             content: [
               {
                 type: 'tool_result',
                 tool_use_id: resultId,
-                content: JSON.stringify(part.result ?? part.output),
+                content: JSON.stringify(toolResult),
               },
             ],
           },
         };
+        yieldCount++;
+        process.stderr.write(`[runner] [ai-sdk-adapter] 📥 Tool result for: ${part.toolName || resultId}\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Result JSON: ${JSON.stringify(toolResult, null, 2).substring(0, 500)}...\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(resultMessage, null, 2)}\n`);
+        yield resultMessage;
         break;
 
       case 'tool-error':
         // Emit tool error as a user message
         const errorId = part.toolCallId || part.id;
-        yieldCount++;
-        yield {
-          type: 'user',
+        const errorMessage = {
+          type: 'user' as const,
           message: {
             id: `error-${errorId}`,
             content: [
@@ -220,20 +225,27 @@ export async function* transformAISDKStream(
             ],
           },
         };
+        yieldCount++;
+        process.stderr.write(`[runner] [ai-sdk-adapter] ⚠️  Tool error: ${part.toolName || errorId}\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Error: ${JSON.stringify(part.error)}\n`);
+        process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(errorMessage, null, 2)}\n`);
+        yield errorMessage;
         break;
 
       case 'text-end':
         // Text block is complete - yield the accumulated text
         if (currentTextContent.trim().length > 0) {
-          yieldCount++;
-          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding complete text block: ${currentTextContent.length} chars\n`);
-          yield {
-            type: 'assistant',
+          const message = {
+            type: 'assistant' as const,
             message: {
               id: currentMessageId,
               content: [{ type: 'text', text: currentTextContent }],
             },
           };
+          yieldCount++;
+          process.stderr.write(`[runner] [ai-sdk-adapter] Yielding complete text block: ${currentTextContent.length} chars\n`);
+          process.stderr.write(`[runner] [ai-sdk-adapter]   Message JSON: ${JSON.stringify(message, null, 2)}\n`);
+          yield message;
           // Reset text content for next block
           currentTextContent = '';
         }
