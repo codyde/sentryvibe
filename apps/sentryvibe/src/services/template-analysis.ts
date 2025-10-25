@@ -100,9 +100,7 @@ Requirements:
   try {
     // Always use Haiku for name generation (fast + cheap)
     const result = await generateObject({
-      model: claudeCode('haiku', {
-        pathToClaudeCodeExecutable: 'claude', // Use system PATH
-      }),
+      model: claudeCode('haiku'),
       schema: ProjectNamingSchema,
       prompt: namePrompt,
       temperature: 0.3, // Lower temperature for consistent naming
@@ -226,9 +224,7 @@ async function analyzeWithClaude(
 
   try {
     const result = await generateObject({
-      model: claudeCode(model, {
-        pathToClaudeCodeExecutable: 'claude', // Use system PATH
-      }),
+      model: claudeCode(model),
       schema: TemplateAnalysisSchema,
       prompt: combinedPrompt,
     });

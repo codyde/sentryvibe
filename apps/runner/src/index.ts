@@ -379,8 +379,8 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     const aiSdkModelId = modelIdMap[modelId] || 'sonnet';
 
     // Create model with settings
+    // DON'T set pathToClaudeCodeExecutable - let it use bundled cli.js from node_modules
     const model = claudeCode(aiSdkModelId, {
-      pathToClaudeCodeExecutable: 'claude', // Use system PATH
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
       permissionMode: "default",
