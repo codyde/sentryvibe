@@ -375,7 +375,6 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
     process.stderr.write(`[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`);
 
-
     // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
     if (systemPrompt && systemPrompt.trim().length > 0) {
@@ -443,7 +442,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
  * 2. Execution phase: Work through tasks sequentially
  */
 function createCodexQuery(): BuildQueryFn {
-  return async function* openaiQuery(prompt, workingDirectory, systemPrompt) {
+  return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
       CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
@@ -456,17 +455,23 @@ function createCodexQuery(): BuildQueryFn {
 
     const codex = await createInstrumentedCodex({
       apiKey: process.env.OPENAI_API_KEY,
+      workingDirectory,
     });
 
     const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
-    const combinedSystemPrompt = systemParts.join("\n\n");
 
-    // Start thread with working directory
+    // Combine system prompt and user prompt for planning
+    // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
+    const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
+
     const thread = codex.startThread({
+      sandboxMode: "danger-full-access",
+      model: CODEX_MODEL,
       workingDirectory,
+      skipGitRepoCheck: true,
     });
 
     buildLogger.codexQuery.threadStarting();
@@ -474,10 +479,6 @@ function createCodexQuery(): BuildQueryFn {
     const MAX_TURNS = 50;
     let turnCount = 0;
     let smartTracker: SmartTodoTracker | null = null;
-
-    // Combine system prompt and user prompt for planning
-    // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
-    const combinedPrompt = `${combinedSystemPrompt}\n\n${prompt}`;
 
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
