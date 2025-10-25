@@ -32,7 +32,7 @@ export function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
   const StatusIcon = getStatusIcon();
   const isRunning = tool.state === 'input-available' || tool.state === 'input-streaming';
 
-  // Get summary from input
+  // Get summary from input with relative paths
   const getSummary = (): string => {
     if (!tool.input) return '';
     const inputObj = tool.input as any;
@@ -41,8 +41,28 @@ export function ToolCallMiniCard({ tool }: ToolCallMiniCardProps) {
       const cmd = inputObj.command as string;
       return cmd.length > 50 ? cmd.substring(0, 50) + '...' : cmd;
     }
-    if (inputObj.file_path) return inputObj.file_path as string;
-    if (inputObj.path) return inputObj.path as string;
+
+    // For WebSearch, show part of the query
+    if (tool.name === 'WebSearch' && inputObj.query) {
+      const query = inputObj.query as string;
+      return query.length > 50 ? query.substring(0, 50) + '...' : query;
+    }
+
+    // For file operations, show path relative to project root (drop project directory)
+    if (inputObj.file_path) {
+      const fullPath = inputObj.file_path as string;
+      // Extract path after project directory: .../workspace/my-project/src/app.tsx → src/app.tsx
+      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/[^/]+\/(.+)$/);
+      return workspaceMatch ? workspaceMatch[1] : fullPath;
+    }
+
+    if (inputObj.path) {
+      const fullPath = inputObj.path as string;
+      const workspaceMatch = fullPath.match(/sentryvibe-workspace\/[^/]+\/(.+)$/);
+      return workspaceMatch ? workspaceMatch[1] : fullPath;
+    }
+
+    if (inputObj.pattern) return inputObj.pattern as string;
     return '';
   };
 

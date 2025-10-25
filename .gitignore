@@ -53,3 +53,4 @@ next-env.d.ts
 # Vendor packages (DO commit these .tgz files)
 # These are local builds that need to be committed for deployment
 # vendor/*.tgz should be tracked in git
+logs/

@@ -23,7 +23,7 @@ Sentry.init({
 
   tracesSampleRate: 1.0,
 
-  tracePropagationTargets: ['localhost:3000', /^https:\/\/localhost:\d+$/],
+  tracePropagationTargets: ['localhost:4000', /^https:\/\/localhost:\d+$/],
 
   // Enable logs to be sent to Sentry
   enableLogs: true,

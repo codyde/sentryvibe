@@ -75,7 +75,7 @@ function TextUpdateCard({ message }: { message: TextMessage }) {
 interface TodoListProps {
   todos: TodoItem[];
   toolsByTodo: Record<number, ToolCall[]>;
-  textByTodo: Record<number, TextMessage[]>;
+  textByTodo: Record<number, TextMessage[]>; // Keep for now for backward compat, but don't display
   activeTodoIndex: number;
   expandedTodos: Set<number>;
   onToggleTodo: (index: number) => void;
@@ -100,14 +100,10 @@ export function TodoList({
       <AnimatePresence mode="popLayout">
         {todos.map((todo, index) => {
           const tools = toolsByTodo[index] || [];
-          const textMessages = textByTodo[index] || [];
-          // Filter out TodoWrite system messages from display
-          const displayableTextMessages = textMessages.filter(
-            (textMsg) => !textMsg.text.trim().startsWith('TodoWrite(')
-          );
+          // textByTodo no longer displayed - text messages go to Chat tab
           const isExpanded = expandedTodos.has(index);
           const isActive = index === activeTodoIndex;
-          const hasContent = tools.length > 0 || displayableTextMessages.length > 0;
+          const hasContent = tools.length > 0; // Only tools determine if there's content to show
           const isLastTodo = index === todos.length - 1;
           const isFinalSummary = isLastTodo && allTodosCompleted;
 
@@ -197,12 +193,7 @@ export function TodoList({
                     exit={{ height: 0, opacity: 0 }}
                     className="mt-2 space-y-2"
                   >
-                    {/* Text Messages - Collapsible Cards */}
-                    {displayableTextMessages.map((textMsg) => (
-                      <TextUpdateCard key={textMsg.id} message={textMsg} />
-                    ))}
-
-                    {/* Tool Calls */}
+                    {/* Tool Calls - Text messages now shown in Chat tab */}
                     {tools.map((tool) => (
                       <ToolCallMiniCard key={tool.id} tool={tool} />
                     ))}

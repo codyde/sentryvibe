@@ -18,6 +18,9 @@ import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
 import ChatUpdate from "@/components/ChatUpdate";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
+import { BuildChatTabs } from "@/components/BuildChatTabs";
+import { ActiveTodoIndicator } from "@/components/ActiveTodoIndicator";
+import { BuildCompleteCard } from "@/components/BuildCompleteCard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
@@ -47,6 +50,7 @@ import { TagInput } from "@/components/tags/TagInput";
 import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
 import type { TagOption } from "@sentryvibe/agent-core/config/tags";
 import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
+import { getClaudeModelLabel } from "@sentryvibe/agent-core/client";
 import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
 
 interface MessagePart {
@@ -87,6 +91,7 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
@@ -1321,71 +1326,9 @@ function HomeContent() {
 
             // Accumulate text
             textBlock.text += data.delta;
-            // Also add to generation state if active
-            if (generationStateRef.current?.isActive) {
-              updateGenerationState((prev) => {
-                if (!prev) return null;
 
-                const activeIndex =
-                  prev.activeTodoIndex >= 0 ? prev.activeTodoIndex : 0;
-                const existing = prev.textByTodo[activeIndex] || [];
-
-                // Find or create text message for this block
-                const existingTextIndex = existing.findIndex(
-                  (t) => t.id === blockId
-                );
-                const updatedTexts = [...existing];
-
-                if (existingTextIndex >= 0) {
-                  updatedTexts[existingTextIndex] = {
-                    ...updatedTexts[existingTextIndex],
-                    text: textBlock.text,
-                  };
-                } else {
-                  updatedTexts.push({
-                    id: blockId,
-                    text: textBlock.text,
-                    timestamp: new Date(),
-                  });
-                }
-
-                const updated = {
-                  ...prev,
-                  textByTodo: {
-                    ...prev.textByTodo,
-                    [activeIndex]: updatedTexts,
-                  },
-                };
-
-                // Debounced save to DB (text updates frequently)
-                if (
-                  (
-                    window as unknown as {
-                      saveGenStateTimeout?: NodeJS.Timeout;
-                    }
-                  ).saveGenStateTimeout
-                ) {
-                  clearTimeout(
-                    (
-                      window as unknown as {
-                        saveGenStateTimeout?: NodeJS.Timeout;
-                      }
-                    ).saveGenStateTimeout
-                  );
-                }
-                (
-                  window as unknown as { saveGenStateTimeout?: NodeJS.Timeout }
-                ).saveGenStateTimeout = setTimeout(() => {
-                  saveGenerationState(updated.projectId, updated);
-                }, 1000);
-
-                return updated;
-              });
-            }
-
-            // During active builds, text messages go to textByTodo only (shown in BuildProgress)
-            // Only add text to main conversation when NOT in active build
-            if (currentMessage?.id && !generationStateRef.current?.isActive) {
+            // Add text to main conversation (chat area) - NOT to textByTodo
+            if (currentMessage?.id) {
               const textParts = Array.from(textBlocksMap.values());
               const filteredParts = currentMessage.parts.filter(
                 (p) => !p.type.startsWith("text")
@@ -2557,9 +2500,19 @@ function HomeContent() {
                                 <p className="text-gray-400">
                                   {isAnalyzingTemplate
                                     ? `${
-                                        selectedAgentId === "claude-code"
-                                          ? selectedClaudeModelLabel
-                                          : "GPT-5 Codex"
+                                        (() => {
+                                          // Use model from tags if present, otherwise use selected model
+                                          const modelTag = appliedTags.find(t => t.key === 'model');
+                                          if (modelTag) {
+                                            const parsed = parseModelTag(modelTag.value);
+                                            return parsed.agent === 'claude-code' && parsed.claudeModel
+                                              ? getClaudeModelLabel(parsed.claudeModel)
+                                              : 'GPT-5 Codex';
+                                          }
+                                          return selectedAgentId === "claude-code"
+                                            ? selectedClaudeModelLabel
+                                            : "GPT-5 Codex";
+                                        })()
                                       } is selecting the best template...`
                                     : "Setting up the perfect environment..."}
                                 </p>
@@ -2656,11 +2609,48 @@ function HomeContent() {
                           </motion.div>
                         )}
 
-                        {/* UNIFIED VIEW - Chat messages with BuildProgress inline */}
+                        {/* TABBED VIEW - Separate Chat and Build tabs */}
                         {!isCreatingProject && (
-                          <div className="space-y-4">
-                            {/* Chat messages - Only show if no generationState (prevents duplication) */}
-                            {!generationState && messages.map((message) => {
+                          <BuildChatTabs
+                            activeTab={activeTab}
+                            onTabChange={setActiveTab}
+                            chatContent={
+                              <div className="space-y-4 p-4">
+                                {/* Active Todo Indicator (Chat Tab Only - when build is active) */}
+                                {generationState && generationState.isActive && generationState.todos && generationState.activeTodoIndex >= 0 && (
+                                  <ActiveTodoIndicator
+                                    todo={generationState.todos[generationState.activeTodoIndex]}
+                                    currentTool={
+                                      generationState.toolsByTodo[generationState.activeTodoIndex]
+                                        ?.filter(t => t.state !== 'output-available')
+                                        .pop()
+                                    }
+                                  />
+                                )}
+
+                                {/* Build Complete Card (Chat Tab Only - shows at 100% progress) */}
+                                {generationState && generationState.todos && generationState.todos.length > 0 && currentProject && (
+                                  (() => {
+                                    const completed = generationState.todos.filter(t => t.status === 'completed').length;
+                                    const total = generationState.todos.length;
+                                    const progress = (completed / total) * 100;
+
+                                    // Show when we hit 100% (finishing up) or when fully complete
+                                    if (progress >= 100) {
+                                      return (
+                                        <BuildCompleteCard
+                                          projectName={currentProject.name}
+                                          onStartServer={startDevServer}
+                                          progress={progress}
+                                        />
+                                      );
+                                    }
+                                    return null;
+                                  })()
+                                )}
+
+                                {/* Chat Messages */}
+                                {messages.map((message) => {
                               // Skip element changes
                               if (message.elementChange) return null;
 
@@ -2698,37 +2688,40 @@ function HomeContent() {
                                 </div>
                               );
                             })}
+                              </div>
+                            }
+                            buildContent={
+                              <div className="space-y-4 p-4">
+                                {/* Project Metadata Loading Card - Shows before todos arrive */}
+                                {generationState &&
+                                  generationState.isActive &&
+                                  (!generationState.todos || generationState.todos.length === 0) &&
+                                  currentProject && (
+                                  <ProjectMetadataCard
+                                    projectName={currentProject.name}
+                                    description={currentProject.description}
+                                    icon={currentProject.icon}
+                                    slug={currentProject.slug}
+                                  />
+                                )}
 
-                            {/* Project Metadata Loading Card - Shows before todos arrive */}
-                            {generationState &&
-                              generationState.isActive &&
-                              (!generationState.todos || generationState.todos.length === 0) &&
-                              currentProject && (
-                              <ProjectMetadataCard
-                                projectName={currentProject.name}
-                                description={currentProject.description}
-                                icon={currentProject.icon}
-                                slug={currentProject.slug}
-                              />
-                            )}
+                                {/* Current Build (Active Only - completed builds show in history) */}
+                                {generationState && generationState.todos && generationState.todos.length > 0 && generationState.isActive && (
+                                  <BuildProgress
+                                    state={generationState}
+                                    templateInfo={selectedTemplate}
+                                    defaultCollapsed={false}
+                                    onClose={() => updateGenerationState(null)}
+                                    onViewFiles={() => {
+                                      window.dispatchEvent(
+                                        new CustomEvent("switch-to-editor")
+                                      );
+                                    }}
+                                    onStartServer={startDevServer}
+                                  />
+                                )}
 
-                            {/* Current Build (Active or Completed) */}
-                            {generationState && generationState.todos && generationState.todos.length > 0 && (
-                              <BuildProgress
-                                state={generationState}
-                                templateInfo={selectedTemplate}
-                                defaultCollapsed={!generationState.isActive}
-                                onClose={generationState.isActive ? () => updateGenerationState(null) : undefined}
-                                onViewFiles={() => {
-                                  window.dispatchEvent(
-                                    new CustomEvent("switch-to-editor")
-                                  );
-                                }}
-                                onStartServer={startDevServer}
-                              />
-                            )}
-
-                            {/* Active Element Changes */}
+                                {/* Active Element Changes */}
                             {activeElementChanges.length > 0 && (
                               <div>
                                 <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
@@ -2803,21 +2796,23 @@ function HomeContent() {
                               </div>
                             )}
 
-                            {/* Empty state */}
-                            {messages.length === 0 && !generationState && (
-                              <div className="flex items-center justify-center min-h-[400px]">
-                                <div className="text-center space-y-3 text-gray-400">
-                                  <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                                  <p className="text-lg">
-                                    Start a conversation
-                                  </p>
-                                  <p className="text-sm">
-                                    Enter a prompt below to begin building
-                                  </p>
-                                </div>
+                                {/* Empty state */}
+                                {messages.length === 0 && !generationState && (
+                                  <div className="flex items-center justify-center min-h-[400px]">
+                                    <div className="text-center space-y-3 text-gray-400">
+                                      <Sparkles className="w-12 h-12 mx-auto opacity-50" />
+                                      <p className="text-lg">
+                                        Start a conversation
+                                      </p>
+                                      <p className="text-sm">
+                                        Enter a prompt below to begin building
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            }
+                          />
                         )}
 
                         {/* OLD DUPLICATE CHAT VIEW - DISABLED */}

@@ -1,9 +1,21 @@
 // Note: Vendor packages are initialized by cli/index.ts before this module loads
 // This ensures agent-core is available for imports
 
+// File logger for debugging (always works, bypasses TUI)
+import { fileLog } from './lib/file-logger.js';
+
+// VERSION CHECK - This will log immediately when module loads
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🚀 RUNNER INDEX.TS LOADED - AI SDK VERSION');
+console.log('   Built at:', new Date().toISOString());
+console.log('   This proves the new code is running');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+fileLog.info('Runner module loaded - AI SDK VERSION');
+fileLog.info('Built at:', new Date().toISOString());
+
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
-import { createInstrumentedCodex } from "@sentry/node";
 import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
@@ -17,12 +29,18 @@ loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 // Disable AI SDK warnings globally
 process.env.AI_SDK_LOG_WARNINGS = 'false';
 
+// AI SDK imports
+import { streamText } from 'ai';
+import { claudeCode } from 'ai-sdk-provider-claude-code';
+
+// Codex SDK import (NOT AI SDK - using original Codex SDK)
+import { createInstrumentedCodex } from '@sentry/node';
+
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import {
-  CLAUDE_SYSTEM_PROMPT,
-  CODEX_SYSTEM_PROMPT,
+  CLAUDE_SYSTEM_PROMPT, // UNIFIED: Used for both Claude and Codex
   DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
@@ -44,6 +62,8 @@ import {
   resetTransformerState,
   setExpectedCwd,
 } from "./lib/message-transformer.js";
+import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
+import { transformCodexStream } from "./lib/codex-sdk-adapter.js";
 import {
   createSmartTracker,
   isComplete as isTrackerComplete,
@@ -72,19 +92,18 @@ let isSilentMode = false;
 const DEBUG_BUILD = process.env.DEBUG_BUILD === '1' || false;
 
 const log = (...args: unknown[]) => {
-  if (!isSilentMode) {
-    console.log("[runner]", ...args);
-  }
+  // Always log with [runner] prefix for TUI routing
+  console.log("[runner]", ...args);
 };
 
 const buildLog = (...args: unknown[]) => {
-  if (!isSilentMode && DEBUG_BUILD) {
-    console.log("[build]", ...args);
-  }
+  // Always log build events (removed silent mode check)
+  console.log("[runner] [build]", ...args);
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
 const CODEX_MODEL = "gpt-5-codex";
+
 type CodexEvent = {
   type: string;
   item?: Record<string, unknown>;
@@ -344,39 +363,83 @@ async function* convertCodexEventsToAgentMessages(
 }
 
 /**
- * Create Claude query function
+ * Create Claude query function using AI SDK
  *
  * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
  * The orchestrator provides context-specific sections only (no base prompt).
  */
-function createClaudeQuery(model: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
-  return (prompt, workingDirectory, systemPrompt) => {
-    const sentryQuery = Sentry.createInstrumentedClaudeQuery();
+function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
+  return async function* (prompt, workingDirectory, systemPrompt) {
+    process.stderr.write('[runner] [createClaudeQuery] 🎯 Query function called\n');
+    process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
+    process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
+    process.stderr.write(`[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`);
+
+    // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemPromptSegments.push(systemPrompt.trim());
     }
+    const combinedSystemPrompt = systemPromptSegments.join("\n\n");
 
-    return sentryQuery({
+    // Map ClaudeModelId to AI SDK model IDs
+    const modelIdMap: Record<string, string> = {
+      'claude-haiku-4-5': 'haiku',
+      'claude-sonnet-4-5': 'sonnet',
+    };
+    const aiSdkModelId = modelIdMap[modelId] || 'sonnet';
+
+    // Create model with settings
+    // DON'T set pathToClaudeCodeExecutable - let it use bundled cli.js from node_modules
+    const model = claudeCode(aiSdkModelId, {
+      systemPrompt: combinedSystemPrompt,
+      cwd: workingDirectory,
+      permissionMode: "default",
+      maxTurns: 100,
+      additionalDirectories: [workingDirectory],
+      canUseTool: createProjectScopedPermissionHandler(workingDirectory),
+      settingSources: ['project', 'local'], // Load project-level settings
+    });
+
+    // Stream with telemetry enabled for Sentry
+    const result = streamText({
+      model,
       prompt,
-      options: {
-        model,
-        cwd: workingDirectory,
-        permissionMode: "default",
-        maxTurns: 100,
-        systemPrompt: systemPromptSegments.join("\n\n"),
-        additionalDirectories: [workingDirectory],
-        canUseTool: createProjectScopedPermissionHandler(workingDirectory),
+      experimental_telemetry: {
+        isEnabled: true,
+        recordInputs: true,
+        recordOutputs: true,
       },
     });
+
+    // Transform AI SDK stream format to our message format
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log('[createClaudeQuery] Starting stream consumption...');
+    }
+
+    for await (const message of transformAISDKStream(result.fullStream)) {
+      if (process.env.DEBUG_BUILD === '1') {
+        console.log('[createClaudeQuery] Yielding message:', message.type);
+      }
+      yield message;
+    }
+
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log('[createClaudeQuery] Stream consumption complete');
+    }
   };
 }
 
 /**
- * Create Codex query function
+ * Create Codex query function using ORIGINAL Codex SDK (NOT AI SDK)
  *
- * NOTE: This function prepends CODEX_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
+ * UNIFIED: Both Claude and Codex now use the same base prompt for consistency.
  * The orchestrator provides context-specific sections only (no base prompt).
+ *
+ * Uses two-phase execution:
+ * 1. Planning phase: Get structured task list with JSON schema
+ * 2. Execution phase: Work through tasks sequentially
  */
 function createCodexQuery(): BuildQueryFn {
   return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
@@ -386,12 +449,16 @@ function createCodexQuery(): BuildQueryFn {
       prompt.length
     );
 
+    fileLog.info('━━━ CODEX QUERY STARTED ━━━');
+    fileLog.info('Working directory:', workingDirectory);
+    fileLog.info('Prompt length:', prompt.length);
+
     const codex = await createInstrumentedCodex({
       apiKey: process.env.OPENAI_API_KEY,
       workingDirectory,
     });
 
-    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()];
+    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
@@ -407,10 +474,6 @@ function createCodexQuery(): BuildQueryFn {
 
     buildLogger.codexQuery.threadStarting();
 
-    // TASK-DRIVEN EXECUTION PATTERN
-    // Phase 1: Get initial task list
-    // Phase 2: Loop through each task and explicitly prompt Codex to work on it
-
     const MAX_TURNS = 50;
     let turnCount = 0;
     let smartTracker: SmartTodoTracker | null = null;
@@ -418,7 +481,7 @@ function createCodexQuery(): BuildQueryFn {
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
     // ========================================
-    if (!isSilentMode && DEBUG_BUILD) console.log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
+    log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
     turnCount++;
 
     const planningPrompt = `${combinedPrompt}
@@ -433,77 +496,33 @@ All tasks should start as "pending" except the first one which should be "in_pro
 
     let taskPlan;
     try {
-      if (!isSilentMode && DEBUG_BUILD) console.log('📋 [codex-query] Requesting structured task plan...');
+      log('📋 [codex-query] Requesting structured task plan...');
       const planningTurn = await thread.run(planningPrompt, {
         outputSchema: getTaskPlanJsonSchema(),
       });
 
       taskPlan = JSON.parse(planningTurn.finalResponse);
-      if (!isSilentMode && DEBUG_BUILD) console.log('✅ [codex-query] Got structured task plan!');
-      console.log(`   Analysis: ${taskPlan.analysis}`);
-      console.log(`   Tasks: ${taskPlan.todos.length}`);
+      log('✅ [codex-query] Got structured task plan!');
+      log(`   Analysis: ${taskPlan.analysis}`);
+      log(`   Tasks: ${taskPlan.todos.length}`);
 
-      // ADD SYNTHETIC "GETTING STARTED" TASK AT INDEX 0
-      // This catches all the initial exploration commands (ls, cat, etc.)
-      const gettingStartedTask = {
-        content: "Getting started and exploring workspace",
-        activeForm: "Getting started and exploring workspace",
-        status: "in_progress" as const,
-      };
+      // Initialize smart tracker
+      smartTracker = createSmartTracker(taskPlan.todos);
 
-      const allTasks = [gettingStartedTask, ...taskPlan.todos.map((t: TodoItem) => ({
-        ...t,
-        status: 'pending' as const, // All real tasks start as pending
-      }))];
-
-      if (!isSilentMode && DEBUG_BUILD) console.log('✅ [codex-query] Added synthetic "Getting Started" task at index 0');
-      console.log(`   Total tasks: ${allTasks.length} (1 synthetic + ${taskPlan.todos.length} real)`);
-
-      // Initialize smart tracker with all tasks (including synthetic)
-      smartTracker = createSmartTracker(allTasks);
-
-      buildLogger.codexQuery.taskListStatus(
-        0,
-        1, // Getting Started is in_progress
-        allTasks.length - 1, // All others pending
-        allTasks.length
-      );
-
-      // Log each task (including synthetic)
-      allTasks.forEach((task: TodoItem, idx: number) => {
-        const icon = task.status === 'in_progress' ? '⏳' : '⭕';
-        const label = idx === 0 ? '🌟 (Synthetic)' : '';
-        console.log(`   ${icon} Task ${idx + 1}: ${task.content} ${label}`);
-      });
-
-      // Send task plan to UI via synthetic TodoWrite event
-      yield {
-        type: 'assistant',
-        message: {
-          id: `planning-${Date.now()}`,
-          content: [{
-            type: 'text',
-            text: taskPlan.analysis,
-          }],
-        },
-      };
-
-      // Send TodoWrite event with ALL tasks (including synthetic Getting Started)
-      if (!isSilentMode && DEBUG_BUILD) console.log('📤 [codex-query] Sending initial TodoWrite to UI with Getting Started task...');
+      // Send initial TodoWrite
       const todoWriteEvent = {
         type: 'assistant',
         message: {
-          id: `todo-init-${Date.now()}`,
+          id: `codex-planning-${Date.now()}`,
           content: [{
             type: 'tool_use',
-            id: `todo-${Date.now()}`,
+            id: `todo-init-${Date.now()}`,
             name: 'TodoWrite',
-            input: { todos: allTasks }, // Include Getting Started!
+            input: { todos: taskPlan.todos },
           }],
         },
       };
 
-      // Stream it directly
       yield todoWriteEvent;
 
     } catch (error) {
@@ -511,46 +530,27 @@ All tasks should start as "pending" except the first one which should be "in_pro
       throw error;
     }
 
-    if (!isSilentMode && DEBUG_BUILD) console.log(`🔍 [codex-query] Smart tracker initialized with ${smartTracker?.todos.length} tasks`);
-
     // ========================================
     // PHASE 2: TASK EXECUTION LOOP
     // ========================================
-    if (!isSilentMode && DEBUG_BUILD) console.log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
+    log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
 
     while (turnCount < MAX_TURNS) {
-      // Check if all tasks are complete
-      let allTasksComplete = false;
-      if (smartTracker) {
-        allTasksComplete = isTrackerComplete(smartTracker);
-        if (allTasksComplete) {
-          const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
-          buildLogger.codexQuery.tasksComplete(completed, smartTracker.todos.length);
-        }
-      }
-
-      if (allTasksComplete) {
-        buildLogger.codexQuery.allComplete();
+      if (!smartTracker || isTrackerComplete(smartTracker)) {
+        log('✅ [codex-query] All tasks complete!');
         break;
       }
 
-      // Determine next prompt - explicitly drive the current task
-      const currentTask = smartTracker ? getCurrentTask(smartTracker) : null;
-
-      if (!smartTracker || !currentTask) {
-        console.error('❌ [codex-query] No tracker or current task - cannot continue');
+      const currentTask = getCurrentTask(smartTracker);
+      if (!currentTask) {
+        log('❌ [codex-query] No current task - cannot continue');
         break;
       }
 
-      if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] Next task: ${currentTask.content}`);
-
-      // PRE-SET active todo index BEFORE executing turn
-      // This ensures tool calls get associated with the right todo!
       const currentTaskIndex = smartTracker.currentIndex;
-      if (!isSilentMode && DEBUG_BUILD) console.log(`📍 [codex-query] Setting active todo index to: ${currentTaskIndex}`);
+      log(`🚀 [codex-query] Working on task ${currentTaskIndex + 1}: ${currentTask.content}`);
 
-      // Send synthetic TodoWrite to update active task BEFORE tools execute
-      if (!isSilentMode && DEBUG_BUILD) console.log(`📤 [codex-query] Sending pre-task TodoWrite (task ${currentTaskIndex} active)...`);
+      // Send pre-task TodoWrite to set active index
       const preTaskUpdate = {
         type: 'assistant',
         message: {
@@ -563,114 +563,59 @@ All tasks should start as "pending" except the first one which should be "in_pro
           }],
         },
       };
-
-      // Send directly
       yield preTaskUpdate;
 
-      const nextPrompt = `Work on this specific task NOW: "${currentTask.content}"
+      // Execute turn for this specific task
+      const taskPrompt = `Work on this specific task NOW: "${currentTask.content}"
 
 Execute ALL necessary file operations and commands to fully complete this task.
 Don't just plan - TAKE ACTION and create/modify files.`;
 
-      // ========================================
-      // EXECUTE NEXT TURN
-      // ========================================
       turnCount++;
-      if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] ═══ Turn ${turnCount}/${MAX_TURNS} ═══`);
-      if (!isSilentMode && DEBUG_BUILD) console.log(`📝 [codex-query] Prompt: ${nextPrompt.substring(0, 150)}...`);
+      log(`🚀 [codex-query] Turn ${turnCount}: ${taskPrompt.substring(0, 80)}...`);
 
-      buildLogger.codexQuery.turnStarted(turnCount, MAX_TURNS, nextPrompt.length);
+      // Stream events through Codex SDK adapter
+      const streamedTurn = await thread.runStreamed(taskPrompt);
 
-      let turnEvents;
-      try {
-        const result = await thread.runStreamed(nextPrompt);
-        turnEvents = result.events;
-      } catch (error) {
-        buildLogger.codexQuery.error(`ERROR in turn ${turnCount}`, error);
-        throw error;
-      }
-
-      // Process this turn's events
-      let hadToolCallsThisTurn = false;
-      let lastMessageThisTurn = "";
-
-      for await (const rawEvent of turnEvents) {
-        const event = rawEvent as CodexEvent;
-
-        if (event.type === "item.completed") {
-          const itemType = resolveCodexItemType(event.item as Record<string, unknown>);
-
-          if (
-            itemType === "command_execution" ||
-            itemType === "tool_call" ||
-            itemType === "mcp_tool_call" ||
-            itemType === "file_change"
-          ) {
-            hadToolCallsThisTurn = true;
-          } else if (itemType === "agent_message") {
-            lastMessageThisTurn = (event.item as { text: string })?.text || "";
-            // Don't parse task status - we handle it automatically
-          }
-        }
-
-        // Forward event to stream
+      // StreamedTurn has an 'events' property that's an AsyncGenerator<ThreadEvent>
+      for await (const event of streamedTurn.events) {
+        // Transform single event - create simple async generator wrapper
         async function* singleEvent() {
-          yield rawEvent;
+          yield event;
         }
-        for await (const agentMessage of convertCodexEventsToAgentMessages(singleEvent())) {
-          yield agentMessage;
+
+        // Transform Codex events to unified format
+        for await (const message of transformCodexStream(singleEvent())) {
+          yield message;
         }
       }
 
-      buildLogger.codexQuery.turnComplete(turnCount, hadToolCallsThisTurn, lastMessageThisTurn.length);
-
-      // AUTO-ADVANCE: Mark current task complete, move to next
-      if (smartTracker && currentTaskIndex < smartTracker.todos.length) {
-        smartTracker.todos[currentTaskIndex].status = 'completed';
-
-        const taskName = smartTracker.todos[currentTaskIndex].content;
-        const isSyntheticTask = currentTaskIndex === 0 && taskName.includes('Getting started');
-
-        if (isSyntheticTask) {
-          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ [codex-query] Completed synthetic "Getting Started" task`);
-          if (!isSilentMode && DEBUG_BUILD) console.log(`🚀 [codex-query] Now starting real work...`);
-        } else {
-          if (!isSilentMode && DEBUG_BUILD) console.log(`✅ [codex-query] Marked task ${currentTaskIndex} as completed: ${taskName}`);
-        }
-
-        if (currentTaskIndex + 1 < smartTracker.todos.length) {
-          smartTracker.currentIndex = currentTaskIndex + 1;
-          smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
-
-          const nextTaskName = smartTracker.todos[currentTaskIndex + 1].content;
-          if (!isSilentMode && DEBUG_BUILD) console.log(`⏳ [codex-query] Advanced to task ${currentTaskIndex + 1}: ${nextTaskName}`);
-        }
-
-        // Send updated todos to UI
-        if (!isSilentMode && DEBUG_BUILD) console.log(`📤 [codex-query] Sending post-task TodoWrite (task ${currentTaskIndex} done, task ${currentTaskIndex + 1} active)...`);
-        const postTaskUpdate = {
-          type: 'assistant',
-          message: {
-            id: `post-task-${Date.now()}`,
-            content: [{
-              type: 'tool_use',
-              id: `post-todo-${Date.now()}`,
-              name: 'TodoWrite',
-              input: { todos: smartTracker.todos },
-            }],
-          },
-        };
-
-        // Send directly
-        yield postTaskUpdate;
-
-        const completed = smartTracker.todos.filter(t => t.status === 'completed').length;
-        if (!isSilentMode && DEBUG_BUILD) console.log(`📊 [codex-query] Progress: ${completed}/${smartTracker.todos.length} tasks complete`);
+      // Mark task as complete
+      smartTracker.todos[currentTaskIndex].status = 'completed';
+      if (currentTaskIndex + 1 < smartTracker.todos.length) {
+        smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
+        smartTracker.currentIndex = currentTaskIndex + 1;
       }
+
+      // Send post-task TodoWrite
+      const postTaskUpdate = {
+        type: 'assistant',
+        message: {
+          id: `post-task-${Date.now()}`,
+          content: [{
+            type: 'tool_use',
+            id: `post-todo-${Date.now()}`,
+            name: 'TodoWrite',
+            input: { todos: smartTracker.todos },
+          }],
+        },
+      };
+      yield postTaskUpdate;
     }
 
-    buildLogger.codexQuery.loopExited(turnCount, MAX_TURNS);
     buildLogger.codexQuery.sessionComplete(turnCount);
+    fileLog.info('━━━ CODEX QUERY COMPLETE ━━━');
+    fileLog.info(`Total turns: ${turnCount}`);
   };
 }
 
@@ -1448,6 +1393,20 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
+        // Log immediately when start-build is received
+        log("📥 Received start-build command");
+        log("   Project ID:", command.projectId);
+        log("   Prompt:", command.payload?.prompt?.substring(0, 100) + '...');
+
+        // Also log to file
+        fileLog.info('━━━ START-BUILD COMMAND RECEIVED ━━━');
+        fileLog.info('Project ID:', command.projectId);
+        fileLog.info('Command ID:', command.id);
+        fileLog.info('Prompt:', command.payload?.prompt);
+        fileLog.info('Operation:', command.payload?.operationType);
+        fileLog.info('Agent:', command.payload?.agent);
+        fileLog.info('Template:', command.payload?.template);
+
         // Each build is a discrete unit of work - create a new trace for proper isolation and sampling
         await Sentry.startNewTrace(async () => {
           try {
