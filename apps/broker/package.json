@@ -13,6 +13,8 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@sentry/node": "file:../sentryvibe/vendor/sentry-node-LOCAL.tgz",
+    "@sentry/profiling-node": "^8.47.0",
     "@sentryvibe/agent-core": "workspace:*",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
