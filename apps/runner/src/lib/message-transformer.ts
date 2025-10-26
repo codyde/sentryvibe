@@ -96,15 +96,76 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
 
     // Process each content block
     if (message.content && Array.isArray(message.content)) {
+      /**
+       * Extract JSON with balanced braces for TODO_WRITE markers
+       */
+      const extractBalancedJsonForMarker = (text: string, startPos: number): { json: string; endPos: number } | null => {
+        let braceCount = 0;
+        let inString = false;
+        let escapeNext = false;
+        let startBraceFound = false;
+
+        for (let i = startPos; i < text.length; i++) {
+          const char = text[i];
+
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+
+          if (inString) continue;
+
+          if (char === '{') {
+            if (!startBraceFound) startBraceFound = true;
+            braceCount++;
+          } else if (char === '}') {
+            braceCount--;
+            if (braceCount === 0 && startBraceFound) {
+              // Found matching closing brace
+              return {
+                json: text.substring(startPos, i + 1),
+                endPos: i + 1
+              };
+            }
+          }
+        }
+
+        return null; // No matching brace found
+      };
+
       const processTodoWriteMarkers = (text: string) => {
-        const regex = /TODO_WRITE\s*:\s*(\{[\s\S]*?\})(?=$|\n)/g;
-        let match: RegExpExecArray | null;
         let cleaned = '';
         let lastIndex = 0;
 
-        while ((match = regex.exec(text)) !== null) {
-          const fullMatch = match[0];
-          const jsonText = match[1];
+        // Find all TODO_WRITE markers
+        const markerPattern = /TODO_WRITE\s*:\s*/g;
+        let match: RegExpExecArray | null;
+
+        while ((match = markerPattern.exec(text)) !== null) {
+          const matchEnd = match.index + match[0].length;
+
+          // Extract balanced JSON starting after the colon
+          const extracted = extractBalancedJsonForMarker(text, matchEnd);
+
+          if (!extracted) {
+            if (process.env.DEBUG_BUILD === '1') {
+              console.warn('⚠️  Failed to find balanced JSON for TODO_WRITE marker at position', match.index);
+            }
+            continue;
+          }
+
+          const jsonText = extracted.json;
+          const fullMatch = text.substring(match.index, extracted.endPos);
 
           try {
             const payload = JSON.parse(jsonText);
@@ -119,12 +180,19 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
               toolName: 'TodoWrite',
               input: payload,
             });
+
+            if (process.env.DEBUG_BUILD === '1') {
+              console.log('✅ Parsed TODO_WRITE with', payload.todos?.length || 0, 'todos');
+            }
           } catch (error) {
-            if (process.env.DEBUG_BUILD === '1') console.warn('⚠️  Failed to parse TODO_WRITE payload:', error);
+            if (process.env.DEBUG_BUILD === '1') {
+              console.warn('⚠️  Failed to parse TODO_WRITE payload:', error);
+              console.warn('    JSON (first 200 chars):', jsonText.substring(0, 200));
+            }
           }
 
           cleaned += text.slice(lastIndex, match.index);
-          lastIndex = match.index + fullMatch.length;
+          lastIndex = extracted.endPos;
         }
 
         cleaned += text.slice(lastIndex);

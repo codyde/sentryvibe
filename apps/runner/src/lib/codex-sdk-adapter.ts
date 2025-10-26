@@ -116,6 +116,54 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 }
 
 /**
+ * Extract JSON with balanced braces starting from a position
+ * Returns the JSON string and the end position, or null if invalid
+ */
+function extractBalancedJson(text: string, startPos: number): { json: string; endPos: number } | null {
+  let braceCount = 0;
+  let inString = false;
+  let escapeNext = false;
+  let startBraceFound = false;
+
+  for (let i = startPos; i < text.length; i++) {
+    const char = text[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') {
+      if (!startBraceFound) startBraceFound = true;
+      braceCount++;
+    } else if (char === '}') {
+      braceCount--;
+      if (braceCount === 0 && startBraceFound) {
+        // Found matching closing brace
+        return {
+          json: text.substring(startPos, i + 1),
+          endPos: i + 1
+        };
+      }
+    }
+  }
+
+  return null; // No matching brace found
+}
+
+/**
  * Extract TodoWrite calls from Codex text and convert to TODO_WRITE marker format
  *
  * Codex outputs: TodoWrite({ "todos": [...] })
@@ -126,18 +174,34 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 function extractAndConvertTodoWrite(text: string): string {
   if (!text) return text;
 
-  // Match TodoWrite calls with various formatting:
-  // TodoWrite({ "todos": [...] })
-  // TodoWrite({\n  "todos": [...]\n})
-  const todoWriteRegex = /TodoWrite\s*\(\s*(\{[\s\S]*?\})\s*\)/g;
-
-  let match: RegExpExecArray | null;
   let result = text;
-  const replacements: Array<{ original: string; replacement: string }> = [];
+  const replacements: Array<{ original: string; replacement: string; startPos: number }> = [];
 
-  while ((match = todoWriteRegex.exec(text)) !== null) {
-    const fullMatch = match[0];
-    const jsonText = match[1];
+  // Find all TodoWrite occurrences
+  const todoWritePattern = /TodoWrite\s*\(/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = todoWritePattern.exec(text)) !== null) {
+    const matchStart = match.index;
+    const matchEnd = match.index + match[0].length;
+
+    // Extract balanced JSON starting after the opening paren
+    const extracted = extractBalancedJson(text, matchEnd);
+
+    if (!extracted) {
+      streamLog.warn(`[Codex Adapter] Failed to find matching braces for TodoWrite at position ${matchStart}`);
+      continue;
+    }
+
+    // Check if there's a closing paren after the JSON
+    const nextChar = text[extracted.endPos];
+    if (nextChar !== ')') {
+      streamLog.warn(`[Codex Adapter] Expected ')' after TodoWrite JSON at position ${extracted.endPos}`);
+      continue;
+    }
+
+    const jsonText = extracted.json;
+    const fullMatch = text.substring(matchStart, extracted.endPos + 1);
 
     try {
       // Validate that it's valid JSON
@@ -153,9 +217,10 @@ function extractAndConvertTodoWrite(text: string): string {
         if (validTodos.length > 0) {
           // Convert to TODO_WRITE marker format
           const todoWriteMarker = `TODO_WRITE : ${jsonText}`;
-          replacements.push({ original: fullMatch, replacement: todoWriteMarker });
+          replacements.push({ original: fullMatch, replacement: todoWriteMarker, startPos: matchStart });
 
           streamLog.info(`[Codex Adapter] Extracted TodoWrite with ${validTodos.length} todos`);
+          streamLog.info(`[Codex Adapter] JSON length: ${jsonText.length} chars`);
           streamLog.info(`[Codex Adapter] First todo: ${JSON.stringify(validTodos[0])}`);
         } else {
           streamLog.warn('[Codex Adapter] TodoWrite has no valid todos, skipping');
@@ -164,30 +229,13 @@ function extractAndConvertTodoWrite(text: string): string {
     } catch (error) {
       // If JSON is invalid, leave it as-is
       streamLog.warn('[Codex Adapter] Failed to parse TodoWrite JSON:', error);
+      streamLog.warn('[Codex Adapter] Extracted JSON (first 200 chars):', jsonText.substring(0, 200));
     }
   }
 
-  // Apply all replacements
-  for (const { original, replacement } of replacements) {
+  // Apply all replacements in reverse order to preserve positions
+  for (const { original, replacement } of replacements.reverse()) {
     result = result.replace(original, replacement);
-  }
-
-  // Also handle JSON-only format at the end of agent_message
-  // Some Codex responses end with just: {"todos":[...]}
-  const jsonOnlyRegex = /\n?(\{"todos":\s*\[[\s\S]*?\]\s*\})\s*$/;
-  const jsonMatch = jsonOnlyRegex.exec(result);
-
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[1]);
-      if (parsed.todos && Array.isArray(parsed.todos)) {
-        const todoWriteMarker = `\nTODO_WRITE : ${jsonMatch[1]}`;
-        result = result.replace(jsonOnlyRegex, todoWriteMarker);
-        streamLog.info(`[Codex Adapter] Extracted JSON-only TodoWrite with ${parsed.todos.length} todos`);
-      }
-    } catch (error) {
-      // Leave as-is if invalid
-    }
   }
 
   return result;
