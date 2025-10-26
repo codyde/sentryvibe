@@ -478,12 +478,17 @@ function createCodexQuery(): BuildQueryFn {
     // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
     const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
 
+    // For enhancements/continuations, try to resume existing thread
+    // TODO: Track thread ID from previous builds and pass it here
+    // For now, always start fresh (enhancement support to be added)
     const thread = codex.startThread({
       sandboxMode: "danger-full-access",
       model: CODEX_MODEL,
       workingDirectory,
       skipGitRepoCheck: true,
     });
+
+    fileLog.info('Codex thread started (ID will be available after first turn)');
 
     buildLogger.codexQuery.threadStarting();
 
