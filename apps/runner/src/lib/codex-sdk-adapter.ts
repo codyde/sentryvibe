@@ -440,7 +440,9 @@ export async function* transformCodexStream(
             });
 
             // Validate at least some todos have content
-            const validTodos = todos.filter(t => t.content && t.content.length > 0);
+            const validTodos = todos.filter((t: { content: string; activeForm: string; status: string }) =>
+              t.content && t.content.length > 0
+            );
             if (validTodos.length === 0) {
               streamLog.warn('[Codex Adapter] todo_list has no valid todos, skipping');
               break;

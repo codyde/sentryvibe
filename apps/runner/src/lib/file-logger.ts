@@ -53,6 +53,7 @@ export const fileLog = {
  */
 export const streamLog = {
   info: (...args: unknown[]) => writeLog(STREAM_LOG, 'INFO', ...args),
+  warn: (...args: unknown[]) => writeLog(STREAM_LOG, 'WARN', ...args),
   event: (eventNumber: number, eventType: string, data: unknown) => {
     writeLog(STREAM_LOG, 'EVENT', `#${eventNumber} type="${eventType}"`, data);
   },
