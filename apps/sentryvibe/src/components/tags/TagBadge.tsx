@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 import { findTagDefinition } from '@sentryvibe/agent-core/config/tags';
+import { getBrandLogo } from '@/lib/brand-logos';
 
 interface TagBadgeProps {
   tag: AppliedTag;
@@ -44,9 +45,17 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
 
   // For brand tags, show expanded colors in hover card
   const shouldShowHoverCard = tag.key === 'brand' && expandedValues;
+  const brandLogo = tag.key === 'brand' ? getBrandLogo(tag.value) : null;
 
   const badge = (
     <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors">
+      {brandLogo && (
+        <img
+          src={brandLogo}
+          alt={`${tag.value} logo`}
+          className="w-3.5 h-3.5 object-contain mr-1"
+        />
+      )}
       <span className="text-gray-300">{tag.key}:</span>
       {renderValue()}
       <button

@@ -11,6 +11,8 @@ export interface TagOption {
   description?: string;
   // For theme/brand tags - bundle of values that get expanded
   values?: Record<string, string>;
+  // For brand tags - logo path
+  logo?: string;
   // For model tags - provider and model mapping
   provider?: string;
   model?: string;
@@ -133,6 +135,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'sentry',
             label: 'Sentry',
             description: 'Error monitoring and performance - vibrant purple and pink',
+            logo: '/logos/sentry.svg',
             values: {
               primaryColor: '#9D58BF',
               secondaryColor: '#FF708C',
@@ -145,6 +148,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'stripe',
             label: 'Stripe',
             description: 'Modern payments aesthetic',
+            logo: '/logos/stripe.svg',
             values: {
               primaryColor: '#635bff',
               secondaryColor: '#0a2540',
@@ -157,6 +161,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'vercel',
             label: 'Vercel',
             description: 'Clean developer tools',
+            logo: '/logos/vercel.svg',
             values: {
               primaryColor: '#000000',
               secondaryColor: '#ffffff',
@@ -169,6 +174,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'linear',
             label: 'Linear',
             description: 'Sleek project management',
+            logo: '/logos/linear.svg',
             values: {
               primaryColor: '#5e6ad2',
               secondaryColor: '#26b5ce',
@@ -181,6 +187,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'notion',
             label: 'Notion',
             description: 'Warm productivity',
+            logo: '/logos/notion.svg',
             values: {
               primaryColor: '#2383e2',
               secondaryColor: '#e69138',
@@ -193,6 +200,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'github',
             label: 'GitHub',
             description: 'Developer-first',
+            logo: '/logos/github.svg',
             values: {
               primaryColor: '#238636',
               secondaryColor: '#1f6feb',
@@ -205,6 +213,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'airbnb',
             label: 'Airbnb',
             description: 'Friendly travel',
+            logo: '/logos/airbnb.svg',
             values: {
               primaryColor: '#ff385c',
               secondaryColor: '#00a699',
@@ -217,6 +226,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
             value: 'spotify',
             label: 'Spotify',
             description: 'Bold music streaming',
+            logo: '/logos/spotify.svg',
             values: {
               primaryColor: '#1db954',
               secondaryColor: '#191414',
