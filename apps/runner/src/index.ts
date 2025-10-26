@@ -11,20 +11,9 @@ import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
-
-// Disable AI SDK warnings globally
-process.env.AI_SDK_LOG_WARNINGS = 'false';
-
-// AI SDK imports
 import { streamText } from 'ai';
 import { claudeCode } from 'ai-sdk-provider-claude-code';
 
-// Codex SDK import (NOT AI SDK - using original Codex SDK)
 import { createInstrumentedCodex } from '@sentry/node';
 
 import WebSocket from "ws";
@@ -39,12 +28,8 @@ import {
   type ClaudeModelId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
-// Use dynamic import for buildLogger to work around CommonJS/ESM interop
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
-
-// Configure templates.json path for this runner app
-setTemplatesPath(resolve(__dirname, "../templates.json"));
 import { startDevServer, stopDevServer } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
 import {
@@ -65,6 +50,14 @@ import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
+
+globalThis.AI_SDK_LOG_WARNINGS = false;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+setTemplatesPath(resolve(__dirname, "../templates.json"));
+
+loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 
 export interface RunnerOptions {
   brokerUrl?: string;
@@ -361,7 +354,7 @@ async function* convertCodexEventsToAgentMessages(
 function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt) {
 
-    const instrumentedQuery = createInstrumentedQueryForProvider(query as any)
+    const instrumentedQuery = createInstrumentedQueryForProvider(query as (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>)
 
     process.stderr.write('[runner] [createClaudeQuery] 🎯 Query function called\n');
     process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
@@ -377,13 +370,13 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
 
     // Map ClaudeModelId to AI SDK model IDs
     const modelIdMap: Record<string, string> = {
-      'claude-haiku-4-5': 'haiku',
-      'claude-sonnet-4-5': 'sonnet',
+      'claude-haiku-4-5': 'claude-haiku-4-5',
+      'claude-sonnet-4-5': 'claude-haiku-4-5',
     };
     const aiSdkModelId = modelIdMap[modelId] || 'sonnet';
 
     const model = claudeCode(aiSdkModelId, {
-      queryFunction: instrumentedQuery as any,
+      queryFunction: instrumentedQuery as typeof query,
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
       permissionMode: "bypassPermissions",
