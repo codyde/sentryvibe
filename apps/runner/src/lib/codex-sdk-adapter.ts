@@ -139,33 +139,71 @@ export async function* transformCodexStream(
         // Tool execution completed
         if (!event.item) break;
 
-        const toolName = event.item.name as string;
-        if (!toolName) break;
-
+        const itemType = event.item.type;
         const toolId = getToolId(event.item);
-        const toolInput = getToolInput(event.item);
 
-        // Yield tool call
-        const toolMessage: TransformedMessage = {
-          type: 'assistant',
-          message: {
-            id: `${currentMessageId}-tool-${toolId}`,
-            content: [{
-              type: 'tool_use',
-              id: toolId,
-              name: toolName,
-              input: toolInput,
-            }],
-          },
-        };
+        // Handle different Codex item types
+        if (itemType === 'command_execution') {
+          // Command execution → Bash tool
+          const toolMessage: TransformedMessage = {
+            type: 'assistant',
+            message: {
+              id: `${currentMessageId}-tool-${toolId}`,
+              content: [{
+                type: 'tool_use',
+                id: toolId,
+                name: 'Bash',
+                input: { command: event.item.command },
+              }],
+            },
+          };
 
-        yieldCount++;
-        streamLog.yield('tool-call', { toolName, toolId, toolInput });
-        yield toolMessage;
+          yieldCount++;
+          streamLog.yield('tool-call', { toolName: 'Bash', toolId, command: event.item.command });
+          yield toolMessage;
 
-        // Yield tool result if we have output
-        const toolOutput = getToolOutput(event.item);
-        if (toolOutput !== null) {
+          // Yield result
+          const output = event.item.aggregated_output;
+          if (output) {
+            const resultMessage: TransformedMessage = {
+              type: 'user',
+              message: {
+                id: `result-${toolId}`,
+                content: [{
+                  type: 'tool_result',
+                  tool_use_id: toolId,
+                  content: output,
+                }],
+              },
+            };
+
+            yieldCount++;
+            streamLog.yield('tool-result', { toolId, output: output.substring(0, 100) });
+            yield resultMessage;
+          }
+        } else if (itemType === 'file_change') {
+          // File change → Write/Edit tool
+          const changes = event.item.changes || [];
+          const paths = changes.map((c: any) => c.path).join(', ');
+
+          const toolMessage: TransformedMessage = {
+            type: 'assistant',
+            message: {
+              id: `${currentMessageId}-tool-${toolId}`,
+              content: [{
+                type: 'tool_use',
+                id: toolId,
+                name: 'Write', // or 'Edit' - using Write for simplicity
+                input: { paths: changes },
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('tool-call', { toolName: 'Write', toolId, paths });
+          yield toolMessage;
+
+          // Yield success result
           const resultMessage: TransformedMessage = {
             type: 'user',
             message: {
@@ -173,15 +211,36 @@ export async function* transformCodexStream(
               content: [{
                 type: 'tool_result',
                 tool_use_id: toolId,
-                content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+                content: `File changes applied: ${paths}`,
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-result', { toolId, toolOutput });
+          streamLog.yield('tool-result', { toolId, changes });
           yield resultMessage;
+        } else if (itemType === 'agent_message' || itemType === 'reasoning') {
+          // Agent message/reasoning → Text message
+          const text = event.item.text as string;
+          if (text && text.trim().length > 0) {
+            const textMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: currentMessageId,
+                content: [{
+                  type: 'text',
+                  text: text,
+                }],
+              },
+            };
+
+            yieldCount++;
+            streamLog.yield('text', { length: text.length });
+            yield textMessage;
+          }
         }
+        // TODO: Handle mcp_tool_call, web_search, todo_list, error item types
+
         break;
       }
 
