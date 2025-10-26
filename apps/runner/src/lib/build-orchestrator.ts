@@ -152,10 +152,13 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   const SKIP_TEMPLATES = process.env.SKIP_TEMPLATES === 'true';
   strategyContext.skipTemplates = SKIP_TEMPLATES;
 
-  // UNIFIED: Handle template download for both agents (simplified logic)
-  if (isNewProject && !SKIP_TEMPLATES) {
+  // Check if strategy wants template pre-downloaded (Claude) or agent-cloned (Codex)
+  const shouldPreDownload = strategy.shouldDownloadTemplate(strategyContext);
+
+  // CONDITIONAL: Handle template download based on agent strategy
+  if (isNewProject && !SKIP_TEMPLATES && shouldPreDownload) {
     if (providedTemplate) {
-      // Frontend provided a template - use it for both agents
+      // Frontend provided a template - download it for Claude
       buildLogger.orchestrator.templateSelecting('auto');
 
       if (!selectedTemplate) {
@@ -166,7 +169,7 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         throw new Error(`Template ${providedTemplate.id} not found in runner's templates.json. Cannot download.`);
       }
 
-      buildLogger.log('info', 'orchestrator', `UNIFIED: Downloading frontend-selected template for ${agent}...`);
+      buildLogger.log('info', 'orchestrator', `Downloading frontend-selected template for ${agent}...`);
       buildLogger.orchestrator.templateDownloading(
         selectedTemplate.name,
         selectedTemplate.repository,
@@ -194,8 +197,8 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         },
       });
     } else {
-      // No template provided - auto-select and download for both agents
-      buildLogger.log('info', 'orchestrator', `UNIFIED: Auto-selecting and downloading template for ${agent}...`);
+      // No template provided - auto-select and download for Claude
+      buildLogger.log('info', 'orchestrator', `Auto-selecting and downloading template for ${agent}...`);
 
       // Send initial setup todos
       templateEvents.push({
@@ -284,6 +287,29 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         },
       });
     }
+  } else if (isNewProject && !SKIP_TEMPLATES && !shouldPreDownload) {
+    // Agent handles template cloning itself (Codex)
+    buildLogger.log('info', 'orchestrator', `Agent ${agent} will handle template cloning - skipping pre-download`);
+
+    // Still set selectedTemplate for metadata, but don't download
+    if (providedTemplate && selectedTemplate) {
+      buildLogger.log('info', 'orchestrator', `Template metadata available: ${selectedTemplate.name}`);
+
+      // Emit template-selected event so UI knows what template is being used
+      templateEvents.push({
+        type: 'template-selected',
+        data: {
+          templateId: providedTemplate.id,
+          templateName: providedTemplate.name,
+          framework: providedTemplate.framework,
+          repository: providedTemplate.repository,
+          selectedBy: 'agent-will-clone',
+        },
+      });
+    }
+
+    // No fileTree yet - agent will create it
+    fileTree = '';
   } else {
     buildLogger.log('info', 'orchestrator', 'EXISTING PROJECT - Skipping template download');
     fileTree = await getProjectFileTree(workingDirectory);
@@ -293,6 +319,11 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   strategyContext.templateName = selectedTemplate?.name;
   strategyContext.templateFramework = selectedTemplate?.tech.framework;
 
+  // Add template metadata to context for Codex to use
+  if (providedTemplate) {
+    strategyContext.templateMetadata = providedTemplate;
+  }
+
   if (selectedTemplate) {
     strategy.postTemplateSelected?.(strategyContext, {
       name: selectedTemplate.name,
@@ -301,10 +332,14 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     });
   }
 
+  // Resolve working directory for agent (Codex uses parent dir for cloning)
+  const resolvedWorkingDirectory = strategy.resolveWorkingDirectory(strategyContext);
+  buildLogger.log('info', 'orchestrator', `Working directory resolved: ${resolvedWorkingDirectory}`);
+
   // Prepare project metadata (for new projects with templates)
   // NEW: If template was provided by frontend, BOTH agents get metadata immediately
   const projectMetadata = isNewProject && (selectedTemplate || providedTemplate) ? {
-    path: workingDirectory,
+    path: resolvedWorkingDirectory,
     projectType: selectedTemplate?.tech.framework ?? providedTemplate?.framework ?? 'unknown',
     runCommand: selectedTemplate?.setup.devCommand ?? providedTemplate?.runCommand ?? 'npm run dev',
     port: selectedTemplate?.setup.defaultPort ?? providedTemplate?.port ?? 3000,
@@ -336,7 +371,7 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     fileTree,
     systemPrompt,
     fullPrompt,
-    projectPath: workingDirectory,
+    projectPath: resolvedWorkingDirectory,
     templateEvents,
     projectMetadata,
   };
