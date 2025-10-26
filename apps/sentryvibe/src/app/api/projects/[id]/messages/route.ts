@@ -159,6 +159,29 @@ export async function GET(
         };
       }
 
+      // RECONNECTION DETECTION: Check for state inconsistencies
+      // If all todos are complete but session is still active, mark as complete
+      if (hydratedState && session.status === 'active') {
+        const allTodosComplete = hydratedState.todos.length > 0 &&
+          hydratedState.todos.every(todo => todo.status === 'completed');
+
+        if (allTodosComplete) {
+          console.log(`[messages-route] 🔄 Detected completed build with active session: ${session.id}`);
+          hydratedState.isActive = false;
+          hydratedState.endTime = hydratedState.endTime ?? new Date();
+
+          // Update session status in background (don't block response)
+          db.update(generationSessions)
+            .set({
+              status: 'completed',
+              endedAt: hydratedState.endTime,
+              updatedAt: new Date()
+            })
+            .where(eq(generationSessions.id, session.id))
+            .catch(err => console.error('[messages-route] Failed to update session status:', err));
+        }
+      }
+
       return {
         session,
         todos: sessionTodos,

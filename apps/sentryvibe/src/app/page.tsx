@@ -748,9 +748,16 @@ function HomeContent() {
                       (a, b) => b.startTime.getTime() - a.startTime.getTime()
                     )[0];
                   if (latestCompleted) {
-                    if (DEBUG_PAGE) console.log(
-                      "   📚 Restoring most recent completed session for context"
-                    );
+                    // Check if this session just completed (within last 5 minutes)
+                    const timeSinceCompletion = Date.now() - latestCompleted.startTime.getTime();
+                    const recentlyCompleted = timeSinceCompletion < 5 * 60 * 1000;
+
+                    if (recentlyCompleted && DEBUG_PAGE) {
+                      console.log("   ✅ Build completed while disconnected - showing final state");
+                    } else if (DEBUG_PAGE) {
+                      console.log("   📚 Restoring most recent completed session for context");
+                    }
+
                     updateGenerationState({
                       ...latestCompleted,
                       isActive: false,

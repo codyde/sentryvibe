@@ -2,19 +2,15 @@ import { randomUUID } from 'crypto';
 import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
+import { registerBuild } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { RunnerEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import {
   projects,
   messages,
   generationSessions,
-  generationTodos,
-  generationToolCalls,
-  generationNotes,
 } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
-import type { TodoItem, ToolCall, GenerationState, TextMessage } from '@sentryvibe/agent-core/types/generation';
-import { serializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
+import { eq } from 'drizzle-orm';
 import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
 import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { analyzePromptForTemplate, generateProjectName } from '@/services/template-analysis';
@@ -208,16 +204,10 @@ export async function POST(
 
     const encoder = new TextEncoder();
 
-    // Track messages for DB persistence
+    // Track messages for DB persistence (legacy chat transcript)
     let currentMessageParts: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}> = [];
     let currentMessageId: string | null = null;
     const completedMessages: Array<{role: 'assistant'; content: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}>}> = [];
-
-    // Map toolCallId to toolName for output events that don't include toolName
-    const toolCallNameMap = new Map<string, string>();
-
-    // Track active todo index to associate tools/text with todos
-    let currentActiveTodoIndex = -1;
 
     // Save user message first
     await db.insert(messages).values({
@@ -267,381 +257,10 @@ export async function POST(
       sessionId = inserted[0].id;
     }
 
-    const buildSnapshot = async (): Promise<GenerationState> => {
-      const [sessionRow] = await db
-        .select()
-        .from(generationSessions)
-        .where(eq(generationSessions.id, sessionId))
-        .limit(1);
-
-      if (!sessionRow) {
-        throw new Error('Generation session not found when building snapshot');
-      }
-
-      const todoRows = await db
-        .select()
-        .from(generationTodos)
-        .where(eq(generationTodos.sessionId, sessionId))
-        .orderBy(generationTodos.todoIndex);
-
-      const toolRows = await db
-        .select()
-        .from(generationToolCalls)
-        .where(eq(generationToolCalls.sessionId, sessionId));
-
-      const noteRows = await db
-        .select()
-        .from(generationNotes)
-        .where(eq(generationNotes.sessionId, sessionId))
-        .orderBy(generationNotes.createdAt);
-
-      const todosSnapshot: TodoItem[] = todoRows.map(row => ({
-        content: row.content,
-        status: (row.status as TodoItem['status']) ?? 'pending',
-        activeForm: row.activeForm ?? row.content,
-      }));
-
-      const toolsByTodo: Record<number, ToolCall[]> = {};
-      toolRows.forEach(tool => {
-        const index = tool.todoIndex ?? -1;
-        if (index < 0) return;
-        if (!toolsByTodo[index]) {
-          toolsByTodo[index] = [];
-        }
-        toolsByTodo[index].push({
-          id: tool.toolCallId ?? tool.id,
-          name: tool.name,
-          input: tool.input ?? undefined,
-          output: tool.output ?? undefined,
-          state: tool.state as ToolCall['state'],
-          startTime: tool.startedAt ?? sessionRow.startedAt ?? new Date(),
-          endTime: tool.endedAt ?? undefined,
-        });
-      });
-
-      const textByTodo: Record<number, TextMessage[]> = {};
-      noteRows.forEach(note => {
-        const index = note.todoIndex ?? -1;
-        if (index < 0) return;
-        if (!textByTodo[index]) {
-          textByTodo[index] = [];
-        }
-        textByTodo[index].push({
-          id: note.textId ?? note.id,
-          text: note.content,
-          timestamp: note.createdAt ?? new Date(),
-        });
-      });
-
-      const activeIndex = todoRows.findIndex(row => row.status === 'in_progress');
-
-      let persistedState: Record<string, unknown> | null = null;
-      if (sessionRow.rawState) {
-        if (typeof sessionRow.rawState === 'string') {
-          try {
-            persistedState = JSON.parse(sessionRow.rawState) as Record<string, unknown>;
-          } catch (parseError) {
-            console.warn('[build-route] Failed to parse rawState JSON:', parseError);
-          }
-        } else {
-          persistedState = sessionRow.rawState as Record<string, unknown>;
-        }
-      }
-
-      const snapshot: GenerationState = {
-        id: sessionRow.buildId,
-        projectId: sessionRow.projectId,
-        projectName: project[0].name,
-        operationType: (sessionRow.operationType ?? body.operationType) as GenerationState['operationType'],
-        agentId: (persistedState?.agentId as GenerationState['agentId']) ?? agentId,
-        claudeModelId:
-          (persistedState?.claudeModelId as GenerationState['claudeModelId']) ??
-          (agentId === 'claude-code' ? claudeModel : undefined),
-        todos: todosSnapshot,
-        toolsByTodo,
-        textByTodo,
-        activeTodoIndex: activeIndex,
-        isActive: sessionRow.status === 'active',
-        startTime: sessionRow.startedAt ?? now,
-        endTime: sessionRow.endedAt ?? undefined,
-        codex: persistedState?.codex as GenerationState['codex'],
-      };
-
-      return snapshot;
-    };
-
-    const refreshRawState = async () => {
-      try {
-        const snapshot = await buildSnapshot();
-        const serialized = serializeGenerationState(snapshot);
-        await db.update(generationSessions)
-          .set({ rawState: serialized, updatedAt: new Date() })
-          .where(eq(generationSessions.id, sessionId));
-      } catch (snapshotError) {
-        console.warn('[build-route] Failed to refresh raw generation state:', snapshotError);
-      }
-    };
-
-    const finalizeSession = async (status: 'completed' | 'failed', timestamp: Date) => {
-      await retryOnTimeout(() =>
-        db.update(generationSessions)
-          .set({ status, endedAt: timestamp, updatedAt: timestamp })
-          .where(eq(generationSessions.id, sessionId))
-      );
-      await refreshRawState();
-    };
-
-    const persistTodo = async (todo: { content?: string; activeForm?: string; status?: string }, index: number) => {
-      const content = todo?.content ?? todo?.activeForm ?? 'Untitled task';
-      const activeForm = todo?.activeForm ?? null;
-      const status = todo?.status ?? 'pending';
-      const timestamp = new Date();
-
-      // Wrap in retry logic for DB timeouts
-      await retryOnTimeout(() =>
-        db.insert(generationTodos).values({
-          sessionId,
-          todoIndex: index,
-          content,
-          activeForm,
-          status,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        }).onConflictDoUpdate({
-          target: [generationTodos.sessionId, generationTodos.todoIndex],
-          set: {
-            content,
-            activeForm,
-            status,
-            updatedAt: timestamp,
-          },
-        })
-      );
-    };
-
-    const persistToolCall = async (eventData: { toolCallId?: string; id?: string; toolName?: string; todoIndex?: number; todo_index?: number; input?: unknown; output?: unknown }, state: 'input-available' | 'output-available') => {
-      const toolCallId = eventData.toolCallId ?? eventData.id ?? randomUUID();
-      const todoIndex = typeof eventData.todoIndex === 'number'
-        ? eventData.todoIndex
-        : typeof eventData.todo_index === 'number'
-          ? eventData.todo_index
-          : -1;
-
-      const timestamp = new Date();
-
-      // If toolName is missing and this is an output event, try to find the existing record
-      if (!eventData.toolName && state === 'output-available') {
-        const existing = await retryOnTimeout(() =>
-          db.select()
-            .from(generationToolCalls)
-            .where(and(
-              eq(generationToolCalls.sessionId, sessionId),
-              eq(generationToolCalls.toolCallId, toolCallId),
-            ))
-            .limit(1)
-        );
-
-        if (existing && existing.length > 0) {
-          // Update existing record
-          await retryOnTimeout(() =>
-            db.update(generationToolCalls)
-              .set({
-                output: eventData.output ?? null,
-                state,
-                endedAt: timestamp,
-                updatedAt: timestamp,
-              })
-              .where(eq(generationToolCalls.id, existing[0].id))
-          );
-          return;
-        }
-        // If no existing record and no toolName, we can't insert - skip it
-        return;
-      }
-
-      // Ensure toolName exists for insert
-      if (!eventData.toolName) {
-        return;
-      }
-
-      const toolName = eventData.toolName; // Extract to narrow type
-
-      await retryOnTimeout(() =>
-        db.insert(generationToolCalls).values({
-          sessionId,
-          todoIndex,
-          toolCallId,
-          name: toolName,
-          input: state === 'input-available' ? eventData.input ?? null : undefined,
-          output: state === 'output-available' ? eventData.output ?? null : undefined,
-          state,
-          startedAt: timestamp,
-          endedAt: state === 'output-available' ? timestamp : null,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        }).onConflictDoUpdate({
-          target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
-          set: {
-            input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
-            output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
-            state,
-            endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
-            updatedAt: timestamp,
-          },
-        })
-      );
-    };
-
-    const appendNote = async (params: { textId?: string; content: string; kind: string; todoIndex: number }) => {
-      const { textId, content, kind, todoIndex } = params;
-      if (!content) return;
-      const timestamp = new Date();
-
-      if (textId) {
-        const existing = await retryOnTimeout(() =>
-          db
-            .select()
-            .from(generationNotes)
-            .where(and(
-              eq(generationNotes.sessionId, sessionId),
-              eq(generationNotes.textId, textId),
-            ))
-            .limit(1)
-        );
-
-        if (existing && existing.length > 0) {
-          await retryOnTimeout(() =>
-            db.update(generationNotes)
-              .set({
-                content: existing[0].content + content,
-              })
-              .where(eq(generationNotes.id, existing[0].id))
-          );
-          return;
-        }
-      }
-
-      await retryOnTimeout(() =>
-        db.insert(generationNotes).values({
-          sessionId,
-          todoIndex,
-          textId: textId ?? null,
-          kind,
-          content,
-          createdAt: timestamp,
-        })
-      );
-    };
-
-    const persistEvent = async (eventData: { type?: string; toolCallId?: string; toolName?: string; todoIndex?: number; input?: { todos?: Array<{ content?: string; activeForm?: string; status?: string }> }; output?: unknown; id?: string; delta?: string; message?: string; data?: { message?: string } }) => {
-      if (!eventData || !sessionId) return;
-      const timestamp = new Date();
-
-      switch (eventData.type) {
-        case 'start':
-          await retryOnTimeout(() =>
-            db.update(generationSessions)
-              .set({
-                status: 'active',
-                updatedAt: timestamp,
-              })
-              .where(eq(generationSessions.id, sessionId))
-          );
-          await refreshRawState();
-          break;
-        case 'tool-input-available':
-          // Store toolName in map for later output events
-          if (eventData.toolCallId && eventData.toolName) {
-            toolCallNameMap.set(eventData.toolCallId, eventData.toolName);
-          }
-
-          if (eventData.toolName === 'TodoWrite') {
-            const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
-
-            // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
-            await Promise.all(todos.map((todo, index: number) => persistTodo(todo, index)));
-
-            // Update active todo index for subsequent events
-            currentActiveTodoIndex = todos.findIndex((t) => t.status === 'in_progress');
-            console.log(`[build-route] Updated activeTodoIndex to ${currentActiveTodoIndex}`);
-
-            // Persist TodoWrite as a tool call
-            await persistToolCall(eventData, 'input-available');
-
-            // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
-            await refreshRawState();
-            console.log(`[build-route] ✅ Todos persisted and state refreshed, activeTodoIndex=${currentActiveTodoIndex}`);
-
-            // Give frontend 50ms to process the TodoWrite update before tools arrive
-            await new Promise(resolve => setTimeout(resolve, 50));
-            console.log(`[build-route] ⏱️  Waited for frontend to process TodoWrite`);
-
-            // Don't call refreshRawState again at the end - we already did it
-            return;
-          } else if (eventData.toolName) {
-            // Inject active todo index into tool event before persisting
-            if (!eventData.todoIndex && currentActiveTodoIndex >= 0) {
-              eventData.todoIndex = currentActiveTodoIndex;
-              console.log(`[build-route] Injected todoIndex ${currentActiveTodoIndex} into ${eventData.toolName} tool`);
-            }
-            await persistToolCall(eventData, 'input-available');
-          }
-
-          // Only refresh if we didn't already refresh for TodoWrite
-          if (eventData.toolName !== 'TodoWrite') {
-            await refreshRawState();
-          }
-          break;
-        case 'tool-output-available':
-          // Try to restore toolName from map if missing
-          if (!eventData.toolName && eventData.toolCallId) {
-            const storedToolName = toolCallNameMap.get(eventData.toolCallId);
-            if (storedToolName) {
-              eventData.toolName = storedToolName;
-            }
-          }
-          await persistToolCall(eventData, 'output-available');
-          await refreshRawState();
-          break;
-        case 'text-delta':
-          // Inject active todo index if not present
-          const textTodoIndex = typeof eventData.todoIndex === 'number'
-            ? eventData.todoIndex
-            : currentActiveTodoIndex;
-          await appendNote({
-            textId: eventData.id,
-            content: eventData.delta ?? '',
-            kind: 'text',
-            todoIndex: textTodoIndex,
-          });
-          await refreshRawState();
-          break;
-        case 'data-reasoning':
-        case 'reasoning':
-          if (eventData.message || eventData.data?.message) {
-            // Inject active todo index if not present
-            const reasoningTodoIndex = typeof eventData.todoIndex === 'number'
-              ? eventData.todoIndex
-              : currentActiveTodoIndex;
-            await appendNote({
-              textId: eventData.id ?? undefined,
-              content: eventData.message ?? eventData.data?.message ?? '',
-              kind: 'reasoning',
-              todoIndex: reasoningTodoIndex,
-            });
-            await refreshRawState();
-          }
-          break;
-        case 'finish':
-          await finalizeSession('completed', timestamp);
-          break;
-        case 'error':
-          await finalizeSession('failed', timestamp);
-          break;
-        default:
-          break;
-      }
-    };
+    // Register build with persistent processor
+    // This ensures database updates continue even if HTTP connection is lost
+    const persistentCleanup = registerBuild(commandId, sessionId, id, buildId);
+    console.log('[build-route] ✅ Registered build with persistent processor');
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -652,7 +271,7 @@ export async function POST(
           if (closed) return;
           closed = true;
 
-          // Save all completed messages to DB
+          // Save all completed messages to DB (legacy chat transcript)
           for (const msg of completedMessages) {
             try {
               await db.insert(messages).values({
@@ -665,25 +284,9 @@ export async function POST(
             }
           }
 
-          // Finalize the generation session as completed
-          try {
-            await finalizeSession('completed', new Date());
-            console.log('[build-route] ✅ Finalized generation session as completed');
-          } catch (error) {
-            console.error('[build-route] Failed to finalize session:', error);
-          }
-
-          // Update project status to completed
-          try {
-            await db.update(projects)
-              .set({ status: 'completed', updatedAt: new Date() })
-              .where(eq(projects.id, id));
-            console.log('[build-route] ✅ Updated project status to completed');
-          } catch (error) {
-            console.error('[build-route] Failed to update project status:', error);
-          }
-
+          // Unsubscribe from SSE stream (persistent processor continues independently)
           unsubscribe();
+          console.log('[build-route] 🔌 SSE stream closed, persistent processor continues');
 
           // Safely close controller - it may already be closed
           try {
@@ -701,19 +304,13 @@ export async function POST(
           if (closed) return;
           if (!chunk) return;
 
-          // Parse events to track messages for DB
+          // Parse events to track messages for legacy chat transcript
           try {
             const match = chunk.match(/data:\s*({.*})/);
             if (match) {
               const eventData = JSON.parse(match[1]);
-              try {
-                await persistEvent(eventData);
-              } catch (persistError) {
-                console.error('[build-route] Failed to persist event (non-fatal):', persistError);
-                // Continue processing - don't let DB errors stop the stream
-              }
 
-              // Track message lifecycle for legacy chat transcript
+              // Track message lifecycle for legacy chat transcript only
               if (eventData.type === 'start') {
                 if (currentMessageId && currentMessageParts.length > 0) {
                   completedMessages.push({
