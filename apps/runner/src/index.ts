@@ -391,6 +391,8 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
 
     // Create model with settings
     // DON'T set pathToClaudeCodeExecutable - let it use bundled cli.js from node_modules
+    // NOTE: Sentry instrumentation happens automatically via claudeCodeIntegration()
+    // No need to manually wrap query function - the integration patches it
     const model = claudeCode(aiSdkModelId, {
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,

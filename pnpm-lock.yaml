@@ -2227,7 +2227,7 @@ packages:
       '@opentelemetry/semantic-conventions': ^1.37.0
 
   '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz':
-    resolution: {integrity: sha512-EFHN+vddetSU8l7FMc3RBwEIh6xG84z/r+hPnxP8YtI0/D/deMIJkNbKpOMc8p4Wu6MMDDp1lclsLICfO9jPaA==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
+    resolution: {integrity: sha512-/sNcOirIHP1/6Y7wCaZphXXpdO7CdvwtCZx9mareU9LoX5LGVTPE8q9F0BhuU8x0jil0bZHlbZQ6NjYebY+zhQ==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
     version: 10.17.0
     engines: {node: '>=18'}
 
