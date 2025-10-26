@@ -2204,11 +2204,12 @@ export async function startRunner(options: RunnerOptions = {}) {
     });
   }
 
-  process.on("SIGINT", async () => {
+  // Shared cleanup logic that can be called programmatically or via signals
+  const performShutdown = async () => {
     // Prevent duplicate shutdown calls
     if (isShuttingDown) return;
 
-    log("shutting down");
+    log("shutting down runner");
     isShuttingDown = true; // Prevent reconnection attempts
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -2219,41 +2220,46 @@ export async function startRunner(options: RunnerOptions = {}) {
       socket.close(1000, "Shutdown requested");
     }
 
+    // Stop all running dev servers and cleanup tunnels
+    const { getAllActiveProjectIds, stopAllDevServers } = await import('./lib/process-manager.js');
+    const activeProjectIds = getAllActiveProjectIds();
+
+    for (const projectId of activeProjectIds) {
+      // Cleanup any open tunnels for verified ports
+      const verifiedPort = verifiedPortsByProject.get(projectId);
+      if (verifiedPort) {
+        await tunnelManager.closeTunnel(verifiedPort);
+        verifiedPortsByProject.delete(projectId);
+      }
+    }
+
+    // Stop all dev server processes
+    stopAllDevServers();
+
     // Cleanup all tunnels
     await tunnelManager.closeAll();
 
     // Flush Sentry events before exiting
     await Sentry.flush(2000);
+  };
 
+  process.on("SIGINT", async () => {
+    log("shutting down (Ctrl+C)");
+    await performShutdown();
     // Don't call process.exit() - let the CLI's shutdown handler finish
     // If running standalone (not via CLI), the process will exit naturally
   });
 
   process.on("SIGTERM", async () => {
-    // Prevent duplicate shutdown calls
-    if (isShuttingDown) return;
-
     log("shutting down (SIGTERM)");
-    isShuttingDown = true; // Prevent reconnection attempts
-
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    if (pingTimer) clearInterval(pingTimer);
-
-    // Close WebSocket connection gracefully
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close(1000, "Shutdown requested");
-    }
-
-    // Cleanup all tunnels
-    await tunnelManager.closeAll();
-
-    // Flush Sentry events before exiting
-    await Sentry.flush(2000);
-
+    await performShutdown();
     // Don't call process.exit() - let the CLI's shutdown handler finish
   });
 
   connect();
+
+  // Return cleanup function for programmatic shutdown (when used via CLI)
+  return performShutdown;
 }
 
 // If running this file directly, start the runner

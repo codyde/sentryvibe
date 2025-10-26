@@ -243,8 +243,11 @@ export async function startCommand(options: StartOptions) {
   }
   process.stdin.resume();
 
-  // Add backup SIGINT handler for Ctrl+C (in case Ink's doesn't fire)
+  // Track runner cleanup function and shutting down state
   let isShuttingDown = false;
+  let runnerCleanupFn: (() => Promise<void>) | undefined;
+
+  // Add backup SIGINT handler for Ctrl+C (in case Ink's doesn't fire)
   const handleSigInt = async () => {
     if (isShuttingDown) {
       // Force exit if already shutting down
@@ -253,6 +256,13 @@ export async function startCommand(options: StartOptions) {
     isShuttingDown = true;
 
     console.log('\n⚠ Received Ctrl+C, stopping services...');
+
+    // Stop runner first if cleanup function exists
+    if (runnerCleanupFn) {
+      await runnerCleanupFn().catch(() => {});
+    }
+
+    // Then stop other services
     await serviceManager.stopAll().catch(() => {});
     consoleInterceptor.stop();
     process.exit(0);
@@ -310,8 +320,8 @@ export async function startCommand(options: StartOptions) {
       serviceManager.emit('service:status-change', 'runner', 'running');
     }
 
-    // Start runner in background (non-blocking for TUI)
-    const runnerPromise = startRunner({
+    // Start runner and get cleanup function
+    runnerCleanupFn = await startRunner({
       brokerUrl: `ws://localhost:${brokerPort}/socket`,
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
@@ -341,9 +351,17 @@ export async function startCommand(options: StartOptions) {
         // Close any active tunnels first (give it 1s)
         await serviceManager.closeTunnel('web').catch(() => {});
 
-        // Then stop services
+        // Stop spawned services (web, broker)
         await serviceManager.stopAll();
-        // Runner will handle its own shutdown via SIGINT handler
+        console.log(pc.green('✓'), 'Services stopped');
+
+        // Stop runner explicitly using cleanup function
+        if (runnerCleanupFn) {
+          console.log(pc.yellow('⚠'), 'Stopping runner...');
+          await runnerCleanupFn();
+          console.log(pc.green('✓'), 'Runner stopped');
+        }
+
         console.log(pc.green('✓'), 'All services stopped');
       })(),
       new Promise((resolve) => setTimeout(() => {

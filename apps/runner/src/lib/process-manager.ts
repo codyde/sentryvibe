@@ -224,3 +224,20 @@ export function stopDevServer(projectId: string): boolean {
 export function getDevServer(projectId: string): DevServerProcess | undefined {
   return activeProcesses.get(projectId);
 }
+
+/**
+ * Get all active project IDs
+ */
+export function getAllActiveProjectIds(): string[] {
+  return Array.from(activeProcesses.keys());
+}
+
+/**
+ * Stop all running dev servers
+ */
+export function stopAllDevServers(): void {
+  const projectIds = getAllActiveProjectIds();
+  for (const projectId of projectIds) {
+    stopDevServer(projectId);
+  }
+}
