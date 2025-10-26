@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import * as Sentry from '@sentry/nextjs';
 import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
@@ -393,150 +394,197 @@ export async function POST(
     };
 
     const persistTodo = async (todo: any, index: number) => {
-      const content = todo?.content ?? todo?.activeForm ?? 'Untitled task';
-      const activeForm = todo?.activeForm ?? null;
-      const status = todo?.status ?? 'pending';
-      const timestamp = new Date();
-
-      // Wrap in retry logic for DB timeouts
-      await retryOnTimeout(() =>
-        db.insert(generationTodos).values({
-          sessionId,
-          todoIndex: index,
-          content,
-          activeForm,
-          status,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        }).onConflictDoUpdate({
-          target: [generationTodos.sessionId, generationTodos.todoIndex],
-          set: {
-            content,
-            activeForm,
-            status,
-            updatedAt: timestamp,
+      return Sentry.startSpan(
+        {
+          name: 'db.persist_todo',
+          op: 'db.query',
+          attributes: {
+            'todo.index': index,
+            'todo.status': todo?.status,
           },
-        })
+        },
+        async () => {
+          const content = todo?.content ?? todo?.activeForm ?? 'Untitled task';
+          const activeForm = todo?.activeForm ?? null;
+          const status = todo?.status ?? 'pending';
+          const timestamp = new Date();
+
+          // Wrap in retry logic for DB timeouts
+          await retryOnTimeout(() =>
+            db.insert(generationTodos).values({
+              sessionId,
+              todoIndex: index,
+              content,
+              activeForm,
+              status,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            }).onConflictDoUpdate({
+              target: [generationTodos.sessionId, generationTodos.todoIndex],
+              set: {
+                content,
+                activeForm,
+                status,
+                updatedAt: timestamp,
+              },
+            })
+          );
+        }
       );
     };
 
     const persistToolCall = async (eventData: any, state: 'input-available' | 'output-available') => {
-      const toolCallId = eventData.toolCallId ?? eventData.id ?? randomUUID();
-      const todoIndex = typeof eventData.todoIndex === 'number'
-        ? eventData.todoIndex
-        : typeof eventData.todo_index === 'number'
-          ? eventData.todo_index
-          : -1;
-
-      const timestamp = new Date();
-
-      // If toolName is missing and this is an output event, try to find the existing record
-      if (!eventData.toolName && state === 'output-available') {
-        const existing = await retryOnTimeout(() =>
-          db.select()
-            .from(generationToolCalls)
-            .where(and(
-              eq(generationToolCalls.sessionId, sessionId),
-              eq(generationToolCalls.toolCallId, toolCallId),
-            ))
-            .limit(1)
-        );
-
-        if (existing && existing.length > 0) {
-          // Update existing record
-          await retryOnTimeout(() =>
-            db.update(generationToolCalls)
-              .set({
-                output: eventData.output ?? null,
-                state,
-                endedAt: timestamp,
-                updatedAt: timestamp,
-              })
-              .where(eq(generationToolCalls.id, existing[0].id))
-          );
-          return;
-        }
-        // If no existing record and no toolName, we can't insert - skip it
-        return;
-      }
-
-      // Ensure toolName exists for insert
-      if (!eventData.toolName) {
-        return;
-      }
-
-      await retryOnTimeout(() =>
-        db.insert(generationToolCalls).values({
-          sessionId,
-          todoIndex,
-          toolCallId,
-          name: eventData.toolName,
-          input: state === 'input-available' ? eventData.input ?? null : undefined,
-          output: state === 'output-available' ? eventData.output ?? null : undefined,
-          state,
-          startedAt: timestamp,
-          endedAt: state === 'output-available' ? timestamp : null,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        }).onConflictDoUpdate({
-          target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
-          set: {
-            input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
-            output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
-            state,
-            endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
-            updatedAt: timestamp,
+      return Sentry.startSpan(
+        {
+          name: 'db.persist_tool_call',
+          op: 'db.query',
+          attributes: {
+            'tool.name': eventData.toolName,
+            'tool.state': state,
           },
-        })
+        },
+        async () => {
+          const toolCallId = eventData.toolCallId ?? eventData.id ?? randomUUID();
+          const todoIndex = typeof eventData.todoIndex === 'number'
+            ? eventData.todoIndex
+            : typeof eventData.todo_index === 'number'
+              ? eventData.todo_index
+              : -1;
+
+          const timestamp = new Date();
+
+          // If toolName is missing and this is an output event, try to find the existing record
+          if (!eventData.toolName && state === 'output-available') {
+            const existing = await retryOnTimeout(() =>
+              db.select()
+                .from(generationToolCalls)
+                .where(and(
+                  eq(generationToolCalls.sessionId, sessionId),
+                  eq(generationToolCalls.toolCallId, toolCallId),
+                ))
+                .limit(1)
+            );
+
+            if (existing && existing.length > 0) {
+              // Update existing record
+              await retryOnTimeout(() =>
+                db.update(generationToolCalls)
+                  .set({
+                    output: eventData.output ?? null,
+                    state,
+                    endedAt: timestamp,
+                    updatedAt: timestamp,
+                  })
+                  .where(eq(generationToolCalls.id, existing[0].id))
+              );
+              return;
+            }
+            // If no existing record and no toolName, we can't insert - skip it
+            return;
+          }
+
+          // Ensure toolName exists for insert
+          if (!eventData.toolName) {
+            return;
+          }
+
+          await retryOnTimeout(() =>
+            db.insert(generationToolCalls).values({
+              sessionId,
+              todoIndex,
+              toolCallId,
+              name: eventData.toolName,
+              input: state === 'input-available' ? eventData.input ?? null : undefined,
+              output: state === 'output-available' ? eventData.output ?? null : undefined,
+              state,
+              startedAt: timestamp,
+              endedAt: state === 'output-available' ? timestamp : null,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            }).onConflictDoUpdate({
+              target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
+              set: {
+                input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
+                output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
+                state,
+                endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
+                updatedAt: timestamp,
+              },
+            })
+          );
+        }
       );
     };
 
     const appendNote = async (params: { textId?: string; content: string; kind: string; todoIndex: number }) => {
-      const { textId, content, kind, todoIndex } = params;
-      if (!content) return;
-      const timestamp = new Date();
+      return Sentry.startSpan(
+        {
+          name: 'db.append_note',
+          op: 'db.query',
+          attributes: {
+            'note.kind': params.kind,
+            'note.todoIndex': params.todoIndex,
+          },
+        },
+        async () => {
+          const { textId, content, kind, todoIndex } = params;
+          if (!content) return;
+          const timestamp = new Date();
 
-      if (textId) {
-        const existing = await retryOnTimeout(() =>
-          db
-            .select()
-            .from(generationNotes)
-            .where(and(
-              eq(generationNotes.sessionId, sessionId),
-              eq(generationNotes.textId, textId),
-            ))
-            .limit(1)
-        );
+          if (textId) {
+            const existing = await retryOnTimeout(() =>
+              db
+                .select()
+                .from(generationNotes)
+                .where(and(
+                  eq(generationNotes.sessionId, sessionId),
+                  eq(generationNotes.textId, textId),
+                ))
+                .limit(1)
+            );
 
-        if (existing && existing.length > 0) {
+            if (existing && existing.length > 0) {
+              await retryOnTimeout(() =>
+                db.update(generationNotes)
+                  .set({
+                    content: existing[0].content + content,
+                  })
+                  .where(eq(generationNotes.id, existing[0].id))
+              );
+              return;
+            }
+          }
+
           await retryOnTimeout(() =>
-            db.update(generationNotes)
-              .set({
-                content: existing[0].content + content,
-              })
-              .where(eq(generationNotes.id, existing[0].id))
+            db.insert(generationNotes).values({
+              sessionId,
+              todoIndex,
+              textId: textId ?? null,
+              kind,
+              content,
+              createdAt: timestamp,
+            })
           );
-          return;
         }
-      }
-
-      await retryOnTimeout(() =>
-        db.insert(generationNotes).values({
-          sessionId,
-          todoIndex,
-          textId: textId ?? null,
-          kind,
-          content,
-          createdAt: timestamp,
-        })
       );
     };
 
     const persistEvent = async (eventData: any) => {
       if (!eventData || !sessionId) return;
-      const timestamp = new Date();
+      
+      return Sentry.startSpan(
+        {
+          name: `db.persist_event.${eventData.type}`,
+          op: 'db.transaction',
+          attributes: {
+            'event.type': eventData.type,
+            'event.toolName': eventData.toolName,
+          },
+        },
+        async () => {
+          const timestamp = new Date();
 
-      switch (eventData.type) {
+          switch (eventData.type) {
         case 'start':
           await retryOnTimeout(() =>
             db.update(generationSessions)
@@ -640,6 +688,8 @@ export async function POST(
         default:
           break;
       }
+        }
+      );
     };
 
     const stream = new ReadableStream<Uint8Array>({

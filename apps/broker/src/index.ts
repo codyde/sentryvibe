@@ -387,49 +387,79 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function forwardEvent(event: RunnerEvent) {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${SHARED_SECRET}`,
-    };
-
-    // Propagate Sentry trace headers if present
-    if (event._sentry?.trace) {
-      headers['sentry-trace'] = event._sentry.trace;
-    }
-    if (event._sentry?.baggage) {
-      headers['baggage'] = event._sentry.baggage;
-    }
-
-    const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(event),
-    }, 3);
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('[broker] Failed to forward event', response.status, text);
-
-      // Add to failed queue for retry
-      failedEvents.push({ event, attempts: 1 });
-
-      Sentry.captureMessage('Failed to forward event', {
-        level: 'warning',
-        tags: { eventType: event.type, statusCode: response.status },
-        extra: { responseText: text },
-      });
-    }
-  } catch (error) {
-    totalErrors++;
-    console.error('[broker] Error forwarding event', error);
-
-    // Add to failed queue for retry
-    failedEvents.push({ event, attempts: 1 });
-
-    Sentry.captureException(error, {
-      tags: { eventType: event.type, source: 'forward_event' },
-      level: 'error',
-    });
+  // Continue trace from runner if trace context exists
+  if (event._sentry?.trace) {
+    return Sentry.continueTrace(
+      {
+        sentryTrace: event._sentry.trace,
+        baggage: event._sentry.baggage,
+      },
+      async () => {
+        return await forwardEventWithSpan(event);
+      }
+    );
   }
+
+  // No trace context - forward without span
+  return forwardEventWithSpan(event);
+}
+
+async function forwardEventWithSpan(event: RunnerEvent) {
+  return Sentry.startSpan(
+    {
+      name: 'broker.forward_event',
+      op: 'http.client',
+      attributes: {
+        'event.type': event.type,
+        'event.project_id': event.projectId || 'unknown',
+      },
+    },
+    async () => {
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SHARED_SECRET}`,
+        };
+
+        // Propagate Sentry trace headers if present
+        if (event._sentry?.trace) {
+          headers['sentry-trace'] = event._sentry.trace;
+        }
+        if (event._sentry?.baggage) {
+          headers['baggage'] = event._sentry.baggage;
+        }
+
+        const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(event),
+        }, 3);
+
+        if (!response.ok) {
+          const text = await response.text();
+          console.error('[broker] Failed to forward event', response.status, text);
+
+          // Add to failed queue for retry
+          failedEvents.push({ event, attempts: 1 });
+
+          Sentry.captureMessage('Failed to forward event', {
+            level: 'warning',
+            tags: { eventType: event.type, statusCode: response.status },
+            extra: { responseText: text },
+          });
+        }
+      } catch (error) {
+        totalErrors++;
+        console.error('[broker] Error forwarding event', error);
+
+        // Add to failed queue for retry
+        failedEvents.push({ event, attempts: 1 });
+
+        Sentry.captureException(error, {
+          tags: { eventType: event.type, source: 'forward_event' },
+          level: 'error',
+        });
+      }
+    }
+  );
 }
