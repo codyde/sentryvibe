@@ -177,9 +177,12 @@ export async function initCommand(options: InitOptions) {
           }
 
           // Check if path exists
-          if (existsSync(clonePath as string)) {
+          const defaultWorkspace = getDefaultWorkspace();
+          const existingInstallation = existsSync(clonePath as string) || existsSync(defaultWorkspace);
+
+          if (existingInstallation) {
             const shouldOverwrite = await p.confirm({
-              message: `Directory ${clonePath} already exists. Delete and clone fresh?`,
+              message: `Existing SentryVibe installation found. Replace it with fresh install?`,
               initialValue: true,
             });
 
@@ -189,8 +192,20 @@ export async function initCommand(options: InitOptions) {
             }
 
             if (shouldOverwrite) {
+              s.start('Removing existing installation');
               const { rmSync } = await import('fs');
-              rmSync(clonePath as string, { recursive: true, force: true });
+
+              // Delete monorepo directory
+              if (existsSync(clonePath as string)) {
+                rmSync(clonePath as string, { recursive: true, force: true });
+              }
+
+              // Delete workspace directory
+              if (existsSync(defaultWorkspace)) {
+                rmSync(defaultWorkspace, { recursive: true, force: true });
+              }
+
+              s.stop(pc.green('✓') + ' Existing installation removed');
             } else {
               p.cancel('Setup cancelled');
               return;
@@ -496,20 +511,27 @@ export async function initCommand(options: InitOptions) {
       }
 
       const clonePath = getDefaultMonorepoPath();
+      const workspacePath = getDefaultWorkspace();
 
       try {
-        // Check if directory exists and abort if it does (safety check for -y mode)
-        if (existsSync(clonePath)) {
-          throw new CLIError({
-            code: 'MONOREPO_CLONE_FAILED',
-            message: `Directory already exists: ${clonePath}`,
-            suggestions: [
-              'Run without -y flag to interactively handle existing directory',
-              'Or manually remove the directory first: rm -rf ' + clonePath,
-              'Or use a different path: sentryvibe init',
-            ],
-            fatal: true,
-          });
+        // Check if directory exists and clean up in -y mode
+        if (existsSync(clonePath) || existsSync(workspacePath)) {
+          s.start('Removing existing installation');
+
+          // Import rmSync for directory deletion
+          const { rmSync } = await import('fs');
+
+          // Delete sentryvibe repo if it exists
+          if (existsSync(clonePath)) {
+            rmSync(clonePath, { recursive: true, force: true });
+          }
+
+          // Delete sentryvibe-workspace if it exists
+          if (existsSync(workspacePath)) {
+            rmSync(workspacePath, { recursive: true, force: true });
+          }
+
+          s.stop(pc.green('✓') + ' Existing installation removed');
         }
 
         // Clone
