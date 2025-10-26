@@ -18,6 +18,8 @@ interface ActiveBuildContext {
   sessionId: string;
   projectId: string;
   buildId: string;
+  agentId: string;
+  claudeModelId?: string;
   unsubscribe: () => void;
   toolCallNameMap: Map<string, string>;
   currentActiveTodoIndex: number;
@@ -144,8 +146,8 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
     projectId: sessionRow.projectId,
     projectName: '', // Will be filled in by caller if needed
     operationType: (sessionRow.operationType ?? 'continuation') as GenerationState['operationType'],
-    agentId: (persistedState?.agentId as GenerationState['agentId']) ?? 'claude-code',
-    claudeModelId: persistedState?.claudeModelId as GenerationState['claudeModelId'],
+    agentId: (persistedState?.agentId as GenerationState['agentId']) ?? context.agentId as GenerationState['agentId'],
+    claudeModelId: (persistedState?.claudeModelId as GenerationState['claudeModelId']) ?? context.claudeModelId as GenerationState['claudeModelId'],
     todos: todosSnapshot,
     toolsByTodo,
     textByTodo,
@@ -500,13 +502,17 @@ function cleanupBuild(commandId: string) {
  * @param sessionId - Database session ID
  * @param projectId - Project ID
  * @param buildId - Build ID
+ * @param agentId - Agent being used (claude-code or openai-codex)
+ * @param claudeModelId - Claude model ID if using Claude Code
  * @returns Cleanup function to manually stop tracking (optional - will auto-cleanup on finish/error)
  */
 export function registerBuild(
   commandId: string,
   sessionId: string,
   projectId: string,
-  buildId: string
+  buildId: string,
+  agentId: string,
+  claudeModelId?: string
 ): () => void {
   // Check if already registered
   if (activeBuilds.has(commandId)) {
@@ -515,12 +521,15 @@ export function registerBuild(
   }
 
   console.log(`[persistent-processor] 📝 Registering build ${commandId} for persistent tracking`);
+  console.log(`[persistent-processor]    Agent: ${agentId}${claudeModelId ? ` (${claudeModelId})` : ''}`);
 
   const context: ActiveBuildContext = {
     commandId,
     sessionId,
     projectId,
     buildId,
+    agentId,
+    claudeModelId,
     unsubscribe: () => {},
     toolCallNameMap: new Map(),
     currentActiveTodoIndex: -1,
