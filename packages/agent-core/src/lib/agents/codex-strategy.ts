@@ -25,15 +25,18 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
       sections.push(`## Template Already Selected
 
 - Template: ${context.templateName ?? 'Selected template'}
-- The template has been chosen based on your analysis of the user's request.
-- After cloning, run all commands from inside the ${context.projectName} directory.
-- Follow the setup instructions exactly before implementing the request.`);
+- Repository: ${context.templateMetadata.repository}#${context.templateMetadata.branch}
+- The template has been chosen based on your analysis of the user's request
+- Clone command: npx degit ${context.templateMetadata.repository}#${context.templateMetadata.branch} ${context.projectName}
+- CRITICAL: After cloning, prefix EVERY bash command with "cd ${context.projectName} &&"
+- Follow the setup instructions exactly before implementing the request`);
     } else {
       sections.push(`## Template Selection and Setup
 
-- Codex selects the appropriate template using the provided catalog.
-- After cloning, run all commands from inside the ${context.projectName} directory.
-- Follow the setup instructions exactly before implementing the request.`);
+- Codex selects the appropriate template using the provided catalog
+- After cloning, prefix EVERY bash command with "cd ${context.projectName} &&"
+- Remember: bash commands run in fresh shells - cd does not persist
+- Follow the setup instructions exactly before implementing the request`);
     }
   } else {
     sections.push(`## Existing Project Context
@@ -43,9 +46,10 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
   }
 
   sections.push(`## Workspace Rules
-- Operate inside the workspace directory.
-- Use relative paths only.
-- Provide complete file contents for every modification.`);
+- ${context.isNewProject ? `After cloning, prefix ALL bash commands with "cd ${context.projectName} &&"` : 'Operate inside the workspace directory'}
+- Each bash command runs in a fresh shell - cd does not persist between commands
+- ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
+- Provide complete file contents for every modification`);
 
   sections.push(`## Quality Expectations
 - Narrate key steps in the chat stream.
@@ -78,16 +82,35 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
     const { repository, branch } = context.templateMetadata;
     return `USER REQUEST: ${basePrompt}
 
-SETUP STEPS (complete before implementation):
-1. Clone the template: npx degit ${repository}#${branch} ${context.projectName}
-2. cd ${context.projectName}
-3. Create .npmrc with required settings.
-4. Update package.json "name" field to "${context.projectName}".
+CRITICAL: Each bash command runs in a fresh shell. You CANNOT cd once and expect it to persist. Instead, prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+
+SETUP STEPS (complete in order):
+1. Clone the template:
+   bash -lc 'npx degit ${repository}#${branch} ${context.projectName}'
+
+2. Verify the clone succeeded:
+   bash -lc 'ls ${context.projectName}'
+
+3. Create .npmrc with required settings:
+   bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF
+save-exact=true
+legacy-peer-deps=false
+engine-strict=true
+EOF'
+
+4. Update package.json name field:
+   bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
 IMPLEMENTATION STEPS:
-- Modify template files to deliver the requested MVP.
-- Install dependencies as needed.
-- Confirm the core flow works end-to-end.
+- ALL file operations and commands MUST include the project directory path
+- Use "cd ${context.projectName} &&" prefix for every bash command
+- Examples:
+  * Read: bash -lc 'cd ${context.projectName} && cat src/App.tsx'
+  * Edit: bash -lc 'cd ${context.projectName} && cat > src/App.tsx << EOF\n...\nEOF'
+  * Install: bash -lc 'cd ${context.projectName} && npm install'
+  * Build: bash -lc 'cd ${context.projectName} && npm run build'
+- Modify template files to deliver the requested MVP
+- Confirm the core flow works end-to-end
 
 COMPLETION SIGNAL:
 When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
@@ -96,16 +119,19 @@ When the MVP is finished, respond with "Implementation complete" plus a brief su
   // Fallback: Old catalog-based selection (backward compatibility)
   return `USER REQUEST: ${basePrompt}
 
-SETUP STEPS (complete before implementation):
-1. Clone the chosen template (see catalog for commands).
-2. cd ${context.projectName}
-3. Create .npmrc with required settings.
-4. Update package.json "name" field to "${context.projectName}".
+CRITICAL: Each bash command runs in a fresh shell. You CANNOT cd once and expect it to persist. Instead, prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+
+SETUP STEPS (complete in order):
+1. Clone the chosen template (see catalog for commands)
+2. Verify the clone succeeded: bash -lc 'ls ${context.projectName}'
+3. Create .npmrc: bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
+4. Update package.json: bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
 IMPLEMENTATION STEPS:
-- Modify template files to deliver the requested MVP.
-- Install dependencies as needed.
-- Confirm the core flow works end-to-end.
+- ALL commands MUST include "cd ${context.projectName} &&" prefix
+- Modify template files to deliver the requested MVP
+- Install dependencies as needed
+- Confirm the core flow works end-to-end
 
 COMPLETION SIGNAL:
 When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;

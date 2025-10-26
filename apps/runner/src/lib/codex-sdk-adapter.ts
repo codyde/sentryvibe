@@ -103,6 +103,74 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 }
 
 /**
+ * Extract TodoWrite calls from Codex text and convert to TODO_WRITE marker format
+ *
+ * Codex outputs: TodoWrite({ "todos": [...] })
+ * We need: TODO_WRITE : {"todos": [...]}
+ *
+ * This allows the message transformer to recognize and process todo updates
+ */
+function extractAndConvertTodoWrite(text: string): string {
+  if (!text) return text;
+
+  // Match TodoWrite calls with various formatting:
+  // TodoWrite({ "todos": [...] })
+  // TodoWrite({\n  "todos": [...]\n})
+  const todoWriteRegex = /TodoWrite\s*\(\s*(\{[\s\S]*?\})\s*\)/g;
+
+  let match: RegExpExecArray | null;
+  let result = text;
+  const replacements: Array<{ original: string; replacement: string }> = [];
+
+  while ((match = todoWriteRegex.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const jsonText = match[1];
+
+    try {
+      // Validate that it's valid JSON
+      const parsed = JSON.parse(jsonText);
+
+      // Check if it has the expected todos structure
+      if (parsed.todos && Array.isArray(parsed.todos)) {
+        // Convert to TODO_WRITE marker format
+        const todoWriteMarker = `TODO_WRITE : ${jsonText}`;
+        replacements.push({ original: fullMatch, replacement: todoWriteMarker });
+
+        streamLog.info(`[Codex Adapter] Extracted TodoWrite with ${parsed.todos.length} todos`);
+      }
+    } catch (error) {
+      // If JSON is invalid, leave it as-is
+      streamLog.warn('[Codex Adapter] Failed to parse TodoWrite JSON:', error);
+    }
+  }
+
+  // Apply all replacements
+  for (const { original, replacement } of replacements) {
+    result = result.replace(original, replacement);
+  }
+
+  // Also handle JSON-only format at the end of agent_message
+  // Some Codex responses end with just: {"todos":[...]}
+  const jsonOnlyRegex = /\n?(\{"todos":\s*\[[\s\S]*?\]\s*\})\s*$/;
+  const jsonMatch = jsonOnlyRegex.exec(result);
+
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (parsed.todos && Array.isArray(parsed.todos)) {
+        const todoWriteMarker = `\nTODO_WRITE : ${jsonMatch[1]}`;
+        result = result.replace(jsonOnlyRegex, todoWriteMarker);
+        streamLog.info(`[Codex Adapter] Extracted JSON-only TodoWrite with ${parsed.todos.length} todos`);
+      }
+    } catch (error) {
+      // Leave as-is if invalid
+    }
+  }
+
+  return result;
+}
+
+/**
  * Transform Codex SDK event stream to unified message format
  * 
  * IMPORTANT: This function must consume the entire event stream directly from
@@ -236,6 +304,11 @@ export async function* transformCodexStream(
             // Convert "**Title**" to just "Title"
             text = text.replace(/^\*\*(.*?)\*\*$/g, '$1').trim();
 
+            // Extract TodoWrite calls and convert to TODO_WRITE markers
+            // Codex outputs: TodoWrite({ "todos": [...] })
+            // We need: TODO_WRITE : {"todos": [...]}
+            text = extractAndConvertTodoWrite(text);
+
             // Only yield if there's actual content (skip empty or very short reasoning)
             if (text.length > 5) {
               const textMessage: TransformedMessage = {
@@ -254,8 +327,35 @@ export async function* transformCodexStream(
               yield textMessage;
             }
           }
+        } else if (itemType === 'todo_list') {
+          // Handle explicit todo_list items from Codex
+          // These are structured todo updates that should be converted to TodoWrite format
+          if (event.item.items && Array.isArray(event.item.items)) {
+            const todos = event.item.items.map((item: any) => ({
+              content: item.content || item.description || '',
+              activeForm: item.activeForm || item.content || '',
+              status: item.status || 'pending',
+            }));
+
+            // Convert to TODO_WRITE marker format
+            const todoWriteMarker = `TODO_WRITE : ${JSON.stringify({ todos })}`;
+            const textMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: currentMessageId,
+                content: [{
+                  type: 'text',
+                  text: todoWriteMarker,
+                }],
+              },
+            };
+
+            yieldCount++;
+            streamLog.yield('todo-list', { count: todos.length });
+            yield textMessage;
+          }
         }
-        // TODO: Handle mcp_tool_call, web_search, todo_list, error item types
+        // TODO: Handle mcp_tool_call, web_search, error item types
 
         break;
       }
