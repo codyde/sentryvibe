@@ -29,8 +29,9 @@ async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T |
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
-      const isTimeout = error?.code === 'ETIMEDOUT' || error?.errno === -60 || error?.message?.includes('timeout');
+    } catch (error: unknown) {
+      const err = error as { code?: string; errno?: number; message?: string };
+      const isTimeout = err?.code === 'ETIMEDOUT' || err?.errno === -60 || err?.message?.includes('timeout');
       const isLastAttempt = attempt === retries;
 
       if (isTimeout && !isLastAttempt) {
@@ -41,7 +42,7 @@ async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T |
       }
 
       if (!isTimeout || isLastAttempt) {
-        console.error(`[build-route] DB operation failed after ${attempt + 1} attempts:`, error?.message || error);
+        console.error(`[build-route] DB operation failed after ${attempt + 1} attempts:`, err?.message || error);
         throw error;
       }
     }
@@ -167,8 +168,6 @@ export async function POST(
             runCommand: 'pnpm dev',
             repository: frameworkOption.repository,
             branch: frameworkOption.branch || 'main',
-            projectSlug: generatedSlug, // For directory name
-            projectFriendlyName: generatedFriendlyName, // For display
           };
 
           console.log(`[build-route] ✅ Template from tag: ${frameworkOption.label}`);
@@ -213,7 +212,7 @@ export async function POST(
     // Track messages for DB persistence
     let currentMessageParts: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}> = [];
     let currentMessageId: string | null = null;
-    const completedMessages: Array<{role: 'assistant'; content: any[]}> = [];
+    const completedMessages: Array<{role: 'assistant'; content: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}>}> = [];
 
     // Map toolCallId to toolName for output events that don't include toolName
     const toolCallNameMap = new Map<string, string>();
@@ -337,16 +336,16 @@ export async function POST(
 
       const activeIndex = todoRows.findIndex(row => row.status === 'in_progress');
 
-      let persistedState: any = null;
+      let persistedState: Record<string, unknown> | null = null;
       if (sessionRow.rawState) {
         if (typeof sessionRow.rawState === 'string') {
           try {
-            persistedState = JSON.parse(sessionRow.rawState);
+            persistedState = JSON.parse(sessionRow.rawState) as Record<string, unknown>;
           } catch (parseError) {
             console.warn('[build-route] Failed to parse rawState JSON:', parseError);
           }
         } else {
-          persistedState = sessionRow.rawState;
+          persistedState = sessionRow.rawState as Record<string, unknown>;
         }
       }
 
@@ -366,7 +365,7 @@ export async function POST(
         isActive: sessionRow.status === 'active',
         startTime: sessionRow.startedAt ?? now,
         endTime: sessionRow.endedAt ?? undefined,
-        codex: persistedState?.codex,
+        codex: persistedState?.codex as GenerationState['codex'],
       };
 
       return snapshot;
@@ -393,7 +392,7 @@ export async function POST(
       await refreshRawState();
     };
 
-    const persistTodo = async (todo: any, index: number) => {
+    const persistTodo = async (todo: { content?: string; activeForm?: string; status?: string }, index: number) => {
       return Sentry.startSpan(
         {
           name: 'db.persist_todo',
@@ -433,7 +432,7 @@ export async function POST(
       );
     };
 
-    const persistToolCall = async (eventData: any, state: 'input-available' | 'output-available') => {
+    const persistToolCall = async (eventData: { toolCallId?: string; id?: string; toolName?: string; todoIndex?: number; todo_index?: number; input?: unknown; output?: unknown }, state: 'input-available' | 'output-available') => {
       return Sentry.startSpan(
         {
           name: 'db.persist_tool_call',
@@ -488,12 +487,14 @@ export async function POST(
             return;
           }
 
+          const toolName = eventData.toolName; // Extract to narrow type
+
           await retryOnTimeout(() =>
             db.insert(generationToolCalls).values({
               sessionId,
               todoIndex,
               toolCallId,
-              name: eventData.toolName,
+              name: toolName,
               input: state === 'input-available' ? eventData.input ?? null : undefined,
               output: state === 'output-available' ? eventData.output ?? null : undefined,
               state,
@@ -569,7 +570,7 @@ export async function POST(
       );
     };
 
-    const persistEvent = async (eventData: any) => {
+    const persistEvent = async (eventData: { type?: string; toolCallId?: string; toolName?: string; todoIndex?: number; input?: { todos?: Array<{ content?: string; activeForm?: string; status?: string }> }; output?: unknown; id?: string; delta?: string; message?: string; data?: { message?: string } }) => {
       if (!eventData || !sessionId) return;
       
       return Sentry.startSpan(
@@ -606,10 +607,10 @@ export async function POST(
             const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
 
             // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
-            await Promise.all(todos.map((todo: any, index: number) => persistTodo(todo, index)));
+            await Promise.all(todos.map((todo, index: number) => persistTodo(todo, index)));
 
             // Update active todo index for subsequent events
-            currentActiveTodoIndex = todos.findIndex((t: any) => t.status === 'in_progress');
+            currentActiveTodoIndex = todos.findIndex((t) => t.status === 'in_progress');
             console.log(`[build-route] Updated activeTodoIndex to ${currentActiveTodoIndex}`);
 
             // Persist TodoWrite as a tool call
@@ -695,7 +696,7 @@ export async function POST(
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false;
-        let unsubscribe: () => void;
+        let unsubscribe: () => void = () => {};
 
         const finish = async () => {
           if (closed) return;
@@ -739,7 +740,8 @@ export async function POST(
             controller.close();
           } catch (err) {
             // Controller already closed - this is fine
-            if ((err as any).code !== 'ERR_INVALID_STATE') {
+            const error = err as { code?: string };
+            if (error.code !== 'ERR_INVALID_STATE') {
               console.warn('[build-route] Unexpected error closing controller:', err);
             }
           }
@@ -892,8 +894,7 @@ export async function POST(
         operationType: body.operationType,
         prompt: body.prompt,
         projectSlug: generatedSlug || project[0].slug,
-        projectName: generatedSlug || project[0].name, // Slug for directory name
-        projectFriendlyName: generatedFriendlyName, // Optional - for display
+        projectName: generatedFriendlyName || generatedSlug || project[0].name, // Friendly name for display
         context: body.context,
         designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
         tags: body.tags, // Tag-based configuration
