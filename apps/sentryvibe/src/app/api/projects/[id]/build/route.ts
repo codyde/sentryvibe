@@ -817,31 +817,47 @@ export async function POST(
         };
 
         unsubscribe = addRunnerEventSubscriber(commandId!, async (event: RunnerEvent) => {
-          switch (event.type) {
-            case 'build-stream':
-              if (typeof event.data === 'string') {
-                await writeChunk(event.data);
+          // Continue trace from event if trace context exists
+          const handleEvent = async () => {
+            switch (event.type) {
+              case 'build-stream':
+                if (typeof event.data === 'string') {
+                  await writeChunk(event.data);
+                }
+                break;
+              case 'build-completed':
+                finish();
+                break;
+              case 'build-failed': {
+                const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
+                writeChunk(errorPayload);
+                writeChunk('data: [DONE]\n\n');
+                finish();
+                break;
               }
-              break;
-            case 'build-completed':
-              finish();
-              break;
-            case 'build-failed': {
-              const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
-              writeChunk(errorPayload);
-              writeChunk('data: [DONE]\n\n');
-              finish();
-              break;
+              case 'error': {
+                const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
+                writeChunk(errorPayload);
+                writeChunk('data: [DONE]\n\n');
+                finish();
+                break;
+              }
+              default:
+                break;
             }
-            case 'error': {
-              const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
-              writeChunk(errorPayload);
-              writeChunk('data: [DONE]\n\n');
-              finish();
-              break;
-            }
-            default:
-              break;
+          };
+
+          // If event has trace context, continue it; otherwise just handle the event
+          if (event._sentry?.trace) {
+            await Sentry.continueTrace(
+              {
+                sentryTrace: event._sentry.trace,
+                baggage: event._sentry.baggage,
+              },
+              handleEvent
+            );
+          } else {
+            await handleEvent();
           }
         });
 
@@ -854,38 +870,52 @@ export async function POST(
       },
     });
 
-    // Log template being sent to runner
-    if (templateMetadata) {
-      console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
-      console.log(`[build-route]    ID: ${templateMetadata.id}`);
-      console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
-      if (generatedSlug) {
-        console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
-        console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
-      }
-    } else {
-      console.log('[build-route] 📤 No template metadata - runner will auto-select');
-    }
-
-    await sendCommandToRunner(runnerId, {
-      id: commandId,
-      type: 'start-build',
-      projectId: id,
-      timestamp: new Date().toISOString(),
-      payload: {
-        operationType: body.operationType,
-        prompt: body.prompt,
-        projectSlug: generatedSlug || project[0].slug,
-        projectName: generatedSlug || project[0].name, // Slug for directory name
-        projectFriendlyName: generatedFriendlyName, // Optional - for display
-        context: body.context,
-        designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
-        tags: body.tags, // Tag-based configuration
-        agent: agentId,
-        claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
-        template: templateMetadata, // NEW: Pass analyzed template metadata to runner
+    // Wrap entire build session in a Sentry span
+    await Sentry.startSpan(
+      {
+        name: 'build.session',
+        op: 'http.server',
+        attributes: {
+          'project.id': id,
+          'build.operation': body.operationType,
+          'build.agent': agentId,
+        },
       },
-    });
+      async () => {
+        // Log template being sent to runner
+        if (templateMetadata) {
+          console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
+          console.log(`[build-route]    ID: ${templateMetadata.id}`);
+          console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
+          if (generatedSlug) {
+            console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
+            console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
+          }
+        } else {
+          console.log('[build-route] 📤 No template metadata - runner will auto-select');
+        }
+
+        await sendCommandToRunner(runnerId, {
+          id: commandId,
+          type: 'start-build',
+          projectId: id,
+          timestamp: new Date().toISOString(),
+          payload: {
+            operationType: body.operationType,
+            prompt: body.prompt,
+            projectSlug: generatedSlug || project[0].slug,
+            projectName: generatedSlug || project[0].name, // Slug for directory name
+            projectFriendlyName: generatedFriendlyName, // Optional - for display
+            context: body.context,
+            designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
+            tags: body.tags, // Tag-based configuration
+            agent: agentId,
+            claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
+            template: templateMetadata, // NEW: Pass analyzed template metadata to runner
+          },
+        });
+      }
+    );
 
     return new Response(stream, {
       headers: {
