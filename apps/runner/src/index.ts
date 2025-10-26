@@ -4,17 +4,17 @@
 // CRITICAL: Import Sentry FIRST before any other modules
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
-import { createInstrumentedQueryForProvider } from '@sentry/node';
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import { fileLog } from './lib/file-logger.js';
+import { createInstrumentedQueryForProvider } from "@sentry/node";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { fileLog } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { streamText } from 'ai';
-import { claudeCode } from 'ai-sdk-provider-claude-code';
+import { streamText } from "ai";
+import { claudeCode } from "ai-sdk-provider-claude-code";
 
-import { createInstrumentedCodex } from '@sentry/node';
+import { createInstrumentedCodex } from "@sentry/node";
 
 import WebSocket from "ws";
 import os from "os";
@@ -72,7 +72,7 @@ export interface RunnerOptions {
 let isSilentMode = false;
 
 // Build logging can be controlled separately
-const DEBUG_BUILD = process.env.DEBUG_BUILD === '1' || false;
+const DEBUG_BUILD = process.env.DEBUG_BUILD === "1" || false;
 
 const log = (...args: unknown[]) => {
   // Always log with [runner] prefix for TUI routing
@@ -173,9 +173,14 @@ async function* convertCodexEventsToAgentMessages(
     console.log(
       `[codex-events] ═══════════════════════════════════════════════`
     );
-    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] RAW EVENT #${eventCount}`);
-    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] Type: ${event.type}`);
-    if (!isSilentMode && DEBUG_BUILD) console.log(`[codex-events] Full event: ${JSON.stringify(event, null, 2)}`);
+    if (!isSilentMode && DEBUG_BUILD)
+      console.log(`[codex-events] RAW EVENT #${eventCount}`);
+    if (!isSilentMode && DEBUG_BUILD)
+      console.log(`[codex-events] Type: ${event.type}`);
+    if (!isSilentMode && DEBUG_BUILD)
+      console.log(
+        `[codex-events] Full event: ${JSON.stringify(event, null, 2)}`
+      );
     console.log(
       `[codex-events] ═══════════════════════════════════════════════`
     );
@@ -226,7 +231,8 @@ async function* convertCodexEventsToAgentMessages(
           };
         } else if (itemType === "file_change") {
           // Convert file_change events to tool_use for UI display
-          const changes = (item?.changes as { kind: string; path: string }[]) || [];
+          const changes =
+            (item?.changes as { kind: string; path: string }[]) || [];
           const filePaths = changes.map((c) => c.path || "unknown").join(", ");
           yield {
             type: "assistant",
@@ -300,7 +306,8 @@ async function* convertCodexEventsToAgentMessages(
           // For file_change, create a more readable output
           let finalOutput = output;
           if (itemType === "file_change" && !output) {
-            const changes = (item?.changes as { kind: string; path: string }[]) || [];
+            const changes =
+              (item?.changes as { kind: string; path: string }[]) || [];
             finalOutput = changes
               .map((c) => `${c.kind || "modified"}: ${c.path}`)
               .join("\n");
@@ -351,15 +358,24 @@ async function* convertCodexEventsToAgentMessages(
  * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
  * The orchestrator provides context-specific sections only (no base prompt).
  */
-function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
+function createClaudeQuery(
+  modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
+): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt) {
+    const instrumentedQuery = createInstrumentedQueryForProvider(
+      query as (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>
+    );
 
-    const instrumentedQuery = createInstrumentedQueryForProvider(query as (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>)
-
-    process.stderr.write('[runner] [createClaudeQuery] 🎯 Query function called\n');
+    process.stderr.write(
+      "[runner] [createClaudeQuery] 🎯 Query function called\n"
+    );
     process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
-    process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
-    process.stderr.write(`[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`);
+    process.stderr.write(
+      `[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`
+    );
+    process.stderr.write(
+      `[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`
+    );
 
     // Build combined system prompt
     const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
@@ -370,10 +386,10 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
 
     // Map ClaudeModelId to AI SDK model IDs
     const modelIdMap: Record<string, string> = {
-      'claude-haiku-4-5': 'claude-haiku-4-5',
-      'claude-sonnet-4-5': 'claude-haiku-4-5',
+      "claude-haiku-4-5": "claude-haiku-4-5",
+      "claude-sonnet-4-5": "claude-haiku-4-5",
     };
-    const aiSdkModelId = modelIdMap[modelId] || 'sonnet';
+    const aiSdkModelId = modelIdMap[modelId] || "sonnet";
 
     const model = claudeCode(aiSdkModelId, {
       queryFunction: instrumentedQuery as typeof query,
@@ -383,10 +399,22 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
       maxTurns: 100,
       additionalDirectories: [workingDirectory],
       // Explicitly allow all tools to prevent "No tools are available" errors
-      allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'TodoWrite', 'NotebookEdit', 'Task', 'WebSearch', 'WebFetch'],
+      allowedTools: [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "TodoWrite",
+        "NotebookEdit",
+        "Task",
+        "WebSearch",
+        "WebFetch",
+      ],
       canUseTool: createProjectScopedPermissionHandler(workingDirectory), // Still enforce project scoping
-      streamingInput: 'always', // REQUIRED when using canUseTool - enables tool callbacks
-      settingSources: ['project', 'local'], // Load project-level settings
+      streamingInput: "always", // REQUIRED when using canUseTool - enables tool callbacks
+      settingSources: ["project", "local"], // Load project-level settings
     });
 
     // Stream with telemetry enabled for Sentry
@@ -396,19 +424,19 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     });
 
     // Transform AI SDK stream format to our message format
-    if (process.env.DEBUG_BUILD === '1') {
-      console.log('[createClaudeQuery] Starting stream consumption...');
+    if (process.env.DEBUG_BUILD === "1") {
+      console.log("[createClaudeQuery] Starting stream consumption...");
     }
 
     for await (const message of transformAISDKStream(result.fullStream)) {
-      if (process.env.DEBUG_BUILD === '1') {
-        console.log('[createClaudeQuery] Yielding message:', message.type);
+      if (process.env.DEBUG_BUILD === "1") {
+        console.log("[createClaudeQuery] Yielding message:", message.type);
       }
       yield message;
     }
 
-    if (process.env.DEBUG_BUILD === '1') {
-      console.log('[createClaudeQuery] Stream consumption complete');
+    if (process.env.DEBUG_BUILD === "1") {
+      console.log("[createClaudeQuery] Stream consumption complete");
     }
   };
 }
@@ -432,9 +460,9 @@ function createCodexQuery(): BuildQueryFn {
       prompt.length
     );
 
-    fileLog.info('━━━ CODEX QUERY STARTED ━━━');
-    fileLog.info('Working directory:', workingDirectory);
-    fileLog.info('Prompt length:', prompt.length);
+    fileLog.info("━━━ CODEX QUERY STARTED ━━━");
+    fileLog.info("Working directory:", workingDirectory);
+    fileLog.info("Prompt length:", prompt.length);
 
     const codex = await createInstrumentedCodex({
       apiKey: process.env.OPENAI_API_KEY,
@@ -466,7 +494,9 @@ function createCodexQuery(): BuildQueryFn {
     // ========================================
     // PHASE 1: STRUCTURED TASK PLANNING
     // ========================================
-    log('🎯 [codex-query] PHASE 1: Getting task plan with structured output...');
+    log(
+      "🎯 [codex-query] PHASE 1: Getting task plan with structured output..."
+    );
     turnCount++;
 
     const planningPrompt = `${combinedPrompt}
@@ -481,13 +511,13 @@ All tasks should start as "pending" except the first one which should be "in_pro
 
     let taskPlan;
     try {
-      log('📋 [codex-query] Requesting structured task plan...');
+      log("📋 [codex-query] Requesting structured task plan...");
       const planningTurn = await thread.run(planningPrompt, {
         outputSchema: getTaskPlanJsonSchema(),
       });
 
       taskPlan = JSON.parse(planningTurn.finalResponse);
-      log('✅ [codex-query] Got structured task plan!');
+      log("✅ [codex-query] Got structured task plan!");
       log(`   Analysis: ${taskPlan.analysis}`);
       log(`   Tasks: ${taskPlan.todos.length}`);
 
@@ -496,56 +526,63 @@ All tasks should start as "pending" except the first one which should be "in_pro
 
       // Send initial TodoWrite
       const todoWriteEvent = {
-        type: 'assistant',
+        type: "assistant",
         message: {
           id: `codex-planning-${Date.now()}`,
-          content: [{
-            type: 'tool_use',
-            id: `todo-init-${Date.now()}`,
-            name: 'TodoWrite',
-            input: { todos: taskPlan.todos },
-          }],
+          content: [
+            {
+              type: "tool_use",
+              id: `todo-init-${Date.now()}`,
+              name: "TodoWrite",
+              input: { todos: taskPlan.todos },
+            },
+          ],
         },
       };
 
       yield todoWriteEvent;
-
     } catch (error) {
-      buildLogger.codexQuery.error('ERROR in structured planning', error);
+      buildLogger.codexQuery.error("ERROR in structured planning", error);
       throw error;
     }
 
     // ========================================
     // PHASE 2: TASK EXECUTION LOOP
     // ========================================
-    log('🎯 [codex-query] PHASE 2: Executing tasks sequentially...');
+    log("🎯 [codex-query] PHASE 2: Executing tasks sequentially...");
 
     while (turnCount < MAX_TURNS) {
       if (!smartTracker || isTrackerComplete(smartTracker)) {
-        log('✅ [codex-query] All tasks complete!');
+        log("✅ [codex-query] All tasks complete!");
         break;
       }
 
       const currentTask = getCurrentTask(smartTracker);
       if (!currentTask) {
-        log('❌ [codex-query] No current task - cannot continue');
+        log("❌ [codex-query] No current task - cannot continue");
         break;
       }
 
       const currentTaskIndex = smartTracker.currentIndex;
-      log(`🚀 [codex-query] Working on task ${currentTaskIndex + 1}: ${currentTask.content}`);
+      log(
+        `🚀 [codex-query] Working on task ${currentTaskIndex + 1}: ${
+          currentTask.content
+        }`
+      );
 
       // Send pre-task TodoWrite to set active index
       const preTaskUpdate = {
-        type: 'assistant',
+        type: "assistant",
         message: {
           id: `pre-task-${Date.now()}`,
-          content: [{
-            type: 'tool_use',
-            id: `pre-todo-${Date.now()}`,
-            name: 'TodoWrite',
-            input: { todos: smartTracker.todos },
-          }],
+          content: [
+            {
+              type: "tool_use",
+              id: `pre-todo-${Date.now()}`,
+              name: "TodoWrite",
+              input: { todos: smartTracker.todos },
+            },
+          ],
         },
       };
       yield preTaskUpdate;
@@ -557,7 +594,9 @@ Execute ALL necessary file operations and commands to fully complete this task.
 Don't just plan - TAKE ACTION and create/modify files.`;
 
       turnCount++;
-      log(`🚀 [codex-query] Turn ${turnCount}: ${taskPrompt.substring(0, 80)}...`);
+      log(
+        `🚀 [codex-query] Turn ${turnCount}: ${taskPrompt.substring(0, 80)}...`
+      );
 
       // Stream events through Codex SDK adapter
       const streamedTurn = await thread.runStreamed(taskPrompt);
@@ -576,35 +615,40 @@ Don't just plan - TAKE ACTION and create/modify files.`;
       }
 
       // Mark task as complete
-      smartTracker.todos[currentTaskIndex].status = 'completed';
+      smartTracker.todos[currentTaskIndex].status = "completed";
       if (currentTaskIndex + 1 < smartTracker.todos.length) {
-        smartTracker.todos[currentTaskIndex + 1].status = 'in_progress';
+        smartTracker.todos[currentTaskIndex + 1].status = "in_progress";
         smartTracker.currentIndex = currentTaskIndex + 1;
       }
 
       // Send post-task TodoWrite
       const postTaskUpdate = {
-        type: 'assistant',
+        type: "assistant",
         message: {
           id: `post-task-${Date.now()}`,
-          content: [{
-            type: 'tool_use',
-            id: `post-todo-${Date.now()}`,
-            name: 'TodoWrite',
-            input: { todos: smartTracker.todos },
-          }],
+          content: [
+            {
+              type: "tool_use",
+              id: `post-todo-${Date.now()}`,
+              name: "TodoWrite",
+              input: { todos: smartTracker.todos },
+            },
+          ],
         },
       };
       yield postTaskUpdate;
     }
 
     buildLogger.codexQuery.sessionComplete(turnCount);
-    fileLog.info('━━━ CODEX QUERY COMPLETE ━━━');
+    fileLog.info("━━━ CODEX QUERY COMPLETE ━━━");
     fileLog.info(`Total turns: ${turnCount}`);
   };
 }
 
-function createBuildQuery(agent: AgentId, claudeModel?: ClaudeModelId): BuildQueryFn {
+function createBuildQuery(
+  agent: AgentId,
+  claudeModel?: ClaudeModelId
+): BuildQueryFn {
   if (agent === "openai-codex") {
     return createCodexQuery();
   }
@@ -614,9 +658,13 @@ function createBuildQuery(agent: AgentId, claudeModel?: ClaudeModelId): BuildQue
 /**
  * Retry a fetch call with exponential backoff
  */
-async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxAttempts = 3
+): Promise<Response> {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await fetch(url, options);
@@ -625,64 +673,94 @@ async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3
       lastError = error as Error;
       if (attempt < maxAttempts) {
         const delay = 1000 * attempt; // 1s, 2s, 3s
-        console.log(`   ⏳ Attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        console.log(
+          `   ⏳ Attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-  
+
   throw lastError;
 }
 
 /**
  * Cleanup orphaned processes on startup
  */
-async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
+async function cleanupOrphanedProcesses(
+  apiBaseUrl: string,
+  runnerSharedSecret: string,
+  runnerId: string
+) {
   if (!isSilentMode) {
-    console.log('🧹 Cleaning up orphaned processes from previous runs...');
+    console.log("🧹 Cleaning up orphaned processes from previous runs...");
   }
 
   try {
     // Get list of processes from API (filtered by this runner's ID)
-    const response = await fetchWithRetry(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
-      headers: {
-        'Authorization': `Bearer ${runnerSharedSecret}`,
+    const response = await fetchWithRetry(
+      `${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(
+        runnerId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${runnerSharedSecret}`,
+        },
       },
-    }, 3);
+      3
+    );
 
     if (!response.ok) {
-      console.error('❌ Failed to fetch process list for cleanup');
+      console.error("❌ Failed to fetch process list for cleanup");
       return;
     }
 
     const { processes } = await response.json();
     if (!isSilentMode) {
-      console.log(`   Found ${processes.length} processes to check for this runner`);
+      console.log(
+        `   Found ${processes.length} processes to check for this runner`
+      );
     }
 
     for (const row of processes) {
       try {
         // Check if process still exists locally (signal 0 = check existence, doesn't kill)
         process.kill(row.pid, 0);
-        if (!isSilentMode && DEBUG_BUILD) console.log(`   ✅ Process ${row.pid} (project ${row.projectId.slice(0, 8)}) still running`);
+        if (!isSilentMode && DEBUG_BUILD)
+          console.log(
+            `   ✅ Process ${row.pid} (project ${row.projectId.slice(
+              0,
+              8
+            )}) still running`
+          );
       } catch (err) {
         // Process doesn't exist - orphaned, unregister via API
-        console.log(`   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(0, 8)}), cleaning up`);
+        console.log(
+          `   ❌ Orphaned process ${row.pid} (project ${row.projectId.slice(
+            0,
+            8
+          )}), cleaning up`
+        );
 
-        await fetchWithRetry(`${apiBaseUrl}/api/runner/process/${row.projectId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${runnerSharedSecret}`,
+        await fetchWithRetry(
+          `${apiBaseUrl}/api/runner/process/${row.projectId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${runnerSharedSecret}`,
+            },
           },
-        }, 3);
+          3
+        );
       }
     }
 
     if (!isSilentMode) {
-      if (!isSilentMode && DEBUG_BUILD) console.log('✅ Orphaned process cleanup complete');
+      if (!isSilentMode && DEBUG_BUILD)
+        console.log("✅ Orphaned process cleanup complete");
     }
   } catch (error) {
-    console.error('❌ Error during cleanup:', error);
+    console.error("❌ Error during cleanup:", error);
     throw error;
   }
 }
@@ -692,58 +770,74 @@ async function cleanupOrphanedProcesses(apiBaseUrl: string, runnerSharedSecret: 
  * This is more reliable than trying to bind
  */
 async function checkPortInUse(port: number): Promise<boolean> {
-  const net = await import('net');
+  const net = await import("net");
 
   return new Promise((resolve) => {
     const socket = new net.Socket();
 
     socket.setTimeout(2000);
 
-    socket.once('connect', () => {
+    socket.once("connect", () => {
       // Successfully connected = server is running
       if (!isSilentMode) {
-        console.log(`   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`);
+        console.log(
+          `   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`
+        );
       }
       socket.destroy();
       resolve(true);
     });
 
-    socket.once('error', (err: Error) => {
+    socket.once("error", (err: Error) => {
       // Connection failed = server not running
-      console.log(`   🔍 [Debug] Port ${port} check: ${err.message} → Server NOT running`);
+      console.log(
+        `   🔍 [Debug] Port ${port} check: ${err.message} → Server NOT running`
+      );
       resolve(false);
     });
 
-    socket.once('timeout', () => {
+    socket.once("timeout", () => {
       // Timeout = server not responding
-      console.log(`   🔍 [Debug] Port ${port} check: Timeout → Server NOT running`);
+      console.log(
+        `   🔍 [Debug] Port ${port} check: Timeout → Server NOT running`
+      );
       socket.destroy();
       resolve(false);
     });
 
-    socket.connect(port, 'localhost');
+    socket.connect(port, "localhost");
   });
 }
 
 /**
  * Start periodic health checks for running processes
  */
-function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: string, runnerId: string) {
+function startPeriodicHealthChecks(
+  apiBaseUrl: string,
+  runnerSharedSecret: string,
+  runnerId: string
+) {
   if (!isSilentMode) {
-    console.log('🏥 Starting periodic port health checks (every 30s)...');
+    console.log("🏥 Starting periodic port health checks (every 30s)...");
   }
 
   const doHealthCheck = async () => {
     try {
       // Get list of processes to health check from API (filtered by this runner's ID)
-      const response = await fetchWithRetry(`${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(runnerId)}`, {
-        headers: {
-          'Authorization': `Bearer ${runnerSharedSecret}`,
+      const response = await fetchWithRetry(
+        `${apiBaseUrl}/api/runner/process/list?runnerId=${encodeURIComponent(
+          runnerId
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${runnerSharedSecret}`,
+          },
         },
-      }, 3);
+        3
+      );
 
       if (!response.ok) {
-        console.error('❌ Failed to fetch process list for health check');
+        console.error("❌ Failed to fetch process list for health check");
         return;
       }
 
@@ -755,17 +849,31 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
         // Check port locally (runner can access localhost)
         const isListening = await checkPortInUse(row.port);
 
-        if (!isSilentMode && DEBUG_BUILD) console.log(`   🔍 Health check for port ${row.port}: ${isListening ? 'HEALTHY ✅' : 'UNHEALTHY ❌'}`);
+        if (!isSilentMode && DEBUG_BUILD)
+          console.log(
+            `   🔍 Health check for port ${row.port}: ${
+              isListening ? "HEALTHY ✅" : "UNHEALTHY ❌"
+            }`
+          );
 
-        const newFailCount = isListening ? 0 : (row.healthCheckFailCount || 0) + 1;
+        const newFailCount = isListening
+          ? 0
+          : (row.healthCheckFailCount || 0) + 1;
 
         if (!isListening && newFailCount >= 3) {
           // Failed 3 times - kill the process locally and report to API
-          console.log(`   ❌ Port ${row.port} not in use after 3 checks, killing process for project ${row.projectId.slice(0, 8)}`);
+          console.log(
+            `   ❌ Port ${
+              row.port
+            } not in use after 3 checks, killing process for project ${row.projectId.slice(
+              0,
+              8
+            )}`
+          );
 
           // Stop the process if it still exists
           try {
-            process.kill(row.pid, 'SIGTERM');
+            process.kill(row.pid, "SIGTERM");
             console.log(`      Sent SIGTERM to PID ${row.pid}`);
           } catch (err) {
             // Process already dead
@@ -773,25 +881,36 @@ function startPeriodicHealthChecks(apiBaseUrl: string, runnerSharedSecret: strin
         }
 
         // Report health status to API
-        await fetchWithRetry(`${apiBaseUrl}/api/runner/process/${row.projectId}/health`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${runnerSharedSecret}`,
-            'Content-Type': 'application/json',
+        await fetchWithRetry(
+          `${apiBaseUrl}/api/runner/process/${row.projectId}/health`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${runnerSharedSecret}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              port: row.port,
+              status: isListening ? "healthy" : "unhealthy",
+              failCount: newFailCount,
+            }),
           },
-          body: JSON.stringify({
-            port: row.port,
-            status: isListening ? 'healthy' : 'unhealthy',
-            failCount: newFailCount,
-          }),
-        }, 3);
+          3
+        );
 
         if (!isListening) {
-          console.log(`   ⚠️  Port ${row.port} not in use (fail ${newFailCount}/3) for project ${row.projectId.slice(0, 8)}`);
+          console.log(
+            `   ⚠️  Port ${
+              row.port
+            } not in use (fail ${newFailCount}/3) for project ${row.projectId.slice(
+              0,
+              8
+            )}`
+          );
         }
       }
     } catch (error) {
-      console.error('❌ Error during health check:', error);
+      console.error("❌ Error during health check:", error);
     }
   };
 
@@ -808,10 +927,14 @@ export async function startRunner(options: RunnerOptions = {}) {
 
   // Also set silent mode for all modules
   if (isSilentMode) {
-    const { setSilentMode: setProcessManagerSilent } = await import('./lib/process-manager.js');
+    const { setSilentMode: setProcessManagerSilent } = await import(
+      "./lib/process-manager.js"
+    );
     setProcessManagerSilent(true);
 
-    const { setSilentMode: setPortCheckerSilent } = await import('./lib/port-checker.js');
+    const { setSilentMode: setPortCheckerSilent } = await import(
+      "./lib/port-checker.js"
+    );
     setPortCheckerSilent(true);
 
     // Set silent mode on tunnel manager globally
@@ -831,19 +954,25 @@ export async function startRunner(options: RunnerOptions = {}) {
   const HEARTBEAT_INTERVAL_MS = options.heartbeatInterval || 15_000;
 
   // Get API URL from options, env, or fallback to deriving from broker
-  const apiBaseUrl = options.apiUrl || process.env.API_BASE_URL || (() => {
-    // Fallback: derive from broker URL (same host, http/https protocol)
-    const brokerUrl = new URL(BROKER_URL);
-    const protocol = brokerUrl.protocol === 'wss:' ? 'https:' : 'http:';
+  const apiBaseUrl =
+    options.apiUrl ||
+    process.env.API_BASE_URL ||
+    (() => {
+      // Fallback: derive from broker URL (same host, http/https protocol)
+      const brokerUrl = new URL(BROKER_URL);
+      const protocol = brokerUrl.protocol === "wss:" ? "https:" : "http:";
 
-    // Special case for local development: broker is :4000, API is :3000
-    if (brokerUrl.hostname === 'localhost' || brokerUrl.hostname === '127.0.0.1') {
-      return `${protocol}//localhost:3000`;
-    }
+      // Special case for local development: broker is :4000, API is :3000
+      if (
+        brokerUrl.hostname === "localhost" ||
+        brokerUrl.hostname === "127.0.0.1"
+      ) {
+        return `${protocol}//localhost:3000`;
+      }
 
-    // For remote deployments, API and broker share the same host
-    return `${protocol}//${brokerUrl.host}`;
-  })();
+      // For remote deployments, API and broker share the same host
+      return `${protocol}//${brokerUrl.host}`;
+    })();
 
   if (!SHARED_SECRET) {
     console.error("RUNNER_SHARED_SECRET is required");
@@ -860,9 +989,11 @@ export async function startRunner(options: RunnerOptions = {}) {
   log("api base url:", apiBaseUrl);
 
   // Cleanup orphaned processes on startup
-  cleanupOrphanedProcesses(apiBaseUrl, runnerSharedSecret, RUNNER_ID).catch((err) => {
-    console.error('❌ Failed to cleanup orphaned processes on startup:', err);
-  });
+  cleanupOrphanedProcesses(apiBaseUrl, runnerSharedSecret, RUNNER_ID).catch(
+    (err) => {
+      console.error("❌ Failed to cleanup orphaned processes on startup:", err);
+    }
+  );
 
   // Start periodic health checks
   startPeriodicHealthChecks(apiBaseUrl, runnerSharedSecret, RUNNER_ID);
@@ -891,6 +1022,25 @@ export async function startRunner(options: RunnerOptions = {}) {
       return;
     }
     try {
+      // Capture trace context for DB-mutating events
+      const dbMutatingEvents = [
+        'build-completed', 'build-failed', 'error',
+        'project-metadata', 'files-deleted', 'file-written'
+      ];
+
+      if (dbMutatingEvents.includes(event.type)) {
+        const span = Sentry.getActiveSpan();
+        if (span) {
+          // Extract current trace context to propagate
+          const traceData = Sentry.getTraceData();
+
+          event._sentry = {
+            trace: traceData['sentry-trace'],
+            baggage: traceData.baggage,
+          };
+        }
+      }
+
       const eventJson = JSON.stringify(event);
 
       // Only log important events
@@ -902,13 +1052,9 @@ export async function startRunner(options: RunnerOptions = {}) {
       } else if (event.type === "port-detected") {
         log(`🔌 Port detected: ${event.port}`);
       } else if (event.type === "tunnel-created") {
-        log(
-          `🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`
-        );
+        log(`🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`);
       } else if (event.type === "build-completed") {
-        log(
-          `✅ Build completed for project: ${event.projectId}`
-        );
+        log(`✅ Build completed for project: ${event.projectId}`);
       } else if (event.type === "build-failed") {
         log(`❌ Build failed: ${event.error}`);
       }
@@ -937,17 +1083,11 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     // Log command-specific details
     if (command.type === "start-build") {
-      log(
-        `  Build operation: ${command.payload.operationType}`
-      );
+      log(`  Build operation: ${command.payload.operationType}`);
       log(`  Project slug: ${command.payload.projectSlug}`);
-      log(
-        `  Prompt length: ${command.payload.prompt?.length || 0} chars`
-      );
+      log(`  Prompt length: ${command.payload.prompt?.length || 0} chars`);
     } else if (command.type === "start-dev-server") {
-      log(
-        `  Working directory: ${command.payload.workingDirectory}`
-      );
+      log(`  Working directory: ${command.payload.workingDirectory}`);
       log(`  Run command: ${command.payload.runCommand}`);
     } else if (
       command.type === "start-tunnel" ||
@@ -1029,9 +1169,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             // Use verified port for cleanup (single source of truth)
             const verifiedPort = verifiedPortsByProject.get(command.projectId);
             if (verifiedPort) {
-              log(
-                `🔗 Closing tunnel for verified port ${verifiedPort}`
-              );
+              log(`🔗 Closing tunnel for verified port ${verifiedPort}`);
               await tunnelManager.closeTunnel(verifiedPort);
               verifiedPortsByProject.delete(command.projectId);
             }
@@ -1202,10 +1340,11 @@ export async function startRunner(options: RunnerOptions = {}) {
               `[runner] ✅ Successfully deleted project files: ${projectPath}`
             );
           } catch (rmError) {
+            log(`[runner] ⚠️  rm -rf failed, trying fs.rm with maxRetries...`);
             log(
-              `[runner] ⚠️  rm -rf failed, trying fs.rm with maxRetries...`
+              `[runner]   Error:`,
+              rmError instanceof Error ? rmError.message : String(rmError)
             );
-            log(`[runner]   Error:`, rmError instanceof Error ? rmError.message : String(rmError));
 
             // Strategy 2: Fall back to fs.rm with maxRetries option
             const { rm } = await import("fs/promises");
@@ -1357,7 +1496,8 @@ export async function startRunner(options: RunnerOptions = {}) {
             })
           );
 
-          if (!isSilentMode && DEBUG_BUILD) console.log(`[runner] ✅ Found ${files.length} entries`);
+          if (!isSilentMode && DEBUG_BUILD)
+            console.log(`[runner] ✅ Found ${files.length} entries`);
 
           sendEvent({
             type: "file-list",
@@ -1378,400 +1518,420 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
-        // Log immediately when start-build is received
         log("📥 Received start-build command");
         log("   Project ID:", command.projectId);
-        log("   Prompt:", command.payload?.prompt?.substring(0, 100) + '...');
+        log("   Prompt:", command.payload?.prompt?.substring(0, 100) + "...");
 
-        // Also log to file
-        fileLog.info('━━━ START-BUILD COMMAND RECEIVED ━━━');
-        fileLog.info('Project ID:', command.projectId);
-        fileLog.info('Command ID:', command.id);
-        fileLog.info('Prompt:', command.payload?.prompt);
-        fileLog.info('Operation:', command.payload?.operationType);
-        fileLog.info('Agent:', command.payload?.agent);
-        fileLog.info('Template:', command.payload?.template);
+        fileLog.info("━━━ START-BUILD COMMAND RECEIVED ━━━");
+        fileLog.info("Project ID:", command.projectId);
+        fileLog.info("Command ID:", command.id);
+        fileLog.info("Prompt:", command.payload?.prompt);
+        fileLog.info("Operation:", command.payload?.operationType);
+        fileLog.info("Agent:", command.payload?.agent);
+        fileLog.info("Template:", command.payload?.template);
 
-        // Create a span for the build operation (AI spans will be auto-created by vercelAIIntegration)
         await Sentry.startSpan(
           {
-            name: 'runner.build',
-            op: 'build',
+            name: "runner.build",
+            op: "build",
             attributes: {
-              'build.project_id': command.projectId,
-              'build.operation': command.payload?.operationType,
-              'build.agent': command.payload?.agent,
-              'build.template': command.payload?.template?.name,
+              "build.project_id": command.projectId,
+              "build.operation": command.payload?.operationType,
+              "build.agent": command.payload?.agent,
+              "build.template": command.payload?.template?.name,
             },
           },
           async () => {
             try {
-          loggedFirstChunk = false;
-          if (!command.payload?.prompt || !command.payload?.operationType) {
-            throw new Error("Invalid build payload");
-          }
-
-          // Calculate the project directory using slug
-          const projectSlug = command.payload.projectSlug || command.projectId;
-          const projectName = command.payload.projectName || projectSlug;
-          const projectDirectory = resolve(WORKSPACE_ROOT, projectSlug);
-
-          log("project directory:", projectDirectory);
-          log("project slug:", projectSlug);
-          log("project name:", projectName);
-
-          // Determine agent to use for this build
-          const agent =
-            (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
-          const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
-          log("selected agent:", agent);
-          const claudeModel: ClaudeModelId =
-            agent === "claude-code" &&
-            (command.payload.claudeModel === "claude-haiku-4-5" ||
-              command.payload.claudeModel === "claude-sonnet-4-5")
-              ? command.payload.claudeModel
-              : DEFAULT_CLAUDE_MODEL_ID;
-
-          if (agent === "claude-code") {
-            log("claude model:", claudeModel);
-          }
-
-          const agentQuery = createBuildQuery(agent, claudeModel);
-
-          // Reset transformer state for new build
-          resetTransformerState();
-          setExpectedCwd(projectDirectory);
-
-          // Orchestrate the build - handle templates, generate dynamic prompt
-          log("orchestrating build...");
-
-          // Log template if provided
-          if (command.payload.templateId) {
-            log("template provided by frontend:", command.payload.templateId);
-          }
-
-          const orchestration = await orchestrateBuild({
-            projectId: command.projectId,
-            projectName: projectSlug,
-            prompt: command.payload.prompt,
-            operationType: command.payload.operationType,
-            workingDirectory: projectDirectory,
-            agent,
-            template: command.payload.template, // NEW: Pass template from frontend
-            designPreferences: command.payload.designPreferences, // User-specified design constraints (deprecated - use tags)
-            tags: command.payload.tags, // Tag-based configuration
-          });
-
-          log("orchestration complete:", {
-            isNewProject: orchestration.isNewProject,
-            hasTemplate: !!orchestration.template,
-            templateEventsCount: orchestration.templateEvents.length,
-            hasMetadata: !!orchestration.projectMetadata,
-          });
-
-          // Send project metadata if available (template download sets path, runCommand, etc.)
-          if (orchestration.projectMetadata) {
-            sendEvent({
-              type: "project-metadata",
-              ...buildEventBase(command.projectId, command.id),
-              payload: orchestration.projectMetadata,
-            } as RunnerEvent);
-          }
-
-          // Send template events (TodoWrite for template selection/download)
-          for (const templateEvent of orchestration.templateEvents) {
-            const payload = `data: ${JSON.stringify(templateEvent.data)}\n\n`;
-            sendEvent({
-              type: "build-stream",
-              ...buildEventBase(command.projectId, command.id),
-              data: payload,
-            });
-          }
-
-          buildLog(` 🚀 Starting build stream for project: ${command.projectId}`
-          );
-          buildLog(`   Directory: ${projectDirectory}`);
-          buildLog(`   Is new project: ${orchestration.isNewProject}`
-          );
-          buildLog(`   Template: ${orchestration.template?.name || "none"}`
-          );
-
-          const stream = await createBuildStream({
-            projectId: command.projectId,
-            projectName,
-            prompt: orchestration.fullPrompt,
-            operationType: command.payload.operationType,
-            context: command.payload.context,
-            query: agentQuery,
-            workingDirectory: projectDirectory,
-            systemPrompt: orchestration.systemPrompt,
-            agent,
-            claudeModel: agent === "claude-code" ? claudeModel : undefined,
-            isNewProject: orchestration.isNewProject,
-          });
-
-          buildLog(` 📡 Build stream created, starting to process chunks...`
-          );
-
-          const reader = stream.getReader();
-          const decoder = new TextDecoder();
-
-          let chunkCount = 0;
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) {
-              buildLog(` Stream reader reports DONE after ${chunkCount} chunks`
-              );
-              break;
-            }
-            if (value === undefined || value === null) continue;
-            chunkCount++;
-
-            // Decode the chunk to get the agent message object
-            let agentMessage: unknown;
-            if (typeof value === "string") {
-              try {
-                agentMessage = JSON.parse(value);
-              } catch {
-                agentMessage = { raw: value };
+              loggedFirstChunk = false;
+              if (!command.payload?.prompt || !command.payload?.operationType) {
+                throw new Error("Invalid build payload");
               }
-            } else if (value instanceof Uint8Array) {
-              const text = decoder.decode(value, { stream: true });
-              try {
-                agentMessage = JSON.parse(text);
-              } catch {
-                agentMessage = { raw: text };
+
+              // Calculate the project directory using slug
+              const projectSlug =
+                command.payload.projectSlug || command.projectId;
+              const projectName = command.payload.projectName || projectSlug;
+              const projectDirectory = resolve(WORKSPACE_ROOT, projectSlug);
+
+              log("project directory:", projectDirectory);
+              log("project slug:", projectSlug);
+              log("project name:", projectName);
+
+              // Determine agent to use for this build
+              const agent =
+                (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
+              const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
+              log("selected agent:", agent);
+              const claudeModel: ClaudeModelId =
+                agent === "claude-code" &&
+                (command.payload.claudeModel === "claude-haiku-4-5" ||
+                  command.payload.claudeModel === "claude-sonnet-4-5")
+                  ? command.payload.claudeModel
+                  : DEFAULT_CLAUDE_MODEL_ID;
+
+              if (agent === "claude-code") {
+                log("claude model:", claudeModel);
               }
-            } else if (ArrayBuffer.isView(value)) {
-              const view = value as ArrayBufferView;
-              const text = decoder.decode(
-                new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
-                { stream: true }
-              );
-              try {
-                agentMessage = JSON.parse(text);
-              } catch {
-                agentMessage = { raw: text };
+
+              const agentQuery = createBuildQuery(agent, claudeModel);
+
+              // Reset transformer state for new build
+              resetTransformerState();
+              setExpectedCwd(projectDirectory);
+
+              // Orchestrate the build - handle templates, generate dynamic prompt
+              log("orchestrating build...");
+
+              // Log template if provided
+              if (command.payload.templateId) {
+                log(
+                  "template provided by frontend:",
+                  command.payload.templateId
+                );
               }
-            } else if (value instanceof ArrayBuffer) {
-              const text = decoder.decode(new Uint8Array(value), {
-                stream: true,
+
+              const orchestration = await orchestrateBuild({
+                projectId: command.projectId,
+                projectName: projectSlug,
+                prompt: command.payload.prompt,
+                operationType: command.payload.operationType,
+                workingDirectory: projectDirectory,
+                agent,
+                template: command.payload.template, // NEW: Pass template from frontend
+                designPreferences: command.payload.designPreferences, // User-specified design constraints (deprecated - use tags)
+                tags: command.payload.tags, // Tag-based configuration
               });
-              try {
-                agentMessage = JSON.parse(text);
-              } catch {
-                agentMessage = { raw: text };
-              }
-            } else if (typeof value === "object") {
-              agentMessage = value;
-            } else {
-              log(
-                "Unsupported chunk type from build stream:",
-                typeof value
-              );
-              continue;
-            }
 
-            if (!loggedFirstChunk) {
-              buildLog(` 📨 First chunk received from ${agentLabel}`);
-              buildLog(" 🔥🔥🔥 NEW LOGGING CODE IS ACTIVE 🔥🔥🔥");
-              loggedFirstChunk = true;
-            }
-
-            // Log generation and tool usage
-            if (typeof agentMessage === "object" && agentMessage !== null) {
-              const msg = agentMessage as Record<string, unknown>;
-
-              // The actual message is nested in a 'message' property
-              const actualMessage = (msg.message as Record<string, unknown>) || msg;
-
-              // Handle assistant messages (conversation turn format)
-              if (
-                msg.type === "assistant" &&
-                actualMessage.content &&
-                Array.isArray(actualMessage.content)
-              ) {
-                for (const block of actualMessage.content) {
-                  // Log text content
-                  if (block.type === "text" && block.text) {
-                    buildLog(` 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
-                        block.text.length > 200 ? "..." : ""
-                      }`
-                    );
-                  }
-
-                  // Log thinking blocks
-                  if (block.type === "thinking" && block.thinking) {
-                    buildLog(` 🤔 Thinking: ${block.thinking.slice(0, 300)}${
-                        block.thinking.length > 300 ? "..." : ""
-                      }`
-                    );
-                  }
-
-                  // Log tool use
-                  if (block.type === "tool_use") {
-                    const toolName = block.name;
-                    const toolId = block.id;
-                    const input = JSON.stringify(block.input, null, 2);
-                    buildLog(` 🔧 Tool called: ${toolName} (${toolId})`
-                    );
-                    buildLog(`    Input: ${input.slice(0, 300)}${
-                        input.length > 300 ? "..." : ""
-                      }`
-                    );
-                  }
-                }
-              }
-
-              // Handle user messages (tool results)
-              if (
-                msg.type === "user" &&
-                actualMessage.content &&
-                Array.isArray(actualMessage.content)
-              ) {
-                for (const block of actualMessage.content) {
-                  if (block.type === "tool_result") {
-                    const toolId = block.tool_use_id;
-                    const isError = block.is_error;
-
-                    // Handle different content formats
-                    let content = "";
-                    if (typeof block.content === "string") {
-                      content = block.content;
-                    } else if (Array.isArray(block.content)) {
-                      // Content might be an array of content blocks
-                      content = (block.content as Array<{ type: string; text?: string }>)
-                        .map((c) => {
-                          if (c.type === "text" && c.text) return c.text;
-                          return JSON.stringify(c);
-                        })
-                        .join("\n");
-                    } else {
-                      content = JSON.stringify(block.content);
-                    }
-
-                    if (isError) {
-                      buildLog(` ❌ Tool error (${toolId}):`);
-                      buildLog(`    ${content.slice(0, 500)}${
-                          content.length > 500 ? "..." : ""
-                        }`
-                      );
-                    } else {
-                      buildLog(` ✅ Tool result (${toolId}):`);
-                      buildLog(`    ${content.slice(0, 500)}${
-                          content.length > 500 ? "..." : ""
-                        }`
-                      );
-                    }
-                  }
-                }
-              }
-            }
-
-            // Transform agent message to SSE events
-            const sseEvents = transformAgentMessageToSSE(agentMessage);
-
-            // Send each transformed event
-            for (const event of sseEvents) {
-              const payload = `data: ${JSON.stringify(event)}\n\n`;
-              sendEvent({
-                type: "build-stream",
-                ...buildEventBase(command.projectId, command.id),
-                data: payload,
+              log("orchestration complete:", {
+                isNewProject: orchestration.isNewProject,
+                hasTemplate: !!orchestration.template,
+                templateEventsCount: orchestration.templateEvents.length,
+                hasMetadata: !!orchestration.projectMetadata,
               });
-            }
-          }
 
-          buildLog(` ═══════════════════════════════════════════════`
-          );
-          buildLog(` STREAM ENDED - Processing final chunks`);
-          buildLog(` ═══════════════════════════════════════════════`
-          );
-
-          const finalChunk = decoder.decode();
-          if (finalChunk) {
-            buildLog(` Final chunk decoded: ${finalChunk.length} chars`
-            );
-            let payload = finalChunk.startsWith("data:")
-              ? finalChunk
-              : `data: ${finalChunk}`;
-            if (!payload.endsWith("\n\n")) {
-              payload = `${payload}\n\n`;
-            }
-            sendEvent({
-              type: "build-stream",
-              ...buildEventBase(command.projectId, command.id),
-              data: payload,
-            });
-          }
-
-          buildLog(` Sending [DONE] signal to client`);
-          sendEvent({
-            type: "build-stream",
-            ...buildEventBase(command.projectId, command.id),
-            data: "data: [DONE]\n\n",
-          });
-
-          // Detect runCommand from built project's package.json
-          try {
-            const { readFileSync, existsSync } = await import("fs");
-            const packageJsonPath = join(projectDirectory, "package.json");
-
-            if (existsSync(packageJsonPath)) {
-              const packageJson = JSON.parse(
-                readFileSync(packageJsonPath, "utf-8")
-              );
-              let runCommand = null;
-
-              if (packageJson.scripts?.dev) {
-                runCommand = "npm run dev";
-              } else if (packageJson.scripts?.start) {
-                runCommand = "npm start";
-              }
-
-              if (runCommand) {
-                // Send project-metadata event with detected runCommand
+              // Send project metadata if available (template download sets path, runCommand, etc.)
+              if (orchestration.projectMetadata) {
                 sendEvent({
                   type: "project-metadata",
                   ...buildEventBase(command.projectId, command.id),
-                  payload: {
-                    path: projectDirectory,
-                    projectType: "unknown",
-                    runCommand,
-                    port: 3000,
-                  },
+                  payload: orchestration.projectMetadata,
                 } as RunnerEvent);
-
-                if (!isSilentMode && DEBUG_BUILD) console.log(`✅ Detected runCommand: ${runCommand}`);
               }
-            }
-          } catch (error) {
-            log("Failed to detect runCommand:", error);
-          }
 
-          buildLog(` ✅ Build completed successfully for project: ${command.projectId}`
-          );
-          buildLog(`   Total chunks processed: (stream ended)`);
+              // Send template events (TodoWrite for template selection/download)
+              for (const templateEvent of orchestration.templateEvents) {
+                const payload = `data: ${JSON.stringify(
+                  templateEvent.data
+                )}\n\n`;
+                sendEvent({
+                  type: "build-stream",
+                  ...buildEventBase(command.projectId, command.id),
+                  data: payload,
+                });
+              }
 
-          sendEvent({
-            type: "build-completed",
-            ...buildEventBase(command.projectId, command.id),
-            payload: { todos: [], summary: "Build completed" },
-          });
-          // span.end();
-        } catch (error) {
-          console.error("Failed to run build", error);
-          Sentry.getActiveSpan()?.setStatus({
-            code: 2,
-            message: "Build failed",
-          });
-          sendEvent({
-            type: "build-failed",
-            ...buildEventBase(command.projectId, command.id),
-            error:
-              error instanceof Error ? error.message : "Failed to run build",
-            stack: error instanceof Error ? error.stack : undefined,
-          });
+              buildLog(
+                ` 🚀 Starting build stream for project: ${command.projectId}`
+              );
+              buildLog(`   Directory: ${projectDirectory}`);
+              buildLog(`   Is new project: ${orchestration.isNewProject}`);
+              buildLog(
+                `   Template: ${orchestration.template?.name || "none"}`
+              );
+
+              const stream = await createBuildStream({
+                projectId: command.projectId,
+                projectName,
+                prompt: orchestration.fullPrompt,
+                operationType: command.payload.operationType,
+                context: command.payload.context,
+                query: agentQuery,
+                workingDirectory: projectDirectory,
+                systemPrompt: orchestration.systemPrompt,
+                agent,
+                claudeModel: agent === "claude-code" ? claudeModel : undefined,
+                isNewProject: orchestration.isNewProject,
+              });
+
+              buildLog(
+                ` 📡 Build stream created, starting to process chunks...`
+              );
+
+              const reader = stream.getReader();
+              const decoder = new TextDecoder();
+
+              let chunkCount = 0;
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                  buildLog(
+                    ` Stream reader reports DONE after ${chunkCount} chunks`
+                  );
+                  break;
+                }
+                if (value === undefined || value === null) continue;
+                chunkCount++;
+
+                // Decode the chunk to get the agent message object
+                let agentMessage: unknown;
+                if (typeof value === "string") {
+                  try {
+                    agentMessage = JSON.parse(value);
+                  } catch {
+                    agentMessage = { raw: value };
+                  }
+                } else if (value instanceof Uint8Array) {
+                  const text = decoder.decode(value, { stream: true });
+                  try {
+                    agentMessage = JSON.parse(text);
+                  } catch {
+                    agentMessage = { raw: text };
+                  }
+                } else if (ArrayBuffer.isView(value)) {
+                  const view = value as ArrayBufferView;
+                  const text = decoder.decode(
+                    new Uint8Array(
+                      view.buffer,
+                      view.byteOffset,
+                      view.byteLength
+                    ),
+                    { stream: true }
+                  );
+                  try {
+                    agentMessage = JSON.parse(text);
+                  } catch {
+                    agentMessage = { raw: text };
+                  }
+                } else if (value instanceof ArrayBuffer) {
+                  const text = decoder.decode(new Uint8Array(value), {
+                    stream: true,
+                  });
+                  try {
+                    agentMessage = JSON.parse(text);
+                  } catch {
+                    agentMessage = { raw: text };
+                  }
+                } else if (typeof value === "object") {
+                  agentMessage = value;
+                } else {
+                  log(
+                    "Unsupported chunk type from build stream:",
+                    typeof value
+                  );
+                  continue;
+                }
+
+                if (!loggedFirstChunk) {
+                  buildLog(` 📨 First chunk received from ${agentLabel}`);
+                  loggedFirstChunk = true;
+                }
+
+                // Log generation and tool usage
+                if (typeof agentMessage === "object" && agentMessage !== null) {
+                  const msg = agentMessage as Record<string, unknown>;
+
+                  // The actual message is nested in a 'message' property
+                  const actualMessage =
+                    (msg.message as Record<string, unknown>) || msg;
+
+                  // Handle assistant messages (conversation turn format)
+                  if (
+                    msg.type === "assistant" &&
+                    actualMessage.content &&
+                    Array.isArray(actualMessage.content)
+                  ) {
+                    for (const block of actualMessage.content) {
+                      // Log text content
+                      if (block.type === "text" && block.text) {
+                        buildLog(
+                          ` 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
+                            block.text.length > 200 ? "..." : ""
+                          }`
+                        );
+                      }
+
+                      // Log thinking blocks
+                      if (block.type === "thinking" && block.thinking) {
+                        buildLog(
+                          ` 🤔 Thinking: ${block.thinking.slice(0, 300)}${
+                            block.thinking.length > 300 ? "..." : ""
+                          }`
+                        );
+                      }
+
+                      // Log tool use
+                      if (block.type === "tool_use") {
+                        const toolName = block.name;
+                        const toolId = block.id;
+                        const input = JSON.stringify(block.input, null, 2);
+                        buildLog(` 🔧 Tool called: ${toolName} (${toolId})`);
+                        buildLog(
+                          `    Input: ${input.slice(0, 300)}${
+                            input.length > 300 ? "..." : ""
+                          }`
+                        );
+                      }
+                    }
+                  }
+
+                  // Handle user messages (tool results)
+                  if (
+                    msg.type === "user" &&
+                    actualMessage.content &&
+                    Array.isArray(actualMessage.content)
+                  ) {
+                    for (const block of actualMessage.content) {
+                      if (block.type === "tool_result") {
+                        const toolId = block.tool_use_id;
+                        const isError = block.is_error;
+
+                        // Handle different content formats
+                        let content = "";
+                        if (typeof block.content === "string") {
+                          content = block.content;
+                        } else if (Array.isArray(block.content)) {
+                          // Content might be an array of content blocks
+                          content = (
+                            block.content as Array<{
+                              type: string;
+                              text?: string;
+                            }>
+                          )
+                            .map((c) => {
+                              if (c.type === "text" && c.text) return c.text;
+                              return JSON.stringify(c);
+                            })
+                            .join("\n");
+                        } else {
+                          content = JSON.stringify(block.content);
+                        }
+
+                        if (isError) {
+                          buildLog(` ❌ Tool error (${toolId}):`);
+                          buildLog(
+                            `    ${content.slice(0, 500)}${
+                              content.length > 500 ? "..." : ""
+                            }`
+                          );
+                        } else {
+                          buildLog(` ✅ Tool result (${toolId}):`);
+                          buildLog(
+                            `    ${content.slice(0, 500)}${
+                              content.length > 500 ? "..." : ""
+                            }`
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // Transform agent message to SSE events
+                const sseEvents = transformAgentMessageToSSE(agentMessage);
+
+                // Send each transformed event
+                for (const event of sseEvents) {
+                  const payload = `data: ${JSON.stringify(event)}\n\n`;
+                  sendEvent({
+                    type: "build-stream",
+                    ...buildEventBase(command.projectId, command.id),
+                    data: payload,
+                  });
+                }
+              }
+
+              buildLog(` ═══════════════════════════════════════════════`);
+              buildLog(` STREAM ENDED - Processing final chunks`);
+              buildLog(` ═══════════════════════════════════════════════`);
+
+              const finalChunk = decoder.decode();
+              if (finalChunk) {
+                buildLog(` Final chunk decoded: ${finalChunk.length} chars`);
+                let payload = finalChunk.startsWith("data:")
+                  ? finalChunk
+                  : `data: ${finalChunk}`;
+                if (!payload.endsWith("\n\n")) {
+                  payload = `${payload}\n\n`;
+                }
+                sendEvent({
+                  type: "build-stream",
+                  ...buildEventBase(command.projectId, command.id),
+                  data: payload,
+                });
+              }
+
+              buildLog(` Sending [DONE] signal to client`);
+              sendEvent({
+                type: "build-stream",
+                ...buildEventBase(command.projectId, command.id),
+                data: "data: [DONE]\n\n",
+              });
+
+              // Detect runCommand from built project's package.json
+              try {
+                const { readFileSync, existsSync } = await import("fs");
+                const packageJsonPath = join(projectDirectory, "package.json");
+
+                if (existsSync(packageJsonPath)) {
+                  const packageJson = JSON.parse(
+                    readFileSync(packageJsonPath, "utf-8")
+                  );
+                  let runCommand = null;
+
+                  if (packageJson.scripts?.dev) {
+                    runCommand = "npm run dev";
+                  } else if (packageJson.scripts?.start) {
+                    runCommand = "npm start";
+                  }
+
+                  if (runCommand) {
+                    // Send project-metadata event with detected runCommand
+                    sendEvent({
+                      type: "project-metadata",
+                      ...buildEventBase(command.projectId, command.id),
+                      payload: {
+                        path: projectDirectory,
+                        projectType: "unknown",
+                        runCommand,
+                        port: 3000,
+                      },
+                    } as RunnerEvent);
+
+                    if (!isSilentMode && DEBUG_BUILD)
+                      console.log(`✅ Detected runCommand: ${runCommand}`);
+                  }
+                }
+              } catch (error) {
+                log("Failed to detect runCommand:", error);
+              }
+
+              buildLog(
+                ` ✅ Build completed successfully for project: ${command.projectId}`
+              );
+              buildLog(`   Total chunks processed: (stream ended)`);
+
+              sendEvent({
+                type: "build-completed",
+                ...buildEventBase(command.projectId, command.id),
+                payload: { todos: [], summary: "Build completed" },
+              });
+              Sentry.getActiveSpan()?.end();
+            } catch (error) {
+              console.error("Failed to run build", error);
+              Sentry.getActiveSpan()?.setStatus({
+                code: 2,
+                message: "Build failed",
+              });
+              sendEvent({
+                type: "build-failed",
+                ...buildEventBase(command.projectId, command.id),
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to run build",
+                stack: error instanceof Error ? error.stack : undefined,
+              });
             }
           }
         );
@@ -1833,48 +1993,48 @@ export async function startRunner(options: RunnerOptions = {}) {
     });
 
     socket.on("message", (data: WebSocket.RawData) => {
-          try {
-            const command = JSON.parse(String(data)) as RunnerCommand;
+      try {
+        const command = JSON.parse(String(data)) as RunnerCommand;
 
-            // Continue trace if parent trace context exists, otherwise start new
-            if (command._sentry?.trace) {
-              console.log('continuing trace', command._sentry.trace);
-              Sentry.continueTrace(
-                {
-                  sentryTrace: command._sentry.trace,
-                  baggage: command._sentry.baggage,
-                },
-                async () => {
-                  // Add metadata to trace
-                  Sentry.setTag('command_type', command.type);
-                  Sentry.setTag('project_id', command.projectId);
-                  Sentry.setTag('command_id', command.id);
+        // Continue trace if parent trace context exists, otherwise start new
+        if (command._sentry?.trace) {
+          console.log("continuing trace", command._sentry.trace);
+          Sentry.continueTrace(
+            {
+              sentryTrace: command._sentry.trace,
+              baggage: command._sentry.baggage,
+            },
+            async () => {
+              // Add metadata to trace
+              Sentry.setTag("command_type", command.type);
+              Sentry.setTag("project_id", command.projectId);
+              Sentry.setTag("command_id", command.id);
 
-                  await handleCommand(command);
-                }
-              );
-            } else {
-              console.log('starting new trace');
-              // No parent trace - start new one
-              Sentry.startNewTrace(async () => {
-                Sentry.setTag('command_type', command.type);
-                Sentry.setTag('project_id', command.projectId);
-                Sentry.setTag('command_id', command.id);
-
-                await handleCommand(command);
-              });
+              await handleCommand(command);
             }
-          } catch (error) {
-            console.error("Failed to parse command", error);
-            Sentry.captureException(error);
-            sendEvent({
-              type: "error",
-              ...buildEventBase(undefined, randomUUID()),
-              error: "Failed to parse command payload",
-              stack: error instanceof Error ? error.stack : undefined,
-            });
-          }
+          );
+        } else {
+          console.log("starting new trace");
+          // No parent trace - start new one
+          Sentry.startNewTrace(async () => {
+            Sentry.setTag("command_type", command.type);
+            Sentry.setTag("project_id", command.projectId);
+            Sentry.setTag("command_id", command.id);
+
+            await handleCommand(command);
+          });
+        }
+      } catch (error) {
+        console.error("Failed to parse command", error);
+        Sentry.captureException(error);
+        sendEvent({
+          type: "error",
+          ...buildEventBase(undefined, randomUUID()),
+          error: "Failed to parse command payload",
+          stack: error instanceof Error ? error.stack : undefined,
         });
+      }
+    });
 
     socket.on("close", (code: number, reason: Buffer) => {
       const reasonStr = reason.toString() || "no reason provided";
@@ -1892,7 +2052,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
       // Don't reconnect if we're shutting down
       if (isShuttingDown) {
-        log('shutdown in progress, skipping reconnection');
+        log("shutdown in progress, skipping reconnection");
         return;
       }
 
@@ -1928,7 +2088,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     // Close WebSocket connection gracefully
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close(1000, 'Shutdown requested');
+      socket.close(1000, "Shutdown requested");
     }
 
     // Cleanup all tunnels
@@ -1953,7 +2113,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     // Close WebSocket connection gracefully
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close(1000, 'Shutdown requested');
+      socket.close(1000, "Shutdown requested");
     }
 
     // Cleanup all tunnels

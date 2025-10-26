@@ -331,12 +331,20 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 async function forwardEvent(event) {
     try {
+        const headers = {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SHARED_SECRET}`,
+        };
+        // Propagate Sentry trace headers if present
+        if (event._sentry?.trace) {
+            headers['sentry-trace'] = event._sentry.trace;
+        }
+        if (event._sentry?.baggage) {
+            headers['baggage'] = event._sentry.baggage;
+        }
         const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${SHARED_SECRET}`,
-            },
+            headers,
             body: JSON.stringify(event),
         }, 3);
         if (!response.ok) {
