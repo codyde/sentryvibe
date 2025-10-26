@@ -4,19 +4,9 @@
 // CRITICAL: Import Sentry FIRST before any other modules
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
-
-// File logger for debugging (always works, bypasses TUI)
+import { createInstrumentedQueryForProvider } from '@sentry/node';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 import { fileLog } from './lib/file-logger.js';
-
-// VERSION CHECK - This will log immediately when module loads
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('🚀 RUNNER INDEX.TS LOADED - AI SDK VERSION');
-console.log('   Built at:', new Date().toISOString());
-console.log('   This proves the new code is running');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-fileLog.info('Runner module loaded - AI SDK VERSION');
-fileLog.info('Built at:', new Date().toISOString());
 import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
@@ -49,7 +39,6 @@ import {
   type ClaudeModelId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
-import type { TodoItem } from "@sentryvibe/agent-core/types/generation";
 // Use dynamic import for buildLogger to work around CommonJS/ESM interop
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
@@ -371,6 +360,9 @@ async function* convertCodexEventsToAgentMessages(
  */
 function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt) {
+
+    const instrumentedQuery = createInstrumentedQueryForProvider(query as any)
+
     process.stderr.write('[runner] [createClaudeQuery] 🎯 Query function called\n');
     process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
     process.stderr.write(`[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`);
@@ -390,14 +382,11 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     };
     const aiSdkModelId = modelIdMap[modelId] || 'sonnet';
 
-    // Create model with settings
-    // DON'T set pathToClaudeCodeExecutable - let it use bundled cli.js from node_modules
-    // NOTE: Sentry instrumentation happens automatically via claudeCodeIntegration()
-    // No need to manually wrap query function - the integration patches it
     const model = claudeCode(aiSdkModelId, {
+      queryFunction: instrumentedQuery as any,
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
-      permissionMode: "bypassPermissions", // Bypass permission prompts
+      permissionMode: "bypassPermissions",
       maxTurns: 100,
       additionalDirectories: [workingDirectory],
       // Explicitly allow all tools to prevent "No tools are available" errors
