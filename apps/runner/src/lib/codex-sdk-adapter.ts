@@ -116,6 +116,16 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 }
 
 /**
+ * Convert JavaScript object notation to strict JSON
+ * Handles unquoted keys like: { todos: [...] } → { "todos": [...] }
+ */
+function convertJSObjectToJSON(text: string): string {
+  // Replace unquoted keys with quoted keys
+  // Match pattern: word characters followed by colon (but not inside strings)
+  return text.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+}
+
+/**
  * Extract JSON with balanced braces starting from a position
  * Returns the JSON string and the end position, or null if invalid
  */
@@ -204,8 +214,11 @@ function extractAndConvertTodoWrite(text: string): string {
     const fullMatch = text.substring(matchStart, extracted.endPos + 1);
 
     try {
+      // Convert JS object notation to strict JSON (handles unquoted keys)
+      const strictJSON = convertJSObjectToJSON(jsonText);
+
       // Validate that it's valid JSON
-      const parsed = JSON.parse(jsonText);
+      const parsed = JSON.parse(strictJSON);
 
       // Check if it has the expected todos structure
       if (parsed.todos && Array.isArray(parsed.todos)) {
@@ -215,12 +228,12 @@ function extractAndConvertTodoWrite(text: string): string {
         );
 
         if (validTodos.length > 0) {
-          // Convert to TODO_WRITE marker format
-          const todoWriteMarker = `TODO_WRITE : ${jsonText}`;
+          // Convert to TODO_WRITE marker format using STRICT JSON
+          const todoWriteMarker = `TODO_WRITE : ${strictJSON}`;
           replacements.push({ original: fullMatch, replacement: todoWriteMarker, startPos: matchStart });
 
           streamLog.info(`[Codex Adapter] Extracted TodoWrite with ${validTodos.length} todos`);
-          streamLog.info(`[Codex Adapter] JSON length: ${jsonText.length} chars`);
+          streamLog.info(`[Codex Adapter] JSON length: ${strictJSON.length} chars`);
           streamLog.info(`[Codex Adapter] First todo: ${JSON.stringify(validTodos[0])}`);
         } else {
           streamLog.warn('[Codex Adapter] TodoWrite has no valid todos, skipping');
@@ -229,7 +242,8 @@ function extractAndConvertTodoWrite(text: string): string {
     } catch (error) {
       // If JSON is invalid, leave it as-is
       streamLog.warn('[Codex Adapter] Failed to parse TodoWrite JSON:', error);
-      streamLog.warn('[Codex Adapter] Extracted JSON (first 200 chars):', jsonText.substring(0, 200));
+      streamLog.warn('[Codex Adapter] Original JSON (first 200 chars):', jsonText.substring(0, 200));
+      streamLog.warn('[Codex Adapter] Converted JSON (first 200 chars):', convertJSObjectToJSON(jsonText).substring(0, 200));
     }
   }
 

@@ -559,11 +559,22 @@ All tasks should start as "pending" except the first one which should be "in_pro
 
         // Track usage data from planning phase
         if (event.type === 'turn.completed') {
-          // Extract finalResponse safely from event
-          const finalResp = (event as { finalResponse?: string }).finalResponse || '';
+          // For structured output, finalResponse is an object, not a string
+          const eventWithResponse = event as { finalResponse?: unknown };
 
-          // If finalResponse exists, use it; otherwise use accumulated fragments
-          planningResponse = finalResp || responseFragments.join('');
+          if (eventWithResponse.finalResponse) {
+            // If it's already an object (structured output), use it directly
+            if (typeof eventWithResponse.finalResponse === 'object') {
+              taskPlan = eventWithResponse.finalResponse as { analysis: string; todos: Array<{content: string; activeForm: string; status: string}> };
+              fileLog.info('Received structured planning response as object');
+            } else if (typeof eventWithResponse.finalResponse === 'string') {
+              // If it's a string, save it for parsing
+              planningResponse = eventWithResponse.finalResponse;
+            }
+          } else {
+            // No finalResponse - try accumulated fragments
+            planningResponse = responseFragments.join('');
+          }
 
           // Log usage statistics for cost tracking
           const eventWithUsage = event as { usage?: unknown };
@@ -578,38 +589,16 @@ All tasks should start as "pending" except the first one which should be "in_pro
         }
       }
 
-      // Validate response before parsing
-      if (!planningResponse || planningResponse.trim().length === 0) {
-        buildLogger.codexQuery.error("ERROR: Empty planning response from Codex - using fallback", new Error('Empty response'));
-        fileLog.warn('Using fallback task plan due to empty response');
+      // Check if taskPlan was already set from structured output object
+      if (!taskPlan) {
+        // Need to parse from string response
+        if (!planningResponse || planningResponse.trim().length === 0) {
+          buildLogger.codexQuery.error("ERROR: Empty planning response from Codex - using fallback", new Error('Empty response'));
+          fileLog.warn('Using fallback task plan due to empty response');
 
-        // Fallback: Create a simple single-task plan
-        taskPlan = {
-          analysis: 'Building the requested application',
-          todos: [
-            {
-              content: 'Complete the build request',
-              activeForm: 'Building application',
-              status: 'in_progress'
-            }
-          ]
-        };
-      } else {
-        // Log response for debugging
-        fileLog.info('Raw planning response (first 500 chars):', planningResponse.substring(0, 500));
-
-        // Try to parse with better error handling
-        try {
-          taskPlan = JSON.parse(planningResponse);
-        } catch (parseError) {
-          buildLogger.codexQuery.error("ERROR: Failed to parse planning response as JSON - using fallback", parseError instanceof Error ? parseError : new Error('Parse failed'));
-          fileLog.error('Planning response that failed to parse:', planningResponse);
-          fileLog.error('Parse error:', parseError);
-
-          // Fallback: Create a simple single-task plan instead of failing
-          fileLog.warn('Using fallback task plan due to JSON parse error');
+          // Fallback: Create a simple single-task plan
           taskPlan = {
-            analysis: 'Building the requested application (fallback due to parsing error)',
+            analysis: 'Building the requested application',
             todos: [
               {
                 content: 'Complete the build request',
@@ -618,6 +607,31 @@ All tasks should start as "pending" except the first one which should be "in_pro
               }
             ]
           };
+        } else {
+          // Log response for debugging
+          fileLog.info('Raw planning response (first 500 chars):', planningResponse.substring(0, 500));
+
+          // Try to parse with better error handling
+          try {
+            taskPlan = JSON.parse(planningResponse);
+          } catch (parseError) {
+            buildLogger.codexQuery.error("ERROR: Failed to parse planning response as JSON - using fallback", parseError instanceof Error ? parseError : new Error('Parse failed'));
+            fileLog.error('Planning response that failed to parse:', planningResponse);
+            fileLog.error('Parse error:', parseError);
+
+            // Fallback: Create a simple single-task plan instead of failing
+            fileLog.warn('Using fallback task plan due to JSON parse error');
+            taskPlan = {
+              analysis: 'Building the requested application (fallback due to parsing error)',
+              todos: [
+                {
+                  content: 'Complete the build request',
+                  activeForm: 'Building application',
+                  status: 'in_progress'
+                }
+              ]
+            };
+          }
         }
       }
 
