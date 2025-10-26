@@ -409,11 +409,6 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     const result = streamText({
       model,
       prompt,
-      experimental_telemetry: {
-        isEnabled: true,
-        recordInputs: true,
-        recordOutputs: true,
-      },
     });
 
     // Transform AI SDK stream format to our message format
@@ -1859,6 +1854,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
             // Continue trace if parent trace context exists, otherwise start new
             if (command._sentry?.trace) {
+              console.log('continuing trace', command._sentry.trace);
               Sentry.continueTrace(
                 {
                   sentryTrace: command._sentry.trace,
@@ -1874,6 +1870,7 @@ export async function startRunner(options: RunnerOptions = {}) {
                 }
               );
             } else {
+              console.log('starting new trace');
               // No parent trace - start new one
               Sentry.startNewTrace(async () => {
                 Sentry.setTag('command_type', command.type);
