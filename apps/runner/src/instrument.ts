@@ -33,7 +33,7 @@ const sentryOptions: RunnerSentryOptions = {
   ],
   tracesSampleRate: 1.0,
   enableLogs: true,
-  debug: true,
+  debug: false,
   sendDefaultPii: true,
 
   // Configure trace propagation
