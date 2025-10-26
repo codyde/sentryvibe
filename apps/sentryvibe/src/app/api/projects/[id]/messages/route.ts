@@ -9,6 +9,7 @@ import {
 } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
+import { cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
 
 function serializeContent(content: unknown): string {
@@ -63,6 +64,17 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    // CLEANUP: On reconnection, check for and finalize stuck builds
+    // This runs every time a user reconnects/refreshes, providing natural cleanup
+    // without requiring external cronjobs or scheduled tasks
+    try {
+      await cleanupStuckBuilds(5); // Finalize builds inactive for 5+ minutes
+    } catch (cleanupError) {
+      // Don't block the request if cleanup fails
+      console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);
+    }
+
     const projectMessages = await db
       .select()
       .from(messages)
@@ -157,6 +169,29 @@ export async function GET(
           startTime: session.startedAt ?? new Date(),
           endTime: session.endedAt ?? undefined,
         };
+      }
+
+      // RECONNECTION DETECTION: Check for state inconsistencies
+      // If all todos are complete but session is still active, mark as complete
+      if (hydratedState && session.status === 'active') {
+        const allTodosComplete = hydratedState.todos.length > 0 &&
+          hydratedState.todos.every(todo => todo.status === 'completed');
+
+        if (allTodosComplete) {
+          console.log(`[messages-route] 🔄 Detected completed build with active session: ${session.id}`);
+          hydratedState.isActive = false;
+          hydratedState.endTime = hydratedState.endTime ?? new Date();
+
+          // Update session status in background (don't block response)
+          db.update(generationSessions)
+            .set({
+              status: 'completed',
+              endedAt: hydratedState.endTime,
+              updatedAt: new Date()
+            })
+            .where(eq(generationSessions.id, session.id))
+            .catch(err => console.error('[messages-route] Failed to update session status:', err));
+        }
       }
 
       return {
