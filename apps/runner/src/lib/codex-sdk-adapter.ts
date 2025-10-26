@@ -103,6 +103,84 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 }
 
 /**
+ * Extract TodoWrite calls from Codex text and convert to TODO_WRITE marker format
+ *
+ * Codex outputs: TodoWrite({ "todos": [...] })
+ * We need: TODO_WRITE : {"todos": [...]}
+ *
+ * This allows the message transformer to recognize and process todo updates
+ */
+function extractAndConvertTodoWrite(text: string): string {
+  if (!text) return text;
+
+  // Match TodoWrite calls with various formatting:
+  // TodoWrite({ "todos": [...] })
+  // TodoWrite({\n  "todos": [...]\n})
+  const todoWriteRegex = /TodoWrite\s*\(\s*(\{[\s\S]*?\})\s*\)/g;
+
+  let match: RegExpExecArray | null;
+  let result = text;
+  const replacements: Array<{ original: string; replacement: string }> = [];
+
+  while ((match = todoWriteRegex.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const jsonText = match[1];
+
+    try {
+      // Validate that it's valid JSON
+      const parsed = JSON.parse(jsonText);
+
+      // Check if it has the expected todos structure
+      if (parsed.todos && Array.isArray(parsed.todos)) {
+        // Validate todos have required fields
+        const validTodos = parsed.todos.filter((t: any) =>
+          t && typeof t === 'object' && (t.content || t.activeForm)
+        );
+
+        if (validTodos.length > 0) {
+          // Convert to TODO_WRITE marker format
+          const todoWriteMarker = `TODO_WRITE : ${jsonText}`;
+          replacements.push({ original: fullMatch, replacement: todoWriteMarker });
+
+          streamLog.info(`[Codex Adapter] Extracted TodoWrite with ${validTodos.length} todos`);
+          streamLog.info(`[Codex Adapter] First todo: ${JSON.stringify(validTodos[0])}`);
+        } else {
+          streamLog.warn('[Codex Adapter] TodoWrite has no valid todos, skipping');
+        }
+      }
+    } catch (error) {
+      // If JSON is invalid, leave it as-is
+      streamLog.warn('[Codex Adapter] Failed to parse TodoWrite JSON:', error);
+    }
+  }
+
+  // Apply all replacements
+  for (const { original, replacement } of replacements) {
+    result = result.replace(original, replacement);
+  }
+
+  // Also handle JSON-only format at the end of agent_message
+  // Some Codex responses end with just: {"todos":[...]}
+  const jsonOnlyRegex = /\n?(\{"todos":\s*\[[\s\S]*?\]\s*\})\s*$/;
+  const jsonMatch = jsonOnlyRegex.exec(result);
+
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (parsed.todos && Array.isArray(parsed.todos)) {
+        const todoWriteMarker = `\nTODO_WRITE : ${jsonMatch[1]}`;
+        result = result.replace(jsonOnlyRegex, todoWriteMarker);
+        streamLog.info(`[Codex Adapter] Extracted JSON-only TodoWrite with ${parsed.todos.length} todos`);
+      }
+    } catch (error) {
+      // Leave as-is if invalid
+    }
+  }
+
+  return result;
+}
+
+/**
  * Transform Codex SDK event stream to unified message format
  * 
  * IMPORTANT: This function must consume the entire event stream directly from
@@ -122,6 +200,13 @@ export async function* transformCodexStream(
   let eventCount = 0;
   let yieldCount = 0;
 
+  // Track in-progress tools to match started → completed events
+  const inProgressTools = new Map<string, {
+    type: string;
+    command?: string;
+    changes?: any[];
+  }>();
+
   streamLog.info('━━━ CODEX STREAM TRANSFORMATION STARTED ━━━');
 
   for await (const event of stream) {
@@ -136,24 +221,21 @@ export async function* transformCodexStream(
 
     // Handle different Codex event types
     switch (event.type) {
-      case 'item.started':
-      case 'turn.started':
-        // New turn/item started
-        if (event.item) {
-          currentMessageId = `codex-${Date.now()}-${getToolId(event.item)}`;
-        }
-        break;
-
-      case 'item.completed': {
-        // Tool execution completed
+      case 'item.started': {
+        // Tool execution started - emit tool call
         if (!event.item) break;
 
-        const itemType = event.item.type;
         const toolId = getToolId(event.item);
+        const itemType = event.item.type;
 
-        // Handle different Codex item types
         if (itemType === 'command_execution') {
-          // Command execution → Bash tool
+          // Store tool info for matching with completion
+          inProgressTools.set(toolId, {
+            type: 'command_execution',
+            command: event.item.command,
+          });
+
+          // Emit tool call immediately
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -168,33 +250,18 @@ export async function* transformCodexStream(
           };
 
           yieldCount++;
-          streamLog.yield('tool-call', { toolName: 'Bash', toolId, command: event.item.command });
+          streamLog.yield('tool-call-start', { toolName: 'Bash', toolId, command: event.item.command });
           yield toolMessage;
-
-          // Yield result
-          const output = event.item.aggregated_output;
-          if (output) {
-            const resultMessage: TransformedMessage = {
-              type: 'user',
-              message: {
-                id: `result-${toolId}`,
-                content: [{
-                  type: 'tool_result',
-                  tool_use_id: toolId,
-                  content: output,
-                }],
-              },
-            };
-
-            yieldCount++;
-            streamLog.yield('tool-result', { toolId, output: output.substring(0, 100) });
-            yield resultMessage;
-          }
         } else if (itemType === 'file_change') {
-          // File change → Write/Edit tool
+          // Store file change info
           const changes = event.item.changes || [];
-          const paths = changes.map((c: any) => c.path).join(', ');
+          inProgressTools.set(toolId, {
+            type: 'file_change',
+            changes,
+          });
 
+          // Emit tool call immediately
+          const paths = changes.map((c: any) => c.path).join(', ');
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -202,17 +269,108 @@ export async function* transformCodexStream(
               content: [{
                 type: 'tool_use',
                 id: toolId,
-                name: 'Write', // or 'Edit' - using Write for simplicity
+                name: 'Write',
                 input: { paths: changes },
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-call', { toolName: 'Write', toolId, paths });
+          streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths });
           yield toolMessage;
+        }
 
-          // Yield success result
+        // Update message ID
+        if (event.item) {
+          currentMessageId = `codex-${Date.now()}-${toolId}`;
+        }
+        break;
+      }
+
+      case 'turn.started':
+        // New turn started
+        if (event.item) {
+          currentMessageId = `codex-${Date.now()}-${getToolId(event.item)}`;
+        }
+        break;
+
+      case 'item.completed': {
+        // Tool execution completed - emit tool result only
+        if (!event.item) break;
+
+        const itemType = event.item.type;
+        const toolId = getToolId(event.item);
+
+        // Handle different Codex item types
+        if (itemType === 'command_execution') {
+          // Command execution completed - emit result
+          const toolInfo = inProgressTools.get(toolId);
+
+          // If we didn't track the start (shouldn't happen), emit the tool call now
+          if (!toolInfo) {
+            streamLog.warn(`[Codex Adapter] Tool ${toolId} completed without start event, emitting both`);
+            const toolMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: `${currentMessageId}-tool-${toolId}`,
+                content: [{
+                  type: 'tool_use',
+                  id: toolId,
+                  name: 'Bash',
+                  input: { command: event.item.command },
+                }],
+              },
+            };
+            yieldCount++;
+            yield toolMessage;
+          }
+
+          // Emit result
+          const output = event.item.aggregated_output || '';
+          const resultMessage: TransformedMessage = {
+            type: 'user',
+            message: {
+              id: `result-${toolId}`,
+              content: [{
+                type: 'tool_result',
+                tool_use_id: toolId,
+                content: output,
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('tool-result', { toolId, output: output.substring(0, 100) });
+          yield resultMessage;
+
+          // Clean up tracking
+          inProgressTools.delete(toolId);
+        } else if (itemType === 'file_change') {
+          // File change completed - emit result
+          const toolInfo = inProgressTools.get(toolId);
+          const changes = event.item.changes || [];
+          const paths = changes.map((c: any) => c.path).join(', ');
+
+          // If we didn't track the start (shouldn't happen), emit the tool call now
+          if (!toolInfo) {
+            streamLog.warn(`[Codex Adapter] Tool ${toolId} completed without start event, emitting both`);
+            const toolMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: `${currentMessageId}-tool-${toolId}`,
+                content: [{
+                  type: 'tool_use',
+                  id: toolId,
+                  name: 'Write',
+                  input: { paths: changes },
+                }],
+              },
+            };
+            yieldCount++;
+            yield toolMessage;
+          }
+
+          // Emit result
           const resultMessage: TransformedMessage = {
             type: 'user',
             message: {
@@ -228,6 +386,9 @@ export async function* transformCodexStream(
           yieldCount++;
           streamLog.yield('tool-result', { toolId, changes });
           yield resultMessage;
+
+          // Clean up tracking
+          inProgressTools.delete(toolId);
         } else if (itemType === 'agent_message' || itemType === 'reasoning') {
           // Agent message/reasoning → Text message
           let text = event.item.text as string;
@@ -235,6 +396,11 @@ export async function* transformCodexStream(
             // Strip markdown bold from reasoning (Codex outputs short bolded titles)
             // Convert "**Title**" to just "Title"
             text = text.replace(/^\*\*(.*?)\*\*$/g, '$1').trim();
+
+            // Extract TodoWrite calls and convert to TODO_WRITE markers
+            // Codex outputs: TodoWrite({ "todos": [...] })
+            // We need: TODO_WRITE : {"todos": [...]}
+            text = extractAndConvertTodoWrite(text);
 
             // Only yield if there's actual content (skip empty or very short reasoning)
             if (text.length > 5) {
@@ -254,8 +420,52 @@ export async function* transformCodexStream(
               yield textMessage;
             }
           }
+        } else if (itemType === 'todo_list') {
+          // Handle explicit todo_list items from Codex
+          // These are structured todo updates that should be converted to TodoWrite format
+          if (event.item.items && Array.isArray(event.item.items)) {
+            const todos = event.item.items.map((item: any) => {
+              // Normalize status values to match expected format
+              let status = item.status || 'pending';
+              // Handle variations: 'in-progress', 'in_progress', 'inprogress'
+              if (status.toLowerCase().replace(/[-_\s]/g, '') === 'inprogress') {
+                status = 'in_progress';
+              }
+
+              return {
+                content: item.content || item.description || '',
+                activeForm: item.activeForm || item.content || item.description || '',
+                status: status as 'pending' | 'in_progress' | 'completed',
+              };
+            });
+
+            // Validate at least some todos have content
+            const validTodos = todos.filter(t => t.content && t.content.length > 0);
+            if (validTodos.length === 0) {
+              streamLog.warn('[Codex Adapter] todo_list has no valid todos, skipping');
+              break;
+            }
+
+            // Convert to TODO_WRITE marker format
+            const todoWriteMarker = `TODO_WRITE : ${JSON.stringify({ todos: validTodos })}`;
+            const textMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: currentMessageId,
+                content: [{
+                  type: 'text',
+                  text: todoWriteMarker,
+                }],
+              },
+            };
+
+            yieldCount++;
+            streamLog.yield('todo-list', { count: validTodos.length });
+            streamLog.info(`[Codex Adapter] Converted todo_list to TodoWrite with ${validTodos.length} todos`);
+            yield textMessage;
+          }
         }
-        // TODO: Handle mcp_tool_call, web_search, todo_list, error item types
+        // TODO: Handle mcp_tool_call, web_search, error item types
 
         break;
       }
