@@ -533,11 +533,35 @@ All tasks should start as "pending" except the first one which should be "in_pro
     let taskPlan;
     try {
       log("📋 [codex-query] Requesting structured task plan...");
-      const planningTurn = await thread.run(planningPrompt, {
+      
+      // Use runStreamed() instead of run() to preserve Sentry async context for AI span tracking
+      const planningTurn = await thread.runStreamed(planningPrompt, {
         outputSchema: getTaskPlanJsonSchema(),
       });
 
-      taskPlan = JSON.parse(planningTurn.finalResponse);
+      // Consume events directly to preserve Sentry instrumentation
+      // This ensures all tool calls in the planning phase are tracked
+      let planningResponse = '';
+      for await (const event of planningTurn.events) {
+        // Track usage data from planning phase
+        if (event.type === 'turn.completed') {
+          // Extract finalResponse safely from event
+          planningResponse = (event as { finalResponse?: string }).finalResponse || '';
+          
+          // Log usage statistics for cost tracking
+          const eventWithUsage = event as { usage?: unknown };
+          if (eventWithUsage.usage) {
+            fileLog.info('Planning phase usage:', eventWithUsage.usage);
+            // Add to Sentry span context
+            Sentry.setContext('codex_planning_usage', {
+              ...(eventWithUsage.usage as Record<string, unknown>),
+              phase: 'planning',
+            });
+          }
+        }
+      }
+
+      taskPlan = JSON.parse(planningResponse);
       log("✅ [codex-query] Got structured task plan!");
       log(`   Analysis: ${taskPlan.analysis}`);
       log(`   Tasks: ${taskPlan.todos.length}`);
@@ -581,8 +605,23 @@ All tasks should start as "pending" except the first one which should be "in_pro
         capturedThreadId = thread.id;
         fileLog.info('Codex thread ID captured:', capturedThreadId);
 
-        // TODO: Send thread ID to frontend to store in GenerationState
-        // This enables resumeThread() for follow-up messages
+        // Send thread ID to frontend to store in GenerationState
+        // This enables resumeThread() for follow-up messages and conversation continuity
+        const threadIdEvent = {
+          type: "assistant",
+          message: {
+            id: `codex-thread-${Date.now()}`,
+            content: [
+              {
+                type: "metadata",
+                metadata_type: "codex_thread_id",
+                thread_id: capturedThreadId,
+              }
+            ],
+          },
+        };
+        yield threadIdEvent;
+        fileLog.info('Thread ID sent to frontend:', capturedThreadId);
       }
       if (!smartTracker || isTrackerComplete(smartTracker)) {
         log("✅ [codex-query] All tasks complete!");

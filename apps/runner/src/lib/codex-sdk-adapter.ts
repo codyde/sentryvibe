@@ -24,15 +24,28 @@ type CodexThreadEvent = {
     exit_code?: number;
     status?: string;
     changes?: unknown[];
+    // MCP tool call fields
     server?: string;
     tool?: string;
-    query?: string;
+    query?: unknown;
+    arguments?: unknown;
+    // Web search fields
+    search_query?: string;
+    results?: unknown[];
+    // Error fields
+    error?: string;
+    error_type?: string;
+    error_code?: string;
+    stack?: string;
     message?: string;
+    // Todo list fields
     items?: unknown[];
     [key: string]: unknown;
   };
   thread_id?: string;
   usage?: unknown;
+  finalResponse?: string;
+  error?: unknown;
   message?: string;
   [key: string]: unknown;
 }
@@ -278,6 +291,66 @@ export async function* transformCodexStream(
           yieldCount++;
           streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths });
           yield toolMessage;
+        } else if (itemType === 'mcp_tool_call') {
+          // MCP tool call started
+          const mcpToolName = event.item.tool || event.item.server || 'MCPTool';
+          const mcpQuery = event.item.query || event.item.arguments || {};
+          
+          inProgressTools.set(toolId, {
+            type: 'mcp_tool_call',
+          });
+
+          // Emit tool call immediately
+          const toolMessage: TransformedMessage = {
+            type: 'assistant',
+            message: {
+              id: `${currentMessageId}-tool-${toolId}`,
+              content: [{
+                type: 'tool_use',
+                id: toolId,
+                name: mcpToolName,
+                input: mcpQuery,
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('tool-call-start', { 
+            toolName: mcpToolName, 
+            toolId, 
+            server: event.item.server,
+            tool: event.item.tool,
+          });
+          yield toolMessage;
+        } else if (itemType === 'web_search') {
+          // Web search started
+          const searchQuery = event.item.query || event.item.search_query || '';
+          
+          inProgressTools.set(toolId, {
+            type: 'web_search',
+          });
+
+          // Emit tool call immediately
+          const toolMessage: TransformedMessage = {
+            type: 'assistant',
+            message: {
+              id: `${currentMessageId}-tool-${toolId}`,
+              content: [{
+                type: 'tool_use',
+                id: toolId,
+                name: 'WebSearch',
+                input: { query: searchQuery },
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('tool-call-start', { 
+            toolName: 'WebSearch', 
+            toolId, 
+            query: searchQuery,
+          });
+          yield toolMessage;
         }
 
         // Update message ID
@@ -326,7 +399,7 @@ export async function* transformCodexStream(
           }
 
           // Emit result
-          let output = event.item.aggregated_output || '';
+          const output = event.item.aggregated_output || '';
 
           // CRITICAL: Extract TodoWrite from bash command outputs
           // Codex doesn't have TodoWrite as a tool, so it uses printf/echo to output it
@@ -488,13 +561,144 @@ export async function* transformCodexStream(
             streamLog.info(`[Codex Adapter] Converted todo_list to TodoWrite with ${validTodos.length} todos`);
             yield textMessage;
           }
+        } else if (itemType === 'mcp_tool_call') {
+          // MCP (Model Context Protocol) tool invocation
+          const toolInfo = inProgressTools.get(toolId);
+          
+          // If we didn't track the start, emit the tool call now
+          if (!toolInfo) {
+            streamLog.info(`[Codex Adapter] MCP tool call ${toolId} completed without start event`);
+            const mcpToolName = event.item.tool || event.item.server || 'MCPTool';
+            const toolMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: `${currentMessageId}-tool-${toolId}`,
+                content: [{
+                  type: 'tool_use',
+                  id: toolId,
+                  name: mcpToolName,
+                  input: event.item.query || event.item.arguments || {},
+                }],
+              },
+            };
+            yieldCount++;
+            yield toolMessage;
+          }
+
+          // Emit result
+          const mcpOutput = getToolOutput(event.item);
+          const resultMessage: TransformedMessage = {
+            type: 'user',
+            message: {
+              id: `result-${toolId}`,
+              content: [{
+                type: 'tool_result',
+                tool_use_id: toolId,
+                content: typeof mcpOutput === 'string' ? mcpOutput : JSON.stringify(mcpOutput),
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('mcp-tool-result', { 
+            toolId, 
+            server: event.item.server,
+            tool: event.item.tool,
+          });
+          yield resultMessage;
+
+          // Clean up tracking
+          inProgressTools.delete(toolId);
+        } else if (itemType === 'web_search') {
+          // Web search query and results
+          const toolInfo = inProgressTools.get(toolId);
+          const searchQuery = event.item.query || event.item.search_query || '';
+          
+          // If we didn't track the start, emit the tool call now
+          if (!toolInfo) {
+            streamLog.info(`[Codex Adapter] Web search ${toolId} completed without start event`);
+            const toolMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: `${currentMessageId}-tool-${toolId}`,
+                content: [{
+                  type: 'tool_use',
+                  id: toolId,
+                  name: 'WebSearch',
+                  input: { query: searchQuery },
+                }],
+              },
+            };
+            yieldCount++;
+            yield toolMessage;
+          }
+
+          // Emit search results
+          const searchResults = event.item.results || event.item.aggregated_output || '';
+          const resultMessage: TransformedMessage = {
+            type: 'user',
+            message: {
+              id: `result-${toolId}`,
+              content: [{
+                type: 'tool_result',
+                tool_use_id: toolId,
+                content: typeof searchResults === 'string' ? searchResults : JSON.stringify(searchResults),
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('web-search-result', { 
+            toolId, 
+            query: searchQuery,
+            result_count: Array.isArray(event.item.results) ? event.item.results.length : 'unknown',
+          });
+          yield resultMessage;
+
+          // Clean up tracking
+          inProgressTools.delete(toolId);
+        } else if (itemType === 'error') {
+          // Enhanced error handling with detailed context
+          const errorMessage = event.item.message || event.item.error || 'Unknown error';
+          const errorDetails = {
+            message: errorMessage,
+            type: event.item.error_type,
+            code: event.item.error_code,
+            stack: event.item.stack,
+          };
+          
+          streamLog.error('[Codex Adapter] Error item:', errorDetails);
+          fileLog.error('Codex error item:', errorDetails);
+
+          // Emit error as text message so frontend can display it
+          const errorTextMessage: TransformedMessage = {
+            type: 'assistant',
+            message: {
+              id: currentMessageId,
+              content: [{
+                type: 'text',
+                text: `⚠️ Error: ${errorMessage}`,
+              }],
+            },
+          };
+
+          yieldCount++;
+          yield errorTextMessage;
         }
-        // TODO: Handle mcp_tool_call, web_search, error item types
 
         break;
       }
 
       case 'turn.completed':
+        // Track usage statistics for cost and performance monitoring
+        if (event.usage) {
+          streamLog.info('Turn usage statistics:', event.usage);
+          fileLog.info('Codex turn usage:', {
+            usage: event.usage,
+            turn_number: eventCount,
+          });
+        }
+
         // Turn completed - might have final response text
         if (event.finalResponse && typeof event.finalResponse === 'string') {
           const textMessage: TransformedMessage = {
