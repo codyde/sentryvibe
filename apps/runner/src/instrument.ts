@@ -6,11 +6,13 @@ type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
     | ReturnType<typeof Sentry.claudeCodeIntegration>
     | ReturnType<typeof Sentry.openaiCodexIntegration>
     | ReturnType<typeof Sentry.consoleLoggingIntegration>
+    | ReturnType<typeof Sentry.httpIntegration>
   >;
   tracesSampleRate?: number;
   debug?: boolean;
   enableLogs?: boolean;
   sendDefaultPii?: boolean;
+  tracePropagationTargets?: Array<string | RegExp>;
 };
 
 const sentryOptions: RunnerSentryOptions = {
@@ -27,11 +29,20 @@ const sentryOptions: RunnerSentryOptions = {
       recordOutputs: true,
     }),
     Sentry.consoleLoggingIntegration(),
+    Sentry.httpIntegration(), // For HTTP trace propagation
   ],
   tracesSampleRate: 1.0,
   enableLogs: true,
   debug: false,
   sendDefaultPii: true,
+
+  // Configure trace propagation
+  tracePropagationTargets: [
+    'localhost',
+    'localhost:3000',
+    'localhost:4000',
+    /^https?:\/\/localhost:\d+$/,
+  ],
 };
 
 Sentry.init(sentryOptions);

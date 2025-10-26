@@ -1412,9 +1412,20 @@ export async function startRunner(options: RunnerOptions = {}) {
         fileLog.info('Agent:', command.payload?.agent);
         fileLog.info('Template:', command.payload?.template);
 
-        // Each build is a discrete unit of work - create a new trace for proper isolation and sampling
-        await Sentry.startNewTrace(async () => {
-          try {
+        // Create a span for the build operation (AI spans will be auto-created by vercelAIIntegration)
+        await Sentry.startSpan(
+          {
+            name: 'runner.build',
+            op: 'build',
+            attributes: {
+              'build.project_id': command.projectId,
+              'build.operation': command.payload?.operationType,
+              'build.agent': command.payload?.agent,
+              'build.template': command.payload?.template?.name,
+            },
+          },
+          async () => {
+            try {
           loggedFirstChunk = false;
           if (!command.payload?.prompt || !command.payload?.operationType) {
             throw new Error("Invalid build payload");
@@ -1781,8 +1792,9 @@ export async function startRunner(options: RunnerOptions = {}) {
               error instanceof Error ? error.message : "Failed to run build",
             stack: error instanceof Error ? error.stack : undefined,
           });
-        }
-      });
+            }
+          }
+        );
         break;
       }
       default:
@@ -1843,9 +1855,36 @@ export async function startRunner(options: RunnerOptions = {}) {
     socket.on("message", (data: WebSocket.RawData) => {
           try {
             const command = JSON.parse(String(data)) as RunnerCommand;
-            handleCommand(command);
+
+            // Continue trace if parent trace context exists, otherwise start new
+            if (command._sentry?.trace) {
+              Sentry.continueTrace(
+                {
+                  sentryTrace: command._sentry.trace,
+                  baggage: command._sentry.baggage,
+                },
+                async () => {
+                  // Add metadata to trace
+                  Sentry.setTag('command_type', command.type);
+                  Sentry.setTag('project_id', command.projectId);
+                  Sentry.setTag('command_id', command.id);
+
+                  await handleCommand(command);
+                }
+              );
+            } else {
+              // No parent trace - start new one
+              Sentry.startNewTrace(async () => {
+                Sentry.setTag('command_type', command.type);
+                Sentry.setTag('project_id', command.projectId);
+                Sentry.setTag('command_id', command.id);
+
+                await handleCommand(command);
+              });
+            }
           } catch (error) {
             console.error("Failed to parse command", error);
+            Sentry.captureException(error);
             sendEvent({
               type: "error",
               ...buildEventBase(undefined, randomUUID()),

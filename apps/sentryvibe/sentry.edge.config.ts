@@ -17,5 +17,9 @@ Sentry.init({
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
 
-  tracePropagationTargets: ['localhost:4000', /^https:\/\/localhost:\d+$/],
+  tracePropagationTargets: [
+    'localhost',
+    'localhost:4000',
+    /^https?:\/\/localhost:\d+$/,
+  ],
 });

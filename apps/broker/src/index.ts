@@ -75,9 +75,6 @@ async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3
 const app = express();
 app.use(express.json());
 
-// Add Sentry request handler (must be first)
-app.use(Sentry.expressIntegration);
-
 // Health check endpoint (no auth - for monitoring/Docker health checks)
 app.get('/health', (req, res) => {
   res.json({
@@ -127,7 +124,19 @@ app.post('/commands', auth, (req, res) => {
   }
 
   try {
-    connection.socket.send(JSON.stringify(command));
+    // Extract current trace context to pass through WebSocket
+    const traceData = Sentry.getTraceData();
+
+    // Add trace context to command payload
+    const commandWithTrace = {
+      ...command,
+      _sentry: {
+        trace: traceData['sentry-trace'],
+        baggage: traceData.baggage,
+      },
+    };
+
+    connection.socket.send(JSON.stringify(commandWithTrace));
     totalCommands++;
     return res.json({ ok: true });
   } catch (error) {
@@ -140,6 +149,9 @@ app.post('/commands', auth, (req, res) => {
     return res.status(500).json({ error: 'Failed to send command' });
   }
 });
+
+// Add Sentry error handler AFTER all routes
+Sentry.setupExpressErrorHandler(app);
 
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/socket' });

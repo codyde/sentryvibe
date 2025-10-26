@@ -60,8 +60,6 @@ async function fetchWithRetry(url, options, maxAttempts = 3) {
 }
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
-// Add Sentry request handler (must be first)
-app.use(instrument_1.Sentry.expressIntegration);
 // Health check endpoint (no auth - for monitoring/Docker health checks)
 app.get('/health', (req, res) => {
     res.json({
@@ -105,7 +103,17 @@ app.post('/commands', auth, (req, res) => {
         return res.status(503).json({ error: 'Runner not connected' });
     }
     try {
-        connection.socket.send(JSON.stringify(command));
+        // Extract current trace context to pass through WebSocket
+        const traceData = instrument_1.Sentry.getTraceData();
+        // Add trace context to command payload
+        const commandWithTrace = {
+            ...command,
+            _sentry: {
+                trace: traceData['sentry-trace'],
+                baggage: traceData.baggage,
+            },
+        };
+        connection.socket.send(JSON.stringify(commandWithTrace));
         totalCommands++;
         return res.json({ ok: true });
     }
@@ -119,6 +127,8 @@ app.post('/commands', auth, (req, res) => {
         return res.status(500).json({ error: 'Failed to send command' });
     }
 });
+// Add Sentry error handler AFTER all routes
+instrument_1.Sentry.setupExpressErrorHandler(app);
 const server = (0, http_1.createServer)(app);
 const wss = new ws_1.WebSocketServer({ server, path: '/socket' });
 wss.on('connection', (ws, request) => {
