@@ -392,7 +392,6 @@ function createClaudeQuery(
     const aiSdkModelId = modelIdMap[modelId] || "sonnet";
 
     const model = claudeCode(aiSdkModelId, {
-      queryFunction: instrumentedQuery as typeof query,
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
       permissionMode: "bypassPermissions",
