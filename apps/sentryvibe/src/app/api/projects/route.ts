@@ -46,6 +46,7 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
     skipGitRepoCheck: true,
   });
 
+  // Consume events directly to preserve Sentry async context for AI spans
   const { events } = await thread.runStreamed(promptText);
   let accumulated = '';
 

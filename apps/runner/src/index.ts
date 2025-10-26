@@ -634,16 +634,9 @@ Don't just plan - TAKE ACTION and create/modify files.`;
       const streamedTurn = await thread.runStreamed(taskPrompt);
 
       // StreamedTurn has an 'events' property that's an AsyncGenerator<ThreadEvent>
-      for await (const event of streamedTurn.events) {
-        // Transform single event - create simple async generator wrapper
-        async function* singleEvent() {
-          yield event;
-        }
-
-        // Transform Codex events to unified format
-        for await (const message of transformCodexStream(singleEvent())) {
-          yield message;
-        }
+      // Pass the entire stream to transformer to preserve Sentry async context
+      for await (const message of transformCodexStream(streamedTurn.events)) {
+        yield message;
       }
 
       // Mark task as complete
