@@ -56,12 +56,13 @@ jobs:
           echo ""
           echo "Total .tgz files: $VENDOR_COUNT"
 
-          # Check for all required files (Sentry SDK tarballs)
+          # Check for all required files (Sentry SDKs + AI SDK provider)
           REQUIRED_FILES=(
             "sentry-core-LOCAL.tgz"
             "sentry-node-LOCAL.tgz"
             "sentry-node-core-LOCAL.tgz"
             "sentry-nextjs-LOCAL.tgz"
+            "ai-sdk-provider-claude-code-LOCAL.tgz"
           )
 
           for file in "${REQUIRED_FILES[@]}"; do
@@ -74,9 +75,9 @@ jobs:
             fi
           done
 
-          if [ "$VENDOR_COUNT" -ne 4 ]; then
+          if [ "$VENDOR_COUNT" -ne 5 ]; then
             echo ""
-            echo "ERROR: Expected 4 vendor files (Sentry SDKs), found $VENDOR_COUNT"
+            echo "ERROR: Expected 5 vendor files (4 Sentry SDKs + ai-sdk-provider-claude-code), found $VENDOR_COUNT"
             exit 1
           fi
 
