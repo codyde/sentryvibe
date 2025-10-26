@@ -408,6 +408,16 @@ async function persistEvent(
         await refreshRawState(context);
         console.log(`[persistent-processor] ✅ Todos persisted and state refreshed, activeTodoIndex=${context.currentActiveTodoIndex}`);
 
+        // AUTO-FINALIZE: If all todos are complete, finalize the build
+        // This handles cases where build-completed event is delayed or missing
+        const allComplete = todos.length > 0 && todos.every((t) => t.status === 'completed');
+        if (allComplete) {
+          console.log(`[persistent-processor] 🎉 All todos complete - auto-finalizing build ${context.commandId}`);
+          await finalizeSession(context, 'completed', timestamp);
+          // Note: Don't cleanup yet - build-completed event might still arrive
+          // Just mark as complete so UI updates
+        }
+
         // Don't call refreshRawState again at the end - we already did it
         return;
       } else if (eventData.toolName) {
@@ -552,9 +562,11 @@ export function registerBuild(
           await persistEvent(context, eventData);
         }
       } else if (event.type === 'build-completed') {
+        console.log(`[persistent-processor] 🎉 Received build-completed event for ${commandId}`);
         await finalizeSession(context, 'completed', new Date());
         cleanupBuild(commandId);
       } else if (event.type === 'build-failed' || event.type === 'error') {
+        console.log(`[persistent-processor] ❌ Received build-failed/error event for ${commandId}`);
         await finalizeSession(context, 'failed', new Date());
         cleanupBuild(commandId);
       }
