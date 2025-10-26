@@ -870,52 +870,38 @@ export async function POST(
       },
     });
 
-    // Wrap entire build session in a Sentry span
-    await Sentry.startSpan(
-      {
-        name: 'build.session',
-        op: 'http.server',
-        attributes: {
-          'project.id': id,
-          'build.operation': body.operationType,
-          'build.agent': agentId,
-        },
-      },
-      async () => {
-        // Log template being sent to runner
-        if (templateMetadata) {
-          console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
-          console.log(`[build-route]    ID: ${templateMetadata.id}`);
-          console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
-          if (generatedSlug) {
-            console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
-            console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
-          }
-        } else {
-          console.log('[build-route] 📤 No template metadata - runner will auto-select');
-        }
-
-        await sendCommandToRunner(runnerId, {
-          id: commandId,
-          type: 'start-build',
-          projectId: id,
-          timestamp: new Date().toISOString(),
-          payload: {
-            operationType: body.operationType,
-            prompt: body.prompt,
-            projectSlug: generatedSlug || project[0].slug,
-            projectName: generatedSlug || project[0].name, // Slug for directory name
-            projectFriendlyName: generatedFriendlyName, // Optional - for display
-            context: body.context,
-            designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
-            tags: body.tags, // Tag-based configuration
-            agent: agentId,
-            claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
-            template: templateMetadata, // NEW: Pass analyzed template metadata to runner
-          },
-        });
+    // Log template being sent to runner
+    if (templateMetadata) {
+      console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
+      console.log(`[build-route]    ID: ${templateMetadata.id}`);
+      console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
+      if (generatedSlug) {
+        console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
+        console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
       }
-    );
+    } else {
+      console.log('[build-route] 📤 No template metadata - runner will auto-select');
+    }
+
+    await sendCommandToRunner(runnerId, {
+      id: commandId,
+      type: 'start-build',
+      projectId: id,
+      timestamp: new Date().toISOString(),
+      payload: {
+        operationType: body.operationType,
+        prompt: body.prompt,
+        projectSlug: generatedSlug || project[0].slug,
+        projectName: generatedSlug || project[0].name, // Slug for directory name
+        projectFriendlyName: generatedFriendlyName, // Optional - for display
+        context: body.context,
+        designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
+        tags: body.tags, // Tag-based configuration
+        agent: agentId,
+        claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
+        template: templateMetadata, // NEW: Pass analyzed template metadata to runner
+      },
+    });
 
     return new Response(stream, {
       headers: {
