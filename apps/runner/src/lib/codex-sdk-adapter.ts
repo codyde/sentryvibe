@@ -200,6 +200,13 @@ export async function* transformCodexStream(
   let eventCount = 0;
   let yieldCount = 0;
 
+  // Track in-progress tools to match started → completed events
+  const inProgressTools = new Map<string, {
+    type: string;
+    command?: string;
+    changes?: any[];
+  }>();
+
   streamLog.info('━━━ CODEX STREAM TRANSFORMATION STARTED ━━━');
 
   for await (const event of stream) {
@@ -214,24 +221,21 @@ export async function* transformCodexStream(
 
     // Handle different Codex event types
     switch (event.type) {
-      case 'item.started':
-      case 'turn.started':
-        // New turn/item started
-        if (event.item) {
-          currentMessageId = `codex-${Date.now()}-${getToolId(event.item)}`;
-        }
-        break;
-
-      case 'item.completed': {
-        // Tool execution completed
+      case 'item.started': {
+        // Tool execution started - emit tool call
         if (!event.item) break;
 
-        const itemType = event.item.type;
         const toolId = getToolId(event.item);
+        const itemType = event.item.type;
 
-        // Handle different Codex item types
         if (itemType === 'command_execution') {
-          // Command execution → Bash tool
+          // Store tool info for matching with completion
+          inProgressTools.set(toolId, {
+            type: 'command_execution',
+            command: event.item.command,
+          });
+
+          // Emit tool call immediately
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -246,33 +250,18 @@ export async function* transformCodexStream(
           };
 
           yieldCount++;
-          streamLog.yield('tool-call', { toolName: 'Bash', toolId, command: event.item.command });
+          streamLog.yield('tool-call-start', { toolName: 'Bash', toolId, command: event.item.command });
           yield toolMessage;
-
-          // Yield result
-          const output = event.item.aggregated_output;
-          if (output) {
-            const resultMessage: TransformedMessage = {
-              type: 'user',
-              message: {
-                id: `result-${toolId}`,
-                content: [{
-                  type: 'tool_result',
-                  tool_use_id: toolId,
-                  content: output,
-                }],
-              },
-            };
-
-            yieldCount++;
-            streamLog.yield('tool-result', { toolId, output: output.substring(0, 100) });
-            yield resultMessage;
-          }
         } else if (itemType === 'file_change') {
-          // File change → Write/Edit tool
+          // Store file change info
           const changes = event.item.changes || [];
-          const paths = changes.map((c: any) => c.path).join(', ');
+          inProgressTools.set(toolId, {
+            type: 'file_change',
+            changes,
+          });
 
+          // Emit tool call immediately
+          const paths = changes.map((c: any) => c.path).join(', ');
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -280,17 +269,108 @@ export async function* transformCodexStream(
               content: [{
                 type: 'tool_use',
                 id: toolId,
-                name: 'Write', // or 'Edit' - using Write for simplicity
+                name: 'Write',
                 input: { paths: changes },
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-call', { toolName: 'Write', toolId, paths });
+          streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths });
           yield toolMessage;
+        }
 
-          // Yield success result
+        // Update message ID
+        if (event.item) {
+          currentMessageId = `codex-${Date.now()}-${toolId}`;
+        }
+        break;
+      }
+
+      case 'turn.started':
+        // New turn started
+        if (event.item) {
+          currentMessageId = `codex-${Date.now()}-${getToolId(event.item)}`;
+        }
+        break;
+
+      case 'item.completed': {
+        // Tool execution completed - emit tool result only
+        if (!event.item) break;
+
+        const itemType = event.item.type;
+        const toolId = getToolId(event.item);
+
+        // Handle different Codex item types
+        if (itemType === 'command_execution') {
+          // Command execution completed - emit result
+          const toolInfo = inProgressTools.get(toolId);
+
+          // If we didn't track the start (shouldn't happen), emit the tool call now
+          if (!toolInfo) {
+            streamLog.warn(`[Codex Adapter] Tool ${toolId} completed without start event, emitting both`);
+            const toolMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: `${currentMessageId}-tool-${toolId}`,
+                content: [{
+                  type: 'tool_use',
+                  id: toolId,
+                  name: 'Bash',
+                  input: { command: event.item.command },
+                }],
+              },
+            };
+            yieldCount++;
+            yield toolMessage;
+          }
+
+          // Emit result
+          const output = event.item.aggregated_output || '';
+          const resultMessage: TransformedMessage = {
+            type: 'user',
+            message: {
+              id: `result-${toolId}`,
+              content: [{
+                type: 'tool_result',
+                tool_use_id: toolId,
+                content: output,
+              }],
+            },
+          };
+
+          yieldCount++;
+          streamLog.yield('tool-result', { toolId, output: output.substring(0, 100) });
+          yield resultMessage;
+
+          // Clean up tracking
+          inProgressTools.delete(toolId);
+        } else if (itemType === 'file_change') {
+          // File change completed - emit result
+          const toolInfo = inProgressTools.get(toolId);
+          const changes = event.item.changes || [];
+          const paths = changes.map((c: any) => c.path).join(', ');
+
+          // If we didn't track the start (shouldn't happen), emit the tool call now
+          if (!toolInfo) {
+            streamLog.warn(`[Codex Adapter] Tool ${toolId} completed without start event, emitting both`);
+            const toolMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: `${currentMessageId}-tool-${toolId}`,
+                content: [{
+                  type: 'tool_use',
+                  id: toolId,
+                  name: 'Write',
+                  input: { paths: changes },
+                }],
+              },
+            };
+            yieldCount++;
+            yield toolMessage;
+          }
+
+          // Emit result
           const resultMessage: TransformedMessage = {
             type: 'user',
             message: {
@@ -306,6 +386,9 @@ export async function* transformCodexStream(
           yieldCount++;
           streamLog.yield('tool-result', { toolId, changes });
           yield resultMessage;
+
+          // Clean up tracking
+          inProgressTools.delete(toolId);
         } else if (itemType === 'agent_message' || itemType === 'reasoning') {
           // Agent message/reasoning → Text message
           let text = event.item.text as string;
