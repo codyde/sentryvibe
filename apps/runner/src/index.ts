@@ -397,10 +397,12 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     const model = claudeCode(aiSdkModelId, {
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
-      permissionMode: "bypassPermissions", // Allow all tools - project scoping handled by canUseTool
+      permissionMode: "bypassPermissions", // Bypass permission prompts
       maxTurns: 100,
       additionalDirectories: [workingDirectory],
-      canUseTool: createProjectScopedPermissionHandler(workingDirectory),
+      // Explicitly allow all tools to prevent "No tools are available" errors
+      allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'TodoWrite', 'NotebookEdit', 'Task', 'WebSearch', 'WebFetch'],
+      canUseTool: createProjectScopedPermissionHandler(workingDirectory), // Still enforce project scoping
       streamingInput: 'always', // REQUIRED when using canUseTool - enables tool callbacks
       settingSources: ['project', 'local'], // Load project-level settings
     });
