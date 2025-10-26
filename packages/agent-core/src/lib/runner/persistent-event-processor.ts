@@ -10,7 +10,7 @@ import {
   projects,
 } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
-import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../types/generation';
+import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../../types/generation';
 import { serializeGenerationState } from '../generation-persistence';
 
 interface ActiveBuildContext {
