@@ -1,6 +1,10 @@
 // Note: Vendor packages are initialized by cli/index.ts before this module loads
 // This ensures agent-core is available for imports
 
+// CRITICAL: Import Sentry FIRST before any other modules
+import "./instrument.js";
+import * as Sentry from "@sentry/node";
+
 // File logger for debugging (always works, bypasses TUI)
 import { fileLog } from './lib/file-logger.js';
 
@@ -13,9 +17,6 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
 
 fileLog.info('Runner module loaded - AI SDK VERSION');
 fileLog.info('Built at:', new Date().toISOString());
-
-import "./instrument.js";
-import * as Sentry from "@sentry/node";
 import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
@@ -396,7 +397,7 @@ function createClaudeQuery(modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID): Bu
     const model = claudeCode(aiSdkModelId, {
       systemPrompt: combinedSystemPrompt,
       cwd: workingDirectory,
-      permissionMode: "default",
+      permissionMode: "bypassPermissions", // Allow all tools - project scoping handled by canUseTool
       maxTurns: 100,
       additionalDirectories: [workingDirectory],
       canUseTool: createProjectScopedPermissionHandler(workingDirectory),

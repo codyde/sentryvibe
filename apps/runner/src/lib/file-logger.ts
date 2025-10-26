@@ -65,11 +65,47 @@ export const streamLog = {
   },
 };
 
+// Intercept console methods to also write to file
+const originalConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info,
+  debug: console.debug,
+};
+
+// Override console methods to write to both console AND file
+console.log = (...args: unknown[]) => {
+  originalConsole.log(...args);
+  fileLog.info(...args);
+};
+
+console.error = (...args: unknown[]) => {
+  originalConsole.error(...args);
+  fileLog.error(...args);
+};
+
+console.warn = (...args: unknown[]) => {
+  originalConsole.warn(...args);
+  fileLog.warn(...args);
+};
+
+console.info = (...args: unknown[]) => {
+  originalConsole.info(...args);
+  fileLog.info(...args);
+};
+
+console.debug = (...args: unknown[]) => {
+  originalConsole.debug(...args);
+  fileLog.debug(...args);
+};
+
 // Log startup
 fileLog.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-fileLog.info('Runner started');
+fileLog.info('Runner started - console interception enabled');
 fileLog.info('Log files:');
 fileLog.info(`  - General: ${RUNNER_LOG}`);
 fileLog.info(`  - Stream:  ${STREAM_LOG}`);
 fileLog.info(`  - Errors:  ${ERRORS_LOG}`);
+fileLog.info('All console.log/error/warn/info/debug will be captured here');
 fileLog.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
