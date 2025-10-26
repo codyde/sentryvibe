@@ -6,6 +6,7 @@ import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 import { findTagDefinition } from '@sentryvibe/agent-core/config/tags';
 import { getBrandLogo } from '@/lib/brand-logos';
 import { getFrameworkLogo } from '@/lib/framework-logos';
+import { getModelLogo } from '@/lib/model-logos';
 
 interface TagBadgeProps {
   tag: AppliedTag;
@@ -48,6 +49,7 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
   const shouldShowHoverCard = tag.key === 'brand' && expandedValues;
   const brandLogo = tag.key === 'brand' ? getBrandLogo(tag.value) : null;
   const frameworkLogo = tag.key === 'framework' ? getFrameworkLogo(tag.value) : null;
+  const modelLogo = tag.key === 'model' ? getModelLogo(tag.value) : null;
 
   const badge = (
     <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors">
@@ -61,6 +63,13 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
       {frameworkLogo && (
         <img
           src={frameworkLogo}
+          alt={`${tag.value} logo`}
+          className="w-3.5 h-3.5 object-contain mr-1"
+        />
+      )}
+      {modelLogo && (
+        <img
+          src={modelLogo}
           alt={`${tag.value} logo`}
           className="w-3.5 h-3.5 object-contain mr-1"
         />

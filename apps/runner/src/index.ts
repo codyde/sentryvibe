@@ -542,7 +542,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
       // Consume events directly to preserve Sentry instrumentation
       // This ensures all tool calls in the planning phase are tracked
       let planningResponse = '';
-      let responseFragments: string[] = [];
+      const responseFragments: string[] = [];
 
       for await (const event of planningTurn.events) {
         // Collect response from multiple possible event types

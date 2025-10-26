@@ -51,6 +51,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         value: 'claude-sonnet-4-5',
         label: 'Claude Sonnet 4.5',
         description: 'Anthropic Claude - Balanced performance and speed',
+        logo: '/claude.png',
         provider: 'claude-code',
         model: 'claude-sonnet-4-5'
       },
@@ -58,6 +59,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         value: 'claude-haiku-4-5',
         label: 'Claude Haiku 4.5',
         description: 'Anthropic Claude - Fastest, good for iterations',
+        logo: '/claude.png',
         provider: 'claude-code',
         model: 'claude-haiku-4-5'
       },
@@ -65,6 +67,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         value: 'gpt-5-codex',
         label: 'GPT-5 Codex',
         description: 'OpenAI Codex - Advanced code generation',
+        logo: '/openai.png',
         provider: 'openai-codex',
         model: 'gpt-5-codex'
       }
