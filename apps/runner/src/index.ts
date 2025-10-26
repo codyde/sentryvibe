@@ -1024,6 +1024,7 @@ export async function startRunner(options: RunnerOptions = {}) {
     try {
       // Capture trace context for DB-mutating events
       const dbMutatingEvents = [
+        'build-stream', // Contains SSE payloads that trigger DB updates
         'build-completed', 'build-failed', 'error',
         'project-metadata', 'files-deleted', 'file-written'
       ];
