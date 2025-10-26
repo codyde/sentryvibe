@@ -5,6 +5,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 import { findTagDefinition } from '@sentryvibe/agent-core/config/tags';
 import { getBrandLogo } from '@/lib/brand-logos';
+import { getFrameworkLogo } from '@/lib/framework-logos';
 
 interface TagBadgeProps {
   tag: AppliedTag;
@@ -46,12 +47,20 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
   // For brand tags, show expanded colors in hover card
   const shouldShowHoverCard = tag.key === 'brand' && expandedValues;
   const brandLogo = tag.key === 'brand' ? getBrandLogo(tag.value) : null;
+  const frameworkLogo = tag.key === 'framework' ? getFrameworkLogo(tag.value) : null;
 
   const badge = (
     <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors">
       {brandLogo && (
         <img
           src={brandLogo}
+          alt={`${tag.value} logo`}
+          className="w-3.5 h-3.5 object-contain mr-1"
+        />
+      )}
+      {frameworkLogo && (
+        <img
+          src={frameworkLogo}
           alt={`${tag.value} logo`}
           className="w-3.5 h-3.5 object-contain mr-1"
         />

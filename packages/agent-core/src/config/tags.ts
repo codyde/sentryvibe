@@ -83,6 +83,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         value: 'next',
         label: 'Next.js',
         description: 'Full-stack React with SSR, App Router, and file-based routing',
+        logo: '/nextjs.png',
         repository: 'github:codyde/template-nextjs15',
         branch: 'main'
       },
@@ -90,6 +91,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         value: 'vite',
         label: 'React + Vite',
         description: 'Fast React SPA with Vite - perfect for client-side apps',
+        logo: '/reactjs.png',
         repository: 'github:codyde/template-reactvite',
         branch: 'main'
       },
@@ -97,6 +99,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         value: 'astro',
         label: 'Astro',
         description: 'Content-focused static sites with islands architecture',
+        logo: '/astro.png',
         repository: 'github:codyde/template-astro',
         branch: 'main'
       }
