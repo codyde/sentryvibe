@@ -21,7 +21,7 @@ export function BrandThemePreview({ brand }: BrandThemePreviewProps) {
   const { primaryColor, secondaryColor, accentColor, neutralLight, neutralDark } = brand.values;
 
   return (
-    <div className="w-72 space-y-3">
+    <div className="w-96 space-y-3">
       {/* Header */}
       <div className="text-sm font-semibold text-gray-200">
         {brand.label} Theme Preview

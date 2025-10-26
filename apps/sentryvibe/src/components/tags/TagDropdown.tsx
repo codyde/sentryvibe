@@ -163,7 +163,7 @@ export function TagDropdown({
                   <HoverCardContent
                     side="right"
                     align="start"
-                    className="bg-gray-900 border-gray-800"
+                    className="bg-gray-900 border-gray-800 w-auto min-w-96 max-w-[480px]"
                   >
                     <BrandThemePreview brand={option} />
                   </HoverCardContent>
