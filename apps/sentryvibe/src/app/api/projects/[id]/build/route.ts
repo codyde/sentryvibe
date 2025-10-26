@@ -835,6 +835,7 @@ export async function POST(
         agent: agentId,
         claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
         template: templateMetadata, // NEW: Pass analyzed template metadata to runner
+        codexThreadId: body.codexThreadId, // For Codex thread resumption
       },
     });
 

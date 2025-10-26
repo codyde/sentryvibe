@@ -5,15 +5,23 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 Sentry.init({
   dsn: process.env.SENTRY_DSN || 'https://14836e3c83b298b446f1f27df5d9972f@o4508130833793024.ingest.us.sentry.io/4510251614339072',
 
-  // Performance monitoring
-  tracesSampleRate: 1.0,
-
   // Profiling
   profilesSampleRate: 1.0,
   integrations: [
     nodeProfilingIntegration(),
     Sentry.httpIntegration(), // For HTTP trace propagation
   ],
+
+  // Use tracesSampler instead of tracesSampleRate for granular control
+  tracesSampler: ({ name }) => {
+    // Never trace health/status/metrics endpoints - these are high-frequency monitoring
+    if (name?.includes('/health') || name?.includes('/status') || name?.includes('/metrics')) {
+      return 0;
+    }
+    
+    // Sample everything else at 100%
+    return 1.0;
+  },
 
   // Configure trace propagation for outgoing HTTP to Next.js
   tracePropagationTargets: [

@@ -21,7 +21,21 @@ Sentry.init({
     }),
   ],
 
-  tracesSampleRate: 1.0,
+  // Use tracesSampler instead of tracesSampleRate for granular control
+  tracesSampler: ({ name, attributes }) => {
+    // Never trace runner status polling endpoints - these pollute traces
+    if (name?.includes('/api/runner/status')) {
+      return 0;
+    }
+    
+    // Never trace status-stream SSE connections - these are long-lived
+    if (name?.includes('/status-stream')) {
+      return 0;
+    }
+    
+    // Sample everything else at 100%
+    return 1.0;
+  },
 
   tracePropagationTargets: [
     'localhost',

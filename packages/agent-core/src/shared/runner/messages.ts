@@ -60,6 +60,7 @@ export interface StartBuildCommand extends BaseCommand {
     regenerate?: boolean;
     agent?: AgentId;
     claudeModel?: ClaudeModelId;
+    codexThreadId?: string; // For resuming Codex threads
     template?: {
       id: string;
       name: string;

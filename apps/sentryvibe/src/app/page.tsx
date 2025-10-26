@@ -1273,6 +1273,7 @@ function HomeContent() {
           runnerId: effectiveRunnerId,
           agent: effectiveAgent,
           claudeModel: effectiveClaudeModel,
+          codexThreadId: generationStateRef.current?.codex?.threadId, // For Codex thread resumption
           tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
           context: isElementChange
             ? {
@@ -1371,6 +1372,25 @@ function HomeContent() {
               generationStateRef.current?.todos?.length
             );
             // Route TodoWrite to separate generation state
+
+            // Handle CodexThreadCapture - store thread ID for resumption
+            if (data.toolName === "CodexThreadCapture") {
+              const inputData = data.input as { threadId?: string };
+              if (inputData?.threadId) {
+                updateGenerationState((prev) => {
+                  if (!prev) return null;
+                  return {
+                    ...prev,
+                    codex: {
+                      ...(prev.codex || createInitialCodexSessionState()),
+                      threadId: inputData.threadId,
+                    },
+                  };
+                });
+                if (DEBUG_PAGE) console.log("📝 Codex thread ID captured:", inputData.threadId);
+              }
+              return;
+            }
             if (data.toolName === "TodoWrite") {
               const inputData = data.input as { todos?: TodoItem[] };
               const todos = inputData?.todos || [];

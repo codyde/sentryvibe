@@ -1054,14 +1054,18 @@ export async function startRunner(options: RunnerOptions = {}) {
       return;
     }
     try {
-      // Capture trace context for DB-mutating events
-      const dbMutatingEvents = [
-        'build-stream', // Contains SSE payloads that trigger DB updates
-        'build-completed', 'build-failed', 'error',
-        'project-metadata', 'files-deleted', 'file-written'
+      // Capture trace context ONLY for specific completion/error events
+      // DO NOT capture for: runner-status (heartbeats), ack, log-chunk, or build-stream (too frequent)
+      const traceableEvents = [
+        'build-completed',
+        'build-failed',
+        'error',
+        'project-metadata',
+        'files-deleted',
+        'file-written'
       ];
 
-      if (dbMutatingEvents.includes(event.type)) {
+      if (traceableEvents.includes(event.type)) {
         const span = Sentry.getActiveSpan();
         if (span) {
           // Extract current trace context to propagate
