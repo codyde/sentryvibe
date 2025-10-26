@@ -453,7 +453,13 @@ function createClaudeQuery(
  * 2. Execution phase: Work through tasks sequentially
  */
 function createCodexQuery(): BuildQueryFn {
-  return async function* codexQuery(prompt, workingDirectory, systemPrompt, agent, codexThreadId) {
+  return async function* codexQuery(
+    prompt: string,
+    workingDirectory: string,
+    systemPrompt: string,
+    agent?: AgentId,
+    codexThreadId?: string
+  ) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
       CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
