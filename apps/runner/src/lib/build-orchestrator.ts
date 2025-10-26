@@ -333,7 +333,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
   }
 
   // Resolve working directory for agent (Codex uses parent dir for cloning)
-  const resolvedWorkingDirectory = strategy.resolveWorkingDirectory(strategyContext);
+  const resolvedWorkingDirectory = strategy.resolveWorkingDirectory
+    ? strategy.resolveWorkingDirectory(strategyContext)
+    : workingDirectory;
   buildLogger.log('info', 'orchestrator', `Working directory resolved: ${resolvedWorkingDirectory}`);
 
   // Prepare project metadata (for new projects with templates)
