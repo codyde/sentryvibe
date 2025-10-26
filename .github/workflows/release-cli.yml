@@ -134,7 +134,8 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Creating tarball with npm pack..."
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          npm pack
+          # Use pnpm pack instead of npm pack to handle workspace dependencies correctly
+          pnpm pack
 
           echo ""
           echo "4. Created tarball:"
