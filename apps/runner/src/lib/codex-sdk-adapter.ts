@@ -221,22 +221,29 @@ export async function* transformCodexStream(
           yield resultMessage;
         } else if (itemType === 'agent_message' || itemType === 'reasoning') {
           // Agent message/reasoning → Text message
-          const text = event.item.text as string;
+          let text = event.item.text as string;
           if (text && text.trim().length > 0) {
-            const textMessage: TransformedMessage = {
-              type: 'assistant',
-              message: {
-                id: currentMessageId,
-                content: [{
-                  type: 'text',
-                  text: text,
-                }],
-              },
-            };
+            // Strip markdown bold from reasoning (Codex outputs short bolded titles)
+            // Convert "**Title**" to just "Title"
+            text = text.replace(/^\*\*(.*?)\*\*$/g, '$1').trim();
 
-            yieldCount++;
-            streamLog.yield('text', { length: text.length });
-            yield textMessage;
+            // Only yield if there's actual content (skip empty or very short reasoning)
+            if (text.length > 5) {
+              const textMessage: TransformedMessage = {
+                type: 'assistant',
+                message: {
+                  id: currentMessageId,
+                  content: [{
+                    type: 'text',
+                    text: text,
+                  }],
+                },
+              };
+
+              yieldCount++;
+              streamLog.yield('text', { length: text.length });
+              yield textMessage;
+            }
           }
         }
         // TODO: Handle mcp_tool_call, web_search, todo_list, error item types
