@@ -453,7 +453,7 @@ function createClaudeQuery(
  * 2. Execution phase: Work through tasks sequentially
  */
 function createCodexQuery(): BuildQueryFn {
-  return async function* codexQuery(prompt, workingDirectory, systemPrompt) {
+  return async function* codexQuery(prompt, workingDirectory, systemPrompt, agent, codexThreadId) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
       CLAUDE_SYSTEM_PROMPT.length + (systemPrompt?.length || 0),
@@ -478,17 +478,27 @@ function createCodexQuery(): BuildQueryFn {
     // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
     const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
 
-    // For enhancements/continuations, try to resume existing thread
-    // TODO: Track thread ID from previous builds and pass it here
-    // For now, always start fresh (enhancement support to be added)
-    const thread = codex.startThread({
-      sandboxMode: "danger-full-access",
-      model: CODEX_MODEL,
-      workingDirectory,
-      skipGitRepoCheck: true,
-    });
-
-    fileLog.info('Codex thread started (ID will be available after first turn)');
+    // Resume existing thread for enhancements, start new for initial builds
+    let thread;
+    if (codexThreadId) {
+      log(`🔄 [codex-query] Resuming thread: ${codexThreadId}`);
+      fileLog.info('Resuming Codex thread:', codexThreadId);
+      thread = codex.resumeThread(codexThreadId, {
+        sandboxMode: "danger-full-access",
+        model: CODEX_MODEL,
+        workingDirectory,
+        skipGitRepoCheck: true,
+      });
+    } else {
+      log('🆕 [codex-query] Starting new thread');
+      fileLog.info('Starting new Codex thread');
+      thread = codex.startThread({
+        sandboxMode: "danger-full-access",
+        model: CODEX_MODEL,
+        workingDirectory,
+        skipGitRepoCheck: true,
+      });
+    }
 
     buildLogger.codexQuery.threadStarting();
 
@@ -556,7 +566,18 @@ All tasks should start as "pending" except the first one which should be "in_pro
     // ========================================
     log("🎯 [codex-query] PHASE 2: Executing tasks sequentially...");
 
+    // Track thread ID for future resumptions (populated after first turn)
+    let capturedThreadId: string | null = null;
+
     while (turnCount < MAX_TURNS) {
+      // Capture thread ID if available (for future resumptions)
+      if (!capturedThreadId && thread.id) {
+        capturedThreadId = thread.id;
+        fileLog.info('Codex thread ID captured:', capturedThreadId);
+
+        // TODO: Send thread ID to frontend to store in GenerationState
+        // This enables resumeThread() for follow-up messages
+      }
       if (!smartTracker || isTrackerComplete(smartTracker)) {
         log("✅ [codex-query] All tasks complete!");
         break;

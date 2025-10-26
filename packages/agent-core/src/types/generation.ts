@@ -81,6 +81,7 @@ export interface CodexExecutionInsight {
 }
 
 export interface CodexSessionState {
+  threadId?: string; // Codex thread ID for resumption
   phases: CodexPhase[];
   templateDecision?: CodexTemplateDecision;
   workspaceVerification?: CodexWorkspaceVerification;

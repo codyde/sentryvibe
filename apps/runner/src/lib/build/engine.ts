@@ -7,7 +7,8 @@ type BuildQueryFn = (
   prompt: string,
   workingDirectory: string,
   systemPrompt: string,
-  agent?: AgentId
+  agent?: AgentId,
+  codexThreadId?: string, // For resuming Codex threads
 ) => AsyncGenerator<unknown, void, unknown>;
 
 interface BuildStreamOptions {
@@ -22,6 +23,7 @@ interface BuildStreamOptions {
   agent: AgentId;
   isNewProject?: boolean;
   claudeModel?: ClaudeModelId;
+  codexThreadId?: string; // For resuming Codex threads
 }
 
 /**
@@ -74,7 +76,7 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   // Use actualWorkingDir so the query function gets the correct CWD
 
   process.stderr.write('[runner] [build-engine] 🚀 Creating generator with query function...\n');
-  const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent);
+  const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent, options.codexThreadId);
 
   process.stderr.write('[runner] [build-engine] 📦 Creating ReadableStream from generator...\n');
   // Create a ReadableStream from the AsyncGenerator
