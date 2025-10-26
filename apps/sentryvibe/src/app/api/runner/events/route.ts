@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/nextjs';
 import type { RunnerEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
@@ -35,24 +34,6 @@ function emitProjectUpdateFromData(projectId: string, projectData: any) {
 }
 
 export async function POST(request: Request) {
-  // Extract Sentry trace headers
-  const sentryTrace = request.headers.get('sentry-trace');
-  const baggage = request.headers.get('baggage');
-
-  // Continue trace if headers present, otherwise execute normally
-  if (sentryTrace) {
-    return Sentry.continueTrace(
-      { sentryTrace, baggage: baggage || undefined },
-      async () => {
-        return await processRunnerEvent(request);
-      }
-    );
-  }
-
-  return processRunnerEvent(request);
-}
-
-async function processRunnerEvent(request: Request) {
   try {
     if (!ensureAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -62,13 +43,6 @@ async function processRunnerEvent(request: Request) {
 
     if (!event.projectId) {
       return NextResponse.json({ ok: true });
-    }
-
-    // Set trace metadata
-    Sentry.setTag('project_id', event.projectId);
-    Sentry.setTag('event_type', event.type);
-    if (event.commandId) {
-      Sentry.setTag('command_id', event.commandId);
     }
 
     publishRunnerEvent(event);
@@ -148,21 +122,16 @@ async function processRunnerEvent(request: Request) {
         // Update project metadata (path, runCommand, projectType, port) from template download
         const metadata = (event as any).payload;
         if (metadata && event.projectId) {
-          const [updated] = await Sentry.startSpan(
-            { name: 'db.update.project.metadata', op: 'db.query' },
-            async () => {
-              return await db.update(projects)
-                .set({
-                  path: metadata.path,
-                  projectType: metadata.projectType,
-                  runCommand: metadata.runCommand,
-                  port: metadata.port,
-                  lastActivityAt: new Date(),
-                })
-                .where(eq(projects.id, event.projectId))
-                .returning();
-            }
-          );
+          const [updated] = await db.update(projects)
+            .set({
+              path: metadata.path,
+              projectType: metadata.projectType,
+              runCommand: metadata.runCommand,
+              port: metadata.port,
+              lastActivityAt: new Date(),
+            })
+            .where(eq(projects.id, event.projectId))
+            .returning();
           if (updated) emitProjectUpdateFromData(event.projectId, updated);
         }
         break;
@@ -170,18 +139,13 @@ async function processRunnerEvent(request: Request) {
       case 'build-completed': {
         // Mark project as completed
         // Note: runCommand should already be set by project-metadata event
-        const [updated] = await Sentry.startSpan(
-          { name: 'db.update.project.build-completed', op: 'db.query' },
-          async () => {
-            return await db.update(projects)
-              .set({
-                status: 'completed',
-                lastActivityAt: new Date(),
-              })
-              .where(eq(projects.id, event.projectId))
-              .returning();
-          }
-        );
+        const [updated] = await db.update(projects)
+          .set({
+            status: 'completed',
+            lastActivityAt: new Date(),
+          })
+          .where(eq(projects.id, event.projectId))
+          .returning();
         if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
@@ -190,19 +154,14 @@ async function processRunnerEvent(request: Request) {
         // UI stream events handled via event bus; DB already updated within build pipeline.
         break;
       case 'error': {
-        const [updated] = await Sentry.startSpan(
-          { name: 'db.update.project.error', op: 'db.query' },
-          async () => {
-            return await db.update(projects)
-              .set({
-                devServerStatus: 'failed',
-                errorMessage: event.error,
-                lastActivityAt: new Date(),
-              })
-              .where(eq(projects.id, event.projectId))
-              .returning();
-          }
-        );
+        const [updated] = await db.update(projects)
+          .set({
+            devServerStatus: 'failed',
+            errorMessage: event.error,
+            lastActivityAt: new Date(),
+          })
+          .where(eq(projects.id, event.projectId))
+          .returning();
         if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }

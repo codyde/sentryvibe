@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import * as Sentry from '@sentry/nextjs';
 import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
@@ -393,199 +392,152 @@ export async function POST(
     };
 
     const persistTodo = async (todo: { content?: string; activeForm?: string; status?: string }, index: number) => {
-      return Sentry.startSpan(
-        {
-          name: 'db.persist_todo',
-          op: 'db.query',
-          attributes: {
-            'todo.index': index,
-            'todo.status': todo?.status,
-          },
-        },
-        async () => {
-          const content = todo?.content ?? todo?.activeForm ?? 'Untitled task';
-          const activeForm = todo?.activeForm ?? null;
-          const status = todo?.status ?? 'pending';
-          const timestamp = new Date();
+      const content = todo?.content ?? todo?.activeForm ?? 'Untitled task';
+      const activeForm = todo?.activeForm ?? null;
+      const status = todo?.status ?? 'pending';
+      const timestamp = new Date();
 
-          // Wrap in retry logic for DB timeouts
-          await retryOnTimeout(() =>
-            db.insert(generationTodos).values({
-              sessionId,
-              todoIndex: index,
-              content,
-              activeForm,
-              status,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            }).onConflictDoUpdate({
-              target: [generationTodos.sessionId, generationTodos.todoIndex],
-              set: {
-                content,
-                activeForm,
-                status,
-                updatedAt: timestamp,
-              },
-            })
-          );
-        }
+      // Wrap in retry logic for DB timeouts
+      await retryOnTimeout(() =>
+        db.insert(generationTodos).values({
+          sessionId,
+          todoIndex: index,
+          content,
+          activeForm,
+          status,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }).onConflictDoUpdate({
+          target: [generationTodos.sessionId, generationTodos.todoIndex],
+          set: {
+            content,
+            activeForm,
+            status,
+            updatedAt: timestamp,
+          },
+        })
       );
     };
 
     const persistToolCall = async (eventData: { toolCallId?: string; id?: string; toolName?: string; todoIndex?: number; todo_index?: number; input?: unknown; output?: unknown }, state: 'input-available' | 'output-available') => {
-      return Sentry.startSpan(
-        {
-          name: 'db.persist_tool_call',
-          op: 'db.query',
-          attributes: {
-            'tool.name': eventData.toolName,
-            'tool.state': state,
-          },
-        },
-        async () => {
-          const toolCallId = eventData.toolCallId ?? eventData.id ?? randomUUID();
-          const todoIndex = typeof eventData.todoIndex === 'number'
-            ? eventData.todoIndex
-            : typeof eventData.todo_index === 'number'
-              ? eventData.todo_index
-              : -1;
+      const toolCallId = eventData.toolCallId ?? eventData.id ?? randomUUID();
+      const todoIndex = typeof eventData.todoIndex === 'number'
+        ? eventData.todoIndex
+        : typeof eventData.todo_index === 'number'
+          ? eventData.todo_index
+          : -1;
 
-          const timestamp = new Date();
+      const timestamp = new Date();
 
-          // If toolName is missing and this is an output event, try to find the existing record
-          if (!eventData.toolName && state === 'output-available') {
-            const existing = await retryOnTimeout(() =>
-              db.select()
-                .from(generationToolCalls)
-                .where(and(
-                  eq(generationToolCalls.sessionId, sessionId),
-                  eq(generationToolCalls.toolCallId, toolCallId),
-                ))
-                .limit(1)
-            );
+      // If toolName is missing and this is an output event, try to find the existing record
+      if (!eventData.toolName && state === 'output-available') {
+        const existing = await retryOnTimeout(() =>
+          db.select()
+            .from(generationToolCalls)
+            .where(and(
+              eq(generationToolCalls.sessionId, sessionId),
+              eq(generationToolCalls.toolCallId, toolCallId),
+            ))
+            .limit(1)
+        );
 
-            if (existing && existing.length > 0) {
-              // Update existing record
-              await retryOnTimeout(() =>
-                db.update(generationToolCalls)
-                  .set({
-                    output: eventData.output ?? null,
-                    state,
-                    endedAt: timestamp,
-                    updatedAt: timestamp,
-                  })
-                  .where(eq(generationToolCalls.id, existing[0].id))
-              );
-              return;
-            }
-            // If no existing record and no toolName, we can't insert - skip it
-            return;
-          }
-
-          // Ensure toolName exists for insert
-          if (!eventData.toolName) {
-            return;
-          }
-
-          const toolName = eventData.toolName; // Extract to narrow type
-
+        if (existing && existing.length > 0) {
+          // Update existing record
           await retryOnTimeout(() =>
-            db.insert(generationToolCalls).values({
-              sessionId,
-              todoIndex,
-              toolCallId,
-              name: toolName,
-              input: state === 'input-available' ? eventData.input ?? null : undefined,
-              output: state === 'output-available' ? eventData.output ?? null : undefined,
-              state,
-              startedAt: timestamp,
-              endedAt: state === 'output-available' ? timestamp : null,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            }).onConflictDoUpdate({
-              target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
-              set: {
-                input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
-                output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
+            db.update(generationToolCalls)
+              .set({
+                output: eventData.output ?? null,
                 state,
-                endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
+                endedAt: timestamp,
                 updatedAt: timestamp,
-              },
-            })
+              })
+              .where(eq(generationToolCalls.id, existing[0].id))
           );
+          return;
         }
+        // If no existing record and no toolName, we can't insert - skip it
+        return;
+      }
+
+      // Ensure toolName exists for insert
+      if (!eventData.toolName) {
+        return;
+      }
+
+      const toolName = eventData.toolName; // Extract to narrow type
+
+      await retryOnTimeout(() =>
+        db.insert(generationToolCalls).values({
+          sessionId,
+          todoIndex,
+          toolCallId,
+          name: toolName,
+          input: state === 'input-available' ? eventData.input ?? null : undefined,
+          output: state === 'output-available' ? eventData.output ?? null : undefined,
+          state,
+          startedAt: timestamp,
+          endedAt: state === 'output-available' ? timestamp : null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }).onConflictDoUpdate({
+          target: [generationToolCalls.sessionId, generationToolCalls.toolCallId],
+          set: {
+            input: state === 'input-available' ? eventData.input ?? null : generationToolCalls.input,
+            output: state === 'output-available' ? eventData.output ?? null : generationToolCalls.output,
+            state,
+            endedAt: state === 'output-available' ? timestamp : generationToolCalls.endedAt,
+            updatedAt: timestamp,
+          },
+        })
       );
     };
 
     const appendNote = async (params: { textId?: string; content: string; kind: string; todoIndex: number }) => {
-      return Sentry.startSpan(
-        {
-          name: 'db.append_note',
-          op: 'db.query',
-          attributes: {
-            'note.kind': params.kind,
-            'note.todoIndex': params.todoIndex,
-          },
-        },
-        async () => {
-          const { textId, content, kind, todoIndex } = params;
-          if (!content) return;
-          const timestamp = new Date();
+      const { textId, content, kind, todoIndex } = params;
+      if (!content) return;
+      const timestamp = new Date();
 
-          if (textId) {
-            const existing = await retryOnTimeout(() =>
-              db
-                .select()
-                .from(generationNotes)
-                .where(and(
-                  eq(generationNotes.sessionId, sessionId),
-                  eq(generationNotes.textId, textId),
-                ))
-                .limit(1)
-            );
+      if (textId) {
+        const existing = await retryOnTimeout(() =>
+          db
+            .select()
+            .from(generationNotes)
+            .where(and(
+              eq(generationNotes.sessionId, sessionId),
+              eq(generationNotes.textId, textId),
+            ))
+            .limit(1)
+        );
 
-            if (existing && existing.length > 0) {
-              await retryOnTimeout(() =>
-                db.update(generationNotes)
-                  .set({
-                    content: existing[0].content + content,
-                  })
-                  .where(eq(generationNotes.id, existing[0].id))
-              );
-              return;
-            }
-          }
-
+        if (existing && existing.length > 0) {
           await retryOnTimeout(() =>
-            db.insert(generationNotes).values({
-              sessionId,
-              todoIndex,
-              textId: textId ?? null,
-              kind,
-              content,
-              createdAt: timestamp,
-            })
+            db.update(generationNotes)
+              .set({
+                content: existing[0].content + content,
+              })
+              .where(eq(generationNotes.id, existing[0].id))
           );
+          return;
         }
+      }
+
+      await retryOnTimeout(() =>
+        db.insert(generationNotes).values({
+          sessionId,
+          todoIndex,
+          textId: textId ?? null,
+          kind,
+          content,
+          createdAt: timestamp,
+        })
       );
     };
 
     const persistEvent = async (eventData: { type?: string; toolCallId?: string; toolName?: string; todoIndex?: number; input?: { todos?: Array<{ content?: string; activeForm?: string; status?: string }> }; output?: unknown; id?: string; delta?: string; message?: string; data?: { message?: string } }) => {
       if (!eventData || !sessionId) return;
-      
-      return Sentry.startSpan(
-        {
-          name: `db.persist_event.${eventData.type}`,
-          op: 'db.transaction',
-          attributes: {
-            'event.type': eventData.type,
-            'event.toolName': eventData.toolName,
-          },
-        },
-        async () => {
-          const timestamp = new Date();
+      const timestamp = new Date();
 
-          switch (eventData.type) {
+      switch (eventData.type) {
         case 'start':
           await retryOnTimeout(() =>
             db.update(generationSessions)
@@ -689,8 +641,6 @@ export async function POST(
         default:
           break;
       }
-        }
-      );
     };
 
     const stream = new ReadableStream<Uint8Array>({
@@ -819,47 +769,31 @@ export async function POST(
         };
 
         unsubscribe = addRunnerEventSubscriber(commandId!, async (event: RunnerEvent) => {
-          // Continue trace from event if trace context exists
-          const handleEvent = async () => {
-            switch (event.type) {
-              case 'build-stream':
-                if (typeof event.data === 'string') {
-                  await writeChunk(event.data);
-                }
-                break;
-              case 'build-completed':
-                finish();
-                break;
-              case 'build-failed': {
-                const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
-                writeChunk(errorPayload);
-                writeChunk('data: [DONE]\n\n');
-                finish();
-                break;
+          switch (event.type) {
+            case 'build-stream':
+              if (typeof event.data === 'string') {
+                await writeChunk(event.data);
               }
-              case 'error': {
-                const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
-                writeChunk(errorPayload);
-                writeChunk('data: [DONE]\n\n');
-                finish();
-                break;
-              }
-              default:
-                break;
+              break;
+            case 'build-completed':
+              finish();
+              break;
+            case 'build-failed': {
+              const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
+              writeChunk(errorPayload);
+              writeChunk('data: [DONE]\n\n');
+              finish();
+              break;
             }
-          };
-
-          // If event has trace context, continue it; otherwise just handle the event
-          if (event._sentry?.trace) {
-            await Sentry.continueTrace(
-              {
-                sentryTrace: event._sentry.trace,
-                baggage: event._sentry.baggage,
-              },
-              handleEvent
-            );
-          } else {
-            await handleEvent();
+            case 'error': {
+              const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
+              writeChunk(errorPayload);
+              writeChunk('data: [DONE]\n\n');
+              finish();
+              break;
+            }
+            default:
+              break;
           }
         });
 

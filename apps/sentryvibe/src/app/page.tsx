@@ -2,7 +2,6 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import * as Sentry from "@sentry/nextjs";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -1248,44 +1247,21 @@ function HomeContent() {
     isElementChange: boolean = false
   ) => {
     const existingBuildId = generationStateRef.current?.id;
-    
-    // Derive agent and model from tags if present, otherwise use context (before Sentry span for naming)
-    const modelTag = appliedTags.find(t => t.key === 'model');
-    let effectiveAgent = selectedAgentId;
-    let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+    try {
+      // Derive agent and model from tags if present, otherwise use context
+      const modelTag = appliedTags.find(t => t.key === 'model');
+      let effectiveAgent = selectedAgentId;
+      let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
 
-    if (modelTag?.value) {
-      const parsed = parseModelTag(modelTag.value);
-      effectiveAgent = parsed.agent;
-      effectiveClaudeModel = parsed.claudeModel;
-    }
+      if (modelTag?.value) {
+        const parsed = parseModelTag(modelTag.value);
+        effectiveAgent = parsed.agent;
+        effectiveClaudeModel = parsed.claudeModel;
+      }
 
-    // Derive runner from tags if present, otherwise use context
-    const runnerTag = appliedTags.find(t => t.key === 'runner');
-    const effectiveRunnerId = runnerTag?.value || selectedRunnerId;
-    
-    // Create span name based on operation and model
-    const modelDisplay = modelTag?.value || (effectiveAgent === 'claude-code' ? effectiveClaudeModel : effectiveAgent);
-    const spanName = operationType === 'initial-build' 
-      ? `Create App (${modelDisplay})`
-      : `${operationType} (${modelDisplay})`;
-    
-    // Wrap entire generation in Sentry span
-    return Sentry.startSpan(
-      {
-        name: spanName,
-        op: 'ai.generation',
-        attributes: {
-          'generation.operation': operationType,
-          'generation.agent': effectiveAgent,
-          'generation.model': effectiveClaudeModel || effectiveAgent,
-          'generation.prompt_length': prompt.length,
-          'generation.tags': appliedTags.map(t => `${t.key}:${t.value}`).join(','),
-          'generation.project_id': projectId,
-        },
-      },
-      async () => {
-        try {
+      // Derive runner from tags if present, otherwise use context
+      const runnerTag = appliedTags.find(t => t.key === 'runner');
+      const effectiveRunnerId = runnerTag?.value || selectedRunnerId;
 
       const res = await fetch(`/api/projects/${projectId}/build`, {
         method: "POST",
@@ -1868,8 +1844,6 @@ function HomeContent() {
       // Keep generationState visible - don't hide it!
       // User can manually dismiss with X button
     }
-      }
-    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
