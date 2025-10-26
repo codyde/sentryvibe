@@ -548,6 +548,33 @@ All tasks should start as "pending" except the first one which should be "in_pro
         // Collect response from multiple possible event types
         const eventAny = event as any;
 
+        // Check for structured output in item.completed events (Codex returns it here)
+        if (event.type === 'item.completed' && eventAny.item?.type === 'agent_message') {
+          const messageText = eventAny.item.text || '';
+
+          // Extract JSON from code block: ```json\n{...}\n```
+          const jsonBlockMatch = messageText.match(/```json\s*\n([\s\S]*?)\n```/);
+          if (jsonBlockMatch) {
+            const jsonText = jsonBlockMatch[1].trim();
+            fileLog.info('Found structured output in code block, length:', jsonText.length);
+
+            try {
+              const parsed = JSON.parse(jsonText);
+              if (parsed.todos || (parsed.analysis && parsed.todos)) {
+                // Found valid task plan in code block
+                taskPlan = {
+                  analysis: parsed.analysis || 'Building the requested application',
+                  todos: parsed.todos || parsed
+                };
+                fileLog.info('✅ Extracted structured planning from code block');
+                fileLog.info('   Todos found:', taskPlan.todos.length);
+              }
+            } catch (parseError) {
+              fileLog.warn('Failed to parse JSON from code block:', parseError);
+            }
+          }
+        }
+
         // Try to extract response from various fields
         if (eventAny.text) {
           responseFragments.push(eventAny.text);
@@ -562,7 +589,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
           // For structured output, finalResponse is an object, not a string
           const eventWithResponse = event as { finalResponse?: unknown };
 
-          if (eventWithResponse.finalResponse) {
+          if (eventWithResponse.finalResponse && !taskPlan) {
             // If it's already an object (structured output), use it directly
             if (typeof eventWithResponse.finalResponse === 'object') {
               taskPlan = eventWithResponse.finalResponse as { analysis: string; todos: Array<{content: string; activeForm: string; status: string}> };
@@ -571,7 +598,7 @@ All tasks should start as "pending" except the first one which should be "in_pro
               // If it's a string, save it for parsing
               planningResponse = eventWithResponse.finalResponse;
             }
-          } else {
+          } else if (!taskPlan) {
             // No finalResponse - try accumulated fragments
             planningResponse = responseFragments.join('');
           }

@@ -269,7 +269,14 @@ export async function POST(
 
     // Register build with persistent processor
     // This ensures database updates continue even if HTTP connection is lost
-    const persistentCleanup = registerBuild(commandId, sessionId, id, buildId, agentId, claudeModel);
+    const persistentCleanup = registerBuild(
+      commandId,
+      sessionId,
+      id,
+      buildId,
+      agentId,
+      agentId === 'claude-code' ? claudeModel : undefined
+    );
     console.log('[build-route] ✅ Registered build with persistent processor');
     console.log(`[build-route]    Agent: ${agentId}${agentId === 'claude-code' ? ` (${claudeModel})` : ''}`);
 
