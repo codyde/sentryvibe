@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { Button } from '@/components/ui/button';
 import { TAG_DEFINITIONS, TagDefinition, TagOption } from '@sentryvibe/agent-core/config/tags';
 import { ColorPickerTag } from './ColorPickerTag';
+import { BrandThemePreview } from './BrandThemePreview';
 
 interface TagDropdownProps {
   open: boolean;
@@ -123,29 +125,55 @@ export function TagDropdown({
 
         {/* Options */}
         <div className="p-1 space-y-1 max-h-80 overflow-y-auto">
-          {def.options?.map(option => (
-            <button
-              key={option.value}
-              onClick={() => handleSelectOption(def, option)}
-              className="w-full px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                {option.logo && (
-                  <img
-                    src={option.logo}
-                    alt={`${option.label} logo`}
-                    className="w-5 h-5 object-contain flex-shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-200">{option.label}</div>
-                  {option.description && (
-                    <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+          {def.options?.map(option => {
+            // Check if this is a brand option with theme values
+            const isBrandOption = def.key === 'brand' && option.values;
+
+            const optionButton = (
+              <button
+                key={option.value}
+                onClick={() => handleSelectOption(def, option)}
+                className="w-full px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {option.logo && (
+                    <img
+                      src={option.logo}
+                      alt={`${option.label} logo`}
+                      className="w-5 h-5 object-contain flex-shrink-0"
+                    />
                   )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-200">{option.label}</div>
+                    {option.description && (
+                      <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+
+            // Wrap brand options with HoverCard
+            if (isBrandOption) {
+              return (
+                <HoverCard key={option.value} openDelay={1000} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    {optionButton}
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    className="bg-gray-900 border-gray-800"
+                  >
+                    <BrandThemePreview brand={option} />
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            }
+
+            // Return regular button for non-brand options
+            return optionButton;
+          })}
         </div>
       </div>
     );
