@@ -828,14 +828,14 @@ export async function POST(
         operationType: body.operationType,
         prompt: body.prompt,
         projectSlug: generatedSlug || project[0].slug,
-        projectName: generatedFriendlyName || generatedSlug || project[0].name, // Friendly name for display
+        projectName: generatedFriendlyName || generatedSlug || project[0].name,
         context: body.context,
-        designPreferences: body.designPreferences, // Pass through to runner (deprecated - use tags)
-        tags: body.tags, // Tag-based configuration
+        designPreferences: body.designPreferences,
+        tags: body.tags,
         agent: agentId,
         claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
-        template: templateMetadata, // NEW: Pass analyzed template metadata to runner
-        codexThreadId: body.codexThreadId, // For Codex thread resumption
+        template: templateMetadata,
+        codexThreadId: body.codexThreadId, 
       },
     });
 

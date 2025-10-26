@@ -39,6 +39,7 @@ export interface BuildRequest {
   template?: TemplateMetadata; // Frontend-selected template (NEW: for parity improvements)
   designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
   tags?: AppliedTag[]; // Tag-based configuration system
+  codexThreadId?: string; // For Codex thread resumption
   context?: {
     elementSelector?: string;
     elementInfo?: {
