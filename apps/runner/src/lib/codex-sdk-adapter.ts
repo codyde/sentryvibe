@@ -326,7 +326,29 @@ export async function* transformCodexStream(
           }
 
           // Emit result
-          const output = event.item.aggregated_output || '';
+          let output = event.item.aggregated_output || '';
+
+          // CRITICAL: Extract TodoWrite from bash command outputs
+          // Codex doesn't have TodoWrite as a tool, so it uses printf/echo to output it
+          // We need to detect and extract it from command results
+          const extractedTodoWrite = extractAndConvertTodoWrite(output);
+          if (extractedTodoWrite !== output) {
+            // TodoWrite was found and converted, emit as text
+            streamLog.info('[Codex Adapter] Extracted TodoWrite from bash output');
+            const todoTextMessage: TransformedMessage = {
+              type: 'assistant',
+              message: {
+                id: currentMessageId,
+                content: [{
+                  type: 'text',
+                  text: extractedTodoWrite,
+                }],
+              },
+            };
+            yieldCount++;
+            yield todoTextMessage;
+          }
+
           const resultMessage: TransformedMessage = {
             type: 'user',
             message: {

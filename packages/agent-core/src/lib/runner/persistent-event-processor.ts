@@ -469,15 +469,19 @@ async function persistEvent(
       break;
 
     case 'finish':
-      await finalizeSession(context, 'completed', timestamp);
-      // Clean up this build from active registry
-      cleanupBuild(context.commandId);
+      // Message finished - do NOT finalize the build
+      // 'finish' is a message-level event, not a build-level event
+      // Build finalization only happens on 'build-completed' or 'build-failed' events
+      // For Codex with multi-turn workflows, each turn finishes multiple messages
+      // but the build isn't done until all turns complete
+      await refreshRawState(context);
       break;
 
     case 'error':
-      await finalizeSession(context, 'failed', timestamp);
-      // Clean up this build from active registry
-      cleanupBuild(context.commandId);
+      // Error in message - log but don't finalize build
+      // Only 'build-failed' events should finalize the build
+      console.warn('[persistent-processor] Message error occurred:', eventData);
+      await refreshRawState(context);
       break;
 
     default:
