@@ -542,12 +542,29 @@ All tasks should start as "pending" except the first one which should be "in_pro
       // Consume events directly to preserve Sentry instrumentation
       // This ensures all tool calls in the planning phase are tracked
       let planningResponse = '';
+      let responseFragments: string[] = [];
+
       for await (const event of planningTurn.events) {
+        // Collect response from multiple possible event types
+        const eventAny = event as any;
+
+        // Try to extract response from various fields
+        if (eventAny.text) {
+          responseFragments.push(eventAny.text);
+        } else if (eventAny.delta) {
+          responseFragments.push(eventAny.delta);
+        } else if (eventAny.content && typeof eventAny.content === 'string') {
+          responseFragments.push(eventAny.content);
+        }
+
         // Track usage data from planning phase
         if (event.type === 'turn.completed') {
           // Extract finalResponse safely from event
-          planningResponse = (event as { finalResponse?: string }).finalResponse || '';
-          
+          const finalResp = (event as { finalResponse?: string }).finalResponse || '';
+
+          // If finalResponse exists, use it; otherwise use accumulated fragments
+          planningResponse = finalResp || responseFragments.join('');
+
           // Log usage statistics for cost tracking
           const eventWithUsage = event as { usage?: unknown };
           if (eventWithUsage.usage) {
@@ -561,7 +578,49 @@ All tasks should start as "pending" except the first one which should be "in_pro
         }
       }
 
-      taskPlan = JSON.parse(planningResponse);
+      // Validate response before parsing
+      if (!planningResponse || planningResponse.trim().length === 0) {
+        buildLogger.codexQuery.error("ERROR: Empty planning response from Codex - using fallback", new Error('Empty response'));
+        fileLog.warn('Using fallback task plan due to empty response');
+
+        // Fallback: Create a simple single-task plan
+        taskPlan = {
+          analysis: 'Building the requested application',
+          todos: [
+            {
+              content: 'Complete the build request',
+              activeForm: 'Building application',
+              status: 'in_progress'
+            }
+          ]
+        };
+      } else {
+        // Log response for debugging
+        fileLog.info('Raw planning response (first 500 chars):', planningResponse.substring(0, 500));
+
+        // Try to parse with better error handling
+        try {
+          taskPlan = JSON.parse(planningResponse);
+        } catch (parseError) {
+          buildLogger.codexQuery.error("ERROR: Failed to parse planning response as JSON - using fallback", parseError instanceof Error ? parseError : new Error('Parse failed'));
+          fileLog.error('Planning response that failed to parse:', planningResponse);
+          fileLog.error('Parse error:', parseError);
+
+          // Fallback: Create a simple single-task plan instead of failing
+          fileLog.warn('Using fallback task plan due to JSON parse error');
+          taskPlan = {
+            analysis: 'Building the requested application (fallback due to parsing error)',
+            todos: [
+              {
+                content: 'Complete the build request',
+                activeForm: 'Building application',
+                status: 'in_progress'
+              }
+            ]
+          };
+        }
+      }
+
       log("✅ [codex-query] Got structured task plan!");
       log(`   Analysis: ${taskPlan.analysis}`);
       log(`   Tasks: ${taskPlan.todos.length}`);
