@@ -132,11 +132,21 @@ function extractAndConvertTodoWrite(text: string): string {
 
       // Check if it has the expected todos structure
       if (parsed.todos && Array.isArray(parsed.todos)) {
-        // Convert to TODO_WRITE marker format
-        const todoWriteMarker = `TODO_WRITE : ${jsonText}`;
-        replacements.push({ original: fullMatch, replacement: todoWriteMarker });
+        // Validate todos have required fields
+        const validTodos = parsed.todos.filter((t: any) =>
+          t && typeof t === 'object' && (t.content || t.activeForm)
+        );
 
-        streamLog.info(`[Codex Adapter] Extracted TodoWrite with ${parsed.todos.length} todos`);
+        if (validTodos.length > 0) {
+          // Convert to TODO_WRITE marker format
+          const todoWriteMarker = `TODO_WRITE : ${jsonText}`;
+          replacements.push({ original: fullMatch, replacement: todoWriteMarker });
+
+          streamLog.info(`[Codex Adapter] Extracted TodoWrite with ${validTodos.length} todos`);
+          streamLog.info(`[Codex Adapter] First todo: ${JSON.stringify(validTodos[0])}`);
+        } else {
+          streamLog.warn('[Codex Adapter] TodoWrite has no valid todos, skipping');
+        }
       }
     } catch (error) {
       // If JSON is invalid, leave it as-is
@@ -331,14 +341,30 @@ export async function* transformCodexStream(
           // Handle explicit todo_list items from Codex
           // These are structured todo updates that should be converted to TodoWrite format
           if (event.item.items && Array.isArray(event.item.items)) {
-            const todos = event.item.items.map((item: any) => ({
-              content: item.content || item.description || '',
-              activeForm: item.activeForm || item.content || '',
-              status: item.status || 'pending',
-            }));
+            const todos = event.item.items.map((item: any) => {
+              // Normalize status values to match expected format
+              let status = item.status || 'pending';
+              // Handle variations: 'in-progress', 'in_progress', 'inprogress'
+              if (status.toLowerCase().replace(/[-_\s]/g, '') === 'inprogress') {
+                status = 'in_progress';
+              }
+
+              return {
+                content: item.content || item.description || '',
+                activeForm: item.activeForm || item.content || item.description || '',
+                status: status as 'pending' | 'in_progress' | 'completed',
+              };
+            });
+
+            // Validate at least some todos have content
+            const validTodos = todos.filter(t => t.content && t.content.length > 0);
+            if (validTodos.length === 0) {
+              streamLog.warn('[Codex Adapter] todo_list has no valid todos, skipping');
+              break;
+            }
 
             // Convert to TODO_WRITE marker format
-            const todoWriteMarker = `TODO_WRITE : ${JSON.stringify({ todos })}`;
+            const todoWriteMarker = `TODO_WRITE : ${JSON.stringify({ todos: validTodos })}`;
             const textMessage: TransformedMessage = {
               type: 'assistant',
               message: {
@@ -351,7 +377,8 @@ export async function* transformCodexStream(
             };
 
             yieldCount++;
-            streamLog.yield('todo-list', { count: todos.length });
+            streamLog.yield('todo-list', { count: validTodos.length });
+            streamLog.info(`[Codex Adapter] Converted todo_list to TodoWrite with ${validTodos.length} todos`);
             yield textMessage;
           }
         }
