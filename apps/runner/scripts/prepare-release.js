@@ -25,6 +25,7 @@ const replacements = {
   '@sentry/node': '^10.17.0',
   '@sentry/node-core': '^10.17.0',
   '@sentry/nextjs': '^10.17.0',
+  'ai-sdk-provider-claude-code': '^2.1.0', // Use npm version, postinstall will replace with vendor
 };
 
 let modified = false;
