@@ -129,10 +129,21 @@ export function TagDropdown({
               onClick={() => handleSelectOption(def, option)}
               className="w-full px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
             >
-              <div className="font-medium text-gray-200">{option.label}</div>
-              {option.description && (
-                <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
-              )}
+              <div className="flex items-center gap-3">
+                {option.logo && (
+                  <img
+                    src={option.logo}
+                    alt={`${option.label} logo`}
+                    className="w-5 h-5 object-contain flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-200">{option.label}</div>
+                  {option.description && (
+                    <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                  )}
+                </div>
+              </div>
             </button>
           ))}
         </div>
