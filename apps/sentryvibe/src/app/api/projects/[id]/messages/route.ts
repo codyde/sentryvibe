@@ -9,6 +9,7 @@ import {
 } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
+import { cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
 
 function serializeContent(content: unknown): string {
@@ -63,6 +64,17 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    // CLEANUP: On reconnection, check for and finalize stuck builds
+    // This runs every time a user reconnects/refreshes, providing natural cleanup
+    // without requiring external cronjobs or scheduled tasks
+    try {
+      await cleanupStuckBuilds(5); // Finalize builds inactive for 5+ minutes
+    } catch (cleanupError) {
+      // Don't block the request if cleanup fails
+      console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);
+    }
+
     const projectMessages = await db
       .select()
       .from(messages)

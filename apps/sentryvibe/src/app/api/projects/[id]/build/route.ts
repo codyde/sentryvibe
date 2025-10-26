@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
-import { registerBuild } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
+import { registerBuild, cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { RunnerEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import {
@@ -86,6 +86,16 @@ export async function POST(
     }
 
     commandId = randomUUID();
+
+    // CLEANUP: Before starting new build, check for and finalize stuck builds
+    // This ensures previous builds that didn't complete properly are finalized
+    // Runs naturally when users start new builds, no cronjobs needed
+    try {
+      await cleanupStuckBuilds(5); // Finalize builds inactive for 5+ minutes
+    } catch (cleanupError) {
+      // Don't block the new build if cleanup fails
+      console.error('[build-route] Cleanup failed (non-fatal):', cleanupError);
+    }
 
     // PRIORITY 1: Extract model from tags if present (tags take precedence)
     let agentId = body.agent ?? DEFAULT_AGENT_ID;
