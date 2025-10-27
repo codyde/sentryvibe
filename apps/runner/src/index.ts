@@ -822,28 +822,17 @@ async function checkPortInUse(port: number): Promise<boolean> {
 
     socket.once("connect", () => {
       // Successfully connected = server is running
-      if (!isSilentMode) {
-        console.log(
-          `   🔍 [Debug] Port ${port} check: Connected successfully → Server IS running`
-        );
-      }
       socket.destroy();
       resolve(true);
     });
 
-    socket.once("error", (err: Error) => {
+    socket.once("error", () => {
       // Connection failed = server not running
-      console.log(
-        `   🔍 [Debug] Port ${port} check: ${err.message} → Server NOT running`
-      );
       resolve(false);
     });
 
     socket.once("timeout", () => {
       // Timeout = server not responding
-      console.log(
-        `   🔍 [Debug] Port ${port} check: Timeout → Server NOT running`
-      );
       socket.destroy();
       resolve(false);
     });
