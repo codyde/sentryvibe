@@ -20,7 +20,8 @@ import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import {
-  CLAUDE_SYSTEM_PROMPT, // UNIFIED: Used for both Claude and Codex
+  CLAUDE_SYSTEM_PROMPT,
+  CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
   DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
@@ -475,14 +476,16 @@ function createCodexQuery(): BuildQueryFn {
       workingDirectory,
     });
 
-    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
+    const systemParts: string[] = [CODEX_SYSTEM_PROMPT.trim()]; // Use Codex-specific prompt (no TodoWrite tool)
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
 
-    // Combine system prompt and user prompt for planning
+    // Combine system prompt and user prompt
     // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
     const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
+
+    fileLog.info('Using CODEX_SYSTEM_PROMPT (TodoWrite references replaced with JSON code blocks)');
 
     // Resume existing thread for enhancements, start new for initial builds
     let thread;

@@ -390,6 +390,40 @@ Every design must have:
   ✓ Images use valid Pexels URLs (not downloaded)
 `;
 
-// UNIFIED: Codex now uses CLAUDE_SYSTEM_PROMPT (same prompt for both agents)
-// This export kept for backward compatibility
-export const CODEX_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT;
+// CODEX-SPECIFIC PROMPT: TodoWrite replaced with JSON code block approach
+export const CODEX_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT
+  // Remove all TodoWrite tool references
+  .replace(/🔧 CRITICAL: Use TodoWrite Tool ALWAYS 🔧[\s\S]*?(?=═══════════════|$)/g, `📋 TASK TRACKING VIA JSON CODE BLOCKS 📋
+
+You track your work by including JSON code blocks in your responses.
+
+**Format:**
+\`\`\`json
+{"todos":[
+  {"content":"Task description","status":"completed","activeForm":"Past tense of task"},
+  {"content":"Current task","status":"in_progress","activeForm":"Present continuous"},
+  {"content":"Future task","status":"pending","activeForm":"Will do"}
+]}
+\`\`\`
+
+**When to include:**
+- At the start: Include your initial task breakdown
+- After each major step: Update with new statuses
+- At the end: All tasks marked "completed"
+
+**Statuses:**
+- "pending" = not started
+- "in_progress" = currently working on this
+- "completed" = finished
+
+Create as many tasks as needed for the request (3-15+ tasks based on complexity).
+
+`)
+  // Replace TodoWrite({ examples with JSON block examples
+  .replace(/TodoWrite\(\{[\s\S]*?\}\)/g, '```json\n{"todos":[...]}\n```')
+  // Replace "call TodoWrite" with "include JSON code block"
+  .replace(/call TodoWrite/gi, 'include a JSON code block')
+  .replace(/TodoWrite tool/gi, 'JSON task tracking')
+  // Keep the rest of the prompt intact
+  .trim();
+
