@@ -6,9 +6,11 @@
   "author": "Cody De Arkland",
   "license": "MIT",
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx server.ts",
+    "dev:next": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx server.ts",
+    "start:next": "next start",
     "lint": "eslint"
   },
   "dependencies": {

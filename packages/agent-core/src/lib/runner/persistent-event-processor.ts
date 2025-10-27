@@ -12,6 +12,7 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../../types/generation';
 import { serializeGenerationState } from '../generation-persistence';
+import { buildWebSocketServer } from '../../index';
 
 interface ActiveBuildContext {
   commandId: string;
@@ -168,6 +169,13 @@ async function refreshRawState(context: ActiveBuildContext) {
     await db.update(generationSessions)
       .set({ rawState: serialized, updatedAt: new Date() })
       .where(eq(generationSessions.id, context.sessionId));
+    
+    // Broadcast state update via WebSocket
+    buildWebSocketServer.broadcastStateUpdate(
+      context.projectId,
+      context.sessionId,
+      snapshot
+    );
   } catch (snapshotError) {
     console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
   }
@@ -415,6 +423,9 @@ async function persistEvent(
         // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
         await refreshRawState(context);
         console.log(`[persistent-processor] ✅ Todos persisted and state refreshed, activeTodoIndex=${context.currentActiveTodoIndex}`);
+        
+        // Broadcast todo update via WebSocket (high priority - immediate flush)
+        buildWebSocketServer.broadcastTodoUpdate(context.projectId, context.sessionId, todos);
 
         // AUTO-FINALIZE: If all todos are complete, finalize the build
         // This handles cases where build-completed event is delayed or missing
@@ -435,6 +446,14 @@ async function persistEvent(
           console.log(`[persistent-processor] Injected todoIndex ${context.currentActiveTodoIndex} into ${eventData.toolName} tool`);
         }
         await persistToolCall(context, eventData, 'input-available');
+        
+        // Broadcast tool call via WebSocket
+        buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
+          id: eventData.toolCallId || '',
+          name: eventData.toolName,
+          input: eventData.input,
+          state: 'input-available',
+        });
       }
 
       // Only refresh if we didn't already refresh for TodoWrite
@@ -456,6 +475,17 @@ async function persistEvent(
       }
 
       await persistToolCall(context, eventData, 'output-available');
+      
+      // Broadcast tool completion via WebSocket
+      if (eventData.toolName) {
+        buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
+          id: eventData.toolCallId || '',
+          name: eventData.toolName,
+          input: undefined,
+          state: 'output-available',
+        });
+      }
+      
       await refreshRawState(context);
       break;
 

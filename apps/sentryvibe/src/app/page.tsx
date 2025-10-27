@@ -52,6 +52,8 @@ import type { TagOption } from "@sentryvibe/agent-core/config/tags";
 import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
 import { getClaudeModelLabel } from "@sentryvibe/agent-core/client";
 import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
+import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
+import { WebSocketStatus } from "@/components/WebSocketStatus";
 
 interface MessagePart {
   type: string;
@@ -122,6 +124,19 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
+  
+  // WebSocket connection for real-time updates (primary source)
+  const {
+    state: wsState,
+    isConnected: wsConnected,
+    isReconnecting: wsReconnecting,
+    error: wsError,
+    reconnect: wsReconnect,
+  } = useBuildWebSocket({
+    projectId: currentProject?.id || '',
+    sessionId: undefined, // Subscribe to all sessions for this project
+    enabled: !!currentProject && isGenerating,
+  });
 
 
   const updateGenerationState = useCallback(
@@ -232,6 +247,14 @@ function HomeContent() {
   useEffect(() => {
     generationStateRef.current = generationState;
   }, [generationState]);
+  
+  // Sync WebSocket state to local state (WebSocket is primary when connected)
+  useEffect(() => {
+    if (wsConnected && wsState) {
+      if (DEBUG_PAGE) console.log('🔌 WebSocket state update received');
+      setGenerationState(wsState);
+    }
+  }, [wsState, wsConnected]);
 
   const ensureGenerationState = useCallback(
     (prevState: GenerationState | null): GenerationState | null => {
@@ -2237,6 +2260,16 @@ function HomeContent() {
       onRenameProject={setRenamingProject}
       onDeleteProject={setDeletingProject}
     >
+      {/* WebSocket Connection Status Indicator */}
+      {isGenerating && (
+        <WebSocketStatus
+          isConnected={wsConnected}
+          isReconnecting={wsReconnecting}
+          error={wsError}
+          onReconnect={wsReconnect}
+        />
+      )}
+      
       <SidebarProvider defaultOpen={false}>
         <AppSidebar
           onOpenProcessModal={() => setShowProcessModal(true)}

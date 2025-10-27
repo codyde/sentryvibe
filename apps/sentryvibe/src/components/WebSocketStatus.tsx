@@ -1,0 +1,103 @@
+/**
+ * WebSocket Connection Status Indicator
+ * 
+ * Shows the current state of the WebSocket connection with visual feedback
+ */
+
+'use client';
+
+import { motion, AnimatePresence } from 'framer-motion';
+import { Wifi, WifiOff, Loader2, AlertCircle } from 'lucide-react';
+
+interface WebSocketStatusProps {
+  isConnected: boolean;
+  isReconnecting: boolean;
+  error: Error | null;
+  onReconnect?: () => void;
+}
+
+export function WebSocketStatus({
+  isConnected,
+  isReconnecting,
+  error,
+  onReconnect,
+}: WebSocketStatusProps) {
+  // Only show when there's something to indicate (not connected or error)
+  if (isConnected && !error) {
+    return null;
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="fixed top-4 right-4 z-50"
+      >
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900/95 backdrop-blur-sm border shadow-lg">
+          {isReconnecting ? (
+            <>
+              <Loader2 className="w-4 h-4 text-yellow-400 animate-spin" />
+              <span className="text-sm text-yellow-400 font-medium">
+                Reconnecting...
+              </span>
+            </>
+          ) : error ? (
+            <>
+              <AlertCircle className="w-4 h-4 text-red-400" />
+              <span className="text-sm text-red-400 font-medium">
+                Connection error
+              </span>
+              {onReconnect && (
+                <button
+                  onClick={onReconnect}
+                  className="ml-2 px-2 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded transition-colors"
+                >
+                  Retry
+                </button>
+              )}
+            </>
+          ) : !isConnected ? (
+            <>
+              <WifiOff className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-400 font-medium">
+                Disconnected
+              </span>
+            </>
+          ) : null}
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+/**
+ * Minimal WebSocket Status Badge (for compact displays)
+ */
+export function WebSocketStatusBadge({
+  isConnected,
+  isReconnecting,
+}: Pick<WebSocketStatusProps, 'isConnected' | 'isReconnecting'>) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {isConnected ? (
+        <div className="flex items-center gap-1.5 text-green-400">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-xs font-medium">Live</span>
+        </div>
+      ) : isReconnecting ? (
+        <div className="flex items-center gap-1.5 text-yellow-400">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span className="text-xs font-medium">Connecting</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 text-gray-400">
+          <div className="w-2 h-2 rounded-full bg-gray-400" />
+          <span className="text-xs font-medium">Offline</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
