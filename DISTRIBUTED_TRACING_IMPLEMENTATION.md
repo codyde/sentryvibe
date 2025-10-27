@@ -1,7 +1,22 @@
 # Distributed Tracing Implementation
 
 **Date**: October 27, 2025  
-**Status**: ✅ Complete - Full Path Tracing from Runner to Database
+**Status**: ✅ Complete - Full Path Tracing from Runner to Database  
+**Updated**: October 27, 2025 - AI Span Integration Fixed
+
+---
+
+## 🎉 UPDATE: AI Spans Now Linked to Event Processing!
+
+**Issue Fixed**: AI spans (from Claude Code integration) were previously in a separate trace from the event processing pipeline (runner → broker → nextjs → db).
+
+**Root Cause**: The `runner.build` span was being manually ended prematurely with `Sentry.getActiveSpan()?.end()`, cutting off trace propagation before events could be sent.
+
+**Solution**: Removed the premature `span.end()` call in `apps/runner/src/index.ts:1996`. The span now automatically ends when the async callback completes, ensuring all AI spans and event processing spans are in the same trace tree.
+
+**Result**: ✅ Full end-to-end tracing from AI tool calls → runner events → broker → nextjs → database persistence!
+
+See `AI_SPAN_TRACING_ANALYSIS.md` for detailed analysis and implementation notes.
 
 ---
 

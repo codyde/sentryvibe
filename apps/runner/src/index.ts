@@ -1988,12 +1988,17 @@ export async function startRunner(options: RunnerOptions = {}) {
               );
               buildLog(`   Total chunks processed: (stream ended)`);
 
+              // Send build completion event while span is still active
+              // This ensures the event processing spans (broker → nextjs → db)
+              // are properly linked to this build span and its AI spans
               sendEvent({
                 type: "build-completed",
                 ...buildEventBase(command.projectId, command.id),
                 payload: { todos: [], summary: "Build completed" },
               });
-              Sentry.getActiveSpan()?.end();
+              
+              // Note: Span will automatically end when this async callback completes
+              // DO NOT manually call span.end() here - it breaks trace propagation!
             } catch (error) {
               console.error("Failed to run build", error);
               Sentry.getActiveSpan()?.setStatus({
