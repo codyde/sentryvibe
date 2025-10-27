@@ -250,27 +250,46 @@ function HomeContent() {
     generationStateRef.current = generationState;
   }, [generationState]);
   
-  // Sync WebSocket state to local state (WebSocket is primary when connected)
+  // Sync WebSocket state to local state (both hydrated and live updates)
   // IMPORTANT: Merge WebSocket updates with existing state to preserve metadata
   useEffect(() => {
-    if (wsConnected && wsState) {
-      if (DEBUG_PAGE) console.log('🔌 WebSocket state update received');
+    if (wsState) {
+      if (DEBUG_PAGE) console.log('🔌 WebSocket state update:', {
+        isConnected: wsConnected,
+        hasState: !!wsState,
+        agentId: wsState.agentId,
+        claudeModelId: wsState.claudeModelId,
+        projectName: wsState.projectName,
+        todosLength: wsState.todos?.length,
+      });
+      
       setGenerationState((prevState) => {
         // If no previous state, use WebSocket state as-is
-        if (!prevState) return wsState;
+        if (!prevState) {
+          if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
+          return wsState;
+        }
         
         // Merge WebSocket updates with existing state
         // This preserves fields like agentId, claudeModelId that may not be in WebSocket updates
-        return {
+        const merged = {
           ...prevState,
           ...wsState,
-          // Ensure critical metadata is never lost
+          // Ensure critical metadata is never lost (use WebSocket value OR previous value)
           agentId: wsState.agentId || prevState.agentId,
           claudeModelId: wsState.claudeModelId || prevState.claudeModelId,
           projectId: wsState.projectId || prevState.projectId,
           projectName: wsState.projectName || prevState.projectName,
           operationType: wsState.operationType || prevState.operationType,
         };
+        
+        if (DEBUG_PAGE) console.log('   Merged state:', {
+          agentId: merged.agentId,
+          claudeModelId: merged.claudeModelId,
+          projectName: merged.projectName,
+        });
+        
+        return merged;
       });
     }
   }, [wsState, wsConnected]);
@@ -727,6 +746,8 @@ function HomeContent() {
                       (raw.operationType as BuildOperationType) ??
                       (session?.operationType as BuildOperationType) ??
                       "continuation",
+                    agentId: raw.agentId as GenerationState['agentId'] | undefined,
+                    claudeModelId: raw.claudeModelId as GenerationState['claudeModelId'] | undefined,
                     todos,
                     toolsByTodo,
                     textByTodo,
@@ -746,6 +767,7 @@ function HomeContent() {
                       : session?.endedAt
                       ? new Date(session.endedAt as string | number)
                       : undefined,
+                    codex: raw.codex as GenerationState['codex'] | undefined,
                   };
                 } catch (err) {
                   if (DEBUG_PAGE) console.warn(
