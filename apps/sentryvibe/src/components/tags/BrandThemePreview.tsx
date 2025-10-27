@@ -1,7 +1,11 @@
 'use client';
 
+import { getBrandLogo } from '@/lib/brand-logos';
+import Image from 'next/image';
+
 interface BrandThemePreviewProps {
   brand: {
+    value: string;
     label: string;
     values?: {
       primaryColor: string;
@@ -19,12 +23,26 @@ export function BrandThemePreview({ brand }: BrandThemePreviewProps) {
   }
 
   const { primaryColor, secondaryColor, accentColor, neutralLight, neutralDark } = brand.values;
+  const logoPath = getBrandLogo(brand.value);
 
   return (
     <div className="w-96 space-y-3">
       {/* Header */}
-      <div className="text-sm font-semibold text-gray-200">
-        {brand.label} Theme Preview
+      <div className="flex items-center gap-3">
+        {logoPath && (
+          <div className="w-8 h-8 flex items-center justify-center">
+            <Image
+              src={logoPath}
+              alt={`${brand.label} logo`}
+              width={32}
+              height={32}
+              className="object-contain"
+            />
+          </div>
+        )}
+        <div className="text-sm font-semibold text-gray-200">
+          {brand.label} Theme Preview
+        </div>
       </div>
 
       {/* Sample Button */}
