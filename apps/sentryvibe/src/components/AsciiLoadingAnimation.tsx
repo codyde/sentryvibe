@@ -78,6 +78,16 @@ export default function AsciiLoadingAnimation() {
 
       setColoredAsciiArt(asciiArray)
     }
+
+    img.onerror = () => {
+      console.error('Failed to load image for ASCII animation:', IMAGE_PATH)
+      // Fallback: Create a simple "SENTRY" ASCII text pattern
+      const fallbackAscii: ColoredChar[][] = [
+        [{ char: ' ', color: 'white' }, { char: 'S', color: 'white' }, { char: 'E', color: 'white' }, { char: 'N', color: 'white' }, { char: 'T', color: 'white' }, { char: 'R', color: 'white' }, { char: 'Y', color: 'white' }, { char: ' ', color: 'white' }],
+        [{ char: ' ', color: 'white' }, { char: '.', color: 'white' }, { char: '.', color: 'white' }, { char: '.', color: 'white' }, { char: ' ', color: 'white' }, { char: ' ', color: 'white' }, { char: ' ', color: 'white' }, { char: ' ', color: 'white' }],
+      ]
+      setColoredAsciiArt(fallbackAscii)
+    }
   }, [])
 
   useEffect(() => {
