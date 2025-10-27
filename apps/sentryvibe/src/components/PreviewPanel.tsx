@@ -8,6 +8,7 @@ import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
+import AsciiLoadingAnimation from './AsciiLoadingAnimation';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
@@ -20,13 +21,14 @@ interface PreviewPanelProps {
   isStoppingServer?: boolean;
   isStartingTunnel?: boolean;
   isStoppingTunnel?: boolean;
+  isBuildActive?: boolean;
 }
 
 type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
 const DEBUG_PREVIEW = false; // Set to true to enable verbose preview panel logging
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel }: PreviewPanelProps) {
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel, isBuildActive }: PreviewPanelProps) {
   const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
@@ -747,7 +749,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            {currentProject?.devServerStatus === 'starting' || isStartingServer ? (
+            {isBuildActive ? (
+              <div className="text-center flex items-center justify-center">
+                <div className="max-w-[400px]">
+                  <AsciiLoadingAnimation />
+                </div>
+              </div>
+            ) : currentProject?.devServerStatus === 'starting' || isStartingServer ? (
               <div className="flex flex-col items-center gap-4">
                 <div className="relative flex items-center justify-center w-24 h-24">
                   <Rocket className="w-16 h-16 text-purple-400 animate-pulse" />

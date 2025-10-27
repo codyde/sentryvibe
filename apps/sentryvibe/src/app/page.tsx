@@ -3306,6 +3306,7 @@ function HomeContent() {
                         isStoppingServer={isStoppingServer}
                         isStartingTunnel={isStartingTunnel}
                         isStoppingTunnel={isStoppingTunnel}
+                        isBuildActive={isCreatingProject || generationState?.isActive || false}
                       />
                     </div>
 
