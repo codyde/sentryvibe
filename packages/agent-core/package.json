@@ -47,6 +47,7 @@
   ],
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.25",
+    "@sentry/node": "file:../../apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
     "ai": "^5.0.57",
     "ai-sdk-provider-claude-code": "^2.1.0",
     "clsx": "^2.1.1",
