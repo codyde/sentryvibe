@@ -496,15 +496,50 @@ export async function* transformCodexStream(
           }
 
           // Emit result
-          const output = event.item.aggregated_output || '';
+          let output = event.item.aggregated_output || '';
 
           // CRITICAL: Extract TodoWrite from bash command outputs
           // Codex doesn't have TodoWrite as a tool, so it uses printf/echo to output it
-          // We need to detect and extract it from command results
+
+          // FIRST: Check for raw JSON from Codex's custom todo scripts
+          // Format: {"todos": [{"content": "...", "status": "...", "activeForm": ""}]}
+          const rawJsonMatch = output.match(/\{"todos":\s*\[[\s\S]*?\]\}/);
+          if (rawJsonMatch) {
+            try {
+              const parsed = JSON.parse(rawJsonMatch[0]);
+              if (parsed.todos && Array.isArray(parsed.todos)) {
+                streamLog.info(`[Codex Adapter] 🎯 Found raw JSON in bash output: ${parsed.todos.length} todos`);
+
+                // Emit as TodoWrite so persistent processor tracks it
+                const todoWriteMessage: TransformedMessage = {
+                  type: 'assistant',
+                  message: {
+                    id: currentMessageId,
+                    content: [{
+                      type: 'tool_use',
+                      id: `bash-todo-${toolId}`,
+                      name: 'TodoWrite',
+                      input: { todos: parsed.todos },
+                    }],
+                  },
+                };
+
+                yieldCount++;
+                streamLog.yield('bash-json-todo', { toolId, count: parsed.todos.length });
+                yield todoWriteMessage;
+
+                streamLog.info('[Codex Adapter] ✅ Converted bash JSON to TodoWrite');
+              }
+            } catch (error) {
+              streamLog.warn('[Codex Adapter] Failed to parse JSON from bash output:', error);
+            }
+          }
+
+          // SECOND: Check for TodoWrite({...}) format
           const extractedTodoWrite = extractAndConvertTodoWrite(output);
           if (extractedTodoWrite !== output) {
             // TodoWrite was found and converted, emit as text
-            streamLog.info('[Codex Adapter] Extracted TodoWrite from bash output');
+            streamLog.info('[Codex Adapter] Extracted TodoWrite function call from bash output');
             const todoTextMessage: TransformedMessage = {
               type: 'assistant',
               message: {
