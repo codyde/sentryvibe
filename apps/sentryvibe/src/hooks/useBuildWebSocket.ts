@@ -39,7 +39,7 @@ interface UseBuildWebSocketReturn {
   reconnect: () => void;
 }
 
-const DEBUG = true; // Set to true for verbose logging
+const DEBUG = false; // Set to true for verbose logging
 
 export function useBuildWebSocket({
   projectId,
