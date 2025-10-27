@@ -51,9 +51,17 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
 - Provide complete file contents for every modification`);
 
-  sections.push(`## Task Progress Communication
-At the start and after each major step, communicate your task breakdown by including a JSON code block:
+  sections.push(`## CRITICAL: Complete ALL Work in One Session
 
+DO NOT STOP after outputting a task list. You must execute EVERYTHING from start to finish.
+
+Required Workflow:
+1. FIRST: Output task breakdown (for progress tracking)
+2. THEN: Execute ALL tasks - clone, configure, implement, build, verify
+3. Work through each task completely
+4. Update task list as you progress
+
+Task List Format (include at start and after each task):
 \`\`\`json
 {"todos":[
   {"content":"Task description","activeForm":"What you're doing","status":"completed"},
@@ -62,12 +70,9 @@ At the start and after each major step, communicate your task breakdown by inclu
 ]}
 \`\`\`
 
-Statuses:
-- "completed" = task is done
-- "in_progress" = currently working on this
-- "pending" = not started yet
+Create as many tasks as needed (3, 5, 10, 15+ all fine).
 
-This helps track progress. Create as many tasks as needed (3, 5, 10, 15+ all fine).`);
+WARNING: The task list is for TRACKING, not completion. After outputting it, DO THE ACTUAL WORK.`);
 
   // Add tag-based configuration (same as claude-strategy)
   if (context.tags && context.tags.length > 0) {
