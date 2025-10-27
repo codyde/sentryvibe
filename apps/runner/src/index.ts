@@ -560,6 +560,23 @@ function createCodexQuery(): BuildQueryFn {
 
       log(`🚀 [codex-query] Turn ${turnCount}: ${turnCount === 1 ? 'Initial request' : 'Continuing work'}...`);
 
+      // Log full prompt being sent to Codex
+      if (turnCount === 1) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📝 FULL CODEX PROMPT (Turn 1):');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(turnPrompt);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`Length: ${turnPrompt.length} characters\n`);
+
+        // Also log to file
+        fileLog.info('━━━ FULL CODEX PROMPT ━━━');
+        fileLog.info(turnPrompt);
+        fileLog.info(`━━━ END PROMPT (${turnPrompt.length} chars) ━━━`);
+      } else {
+        fileLog.info(`Turn ${turnCount} prompt:`, turnPrompt);
+      }
+
       // Execute turn (like basic_streaming.ts but automated)
       const { events } = await thread.runStreamed(turnPrompt);
 
