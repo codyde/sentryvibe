@@ -43,25 +43,36 @@ Ensured that when `currentProject` exists in the UI, BOTH chat and build tabs us
 - Added `tags` property to match database schema
 - Prevents TypeScript errors when accessing project tags
 
-## Key Insight
+## Critical Fix: Prevent Project Overwrites
 
-The real issue is in `detectOperationType` logic in `packages/agent-core/src/lib/build-helpers.ts`:
+### The Bug
+The original `detectOperationType` logic was dangerous:
 
 ```typescript
-// Check if project has been built before
+// DANGEROUS - OLD CODE
 const hasFiles = project.status === 'completed' || project.status === 'in_progress';
 const hasRunCommand = !!project.runCommand;
 
-// If project already exists and has been built, this is an enhancement
 if (hasFiles && hasRunCommand) {
   return 'enhancement';
 }
-
-// Otherwise, initial build
-return 'initial-build';
+return 'initial-build'; // ❌ Could overwrite completed projects!
 ```
 
-If a project doesn't have `status='completed'` or is missing `runCommand`, it will be treated as `'initial-build'` which triggers scaffolding. The fix ensures both tabs use this detection consistently.
+**Problem:** If a project had `status='completed'` but was missing `runCommand` (a metadata issue), it would return `'initial-build'`, causing the build orchestrator to **overwrite the entire project directory with a fresh template**, destroying user work!
+
+### The Fix
+Modified `detectOperationType` to be defensive:
+
+```typescript
+// SAFE - NEW CODE
+if (project.status === 'completed' || project.status === 'in_progress') {
+  return 'enhancement'; // ✅ NEVER overwrite existing projects
+}
+return 'initial-build'; // Only for 'pending' or 'failed' projects
+```
+
+**Solution:** Project status is now the primary signal. If a project is `'completed'` or `'in_progress'`, it's ALWAYS treated as an enhancement, regardless of missing metadata like `runCommand`. Missing metadata is a data issue, not a reason to destroy the project.
 
 ## User Experience
 
@@ -74,18 +85,12 @@ If a project doesn't have `status='completed'` or is missing `runCommand`, it wi
 6. Build orchestrator sees `'enhancement'` and skips template downloading
 7. System iterates on existing project ✅
 
-### If Issue Persists
-If the system still treats it as a new project, check:
-1. Does the project have `status='completed'` in the database?
-2. Does the project have a `runCommand` set?
-3. Is the project data in the UI fresh (check `projects` array)?
-
-Debug by logging in `startGeneration`:
-```typescript
-console.log('Project status:', project.status);
-console.log('Project runCommand:', project.runCommand);
-console.log('Detected operationType:', operationType);
-```
+### Protection Against Data Loss
+The fix now guarantees:
+- ✅ Projects with `status='completed'` are NEVER overwritten
+- ✅ Projects with `status='in_progress'` are NEVER overwritten  
+- ✅ Missing metadata (like `runCommand`) won't trigger destructive actions
+- ✅ Only `'pending'` or `'failed'` projects can be treated as `'initial-build'`
 
 ## Testing Recommendations
 

@@ -1300,12 +1300,6 @@ function HomeContent() {
       isRetry,
     });
     
-    // WARN if we're doing initial-build on what should be an existing project
-    if (operationType === 'initial-build' && project.status === 'completed') {
-      console.warn("⚠️ WARNING: Detected initial-build for a completed project!");
-      console.warn("This may trigger unwanted scaffolding. Check runCommand:", project.runCommand);
-    }
-    
     if (DEBUG_PAGE) console.log("🎬 Starting build:", {
       projectName: project.name,
       operationType,

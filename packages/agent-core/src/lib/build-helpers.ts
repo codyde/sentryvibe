@@ -24,16 +24,15 @@ export function detectOperationType(params: {
     return 'focused-edit';
   }
 
-  // Check if project has been built before
-  const hasFiles = project.status === 'completed' || project.status === 'in_progress';
-  const hasRunCommand = !!project.runCommand;
-
-  // If project already exists and has been built, this is an enhancement
-  if (hasFiles && hasRunCommand) {
+  // CRITICAL: If project status is 'completed' or 'in_progress', it's an existing project
+  // Even if runCommand is missing, we should NEVER overwrite a completed project
+  // Missing runCommand is a metadata issue, not a reason to destroy the project
+  if (project.status === 'completed' || project.status === 'in_progress') {
     return 'enhancement';
   }
 
-  // Otherwise, initial build
+  // Only treat as initial-build if status is 'pending' or 'failed'
+  // This prevents accidentally overwriting existing projects
   return 'initial-build';
 }
 
