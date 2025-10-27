@@ -103,10 +103,17 @@ You will complete this request in ONE continuous session by following these exac
 
 STEP 1: CREATE TASK BREAKDOWN
 First, analyze the request and determine what specific tasks need to be done to complete it.
-Build a task list like: ["Clone and configure template", "Install dependencies", "Implement X feature", "Add Y styling", "Verify build"]
+
+Create AS MANY TASKS AS NEEDED to properly build the MVP. This could be:
+- Simple request: 3-4 tasks
+- Medium request: 5-8 tasks
+- Complex request: 10-15+ tasks
+
+Think through ALL the work required, then build your task list.
+Example format: ["Clone template", "Install deps", "Task 1", "Task 2", ..., "Verify build"]
 
 Then call the MCP tool:
-   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...]}
+   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...as many as needed]}
 
 This tool will return a structured todo list. USE this output to guide your work through the remaining steps.
 
@@ -166,10 +173,17 @@ USE the degitCommand it provides to clone the template.
 
 STEP 2: CREATE TASK BREAKDOWN
 Analyze the request and determine what specific tasks need to be done.
-Build a task list like: ["Clone and configure template", "Install dependencies", "Implement X feature", "Add Y styling", "Verify build"]
+
+Create AS MANY TASKS AS NEEDED to properly build the MVP. This could be:
+- Simple request: 3-4 tasks
+- Medium request: 5-8 tasks
+- Complex request: 10-15+ tasks
+
+Think through ALL the work required, then build your task list.
+Example format: ["Clone template", "Install deps", "Task 1", "Task 2", ..., "Verify build"]
 
 Then call the MCP tool:
-   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...]}
+   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...as many as needed]}
 
 This tool returns a structured todo list. USE this output to guide your work.
 
