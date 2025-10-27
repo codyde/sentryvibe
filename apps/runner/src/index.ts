@@ -486,6 +486,14 @@ function createCodexQuery(): BuildQueryFn {
 
     // Resume existing thread for enhancements, start new for initial builds
     let thread;
+    // MCP server configuration for structured tools
+    const mcpConfig = {
+      mcpServers: [{
+        name: 'SentryVibe',
+        url: 'http://localhost:3000/api/mcp/mcp'
+      }]
+    };
+
     if (codexThreadId) {
       log(`🔄 [codex-query] Resuming thread: ${codexThreadId}`);
       fileLog.info('Resuming Codex thread:', codexThreadId);
@@ -494,16 +502,19 @@ function createCodexQuery(): BuildQueryFn {
         model: CODEX_MODEL,
         workingDirectory,
         skipGitRepoCheck: true,
+        ...mcpConfig,
       });
     } else {
       log('🆕 [codex-query] Starting new thread');
-      fileLog.info('Starting new Codex thread');
+      fileLog.info('Starting new Codex thread with MCP server');
       thread = codex.startThread({
         sandboxMode: "danger-full-access",
         model: CODEX_MODEL,
         workingDirectory,
         skipGitRepoCheck: true,
+        ...mcpConfig,
       });
+      fileLog.info('MCP server configured: SentryVibe at http://localhost:3000/api/mcp/mcp');
     }
 
     buildLogger.codexQuery.threadStarting();

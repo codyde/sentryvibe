@@ -51,23 +51,24 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
 - Provide complete file contents for every modification`);
 
-  sections.push(`## Task Progress Communication
-At the start and after each major step, communicate your task breakdown by including a JSON code block:
+  sections.push(`## Available MCP Tools (SentryVibe Server)
 
-\`\`\`json
-{"todos":[
-  {"content":"Task description","activeForm":"What you're doing","status":"completed"},
-  {"content":"Next task","activeForm":"Working on this now","status":"in_progress"},
-  {"content":"Future task","activeForm":"Will do next","status":"pending"}
-]}
-\`\`\`
+You have access to structured tools via the SentryVibe MCP server:
 
-Statuses:
-- "completed" = task is done
-- "in_progress" = currently working on this
-- "pending" = not started yet
+1. **template-selection** - Select best template for the request
+   Input: {"applicationDescription": "description"}
+   Returns: template info with degitCommand
 
-This helps track progress. Create as many tasks as needed (3, 5, 10, 15+ all fine).`);
+2. **todo-list-tool** - Create structured task breakdown
+   Input: {"tasks": ["task 1", "task 2", ...]}
+   Returns: Formatted todos with status tracking
+
+3. **todo-update-tool** - Update task status as you progress
+   Input: {"todos": [{content, status, activeForm}]}
+   Returns: Validated updated todos
+
+USE THESE TOOLS to create and maintain your task breakdown.
+They provide structured output that the system can track.`);
 
   // Add tag-based configuration (same as claude-strategy)
   if (context.tags && context.tags.length > 0) {
@@ -98,12 +99,17 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
 
 CRITICAL INSTRUCTIONS:
 You will complete this ENTIRE request in ONE continuous session.
-Do NOT stop after outputting a task list or initial setup.
+Do NOT stop after calling MCP tools or outputting a task list.
 You must execute EVERY step from start to finish before completing.
 
 Each bash command runs in a fresh shell - prefix EVERY command with "cd ${context.projectName} &&" after cloning.
 
 REQUIRED EXECUTION (complete ALL steps):
+
+STEP 0 - Initialize Task Tracking:
+   Call: todo-list-tool (SentryVibe MCP server)
+   Input: Break down "${basePrompt}" into 4-8 specific implementation tasks
+   This returns a structured todo list - use it to guide your work
 
 STEP 1 - Clone and Configure:
    bash -lc 'npx degit ${repository}#${branch} ${context.projectName}'
@@ -117,50 +123,67 @@ EOF'
 
 STEP 2 - Install Dependencies:
    bash -lc 'cd ${context.projectName} && npm install'
+   Call: todo-update-tool to mark setup tasks complete
 
 STEP 3 - Implement Features:
-   - Modify template files to deliver the requested functionality
+   - Modify template files to deliver requested functionality
    - Use: bash -lc 'cd ${context.projectName} && cat > filepath << EOF\n...\nEOF'
+   - Call todo-update-tool after each major feature
    - Implement ALL requested features completely
 
 STEP 4 - Verify:
    bash -lc 'cd ${context.projectName} && npm run build'
+   Call: todo-update-tool to mark all tasks complete
 
-You MUST complete ALL 4 steps in this single session.
-Only respond with "Implementation complete" after you have executed ALL steps and verified the build.`;
+You MUST complete ALL steps (0-4) in this single session.
+Only respond "Implementation complete" after you have executed ALL steps and verified the build.`;
   }
 
-  // Fallback: Old catalog-based selection (backward compatibility)
+  // Fallback: Template not pre-selected - use MCP for selection
   return `USER REQUEST: ${basePrompt}
 
 CRITICAL INSTRUCTIONS:
 You will complete this ENTIRE request in ONE continuous session.
-Do NOT stop after outputting a task list or initial setup.
+Do NOT stop after calling MCP tools or outputting a task list.
 You must execute EVERY step from start to finish before completing.
 
 Each bash command runs in a fresh shell - prefix EVERY command with "cd ${context.projectName} &&" after cloning.
 
 REQUIRED EXECUTION (complete ALL steps):
 
+STEP 0A - Select Template (if needed):
+   Call: template-selection (SentryVibe MCP server)
+   Input: {"applicationDescription": "${basePrompt}"}
+   This returns: templateId, repository, degitCommand
+   Use the degitCommand to clone
+
+STEP 0B - Initialize Task Tracking:
+   Call: todo-list-tool (SentryVibe MCP server)
+   Input: {"tasks": [list of 4-8 implementation tasks you'll do]}
+   This returns a structured todo list - use it to guide your work
+
 STEP 1 - Clone and Configure:
-1. Clone the chosen template (see catalog)
-2. Verify: bash -lc 'ls ${context.projectName}'
-3. Create .npmrc: bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
-4. Update package.json: bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
+   Use degitCommand from template-selection OR catalog
+   bash -lc 'ls ${context.projectName}'
+   bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
+   bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
 STEP 2 - Install Dependencies:
    bash -lc 'cd ${context.projectName} && npm install'
+   Call: todo-update-tool with setup tasks marked complete
 
 STEP 3 - Implement Features:
-   - Modify template files to deliver the requested functionality
+   - Modify template files to deliver requested functionality
    - ALL commands: bash -lc 'cd ${context.projectName} && ...'
+   - Call todo-update-tool after each major feature
    - Implement ALL requested features completely
 
 STEP 4 - Verify:
    bash -lc 'cd ${context.projectName} && npm run build'
+   Call: todo-update-tool to mark all tasks complete
 
-You MUST complete ALL 4 steps in this single session.
-Only respond with "Implementation complete" after you have executed ALL steps and verified the build.`;
+You MUST complete ALL steps (0-4) in this single session.
+Only respond "Implementation complete" after you have executed ALL steps and verified the build.`;
 }
 
 const codexStrategy: AgentStrategy = {

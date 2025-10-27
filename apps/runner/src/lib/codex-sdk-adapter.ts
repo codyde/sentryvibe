@@ -684,6 +684,41 @@ export async function* transformCodexStream(
 
           // Emit result
           const mcpOutput = getToolOutput(event.item);
+          const mcpToolName = event.item.tool;
+
+          // Special handling for todo MCP tools - convert to TodoWrite format
+          if (mcpToolName === 'todo-list-tool' || mcpToolName === 'todo-update-tool') {
+            try {
+              const outputObj = typeof mcpOutput === 'string' ? JSON.parse(mcpOutput) : mcpOutput;
+
+              if (outputObj && outputObj.todos && Array.isArray(outputObj.todos)) {
+                streamLog.info(`[Codex Adapter] 🎯 MCP ${mcpToolName} returned ${outputObj.todos.length} todos`);
+
+                // Emit as TodoWrite so persistent processor picks it up
+                const todoWriteMessage: TransformedMessage = {
+                  type: 'assistant',
+                  message: {
+                    id: currentMessageId,
+                    content: [{
+                      type: 'tool_use',
+                      id: `mcp-todo-${toolId}`,
+                      name: 'TodoWrite',
+                      input: { todos: outputObj.todos },
+                    }],
+                  },
+                };
+
+                yieldCount++;
+                streamLog.yield('mcp-todo-converted', { toolId, count: outputObj.todos.length });
+                yield todoWriteMessage;
+
+                streamLog.info(`[Codex Adapter] ✅ Converted MCP ${mcpToolName} to TodoWrite`);
+              }
+            } catch (error) {
+              streamLog.warn('[Codex Adapter] Failed to parse MCP todo tool output:', error);
+            }
+          }
+
           const resultMessage: TransformedMessage = {
             type: 'user',
             message: {
@@ -697,8 +732,8 @@ export async function* transformCodexStream(
           };
 
           yieldCount++;
-          streamLog.yield('mcp-tool-result', { 
-            toolId, 
+          streamLog.yield('mcp-tool-result', {
+            toolId,
             server: event.item.server,
             tool: event.item.tool,
           });
