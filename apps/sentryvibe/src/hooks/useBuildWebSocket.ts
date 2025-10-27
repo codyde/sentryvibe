@@ -75,6 +75,45 @@ export function useBuildWebSocket({
   }, []);
 
   /**
+   * Convert date fields from strings to Date objects
+   */
+  const normalizeDates = useCallback((obj: any): any => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    const normalized = { ...obj };
+    
+    // Convert common date fields
+    const dateFields = ['startTime', 'endTime', 'timestamp', 'createdAt', 'updatedAt'];
+    for (const field of dateFields) {
+      if (normalized[field] && typeof normalized[field] === 'string') {
+        normalized[field] = new Date(normalized[field]);
+      }
+    }
+    
+    // Recursively handle nested objects
+    if (normalized.toolsByTodo) {
+      for (const todoIndex in normalized.toolsByTodo) {
+        normalized.toolsByTodo[todoIndex] = normalized.toolsByTodo[todoIndex].map((tool: any) => ({
+          ...tool,
+          startTime: tool.startTime ? new Date(tool.startTime) : tool.startTime,
+          endTime: tool.endTime ? new Date(tool.endTime) : tool.endTime,
+        }));
+      }
+    }
+    
+    if (normalized.textByTodo) {
+      for (const todoIndex in normalized.textByTodo) {
+        normalized.textByTodo[todoIndex] = normalized.textByTodo[todoIndex].map((text: any) => ({
+          ...text,
+          timestamp: text.timestamp ? new Date(text.timestamp) : text.timestamp,
+        }));
+      }
+    }
+    
+    return normalized;
+  }, []);
+
+  /**
    * Hydrate state from database on mount
    */
   const hydrateState = useCallback(async () => {
@@ -95,14 +134,17 @@ export function useBuildWebSocket({
         const latestSession = data.sessions[0];
         if (latestSession.hydratedState) {
           if (DEBUG) console.log('[useBuildWebSocket] State hydrated successfully');
-          setState(latestSession.hydratedState as GenerationState);
+          
+          // Normalize dates in the hydrated state
+          const normalizedState = normalizeDates(latestSession.hydratedState);
+          setState(normalizedState as GenerationState);
         }
       }
     } catch (err) {
       console.error('[useBuildWebSocket] Failed to hydrate state:', err);
       setError(err as Error);
     }
-  }, [projectId]);
+  }, [projectId, normalizeDates]);
 
   /**
    * Process batch update from WebSocket
@@ -119,10 +161,11 @@ export function useBuildWebSocket({
       for (const update of updates) {
         switch (update.type) {
           case 'state-update':
-            // Merge state update
+            // Merge state update and normalize dates
+            const normalizedUpdate = normalizeDates(update.data);
             newState = {
               ...newState,
-              ...update.data as Partial<GenerationState>,
+              ...normalizedUpdate as Partial<GenerationState>,
             };
             break;
           
@@ -151,6 +194,14 @@ export function useBuildWebSocket({
             if (toolData.state === 'input-available') {
               // Add new tool call
               const existingTools = newState.toolsByTodo[activeTodoIndex] || [];
+              
+              // Check if tool already exists (prevent duplicates)
+              const exists = existingTools.some(t => t.id === toolData.id);
+              if (exists) {
+                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} already exists, skipping duplicate`);
+                break;
+              }
+              
               newState.toolsByTodo = {
                 ...newState.toolsByTodo,
                 [activeTodoIndex]: [
@@ -181,6 +232,8 @@ export function useBuildWebSocket({
                   ...newState.toolsByTodo,
                   [activeTodoIndex]: updatedTools,
                 };
+              } else {
+                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} not found for output update`);
               }
             }
             break;
@@ -191,7 +244,7 @@ export function useBuildWebSocket({
     });
     
     if (DEBUG) console.log(`[useBuildWebSocket] Processed ${updates.length} updates`);
-  }, []);
+  }, [normalizeDates]);
 
   /**
    * Handle WebSocket message
