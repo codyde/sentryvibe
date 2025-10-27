@@ -616,12 +616,12 @@ function HomeContent() {
                           const t = tool as Record<string, unknown>;
                           return {
                             ...t,
-                            startTime: t.startTime
-                              ? new Date(t.startTime as string | number)
-                              : new Date(),
-                            endTime: t.endTime
-                              ? new Date(t.endTime as string | number)
-                              : undefined,
+                            startTime: t.startTime instanceof Date
+                              ? t.startTime
+                              : (t.startTime ? new Date(t.startTime as string | number) : new Date()),
+                            endTime: t.endTime instanceof Date
+                              ? t.endTime
+                              : (t.endTime ? new Date(t.endTime as string | number) : undefined),
                           } as ToolCall;
                         }
                       );
