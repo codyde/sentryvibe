@@ -51,24 +51,24 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
 - Provide complete file contents for every modification`);
 
-  sections.push(`## Available MCP Tools (SentryVibe Server)
+  sections.push(`## Task Tracking - Internal System (NOT A TOOL)
 
-You have access to structured tools via the SentryVibe MCP server:
+IMPORTANT: Task tracking is done by including JSON in your text responses.
+This is NOT a tool to call, NOT a command to run, NOT something to install.
 
-1. **template-selection** - Select best template for the request
-   Input: {"applicationDescription": "description"}
-   Returns: template info with degitCommand
+Simply include a JSON code block in your response like this:
 
-2. **todo-list-tool** - Create structured task breakdown
-   Input: {"tasks": ["task 1", "task 2", ...]}
-   Returns: Formatted todos with status tracking
+\`\`\`json
+{"todos":[
+  {"content":"Clone template","status":"completed","activeForm":"Cloned template"},
+  {"content":"Install dependencies","status":"in_progress","activeForm":"Installing dependencies"},
+  {"content":"Implement features","status":"pending","activeForm":"Implementing features"}
+]}
+\`\`\`
 
-3. **todo-update-tool** - Update task status as you progress
-   Input: {"todos": [{content, status, activeForm}]}
-   Returns: Validated updated todos
-
-USE THESE TOOLS to create and maintain your task breakdown.
-They provide structured output that the system can track.`);
+The system automatically extracts this from your response text.
+DO NOT try to call it as a tool, run it as a command, or install it as a binary.
+Just include the JSON code block in your message.`);
 
   // Add tag-based configuration (same as claude-strategy)
   if (context.tags && context.tags.length > 0) {
@@ -102,20 +102,27 @@ WORKFLOW INSTRUCTIONS:
 You will complete this request in ONE continuous session by following these exact steps:
 
 STEP 1: CREATE TASK BREAKDOWN
-First, analyze the request and determine what specific tasks need to be done to complete it.
+First, analyze the request and determine what specific tasks need to be done.
 
 Create AS MANY TASKS AS NEEDED to properly build the MVP. This could be:
 - Simple request: 3-4 tasks
 - Medium request: 5-8 tasks
 - Complex request: 10-15+ tasks
 
-Think through ALL the work required, then build your task list.
-Example format: ["Clone template", "Install deps", "Task 1", "Task 2", ..., "Verify build"]
+Think through ALL the work required.
 
-Then call the MCP tool:
-   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...as many as needed]}
+Then include a JSON code block in your response:
+\`\`\`json
+{"todos":[
+  {"content":"Clone and configure template","status":"in_progress","activeForm":"Cloning and configuring template"},
+  {"content":"Install dependencies","status":"pending","activeForm":"Installing dependencies"},
+  {"content":"Implement features","status":"pending","activeForm":"Implementing features"},
+  ...as many as needed...
+  {"content":"Verify build","status":"pending","activeForm":"Verifying build"}
+]}
+\`\`\`
 
-This tool will return a structured todo list. USE this output to guide your work through the remaining steps.
+The system will automatically extract this. Do NOT try to call it as a tool or command.
 
 STEP 2: CLONE AND CONFIGURE
    bash -lc 'npx degit ${repository}#${branch} ${context.projectName}'
@@ -127,94 +134,84 @@ engine-strict=true
 EOF'
    bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-After completing setup, call:
-   todo-update-tool with updated todo list (mark setup tasks as "completed")
+After setup, include updated JSON code block (mark setup as "completed")
 
 STEP 3: INSTALL DEPENDENCIES
    bash -lc 'cd ${context.projectName} && npm install'
 
-After installing, call:
-   todo-update-tool with updated status
+After installing, include updated JSON code block
 
 STEP 4: IMPLEMENT ALL FEATURES
    - Modify template files to deliver the requested functionality
    - Use: bash -lc 'cd ${context.projectName} && cat > filepath << EOF\n...\nEOF'
    - Implement EVERY requested feature completely
-   - Each time you complete a major feature, call todo-update-tool
+   - After each major feature, include updated JSON code block
 
 STEP 5: VERIFY BUILD
    bash -lc 'cd ${context.projectName} && npm run build'
 
-After successful build, call:
-   todo-update-tool with all tasks marked "completed"
+After successful build, include final JSON code block with all tasks "completed"
 
 CRITICAL: You MUST complete ALL 5 steps in this single session.
 Each bash command runs in a fresh shell - prefix with "cd ${context.projectName} &&"
 Only respond "Implementation complete" after ALL steps are verified.`;
   }
 
-  // Fallback: Template not pre-selected - use MCP for selection
+  // Fallback: Template not pre-selected - need to choose from catalog
   return `USER REQUEST: ${basePrompt}
 
 WORKFLOW INSTRUCTIONS:
 
 You will complete this request in ONE continuous session by following these exact steps:
 
-STEP 1: SELECT TEMPLATE
-Call the MCP tool:
-   template-selection with input: {"applicationDescription": "${basePrompt}"}
-
-This tool analyzes the request and returns the best template with:
-- templateId, templateName
-- repository, degitCommand
-- confidence, rationale
-
-USE the degitCommand it provides to clone the template.
-
-STEP 2: CREATE TASK BREAKDOWN
-Analyze the request and determine what specific tasks need to be done.
+STEP 1: CREATE TASK BREAKDOWN
+First, analyze the request and determine what tasks are needed.
 
 Create AS MANY TASKS AS NEEDED to properly build the MVP. This could be:
 - Simple request: 3-4 tasks
 - Medium request: 5-8 tasks
 - Complex request: 10-15+ tasks
 
-Think through ALL the work required, then build your task list.
-Example format: ["Clone template", "Install deps", "Task 1", "Task 2", ..., "Verify build"]
+Think through ALL the work required.
 
-Then call the MCP tool:
-   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...as many as needed]}
+Then include a JSON code block in your response:
+\`\`\`json
+{"todos":[
+  {"content":"Select and clone template","status":"in_progress","activeForm":"Selecting and cloning template"},
+  {"content":"Install dependencies","status":"pending","activeForm":"Installing dependencies"},
+  ...as many tasks as needed...
+  {"content":"Verify build","status":"pending","activeForm":"Verifying build"}
+]}
+\`\`\`
 
-This tool returns a structured todo list. USE this output to guide your work.
+The system automatically extracts this. Do NOT try to call it as a tool or command.
 
-STEP 3: CLONE AND CONFIGURE
-   Execute the degitCommand from template-selection
+STEP 2: CLONE AND CONFIGURE
+   Choose appropriate template from available options
+   bash -lc 'npx degit <repository>#<branch> ${context.projectName}'
    bash -lc 'ls ${context.projectName}'
    bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
    bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-After setup, call:
-   todo-update-tool with updated todo list (mark setup as "completed")
+After setup, include updated JSON code block (mark setup as "completed")
 
-STEP 4: INSTALL DEPENDENCIES
+STEP 3: INSTALL DEPENDENCIES
    bash -lc 'cd ${context.projectName} && npm install'
 
-After installing, call:
-   todo-update-tool with updated status
+After installing, include updated JSON code block
 
-STEP 5: IMPLEMENT ALL FEATURES
-   - Modify template files to deliver the requested functionality
+STEP 4: IMPLEMENT ALL FEATURES
+   - Modify template files to deliver requested functionality
    - ALL commands: bash -lc 'cd ${context.projectName} && ...'
    - Implement EVERY requested feature completely
-   - Each time you complete a major feature, call todo-update-tool
+   - After each major feature, include updated JSON code block
 
-STEP 6: VERIFY BUILD
+STEP 5: VERIFY BUILD
    bash -lc 'cd ${context.projectName} && npm run build'
 
-After successful build, call:
-   todo-update-tool with all tasks marked "completed"
+After successful build, include final JSON code block with all tasks "completed"
 
-CRITICAL: Complete ALL 6 steps in this single session.
+CRITICAL: Complete ALL 5 steps in this single session.
 Each bash command runs in a fresh shell - prefix with "cd ${context.projectName} &&"
 Only respond "Implementation complete" after ALL steps are verified.`;
 }
