@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Editor from '@monaco-editor/react';
-import { loader } from '@monaco-editor/react';
+import Editor, { OnMount } from '@monaco-editor/react';
 import { Folder, File, ChevronRight, ChevronDown, FileText } from 'lucide-react';
 
 interface FileNode {
@@ -22,66 +21,32 @@ export default function EditorTab({ projectId }: EditorTabProps) {
   const [fileContent, setFileContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
-  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Configure Monaco TypeScript settings once on component mount
-  useEffect(() => {
-    loader.init().then((monaco) => {
-      // Shared compiler options for TypeScript
-      const tsCompilerOptions = {
-        target: monaco.languages.typescript.ScriptTarget.ES2020,
-        allowNonTsExtensions: true,
-        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.ESNext,
-        noEmit: true,
-        esModuleInterop: true,
-        jsx: monaco.languages.typescript.JsxEmit.React,
-        reactNamespace: 'React',
-        allowJs: true,
-        typeRoots: ['node_modules/@types'],
-        // Relaxed type checking to reduce red squiggles
-        strict: false,
-        noImplicitAny: false,
-        strictNullChecks: false,
-        strictFunctionTypes: false,
-        strictPropertyInitialization: false,
-        noImplicitThis: false,
-        alwaysStrict: false,
-        skipLibCheck: true,
-        skipDefaultLibCheck: true,
-      };
-
-      // Shared diagnostics options
-      const diagnosticsOptions = {
-        noSemanticValidation: false,
-        noSyntaxValidation: false,
-        diagnosticCodesToIgnore: [
-          // Ignore common false positives
-          2307, // Cannot find module
-          2304, // Cannot find name
-          2339, // Property does not exist
-          6133, // Variable is declared but never used
-          7016, // Try `npm install @types/...`
-          8006, // 'type' modifier cannot be used in TypeScript files
-          8010, // Type annotations can only be used in TypeScript files
-        ],
-      };
-
-      // Configure TypeScript (.ts and .tsx files)
-      monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsCompilerOptions);
-      monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
-
-      // Configure JavaScript files (.js and .jsx files)
-      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-        target: monaco.languages.typescript.ScriptTarget.ES2020,
-        allowNonTsExtensions: true,
-        allowJs: true,
-        checkJs: false,
-        jsx: monaco.languages.typescript.JsxEmit.React,
-      });
-      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    // Disable ALL TypeScript/JavaScript validation and diagnostics
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: true,
+      noSuggestionDiagnostics: true,
     });
-  }, []);
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: true,
+      noSuggestionDiagnostics: true,
+    });
+
+    // Define custom theme with purple background
+    monaco.editor.defineTheme('sentry-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+        'editor.background': '#181225',
+      },
+    });
+    monaco.editor.setTheme('sentry-dark');
+  };
 
   const fetchFileTree = useCallback(async () => {
     if (!projectId) return;
@@ -155,7 +120,6 @@ export default function EditorTab({ projectId }: EditorTabProps) {
 
     saveTimeoutRef.current = setTimeout(() => {
       saveFileContent(selectedFile, value);
-      console.log('💾 Auto-saved:', selectedFile);
     }, 2000);
   };
 
@@ -173,9 +137,9 @@ export default function EditorTab({ projectId }: EditorTabProps) {
     const ext = filename.split('.').pop()?.toLowerCase();
     const langMap: Record<string, string> = {
       ts: 'typescript',
-      tsx: 'typescript',
+      tsx: 'typescriptreact',
       js: 'javascript',
-      jsx: 'javascript',
+      jsx: 'javascriptreact',
       json: 'json',
       css: 'css',
       scss: 'scss',
@@ -258,7 +222,7 @@ export default function EditorTab({ projectId }: EditorTabProps) {
       </div>
 
       {/* Editor */}
-      <div className="flex-1 flex flex-col bg-gray-900">
+      <div className="flex-1 flex flex-col bg-[#181225]">
         {selectedFile ? (
           <>
             {/* File Path Header */}
@@ -274,10 +238,12 @@ export default function EditorTab({ projectId }: EditorTabProps) {
             <div className="flex-1">
               <Editor
                 height="100%"
-                language={getLanguage(selectedFile)}
+                path={selectedFile}
                 value={fileContent}
                 onChange={handleEditorChange}
-                theme="vs-dark"
+                onMount={handleEditorMount}
+                theme="sentry-dark"
+                defaultLanguage="typescript"
                 options={{
                   fontSize: 14,
                   fontFamily: 'Monaco, Menlo, "Courier New", monospace',

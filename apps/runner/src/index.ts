@@ -1064,53 +1064,82 @@ export async function startRunner(options: RunnerOptions = {}) {
       );
       return;
     }
-    try {
-      // Capture trace context ONLY for specific completion/error events
-      // DO NOT capture for: runner-status (heartbeats), ack, log-chunk, or build-stream (too frequent)
-      const traceableEvents = [
-        'build-completed',
-        'build-failed',
-        'error',
-        'project-metadata',
-        'files-deleted',
-        'file-written'
-      ];
+    
+    // Wrap in span for critical events to trace through to database
+    const traceableEvents = [
+      'build-completed',
+      'build-failed',
+      'build-stream',
+      'error',
+      'project-metadata',
+      'files-deleted',
+      'file-written'
+    ];
 
-      if (traceableEvents.includes(event.type)) {
-        const span = Sentry.getActiveSpan();
-        if (span) {
-          // Extract current trace context to propagate
-          const traceData = Sentry.getTraceData();
+    const shouldTrace = traceableEvents.includes(event.type);
+    
+    const sendOperation = () => {
+      try {
+        // Capture trace context for traceable events
+        // DO NOT capture for: runner-status (heartbeats), ack, log-chunk (too frequent)
+        if (shouldTrace) {
+          const span = Sentry.getActiveSpan();
+          if (span) {
+            // Extract current trace context to propagate
+            const traceData = Sentry.getTraceData();
 
-          event._sentry = {
-            trace: traceData['sentry-trace'],
-            baggage: traceData.baggage,
-          };
+            event._sentry = {
+              trace: traceData['sentry-trace'],
+              baggage: traceData.baggage,
+            };
+          }
         }
-      }
 
-      const eventJson = JSON.stringify(event);
+        const eventJson = JSON.stringify(event);
 
-      // Only log important events
-      if (event.type === "error") {
-        log(`❌ Error: ${event.error}`);
-        if (event.stack) {
-          log(`Stack: ${event.stack.substring(0, 500)}`);
+        // Only log important events
+        if (event.type === "error") {
+          log(`❌ Error: ${event.error}`);
+          if (event.stack) {
+            log(`Stack: ${event.stack.substring(0, 500)}`);
+          }
+        } else if (event.type === "port-detected") {
+          log(`🔌 Port detected: ${event.port}`);
+        } else if (event.type === "tunnel-created") {
+          log(`🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`);
+        } else if (event.type === "build-completed") {
+          log(`✅ Build completed for project: ${event.projectId}`);
+        } else if (event.type === "build-failed") {
+          log(`❌ Build failed: ${event.error}`);
         }
-      } else if (event.type === "port-detected") {
-        log(`🔌 Port detected: ${event.port}`);
-      } else if (event.type === "tunnel-created") {
-        log(`🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`);
-      } else if (event.type === "build-completed") {
-        log(`✅ Build completed for project: ${event.projectId}`);
-      } else if (event.type === "build-failed") {
-        log(`❌ Build failed: ${event.error}`);
-      }
-      // Suppress: build-stream, runner-status, ack, etc.
+        // Suppress: build-stream, runner-status, ack, etc.
 
-      socket.send(eventJson);
-    } catch (error) {
-      log(`❌ Failed to send event ${event.type}:`, error);
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(eventJson);
+        }
+      } catch (error) {
+        log(`❌ Failed to send event ${event.type}:`, error);
+      }
+    };
+
+    // Wrap critical events in span for tracing
+    if (shouldTrace) {
+      Sentry.startSpan(
+        {
+          name: `runner.sendEvent.${event.type}`,
+          op: 'runner.event.send',
+          attributes: {
+            'event.type': event.type,
+            'event.projectId': event.projectId,
+            'event.commandId': event.commandId,
+          },
+        },
+        () => {
+          sendOperation();
+        }
+      );
+    } else {
+      sendOperation();
     }
   }
 

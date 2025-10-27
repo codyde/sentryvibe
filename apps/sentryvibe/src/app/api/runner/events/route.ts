@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { projectEvents } from '@/lib/project-events';
+import * as Sentry from '@sentry/nextjs';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -45,7 +46,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    publishRunnerEvent(event);
+    // Continue trace from broker if headers present
+    const sentryTrace = request.headers.get('sentry-trace');
+    const baggage = request.headers.get('baggage');
+
+    const processEvent = () => {
+      // Wrap publishRunnerEvent in span to trace persistence
+      Sentry.startSpan(
+        {
+          name: `api.runner.events.${event.type}`,
+          op: 'api.runner.event.process',
+          attributes: {
+            'event.type': event.type,
+            'event.projectId': event.projectId,
+            'event.commandId': event.commandId,
+          },
+        },
+        () => {
+          publishRunnerEvent(event);
+        }
+      );
+    };
+
+    // If trace context exists, continue the trace from broker/runner
+    if (sentryTrace && baggage) {
+      await Sentry.continueTrace(
+        { sentryTrace, baggage },
+        async () => {
+          processEvent();
+        }
+      );
+    } else {
+      processEvent();
+    }
+
 
     if (event.type === 'log-chunk' && typeof event.data === 'string') {
       appendRunnerLog(event.projectId, {

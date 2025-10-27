@@ -17,6 +17,8 @@ interface TagDropdownProps {
   // Runner options populated dynamically
   runnerOptions?: TagOption[];
   children: React.ReactNode;
+  // If provided, opens directly to the options for this tag key (for replacement)
+  existingTagKey?: string;
 }
 
 type ViewState =
@@ -30,9 +32,68 @@ export function TagDropdown({
   onOpenChange,
   onSelectTag,
   runnerOptions = [],
-  children
+  children,
+  existingTagKey
 }: TagDropdownProps) {
-  const [viewStack, setViewStack] = useState<ViewState[]>([{ type: 'main' }]);
+  const getInitialView = (): ViewState[] => {
+    if (existingTagKey) {
+      const def = getTagDefinitions().find(d => d.key === existingTagKey);
+      if (def) {
+        // If it's a top-level tag with options, go directly to select view
+        if (def.inputType === 'select') {
+          return [{ type: 'select', definition: def }];
+        }
+        // If it's a nested tag (like design/brand), navigate through the hierarchy
+        if (def.inputType === 'nested') {
+          return [{ type: 'nested', definition: def }];
+        }
+      } else {
+        // Check if it's a nested tag (child of another tag)
+        for (const parentDef of getTagDefinitions()) {
+          if (parentDef.children) {
+            const childDef = parentDef.children.find(c => c.key === existingTagKey);
+            if (childDef) {
+              // Navigate to parent, then to child
+              if (childDef.inputType === 'select') {
+                return [{ type: 'nested', definition: parentDef }, { type: 'select', definition: childDef }];
+              } else if (childDef.inputType === 'color') {
+                return [{ type: 'nested', definition: parentDef }, { type: 'color', definition: childDef }];
+              } else if (childDef.inputType === 'nested' && childDef.children) {
+                // Double-nested case (e.g., design -> customize -> primaryColor)
+                return [{ type: 'nested', definition: parentDef }, { type: 'nested', definition: childDef }];
+              }
+            }
+            // Check for double-nested tags (e.g., design -> customize -> primaryColor)
+            if (parentDef.children) {
+              for (const midDef of parentDef.children) {
+                if (midDef.children) {
+                  const grandchildDef = midDef.children.find(c => c.key === existingTagKey);
+                  if (grandchildDef) {
+                    if (grandchildDef.inputType === 'select') {
+                      return [
+                        { type: 'nested', definition: parentDef },
+                        { type: 'nested', definition: midDef },
+                        { type: 'select', definition: grandchildDef }
+                      ];
+                    } else if (grandchildDef.inputType === 'color') {
+                      return [
+                        { type: 'nested', definition: parentDef },
+                        { type: 'nested', definition: midDef },
+                        { type: 'color', definition: grandchildDef }
+                      ];
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return [{ type: 'main' }];
+  };
+
+  const [viewStack, setViewStack] = useState<ViewState[]>(getInitialView());
 
   const currentView = viewStack[viewStack.length - 1];
 
@@ -47,7 +108,7 @@ export function TagDropdown({
   };
 
   const resetViews = () => {
-    setViewStack([{ type: 'main' }]);
+    setViewStack(getInitialView());
   };
 
   const handleSelectOption = (def: TagDefinition, option: TagOption) => {
@@ -127,7 +188,7 @@ export function TagDropdown({
                   <div className="text-xs text-gray-400 mt-0.5">{def.description}</div>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
+              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 shrink-0 ml-2" />
             </button>
           ))}
         </div>
@@ -177,7 +238,7 @@ export function TagDropdown({
                     <img
                       src={option.logo}
                       alt={`${option.label} logo`}
-                      className="w-5 h-5 object-contain flex-shrink-0"
+                      className="w-5 h-5 object-contain shrink-0"
                     />
                   )}
                   <div className="flex-1 min-w-0">
@@ -202,7 +263,18 @@ export function TagDropdown({
                     align="start"
                     className="bg-gray-900 border-gray-800 w-auto min-w-96 max-w-[480px]"
                   >
-                    <BrandThemePreview brand={option} />
+                    <BrandThemePreview 
+                      brand={{
+                        label: option.label,
+                        values: option.values as {
+                          primaryColor: string;
+                          secondaryColor: string;
+                          accentColor: string;
+                          neutralLight: string;
+                          neutralDark: string;
+                        } | undefined
+                      }} 
+                    />
                   </HoverCardContent>
                 </HoverCard>
               );
@@ -264,6 +336,9 @@ export function TagDropdown({
                   pushView({ type: 'select', definition: child });
                 } else if (child.inputType === 'color') {
                   pushView({ type: 'color', definition: child });
+                } else if (child.inputType === 'nested' && child.children) {
+                  // Handle double-nested tags (e.g., design -> customize -> colors/fonts)
+                  pushView({ type: 'nested', definition: child });
                 }
               }}
               className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
@@ -275,7 +350,7 @@ export function TagDropdown({
                   <div className="text-xs text-gray-400 mt-0.5">{child.description}</div>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
+              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 shrink-0 ml-2" />
             </button>
           ))}
         </div>
@@ -326,9 +401,14 @@ export function TagDropdown({
   };
 
   return (
-    <Popover open={open} onOpenChange={(open) => {
-      onOpenChange(open);
-      if (!open) resetViews();
+    <Popover open={open} onOpenChange={(openState) => {
+      onOpenChange(openState);
+      if (!openState) {
+        resetViews();
+      } else if (openState && existingTagKey) {
+        // When opening for replacement, reset to the initial view for that tag
+        setViewStack(getInitialView());
+      }
     }}>
       <PopoverTrigger asChild>
         {children}
