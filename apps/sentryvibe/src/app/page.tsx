@@ -366,7 +366,8 @@ function HomeContent() {
         return updated;
       });
     },
-    [ensureGenerationState, updateGenerationState]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   // Use ref to access latest projects without triggering effects
