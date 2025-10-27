@@ -4,8 +4,8 @@
  */
 export function getFrameworkLogo(frameworkValue: string): string | null {
   const logoMap: Record<string, string> = {
-    'next': '/nextjs.png',
-    'vite': '/reactjs.png',
+    'next': '/logos/nextjs.svg',
+    'vite': '/logos/react.svg',
     'astro': '/astro.png'
   };
   return logoMap[frameworkValue] || null;

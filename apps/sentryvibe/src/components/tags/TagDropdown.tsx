@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Cpu, Layout, Zap, Palette, Sparkles, Paintbrush, Sliders } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { Button } from '@/components/ui/button';
 import { TAG_DEFINITIONS, TagDefinition, TagOption } from '@sentryvibe/agent-core/config/tags';
 import { ColorPickerTag } from './ColorPickerTag';
 import { BrandThemePreview } from './BrandThemePreview';
+import { FrameworkPreview } from './FrameworkPreview';
 
 interface TagDropdownProps {
   open: boolean;
@@ -73,6 +74,34 @@ export function TagDropdown({
     });
   };
 
+  // Get icon for tag category or specific tag key
+  const getCategoryIcon = (category: string, key?: string) => {
+    // Handle specific tag keys first (for nested design options)
+    if (key === 'brand') {
+      return <Sparkles className="w-5 h-5 text-gray-400" />;
+    }
+    if (key === 'style') {
+      return <Paintbrush className="w-5 h-5 text-gray-400" />;
+    }
+    if (key === 'customize') {
+      return <Sliders className="w-5 h-5 text-gray-400" />;
+    }
+
+    // Fall back to category icons
+    switch (category) {
+      case 'model':
+        return <Cpu className="w-5 h-5 text-gray-400" />;
+      case 'framework':
+        return <Layout className="w-5 h-5 text-gray-400" />;
+      case 'runner':
+        return <Zap className="w-5 h-5 text-gray-400" />;
+      case 'design':
+        return <Palette className="w-5 h-5 text-gray-400" />;
+      default:
+        return null;
+    }
+  };
+
   const renderMain = () => {
     const tagDefs = getTagDefinitions();
 
@@ -91,9 +120,12 @@ export function TagDropdown({
               }}
               className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
             >
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-200">{def.label}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{def.description}</div>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {getCategoryIcon(def.category, def.key)}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-200">{def.label}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{def.description}</div>
+                </div>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
             </button>
@@ -119,7 +151,10 @@ export function TagDropdown({
 
         {/* Header */}
         <div className="px-2 py-3 border-b border-gray-800">
-          <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
+          <div className="flex items-center gap-2 mb-1">
+            {getCategoryIcon(def.category, def.key)}
+            <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
+          </div>
           <p className="text-xs text-gray-400 mt-1">{def.description}</p>
         </div>
 
@@ -128,6 +163,8 @@ export function TagDropdown({
           {def.options?.map(option => {
             // Check if this is a brand option with theme values
             const isBrandOption = def.key === 'brand' && option.values;
+            // Check if this is a framework option
+            const isFrameworkOption = def.key === 'framework' && option.repository;
 
             const optionButton = (
               <button
@@ -171,7 +208,25 @@ export function TagDropdown({
               );
             }
 
-            // Return regular button for non-brand options
+            // Wrap framework options with HoverCard
+            if (isFrameworkOption) {
+              return (
+                <HoverCard key={option.value} openDelay={1000} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    {optionButton}
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    className="bg-gray-900 border-gray-800 w-auto min-w-96 max-w-[480px]"
+                  >
+                    <FrameworkPreview framework={option} />
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            }
+
+            // Return regular button for non-brand/non-framework options
             return optionButton;
           })}
         </div>
@@ -213,9 +268,12 @@ export function TagDropdown({
               }}
               className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
             >
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-200">{child.label}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{child.description}</div>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {getCategoryIcon(child.category, child.key)}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-200">{child.label}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{child.description}</div>
+                </div>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 flex-shrink-0 ml-2" />
             </button>
