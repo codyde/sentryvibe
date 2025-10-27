@@ -97,21 +97,20 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
     const { repository, branch } = context.templateMetadata;
     return `USER REQUEST: ${basePrompt}
 
-CRITICAL INSTRUCTIONS:
-You will complete this ENTIRE request in ONE continuous session.
-Do NOT stop after calling MCP tools or outputting a task list.
-You must execute EVERY step from start to finish before completing.
+WORKFLOW INSTRUCTIONS:
 
-Each bash command runs in a fresh shell - prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+You will complete this request in ONE continuous session by following these exact steps:
 
-REQUIRED EXECUTION (complete ALL steps):
+STEP 1: CREATE TASK BREAKDOWN
+First, analyze the request and determine what specific tasks need to be done to complete it.
+Build a task list like: ["Clone and configure template", "Install dependencies", "Implement X feature", "Add Y styling", "Verify build"]
 
-STEP 0 - Initialize Task Tracking:
-   Call: todo-list-tool (SentryVibe MCP server)
-   Input: Break down "${basePrompt}" into 4-8 specific implementation tasks
-   This returns a structured todo list - use it to guide your work
+Then call the MCP tool:
+   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...]}
 
-STEP 1 - Clone and Configure:
+This tool will return a structured todo list. USE this output to guide your work through the remaining steps.
+
+STEP 2: CLONE AND CONFIGURE
    bash -lc 'npx degit ${repository}#${branch} ${context.projectName}'
    bash -lc 'ls ${context.projectName}'
    bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF
@@ -121,69 +120,89 @@ engine-strict=true
 EOF'
    bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-STEP 2 - Install Dependencies:
+After completing setup, call:
+   todo-update-tool with updated todo list (mark setup tasks as "completed")
+
+STEP 3: INSTALL DEPENDENCIES
    bash -lc 'cd ${context.projectName} && npm install'
-   Call: todo-update-tool to mark setup tasks complete
 
-STEP 3 - Implement Features:
-   - Modify template files to deliver requested functionality
+After installing, call:
+   todo-update-tool with updated status
+
+STEP 4: IMPLEMENT ALL FEATURES
+   - Modify template files to deliver the requested functionality
    - Use: bash -lc 'cd ${context.projectName} && cat > filepath << EOF\n...\nEOF'
-   - Call todo-update-tool after each major feature
-   - Implement ALL requested features completely
+   - Implement EVERY requested feature completely
+   - Each time you complete a major feature, call todo-update-tool
 
-STEP 4 - Verify:
+STEP 5: VERIFY BUILD
    bash -lc 'cd ${context.projectName} && npm run build'
-   Call: todo-update-tool to mark all tasks complete
 
-You MUST complete ALL steps (0-4) in this single session.
-Only respond "Implementation complete" after you have executed ALL steps and verified the build.`;
+After successful build, call:
+   todo-update-tool with all tasks marked "completed"
+
+CRITICAL: You MUST complete ALL 5 steps in this single session.
+Each bash command runs in a fresh shell - prefix with "cd ${context.projectName} &&"
+Only respond "Implementation complete" after ALL steps are verified.`;
   }
 
   // Fallback: Template not pre-selected - use MCP for selection
   return `USER REQUEST: ${basePrompt}
 
-CRITICAL INSTRUCTIONS:
-You will complete this ENTIRE request in ONE continuous session.
-Do NOT stop after calling MCP tools or outputting a task list.
-You must execute EVERY step from start to finish before completing.
+WORKFLOW INSTRUCTIONS:
 
-Each bash command runs in a fresh shell - prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+You will complete this request in ONE continuous session by following these exact steps:
 
-REQUIRED EXECUTION (complete ALL steps):
+STEP 1: SELECT TEMPLATE
+Call the MCP tool:
+   template-selection with input: {"applicationDescription": "${basePrompt}"}
 
-STEP 0A - Select Template (if needed):
-   Call: template-selection (SentryVibe MCP server)
-   Input: {"applicationDescription": "${basePrompt}"}
-   This returns: templateId, repository, degitCommand
-   Use the degitCommand to clone
+This tool analyzes the request and returns the best template with:
+- templateId, templateName
+- repository, degitCommand
+- confidence, rationale
 
-STEP 0B - Initialize Task Tracking:
-   Call: todo-list-tool (SentryVibe MCP server)
-   Input: {"tasks": [list of 4-8 implementation tasks you'll do]}
-   This returns a structured todo list - use it to guide your work
+USE the degitCommand it provides to clone the template.
 
-STEP 1 - Clone and Configure:
-   Use degitCommand from template-selection OR catalog
+STEP 2: CREATE TASK BREAKDOWN
+Analyze the request and determine what specific tasks need to be done.
+Build a task list like: ["Clone and configure template", "Install dependencies", "Implement X feature", "Add Y styling", "Verify build"]
+
+Then call the MCP tool:
+   todo-list-tool with input: {"tasks": ["task 1", "task 2", ...]}
+
+This tool returns a structured todo list. USE this output to guide your work.
+
+STEP 3: CLONE AND CONFIGURE
+   Execute the degitCommand from template-selection
    bash -lc 'ls ${context.projectName}'
    bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
    bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-STEP 2 - Install Dependencies:
+After setup, call:
+   todo-update-tool with updated todo list (mark setup as "completed")
+
+STEP 4: INSTALL DEPENDENCIES
    bash -lc 'cd ${context.projectName} && npm install'
-   Call: todo-update-tool with setup tasks marked complete
 
-STEP 3 - Implement Features:
-   - Modify template files to deliver requested functionality
+After installing, call:
+   todo-update-tool with updated status
+
+STEP 5: IMPLEMENT ALL FEATURES
+   - Modify template files to deliver the requested functionality
    - ALL commands: bash -lc 'cd ${context.projectName} && ...'
-   - Call todo-update-tool after each major feature
-   - Implement ALL requested features completely
+   - Implement EVERY requested feature completely
+   - Each time you complete a major feature, call todo-update-tool
 
-STEP 4 - Verify:
+STEP 6: VERIFY BUILD
    bash -lc 'cd ${context.projectName} && npm run build'
-   Call: todo-update-tool to mark all tasks complete
 
-You MUST complete ALL steps (0-4) in this single session.
-Only respond "Implementation complete" after you have executed ALL steps and verified the build.`;
+After successful build, call:
+   todo-update-tool with all tasks marked "completed"
+
+CRITICAL: Complete ALL 6 steps in this single session.
+Each bash command runs in a fresh shell - prefix with "cd ${context.projectName} &&"
+Only respond "Implementation complete" after ALL steps are verified.`;
 }
 
 const codexStrategy: AgentStrategy = {
