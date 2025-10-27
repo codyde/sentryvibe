@@ -627,8 +627,76 @@ All spans now appear in **ONE UNIFIED TRACE** in Sentry! 🎉
 
 1. ✅ **Implementation complete** - Option 1 applied
 2. ✅ **Runner rebuilt** - TypeScript compiled successfully
-3. **Test with a build** and verify in Sentry
-4. **Monitor trace structure** in production
+3. ✅ **NextJS span hierarchy fixed** - See below
+4. **Test with a build** and verify in Sentry
+5. **Monitor trace structure** in production
+
+---
+
+## ✅ ADDITIONAL FIX - NextJS Span Hierarchy (October 27, 2025)
+
+### Issue Discovered
+
+After the initial fix, `api.runner.event.process` spans were appearing as **siblings** to the `http.client POST` spans instead of **children**:
+
+```
+❌ BEFORE:
+runner.build
+├─ broker.event.forward
+│  └─ http.client POST /api/runner/events
+└─ api.runner.event.process (SIBLING - wrong!)
+```
+
+### Root Cause
+
+**File**: `apps/sentryvibe/src/app/api/runner/events/route.ts`
+
+The code was using `Sentry.continueTrace()` which **creates a new trace context** instead of **extending the existing HTTP request context**:
+
+```typescript
+// ❌ This made the span a SIBLING
+if (sentryTrace && baggage) {
+  await Sentry.continueTrace(
+    { sentryTrace, baggage },
+    async () => {
+      await processEvent();
+    }
+  );
+}
+```
+
+NextJS already has **automatic HTTP instrumentation** that creates the `http.server POST /api/runner/events` span. When we called `continueTrace()`, it started a fresh trace context, making our span a sibling instead of a child.
+
+### Solution
+
+Remove `continueTrace()` and just create the span within the existing HTTP request context. Sentry's automatic instrumentation already handles trace propagation from the `sentry-trace` and `baggage` headers!
+
+```typescript
+// ✅ Just create the span - it automatically becomes a child
+await Sentry.startSpan(
+  {
+    name: `api.runner.events.${event.type}`,
+    op: 'api.runner.event.process',
+  },
+  async () => {
+    publishRunnerEvent(event);
+  }
+);
+```
+
+### Result
+
+```
+✅ AFTER:
+runner.build
+└─ broker.event.forward
+   └─ http.client POST /api/runner/events
+      └─ api.runner.event.process (CHILD - correct!)
+         └─ persistent-processor.persistEvent
+            └─ DB operations
+```
+
+Perfect parent-child relationships showing the actual execution flow! 🎉
 
 ---
 
