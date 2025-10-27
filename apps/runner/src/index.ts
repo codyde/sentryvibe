@@ -1121,10 +1121,30 @@ export async function startRunner(options: RunnerOptions = {}) {
             'event.type': event.type,
             'event.projectId': event.projectId,
             'event.commandId': event.commandId,
+            'event.size': JSON.stringify(event).length,
           },
+          // Force span to be recorded even if very fast
+          forceTransaction: false,
         },
         () => {
+          const startTime = Date.now();
           sendOperation();
+          const duration = Date.now() - startTime;
+          
+          // Add timing info for debugging
+          if (duration < 1) {
+            // WebSocket sends are typically < 1ms, add breadcrumb for visibility
+            Sentry.addBreadcrumb({
+              category: 'runner.event.send',
+              message: `Sent ${event.type} event (${duration}ms)`,
+              level: 'debug',
+              data: {
+                eventType: event.type,
+                projectId: event.projectId,
+                duration,
+              },
+            });
+          }
         }
       );
     } else {
