@@ -509,52 +509,95 @@ function createCodexQuery(): BuildQueryFn {
     buildLogger.codexQuery.threadStarting();
 
     // ========================================
-    // SINGLE TURN: LET CODEX WORK COMPLETELY
+    // MULTI-TURN: KEEP CALLING UNTIL WORK COMPLETE
     // ========================================
-    // Codex does ALL the work in one turn - no task-by-task splitting
-    // This matches Claude Code's behavior and avoids premature completion
-    log("🎯 [codex-query] Starting single-turn Codex execution...");
+    // Per Codex SDK docs: runStreamed() executes ONE turn then completes
+    // To continue work, call runStreamed() again on the same thread
+    // Keep going until Codex indicates completion
+    log("🎯 [codex-query] Starting multi-turn Codex execution...");
 
-    // Track thread ID for future resumptions
+    const MAX_TURNS = 50;
+    let turnCount = 0;
     let capturedThreadId: string | null = null;
+    let lastResponseText = '';
 
-    // Execute single turn with full prompt
-    log(`🚀 [codex-query] Sending complete request to Codex...`);
-    const streamedTurn = await thread.runStreamed(combinedPrompt);
+    // First turn: Send initial prompt
+    turnCount++;
+    log(`🚀 [codex-query] Turn ${turnCount}: Sending initial request...`);
 
-    // Capture thread ID
-    if (thread.id) {
-      capturedThreadId = thread.id;
-      fileLog.info('Codex thread ID captured:', capturedThreadId);
+    while (turnCount <= MAX_TURNS) {
+      // Capture thread ID
+      if (!capturedThreadId && thread.id) {
+        capturedThreadId = thread.id;
+        fileLog.info('Codex thread ID captured:', capturedThreadId);
 
-      // Send thread ID to frontend
-      const threadIdEvent = {
-        type: "assistant",
-        message: {
-          id: `codex-thread-${Date.now()}`,
-          content: [
-            {
-              type: "metadata",
-              metadata_type: "codex_thread_id",
-              thread_id: capturedThreadId,
+        // Send thread ID to frontend
+        const threadIdEvent = {
+          type: "assistant",
+          message: {
+            id: `codex-thread-${Date.now()}`,
+            content: [
+              {
+                type: "metadata",
+                metadata_type: "codex_thread_id",
+                thread_id: capturedThreadId,
+              }
+            ],
+          },
+        };
+        yield threadIdEvent;
+        fileLog.info('Thread ID sent to frontend:', capturedThreadId);
+      }
+
+      // Determine prompt for this turn
+      const turnPrompt = turnCount === 1
+        ? combinedPrompt
+        : "Continue working. Complete any remaining tasks.";
+
+      // Execute turn
+      const streamedTurn = await thread.runStreamed(turnPrompt);
+
+      // Stream all events from this turn
+      let hasContent = false;
+      for await (const message of transformCodexStream(streamedTurn.events)) {
+        hasContent = true;
+
+        // Track last text for completion detection
+        if (message.type === 'assistant' && message.message.content) {
+          for (const block of message.message.content) {
+            if (block.type === 'text' && block.text) {
+              lastResponseText = block.text;
             }
-          ],
-        },
-      };
-      yield threadIdEvent;
-      fileLog.info('Thread ID sent to frontend:', capturedThreadId);
+          }
+        }
+
+        yield message;
+      }
+
+      // Check if Codex indicates it's done
+      const isDone = lastResponseText.toLowerCase().includes('implementation complete') ||
+                     lastResponseText.toLowerCase().includes('build complete') ||
+                     lastResponseText.toLowerCase().includes('all tasks complete');
+
+      if (isDone) {
+        log("✅ [codex-query] Codex indicated completion");
+        break;
+      }
+
+      // Safety: If turn had no content, stop
+      if (!hasContent) {
+        log("⚠️  [codex-query] Turn had no content, stopping");
+        break;
+      }
+
+      // Continue to next turn
+      turnCount++;
+      log(`🚀 [codex-query] Turn ${turnCount}: Continuing work...`);
     }
 
-    // Stream all events from Codex
-    // Codex will naturally create task breakdown and work through it
-    // Our extraction will capture the todos from JSON code blocks
-    for await (const message of transformCodexStream(streamedTurn.events)) {
-      yield message;
-    }
-
-    buildLogger.codexQuery.sessionComplete(1);
+    buildLogger.codexQuery.sessionComplete(turnCount);
     fileLog.info("━━━ CODEX QUERY COMPLETE ━━━");
-    fileLog.info(`Total turns: 1`);
+    fileLog.info(`Total turns: ${turnCount}`);
   };
 }
 
