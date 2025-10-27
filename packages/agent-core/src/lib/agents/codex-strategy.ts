@@ -96,59 +96,71 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
     const { repository, branch } = context.templateMetadata;
     return `USER REQUEST: ${basePrompt}
 
-CRITICAL: Each bash command runs in a fresh shell. You CANNOT cd once and expect it to persist. Instead, prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+CRITICAL INSTRUCTIONS:
+You will complete this ENTIRE request in ONE continuous session.
+Do NOT stop after outputting a task list or initial setup.
+You must execute EVERY step from start to finish before completing.
 
-SETUP STEPS (complete in order):
-1. Clone the template:
+Each bash command runs in a fresh shell - prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+
+REQUIRED EXECUTION (complete ALL steps):
+
+STEP 1 - Clone and Configure:
    bash -lc 'npx degit ${repository}#${branch} ${context.projectName}'
-
-2. Verify the clone succeeded:
    bash -lc 'ls ${context.projectName}'
-
-3. Create .npmrc with required settings:
    bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF
 save-exact=true
 legacy-peer-deps=false
 engine-strict=true
 EOF'
-
-4. Update package.json name field:
    bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-IMPLEMENTATION STEPS:
-- ALL file operations and commands MUST include the project directory path
-- Use "cd ${context.projectName} &&" prefix for every bash command
-- Examples:
-  * Read: bash -lc 'cd ${context.projectName} && cat src/App.tsx'
-  * Edit: bash -lc 'cd ${context.projectName} && cat > src/App.tsx << EOF\n...\nEOF'
-  * Install: bash -lc 'cd ${context.projectName} && npm install'
-  * Build: bash -lc 'cd ${context.projectName} && npm run build'
-- Modify template files to deliver the requested MVP
-- Confirm the core flow works end-to-end
+STEP 2 - Install Dependencies:
+   bash -lc 'cd ${context.projectName} && npm install'
 
-COMPLETION SIGNAL:
-When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
+STEP 3 - Implement Features:
+   - Modify template files to deliver the requested functionality
+   - Use: bash -lc 'cd ${context.projectName} && cat > filepath << EOF\n...\nEOF'
+   - Implement ALL requested features completely
+
+STEP 4 - Verify:
+   bash -lc 'cd ${context.projectName} && npm run build'
+
+You MUST complete ALL 4 steps in this single session.
+Only respond with "Implementation complete" after you have executed ALL steps and verified the build.`;
   }
 
   // Fallback: Old catalog-based selection (backward compatibility)
   return `USER REQUEST: ${basePrompt}
 
-CRITICAL: Each bash command runs in a fresh shell. You CANNOT cd once and expect it to persist. Instead, prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+CRITICAL INSTRUCTIONS:
+You will complete this ENTIRE request in ONE continuous session.
+Do NOT stop after outputting a task list or initial setup.
+You must execute EVERY step from start to finish before completing.
 
-SETUP STEPS (complete in order):
-1. Clone the chosen template (see catalog for commands)
-2. Verify the clone succeeded: bash -lc 'ls ${context.projectName}'
+Each bash command runs in a fresh shell - prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+
+REQUIRED EXECUTION (complete ALL steps):
+
+STEP 1 - Clone and Configure:
+1. Clone the chosen template (see catalog)
+2. Verify: bash -lc 'ls ${context.projectName}'
 3. Create .npmrc: bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
 4. Update package.json: bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-IMPLEMENTATION STEPS:
-- ALL commands MUST include "cd ${context.projectName} &&" prefix
-- Modify template files to deliver the requested MVP
-- Install dependencies as needed
-- Confirm the core flow works end-to-end
+STEP 2 - Install Dependencies:
+   bash -lc 'cd ${context.projectName} && npm install'
 
-COMPLETION SIGNAL:
-When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
+STEP 3 - Implement Features:
+   - Modify template files to deliver the requested functionality
+   - ALL commands: bash -lc 'cd ${context.projectName} && ...'
+   - Implement ALL requested features completely
+
+STEP 4 - Verify:
+   bash -lc 'cd ${context.projectName} && npm run build'
+
+You MUST complete ALL 4 steps in this single session.
+Only respond with "Implementation complete" after you have executed ALL steps and verified the build.`;
 }
 
 const codexStrategy: AgentStrategy = {
