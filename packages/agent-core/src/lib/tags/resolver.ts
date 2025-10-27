@@ -91,8 +91,31 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
 /**
  * Generate AI prompt section from resolved tags
  */
-export function generatePromptFromTags(resolved: ResolvedTags, projectName?: string): string {
+export function generatePromptFromTags(resolved: ResolvedTags, projectName?: string, isNewProject?: boolean): string {
   const sections: string[] = [];
+
+  // Add priority header to establish hierarchy
+  sections.push(`═══════════════════════════════════════════════════════════════════
+🎯 USER-SPECIFIED DESIGN (HIGHEST PRIORITY - OVERRIDES ALL DEFAULTS)
+═══════════════════════════════════════════════════════════════════
+
+CRITICAL PRIORITY LEVELS:
+[PRIORITY 1] User's explicit tag selections (below) - MUST be implemented exactly
+[PRIORITY 2] Template functionality and structure - keep this  
+[PRIORITY 3] Base design system defaults - use only if no tags specified
+
+${isNewProject ? `
+⚠️  TEMPLATE TRANSFORMATION REQUIRED ⚠️
+
+You are working with a template that has its own existing design.
+Your job: TRANSFORM the template's visual design to match the specifications below.
+
+DO NOT just add styles on top - REPLACE the template's design language:
+- Modify the template's CSS/styling files 
+- Update component designs (buttons, cards, layouts, navigation)
+- Change visual aesthetics while preserving functionality
+- The template STRUCTURE is fine, but its VISUAL DESIGN must change
+` : ''}`);
 
   // Framework section - MANDATORY with explicit degit command
   if (resolved.framework) {
@@ -211,6 +234,22 @@ Set up the project structure according to ${resolved.framework} best practices a
         sections.push('- Apply these aesthetics through: typography choices, spacing decisions, component design patterns, color usage, interaction patterns, and overall visual treatment');
         sections.push('- Every design decision should reflect the selected style characteristics');
         sections.push('- If styles seem conflicting, prioritize them in the order listed above');
+        
+        // Add concrete template transformation guidance
+        if (isNewProject) {
+          sections.push('\n**How to Transform the Template to Match These Styles:**');
+          sections.push('1. **Locate styling files**: Find the template\'s main CSS/Tailwind config/styled-components');
+          sections.push('2. **Update design tokens**: Change spacing scales, border-radius values, shadow definitions');
+          sections.push('3. **Modify components**: Update button styles, card designs, navigation appearance');
+          sections.push('4. **Adjust typography**: Change font weights, sizes, letter-spacing to match style');
+          sections.push('5. **Update interactions**: Modify transition speeds, hover effects, animation styles');
+          sections.push('6. **Test cohesion**: Ensure all components feel unified under the new aesthetic');
+          sections.push('\n**Example Actions:**');
+          sections.push('- For "Modern": Reduce border-radius to 4-8px, use clean sans-serif, subtle shadows');
+          sections.push('- For "Bold": Increase font weights to 600-700, use high contrast, large CTAs (48px height)');
+          sections.push('- For "Elegant": Add subtle transitions (300-500ms), use refined spacing, sophisticated colors');
+          sections.push('- For "Playful": Increase border-radius to 12px+, add bouncy animations, warm colors');
+        }
       }
     }
 

@@ -5,32 +5,11 @@ import { resolveTags, generatePromptFromTags } from '../tags/resolver';
 function buildClaudeSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
 
-  if (context.isNewProject) {
-    sections.push(`## New Project: Template Prepared
-
-- Project name: ${context.projectName}
-- Location: ${context.workingDirectory}
-- Operation type: ${context.operationType}
-
-The template has already been downloaded. Install dependencies and customize the scaffold to satisfy the request.`);
-  } else {
-    sections.push(`## Existing Project Context
-
-- Project location: ${context.workingDirectory}
-- Operation type: ${context.operationType}
-
-Review the current codebase and apply the requested changes without re-scaffolding.`);
-  }
-
-  sections.push(`## Workspace Rules
-- Use relative paths within the project.
-- Work inside the existing project structure.
-- Provide complete updates without placeholders.`);
-
+  // PRIORITY 1: User-specified tags (must be first so AI sees them immediately)
   // Use tag-based configuration if available, otherwise fall back to designPreferences
   if (context.tags && context.tags.length > 0) {
     const resolved = resolveTags(context.tags);
-    const tagPrompt = generatePromptFromTags(resolved, context.projectName);
+    const tagPrompt = generatePromptFromTags(resolved, context.projectName, context.isNewProject);
     if (tagPrompt) {
       sections.push(tagPrompt);
     }
@@ -81,6 +60,30 @@ ${moodGuidance}
 - Match the mood descriptors in your typography scale, spacing, and component design
 - Define colors as CSS variables, never use hex values directly in components`);
   }
+
+  // PRIORITY 2: Project context and workspace rules
+  if (context.isNewProject) {
+    sections.push(`## New Project: Template Prepared
+
+- Project name: ${context.projectName}
+- Location: ${context.workingDirectory}
+- Operation type: ${context.operationType}
+
+The template has already been downloaded. Install dependencies and customize the scaffold to satisfy the request.`);
+  } else {
+    sections.push(`## Existing Project Context
+
+- Project location: ${context.workingDirectory}
+- Operation type: ${context.operationType}
+
+Review the current codebase and apply the requested changes without re-scaffolding.`);
+  }
+
+  sections.push(`## Workspace Rules
+- Use relative paths within the project.
+- Work inside the existing project structure.
+- Provide complete updates without placeholders.`);
+
   if (context.fileTree) {
     sections.push(`## Project Structure Snapshot
 ${context.fileTree}`);

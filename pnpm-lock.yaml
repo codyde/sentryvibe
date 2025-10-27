@@ -82,7 +82,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/agent-core
       ai:
-        specifier: ^5.0.79
+        specifier: ^5.0.57
         version: 5.0.79(zod@4.1.12)
       ai-sdk-provider-claude-code:
         specifier: file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz
@@ -225,13 +225,13 @@ importers:
         version: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz
       '@sentry/node-core':
         specifier: file:vendor/sentry-node-core-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
+        version: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.206.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)
       '@sentryvibe/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
       ai:
-        specifier: ^5.0.57
-        version: 5.0.76(zod@3.25.76)
+        specifier: ^5.0.79
+        version: 5.0.79(zod@3.25.76)
       ai-sdk-provider-claude-code:
         specifier: file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz
         version: file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@3.25.76)
@@ -5868,6 +5868,13 @@ snapshots:
       '@vercel/oidc': 3.0.3
       zod: 4.1.12
 
+  '@ai-sdk/gateway@2.0.1(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.12(zod@3.25.76)
+      '@vercel/oidc': 3.0.3
+      zod: 3.25.76
+
   '@ai-sdk/gateway@2.0.1(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -8286,6 +8293,14 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
       '@opentelemetry/api': 1.9.0
       zod: 4.1.12
+
+  ai@5.0.79(zod@3.25.76):
+    dependencies:
+      '@ai-sdk/gateway': 2.0.1(zod@3.25.76)
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.12(zod@3.25.76)
+      '@opentelemetry/api': 1.9.0
+      zod: 3.25.76
 
   ai@5.0.79(zod@4.1.12):
     dependencies:

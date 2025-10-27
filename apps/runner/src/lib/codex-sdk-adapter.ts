@@ -116,6 +116,46 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 }
 
 /**
+ * Helper to extract command name and filename from a full command string
+ * Example: "cd /path/to/project && npm install" -> "npm install"
+ * Example: "cat /long/path/to/file.ts" -> "cat file.ts"
+ */
+function simplifyCommand(fullCommand: string): string {
+  // Remove cd commands and everything before &&
+  let cmd = fullCommand.replace(/^.*&&\s*/, '').trim();
+  
+  // Strip leading and trailing quotes (single or double)
+  cmd = cmd.replace(/^["']|["']$/g, '');
+  
+  // For file operation commands (cat, grep, edit, etc.), extract just filename
+  const fileOpMatch = cmd.match(/^(\w+)\s+(.+)$/);
+  if (fileOpMatch) {
+    const [, command, args] = fileOpMatch;
+    // Split by spaces to handle multiple arguments
+    const argParts = args.split(/\s+/);
+    const simplifiedArgs = argParts.map(arg => {
+      // Strip quotes from individual arguments
+      const cleanArg = arg.replace(/^["']|["']$/g, '');
+      // If it looks like a file path, extract basename
+      if (cleanArg.includes('/')) {
+        return cleanArg.split('/').pop() || cleanArg;
+      }
+      return cleanArg;
+    });
+    return `${command} ${simplifiedArgs.join(' ')}`;
+  }
+  
+  return cmd;
+}
+
+/**
+ * Helper to extract just the filename from a path
+ */
+function getBasename(path: string): string {
+  return path.split('/').pop() || path;
+}
+
+/**
  * Convert JavaScript object notation to strict JSON
  * Handles unquoted keys like: { todos: [...] } → { "todos": [...] }
  */
@@ -339,13 +379,16 @@ export async function* transformCodexStream(
         const itemType = event.item.type;
 
         if (itemType === 'command_execution') {
+          const fullCommand = event.item.command || '';
+          const displayCommand = simplifyCommand(fullCommand);
+          
           // Store tool info for matching with completion
           inProgressTools.set(toolId, {
             type: 'command_execution',
-            command: event.item.command,
+            command: fullCommand,
           });
 
-          // Emit tool call immediately
+          // Emit tool call immediately with simplified command for display
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -354,13 +397,13 @@ export async function* transformCodexStream(
                 type: 'tool_use',
                 id: toolId,
                 name: 'Bash',
-                input: { command: event.item.command },
+                input: { command: displayCommand },
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-call-start', { toolName: 'Bash', toolId, command: event.item.command });
+          streamLog.yield('tool-call-start', { toolName: 'Bash', toolId, command: displayCommand });
           yield toolMessage;
         } else if (itemType === 'file_change') {
           // Store file change info
@@ -370,8 +413,8 @@ export async function* transformCodexStream(
             changes,
           });
 
-          // Emit tool call immediately
-          const paths = changes.map((c: any) => c.path).join(', ');
+          // Emit tool call immediately with simplified paths for display
+          const displayPaths = changes.map((c: any) => getBasename(c.path)).join(', ');
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -380,13 +423,13 @@ export async function* transformCodexStream(
                 type: 'tool_use',
                 id: toolId,
                 name: 'Write',
-                input: { paths: changes },
+                input: { paths: displayPaths },
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths });
+          streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths: displayPaths });
           yield toolMessage;
         } else if (itemType === 'mcp_tool_call') {
           // MCP tool call started

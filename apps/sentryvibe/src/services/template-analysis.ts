@@ -8,11 +8,10 @@ import {
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
-import { generateObject, generateText } from 'ai';
+import { generateObject } from 'ai';
 import { TemplateAnalysisSchema, ProjectNamingSchema } from '../schemas/metadata';
 
-// Create Claude Code provider instance
-// This picks up ANTHROPIC_API_KEY from environment automatically
+// Create Claude Code provider - inherits authentication from local CLI
 const claudeCode = createClaudeCode();
 
 interface AnalysisModelConfig {
@@ -95,21 +94,14 @@ Requirements:
 - Friendly name: Title Case, readable, professional
 - Both should be descriptive and clear`;
 
-  console.log('[template-analysis] Generating project names with Haiku');
-
   try {
-    // Always use Haiku for name generation (fast + cheap)
     const result = await generateObject({
-      model: claudeCode('haiku'),
+      model: claudeCode('claude-haiku-4-5'),
       schema: ProjectNamingSchema,
       prompt: namePrompt,
-      temperature: 0.3, // Lower temperature for consistent naming
     });
 
     const { slug, friendlyName } = result.object;
-
-    console.log(`[template-analysis] Generated slug: ${slug}`);
-    console.log(`[template-analysis] Generated friendly name: ${friendlyName}`);
 
     // Validate slug
     if (slug.length < 2 || slug.length > 100 || !/^[a-z0-9-]+$/.test(slug)) {
@@ -118,7 +110,6 @@ Requirements:
 
     return { slug, friendlyName };
   } catch (error) {
-    console.error('[template-analysis] Name generation failed, using fallback:', error);
 
     // Fallback: generate simple slug and title-case it for friendly name
     const words = prompt
@@ -149,8 +140,6 @@ export async function analyzePromptForTemplate(
 ): Promise<TemplateAnalysisResult> {
   const modelConfig = getAnalysisModelConfig(selectedAgent, claudeModel);
   const systemPrompt = buildTemplateSelectionPrompt(templates, selectedAgent, claudeModel);
-
-  console.log(`[template-analysis] Using ${modelConfig.displayName} for template selection`);
 
   let analysisResponse: string;
 
@@ -185,9 +174,6 @@ export async function analyzePromptForTemplate(
   try {
     result = JSON.parse(cleanedResponse);
   } catch (error) {
-    console.error('[template-analysis] Failed to parse JSON response');
-    console.error('[template-analysis] Raw response:', analysisResponse.substring(0, 200));
-    console.error('[template-analysis] Cleaned response:', cleanedResponse.substring(0, 200));
     throw new Error(`Invalid JSON from template analysis: ${error instanceof Error ? error.message : 'Parse failed'}`);
   }
 
@@ -219,22 +205,15 @@ async function analyzeWithClaude(
   userPrompt: string,
   model: string
 ): Promise<string> {
-  // Use AI SDK's generateObject for structured output
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
-  try {
-    const result = await generateObject({
-      model: claudeCode(model),
-      schema: TemplateAnalysisSchema,
-      prompt: combinedPrompt,
-    });
+  const result = await generateObject({
+    model: claudeCode(model),
+    schema: TemplateAnalysisSchema,
+    prompt: combinedPrompt,
+  });
 
-    // Return as JSON string to match expected interface
-    return JSON.stringify(result.object);
-  } catch (error) {
-    console.error('[template-analysis] Structured output failed:', error);
-    throw error;
-  }
+  return JSON.stringify(result.object);
 }
 
 async function analyzeWithOpenAI(
@@ -242,23 +221,44 @@ async function analyzeWithOpenAI(
   userPrompt: string,
   model: string
 ): Promise<string> {
-  // Use Sentry instrumented Codex SDK (same as runner)
-  const codex = await Sentry.createInstrumentedCodex({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  try {
+    // Use Sentry instrumented Codex SDK (same as runner)
+    const codex = await Sentry.createInstrumentedCodex({
+      workingDirectory: process.cwd(),
+    });
 
-  const thread = codex.startThread({
-    sandboxMode: 'workspace-write', // Workspace-write mode for template analysis
-    model,
-  });
+    const thread = codex.startThread({
+      sandboxMode: 'danger-full-access',
+      model,
+      workingDirectory: process.cwd(),
+      skipGitRepoCheck: true,
+    });
 
-  // Just pass the user's request - system prompt already explains what to do
-  const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
+    const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
+    const { events } = await thread.runStreamed(combinedPrompt);
+    let accumulated = '';
 
-  const result = await thread.run(combinedPrompt);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for await (const event of events as AsyncIterable<any>) {
+      if (event?.type === 'item.completed') {
+        const item = event.item as Record<string, unknown> | undefined;
+        const text = typeof item?.text === 'string' ? item.text : undefined;
+        if (text) {
+          accumulated += text;
+        }
+      } else if (event?.type === 'turn.completed' && typeof event.finalResponse === 'string') {
+        accumulated += event.finalResponse;
+      }
+    }
 
-  // Extract text from Codex response
-  return result.finalResponse ?? '{}';
+    if (!accumulated) {
+      throw new Error('Codex returned no response for template analysis');
+    }
+
+    return accumulated;
+  } catch (error) {
+    throw error;
+  }
 }
 
 function buildTemplateSelectionPrompt(

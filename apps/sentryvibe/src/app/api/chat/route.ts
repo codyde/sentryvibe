@@ -1,22 +1,12 @@
-import { streamText, UIMessage, convertToModelMessages } from 'ai';
-import { createClaudeCode } from 'ai-sdk-provider-claude-code';
-import { DEFAULT_CLAUDE_MODEL_ID } from '@sentryvibe/agent-core/types/agent';
-import type { ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
+import { streamText, UIMessage, convertToModelMessages } from "ai";
+import { createClaudeCode } from "ai-sdk-provider-claude-code";
+import { DEFAULT_CLAUDE_MODEL_ID } from "@sentryvibe/agent-core/types/agent";
+import type { ClaudeModelId } from "@sentryvibe/agent-core/types/agent";
+import * as Sentry from "@sentry/nextjs";
 
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
-
-// Create Claude Code provider with built-in bash and text editor tools
-// It automatically picks up ANTHROPIC_API_KEY from environment
 const claudeCode = createClaudeCode({
   defaultSettings: {
-    permissionMode: 'bypassPermissions', // Options: 'default' | 'auto' | 'bypassPermissions'
-    mcpServers: {
-      SentryDocs: {
-        type: 'http',
-        url: 'https://sentry-docs-8npjzzby2.sentry.dev/api/mcp',
-      }
-    },
+    permissionMode: "bypassPermissions",
     customSystemPrompt: `You are a helpful coding assistant specialized in building JavaScript applications and prototyping ideas.
 
 CRITICAL WORKFLOW - FOLLOW THIS EXACT SEQUENCE:
@@ -28,7 +18,13 @@ Projects should ALWAYS be created in the <current-project-root>/projects/ direct
    - For Vite + React: npm create vite@latest <project-name> -- --template react-ts
    - For other frameworks: use their official CLI scaffolding tools
 
-2. After completion, test the build by attmepting to start the application and then trying to open it, and read your terminal line to see if there are any errors. If there are, fix them. 
+2. After completion, you MUST test the build:
+   - Start the development server (npm run dev, npm start, etc.)
+   - Wait for it to start successfully and verify no errors
+   - Check the terminal output carefully
+   - If there are any errors, fix them
+   - After testing is complete, stop the dev server (Ctrl+C)
+   - Do NOT leave the dev server running 
 
 3. After completing ALL tasks, ALWAYS offer to install Sentry:
    - Ask if the user wants Sentry installed
@@ -41,51 +37,85 @@ ALWAYS verify each step is complete before moving to the next.`,
 });
 
 export async function POST(req: Request) {
-  console.log('📨 Received request to /api/chat');
+  const {
+    messages,
+    claudeModel,
+  }: { messages: UIMessage[]; claudeModel?: ClaudeModelId } = await req.json();
   
-  const { messages, claudeModel }: { messages: UIMessage[]; claudeModel?: ClaudeModelId } = await req.json();
-  console.log(`💬 Processing ${messages.length} message(s)`);
+  Sentry.logger.info(
+    Sentry.logger.fmt`Processing chat messages ${{
+      messageCount: messages.length,
+      messages,
+      claudeModel,
+    }}`
+  );
 
   const selectedClaudeModel: ClaudeModelId =
-    claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5'
+    claudeModel === "claude-haiku-4-5" || claudeModel === "claude-sonnet-4-5"
       ? claudeModel
       : DEFAULT_CLAUDE_MODEL_ID;
 
   const result = streamText({
     model: claudeCode(selectedClaudeModel),
-    experimental_telemetry:{
+    experimental_telemetry: {
       isEnabled: true,
-      functionId: 'Code'
+      functionId: "Code",
     },
     messages: convertToModelMessages(messages),
-    async onStepFinish({ text, toolCalls, toolResults, finishReason, usage, response }) {
-      console.log('📊 Step finished:', {
-        finishReason,
-        usage,
-        hasText: !!text,
-        toolCallsCount: toolCalls?.length || 0,
-        toolResultsCount: toolResults?.length || 0,
-        responseType: response ? 'has response' : 'no response',
-      });
-      
-      // Log tool activity to server console
+    async onStepFinish({
+      text,
+      toolCalls,
+      toolResults,
+      finishReason,
+      usage,
+      response,
+    }) {
+      Sentry.logger.info(
+        Sentry.logger.fmt`Chat step finished ${{
+          finishReason,
+          usage,
+          hasText: !!text,
+          toolCallsCount: toolCalls?.length || 0,
+          toolResultsCount: toolResults?.length || 0,
+          responseType: response ? "has response" : "no response",
+        }}`
+      );
+
+      // Log tool activity
       if (toolCalls && toolCalls.length > 0) {
-        console.log('🔧 Tool Calls:', JSON.stringify(toolCalls, null, 2));
+        Sentry.logger.info(
+          Sentry.logger.fmt`Tool calls executed ${{
+            toolCalls,
+          }}`
+        );
       }
       if (toolResults && toolResults.length > 0) {
-        console.log('✅ Tool Results:', JSON.stringify(toolResults, null, 2));
+        Sentry.logger.info(
+          Sentry.logger.fmt`Tool results received ${{
+            toolResults,
+          }}`
+        );
       }
       if (text) {
-        console.log('📝 Text generated:', text.slice(0, 200));
+        Sentry.logger.info(
+          Sentry.logger.fmt`Text generated ${{
+            text,
+            textPreview: text.slice(0, 200),
+          }}`
+        );
       }
-      
-      // Log the full response to see what Anthropic is returning
+
+      // Log the full response
       if (response?.messages) {
-        console.log('🔍 Response messages:', JSON.stringify(response.messages, null, 2));
+        Sentry.logger.info(
+          Sentry.logger.fmt`Response messages ${{
+            messages: response.messages,
+          }}`
+        );
       }
     },
   });
 
-  console.log('✨ Streaming response back to client');
+  Sentry.logger.info(Sentry.logger.fmt`Streaming chat response back to client`);
   return result.toUIMessageStreamResponse();
 }

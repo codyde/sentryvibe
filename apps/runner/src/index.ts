@@ -131,12 +131,69 @@ function resolveCodexItemId(item: Record<string, unknown> | undefined): string {
   return randomUUID();
 }
 
+/**
+ * Helper to extract just the filename from a path
+ */
+function getBasename(path: string): string {
+  return path.split('/').pop() || path;
+}
+
+/**
+ * Helper to extract command name and filename from a full command string
+ * Example: "cd /path/to/project && npm install" -> "npm install"
+ * Example: "cat /long/path/to/file.ts" -> "cat file.ts"
+ */
+function simplifyCommand(fullCommand: string): string {
+  // Remove cd commands and everything before &&
+  let cmd = fullCommand.replace(/^.*&&\s*/, '').trim();
+  
+  // Strip leading and trailing quotes (single or double)
+  cmd = cmd.replace(/^["']|["']$/g, '');
+  
+  // For file operation commands (cat, grep, edit, etc.), extract just filename
+  const fileOpMatch = cmd.match(/^(\w+)\s+(.+)$/);
+  if (fileOpMatch) {
+    const [, command, args] = fileOpMatch;
+    // Split by spaces to handle multiple arguments
+    const argParts = args.split(/\s+/);
+    const simplifiedArgs = argParts.map(arg => {
+      // Strip quotes from individual arguments
+      const cleanArg = arg.replace(/^["']|["']$/g, '');
+      // If it looks like a file path, extract basename
+      if (cleanArg.includes('/')) {
+        return cleanArg.split('/').pop() || cleanArg;
+      }
+      return cleanArg;
+    });
+    return `${command} ${simplifiedArgs.join(' ')}`;
+  }
+  
+  return cmd;
+}
+
 function extractCodexToolInput(item: Record<string, unknown> | undefined) {
   if (!item) return {};
   const possibleKeys = ["arguments", "args", "input"] as const;
   for (const key of possibleKeys) {
     const value = item[key as keyof typeof item];
     if (value !== undefined) {
+      // Simplify paths in tool inputs for better display
+      if (typeof value === 'object' && value !== null) {
+        const inputObj = { ...value } as Record<string, unknown>;
+        
+        // Simplify file_path or path parameters
+        if (typeof inputObj.file_path === 'string') {
+          inputObj.file_path = getBasename(inputObj.file_path);
+        }
+        if (typeof inputObj.path === 'string') {
+          inputObj.path = getBasename(inputObj.path);
+        }
+        if (typeof inputObj.target_file === 'string') {
+          inputObj.target_file = getBasename(inputObj.target_file);
+        }
+        
+        return inputObj;
+      }
       return value;
     }
   }
@@ -213,6 +270,8 @@ async function* convertCodexEventsToAgentMessages(
             },
           };
         } else if (itemType === "command_execution") {
+          const fullCommand = (item?.command as string) || (item?.cmd as string) || "";
+          const displayCommand = simplifyCommand(fullCommand);
           yield {
             type: "assistant",
             message: {
@@ -223,8 +282,7 @@ async function* convertCodexEventsToAgentMessages(
                   id: itemId,
                   name: "command_execution",
                   input: {
-                    command:
-                      (item?.command as string) || (item?.cmd as string) || "",
+                    command: displayCommand,
                   },
                 },
               ],
@@ -234,7 +292,7 @@ async function* convertCodexEventsToAgentMessages(
           // Convert file_change events to tool_use for UI display
           const changes =
             (item?.changes as { kind: string; path: string }[]) || [];
-          const filePaths = changes.map((c) => c.path || "unknown").join(", ");
+          const filePaths = changes.map((c) => getBasename(c.path) || "unknown").join(", ");
           yield {
             type: "assistant",
             message: {
@@ -472,7 +530,6 @@ function createCodexQuery(): BuildQueryFn {
     fileLog.info("Prompt length:", prompt.length);
 
     const codex = await createInstrumentedCodex({
-      apiKey: process.env.OPENAI_API_KEY,
       workingDirectory,
     });
 
@@ -565,12 +622,15 @@ function createCodexQuery(): BuildQueryFn {
 
       // Log full prompt being sent to Codex
       if (turnCount === 1) {
-        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('📝 FULL CODEX PROMPT (Turn 1):');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log(turnPrompt);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log(`Length: ${turnPrompt.length} characters\n`);
+        Sentry.logger.info(
+          Sentry.logger.fmt`Full Codex prompt (Turn 1) ${{
+            prompt: turnPrompt,
+            promptLength: turnPrompt.length,
+            promptPreview: turnPrompt.substring(0, 200),
+            operation: 'codex_query',
+            turnCount: 1,
+          }}`
+        );
 
         // Also log to file
         fileLog.info('━━━ FULL CODEX PROMPT ━━━');

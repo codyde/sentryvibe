@@ -45,6 +45,9 @@ export default function BuildProgress({
       todosLength: state?.todos?.length || 0,
       isActive: state?.isActive,
       activeTodoIndex: state?.activeTodoIndex,
+      agentId: state?.agentId,
+      claudeModelId: state?.claudeModelId,
+      projectName: state?.projectName,
     });
 
     if (state?.toolsByTodo) {

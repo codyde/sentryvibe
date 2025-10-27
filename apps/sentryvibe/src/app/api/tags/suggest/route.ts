@@ -4,7 +4,6 @@ import { TAG_DEFINITIONS, findTagDefinition } from '@sentryvibe/agent-core/confi
 export const maxDuration = 30;
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
 interface SuggestedTag {

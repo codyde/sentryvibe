@@ -35,7 +35,7 @@
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentryvibe/agent-core": "workspace:*",
-    "ai": "^5.0.57",
+    "ai": "^5.0.79",
     "ai-sdk-provider-claude-code": "file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz",
     "ansi-to-html": "^0.7.2",
     "class-variance-authority": "^0.7.1",

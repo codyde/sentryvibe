@@ -19,6 +19,16 @@ function getParentDirectory(filePath: string): string {
 function buildCodexSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
 
+  // PRIORITY 1: User-specified tags (must be first so AI sees them immediately)
+  if (context.tags && context.tags.length > 0) {
+    const resolved = resolveTags(context.tags);
+    const tagPrompt = generatePromptFromTags(resolved, context.projectName, context.isNewProject);
+    if (tagPrompt) {
+      sections.push(tagPrompt);
+    }
+  }
+
+  // PRIORITY 2: Project context and setup instructions
   if (context.isNewProject) {
     // NEW: Check if template was pre-selected by frontend
     if (context.templateMetadata) {
@@ -69,15 +79,6 @@ Simply include a JSON code block in your response like this:
 The system automatically extracts this from your response text.
 DO NOT try to call it as a tool, run it as a command, or install it as a binary.
 Just include the JSON code block in your message.`);
-
-  // Add tag-based configuration (same as claude-strategy)
-  if (context.tags && context.tags.length > 0) {
-    const resolved = resolveTags(context.tags);
-    const tagPrompt = generatePromptFromTags(resolved, context.projectName);
-    if (tagPrompt) {
-      sections.push(tagPrompt);
-    }
-  }
 
   // NEW: Only include template catalog if template wasn't pre-selected
   if (context.templateSelectionContext && !context.templateMetadata) {
