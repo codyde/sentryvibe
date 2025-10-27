@@ -82,7 +82,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/agent-core
       ai:
-        specifier: ^5.0.57
+        specifier: ^5.0.79
         version: 5.0.79(zod@4.1.12)
       ai-sdk-provider-claude-code:
         specifier: file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz
