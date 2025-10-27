@@ -46,39 +46,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // Continue trace from broker if headers present
-    const sentryTrace = request.headers.get('sentry-trace');
-    const baggage = request.headers.get('baggage');
-
-    const processEvent = () => {
-      // Wrap publishRunnerEvent in span to trace persistence
-      return Sentry.startSpan(
-        {
-          name: `api.runner.events.${event.type}`,
-          op: 'api.runner.event.process',
-          attributes: {
-            'event.type': event.type,
-            'event.projectId': event.projectId,
-            'event.commandId': event.commandId,
-          },
+    // Note: Sentry's automatic HTTP instrumentation already handles
+    // trace continuation from the sentry-trace and baggage headers.
+    // We just need to create our span within the existing HTTP request context.
+    // DO NOT use continueTrace() here - it creates a sibling instead of a child!
+    
+    await Sentry.startSpan(
+      {
+        name: `api.runner.events.${event.type}`,
+        op: 'api.runner.event.process',
+        attributes: {
+          'event.type': event.type,
+          'event.projectId': event.projectId,
+          'event.commandId': event.commandId,
         },
-        () => {
-          publishRunnerEvent(event);
-        }
-      );
-    };
-
-    // If trace context exists, continue the trace from broker/runner
-    if (sentryTrace && baggage) {
-      await Sentry.continueTrace(
-        { sentryTrace, baggage },
-        async () => {
-          await processEvent();
-        }
-      );
-    } else {
-      await processEvent();
-    }
+      },
+      async () => {
+        publishRunnerEvent(event);
+      }
+    )
 
 
     if (event.type === 'log-chunk' && typeof event.data === 'string') {
