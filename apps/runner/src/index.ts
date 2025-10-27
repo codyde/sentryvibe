@@ -508,173 +508,53 @@ function createCodexQuery(): BuildQueryFn {
 
     buildLogger.codexQuery.threadStarting();
 
-    const MAX_TURNS = 50;
-    let turnCount = 0;
-    let smartTracker: SmartTodoTracker | null = null;
-    let initialTodosReceived = false;
-
     // ========================================
-    // SIMPLIFIED: DIRECT EXECUTION (NO PLANNING PHASE)
+    // SINGLE TURN: LET CODEX WORK COMPLETELY
     // ========================================
-    // Codex naturally creates its task breakdown in the first turn
-    // We extract it from there instead of forcing a separate planning phase
-    log("🎯 [codex-query] Starting Codex execution...");
+    // Codex does ALL the work in one turn - no task-by-task splitting
+    // This matches Claude Code's behavior and avoids premature completion
+    log("🎯 [codex-query] Starting single-turn Codex execution...");
 
-    // Track thread ID for future resumptions (populated after first turn)
+    // Track thread ID for future resumptions
     let capturedThreadId: string | null = null;
 
-    // First turn: Let Codex work freely and extract task breakdown from its output
-    turnCount++;
-    log(`🚀 [codex-query] Turn ${turnCount}: Sending initial prompt to Codex...`);
+    // Execute single turn with full prompt
+    log(`🚀 [codex-query] Sending complete request to Codex...`);
+    const streamedTurn = await thread.runStreamed(combinedPrompt);
 
-    while (turnCount <= MAX_TURNS) {
-      // Capture thread ID if available (for future resumptions)
-      if (!capturedThreadId && thread.id) {
-        capturedThreadId = thread.id;
-        fileLog.info('Codex thread ID captured:', capturedThreadId);
+    // Capture thread ID
+    if (thread.id) {
+      capturedThreadId = thread.id;
+      fileLog.info('Codex thread ID captured:', capturedThreadId);
 
-        // Send thread ID to frontend
-        const threadIdEvent = {
-          type: "assistant",
-          message: {
-            id: `codex-thread-${Date.now()}`,
-            content: [
-              {
-                type: "metadata",
-                metadata_type: "codex_thread_id",
-                thread_id: capturedThreadId,
-              }
-            ],
-          },
-        };
-        yield threadIdEvent;
-        fileLog.info('Thread ID sent to frontend:', capturedThreadId);
-      }
-
-      // Determine prompt for this turn
-      let turnPrompt: string;
-
-      if (!initialTodosReceived) {
-        // First turn - just send the original prompt
-        turnPrompt = combinedPrompt;
-        log("[codex-query] Sending initial request (Codex will create task breakdown naturally)");
-      } else if (!smartTracker) {
-        // Shouldn't happen, but fallback
-        log("✅ [codex-query] No tasks to track, completing");
-        break;
-      } else if (isTrackerComplete(smartTracker)) {
-        log("✅ [codex-query] All tasks complete!");
-        break;
-      } else {
-        // Working on specific task
-        const currentTask = getCurrentTask(smartTracker);
-        if (!currentTask) {
-          log("❌ [codex-query] No current task - cannot continue");
-          break;
-        }
-
-        const currentTaskIndex = smartTracker.currentIndex;
-        log(
-          `🚀 [codex-query] Working on task ${currentTaskIndex + 1}: ${currentTask.content}`
-        );
-
-        // Send pre-task TodoWrite to set active index
-        const preTaskUpdate = {
-          type: "assistant",
-          message: {
-            id: `pre-task-${Date.now()}`,
-            content: [
-              {
-                type: "tool_use",
-                id: `pre-todo-${Date.now()}`,
-                name: "TodoWrite",
-                input: { todos: smartTracker.todos },
-              },
-            ],
-          },
-        };
-        yield preTaskUpdate;
-
-        turnPrompt = `Work on this specific task NOW: "${currentTask.content}"
-
-Execute ALL necessary file operations and commands to fully complete this task.
-Don't just plan - TAKE ACTION and create/modify files.`;
-      }
-
-      // Stream events through Codex SDK adapter
-      const streamedTurn = await thread.runStreamed(turnPrompt);
-
-      // StreamedTurn has an 'events' property that's an AsyncGenerator<ThreadEvent>
-      // Pass the entire stream to transformer to preserve Sentry async context
-      for await (const message of transformCodexStream(streamedTurn.events)) {
-        // On first turn, intercept TodoWrite to initialize smart tracker
-        if (!initialTodosReceived && message.type === 'assistant') {
-          const todoWriteBlock = message.message.content.find(
-            (block: any) => block.type === 'tool_use' && block.name === 'TodoWrite'
-          );
-
-          if (todoWriteBlock && todoWriteBlock.input?.todos) {
-            const todos = todoWriteBlock.input.todos;
-            fileLog.info(`✅ Received initial ${todos.length} todos from Codex`);
-            fileLog.info(`   First todo: ${todos[0]?.content || 'unknown'}`);
-
-            // Initialize smart tracker from Codex's task breakdown
-            smartTracker = createSmartTracker(todos);
-            initialTodosReceived = true;
-
-            log(`✅ [codex-query] Initialized with ${todos.length} tasks from Codex`);
-          }
-        }
-
-        yield message;
-      }
-
-      // After first turn, check if we got todos
-      if (turnCount === 1 && !smartTracker) {
-        log("⚠️  [codex-query] No todos received from Codex in first turn, completing");
-        break;
-      }
-
-      // Update task status if we have a tracker and we're past first turn
-      if (smartTracker && initialTodosReceived) {
-        const currentTaskIndex = smartTracker.currentIndex;
-
-        // Mark current task as complete
-        if (smartTracker.todos[currentTaskIndex]) {
-          smartTracker.todos[currentTaskIndex].status = "completed";
-        }
-
-        // Move to next task if available
-        if (currentTaskIndex + 1 < smartTracker.todos.length) {
-          smartTracker.todos[currentTaskIndex + 1].status = "in_progress";
-          smartTracker.currentIndex = currentTaskIndex + 1;
-        }
-
-        // Send post-task TodoWrite
-        const postTaskUpdate = {
-          type: "assistant",
-          message: {
-            id: `post-task-${Date.now()}`,
-            content: [
-              {
-                type: "tool_use",
-                id: `post-todo-${Date.now()}`,
-                name: "TodoWrite",
-                input: { todos: smartTracker.todos },
-              },
-            ],
-          },
-        };
-        yield postTaskUpdate;
-      }
-
-      // Increment turn counter to prevent infinite loop
-      turnCount++;
+      // Send thread ID to frontend
+      const threadIdEvent = {
+        type: "assistant",
+        message: {
+          id: `codex-thread-${Date.now()}`,
+          content: [
+            {
+              type: "metadata",
+              metadata_type: "codex_thread_id",
+              thread_id: capturedThreadId,
+            }
+          ],
+        },
+      };
+      yield threadIdEvent;
+      fileLog.info('Thread ID sent to frontend:', capturedThreadId);
     }
 
-    buildLogger.codexQuery.sessionComplete(turnCount);
+    // Stream all events from Codex
+    // Codex will naturally create task breakdown and work through it
+    // Our extraction will capture the todos from JSON code blocks
+    for await (const message of transformCodexStream(streamedTurn.events)) {
+      yield message;
+    }
+
+    buildLogger.codexQuery.sessionComplete(1);
     fileLog.info("━━━ CODEX QUERY COMPLETE ━━━");
-    fileLog.info(`Total turns: ${turnCount}`);
+    fileLog.info(`Total turns: 1`);
   };
 }
 
