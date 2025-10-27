@@ -190,6 +190,7 @@ class BuildWebSocketServer {
   broadcastToolCall(projectId: string, sessionId: string, toolCall: {
     id: string;
     name: string;
+    todoIndex: number; // Explicit todo index for proper nesting
     input?: unknown;
     state: 'input-available' | 'output-available';
   }) {

@@ -456,10 +456,15 @@ async function persistEvent(
         }
         await persistToolCall(context, eventData, 'input-available');
         
-        // Broadcast tool call via WebSocket
+        // Broadcast tool call via WebSocket with explicit todoIndex
+        const todoIndex = typeof eventData.todoIndex === 'number'
+          ? eventData.todoIndex
+          : context.currentActiveTodoIndex;
+        
         buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
           id: eventData.toolCallId || '',
           name: eventData.toolName,
+          todoIndex: todoIndex,
           input: eventData.input,
           state: 'input-available',
         });
@@ -485,11 +490,16 @@ async function persistEvent(
 
       await persistToolCall(context, eventData, 'output-available');
       
-      // Broadcast tool completion via WebSocket
+      // Broadcast tool completion via WebSocket with explicit todoIndex
       if (eventData.toolName) {
+        const todoIndex = typeof eventData.todoIndex === 'number'
+          ? eventData.todoIndex
+          : context.currentActiveTodoIndex;
+        
         buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
           id: eventData.toolCallId || '',
           name: eventData.toolName,
+          todoIndex: todoIndex,
           input: undefined,
           state: 'output-available',
         });

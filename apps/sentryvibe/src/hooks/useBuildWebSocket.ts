@@ -154,7 +154,26 @@ export function useBuildWebSocket({
     if (!updates || !Array.isArray(updates) || updates.length === 0) return;
     
     setState((prevState) => {
-      if (!prevState) return prevState;
+      // BUG FIX: If prevState is null (before hydration), queue the updates for later
+      // instead of dropping them. We'll create a minimal state to hold the updates.
+      if (!prevState) {
+        if (DEBUG) console.log('[useBuildWebSocket] Received updates before hydration, creating temporary state');
+        
+        // Create minimal state to hold these updates
+        // This will be merged with hydrated state when it arrives
+        prevState = {
+          id: `temp-${Date.now()}`,
+          projectId: message.projectId || '',
+          projectName: '',
+          operationType: 'continuation',
+          todos: [],
+          toolsByTodo: {},
+          textByTodo: {},
+          activeTodoIndex: -1,
+          isActive: true,
+          startTime: new Date(),
+        };
+      }
       
       let newState = { ...prevState };
       
@@ -182,29 +201,36 @@ export function useBuildWebSocket({
             const toolData = update.data as {
               id: string;
               name: string;
+              todoIndex: number; // Explicit todo index from server
               state: 'input-available' | 'output-available';
               input?: unknown;
             };
             
-            // Find active todo index
-            const activeTodoIndex = newState.activeTodoIndex >= 0 
-              ? newState.activeTodoIndex 
-              : 0;
+            // BUG FIX: Use explicit todoIndex from server instead of guessing
+            // If server didn't provide todoIndex, skip this tool (don't default to 0)
+            if (typeof toolData.todoIndex !== 'number' || toolData.todoIndex < 0) {
+              if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} has no valid todoIndex, skipping`);
+              break;
+            }
+            
+            const targetTodoIndex = toolData.todoIndex;
             
             if (toolData.state === 'input-available') {
-              // Add new tool call
-              const existingTools = newState.toolsByTodo[activeTodoIndex] || [];
+              // Add new tool call to the EXPLICIT todo index from server
+              const existingTools = newState.toolsByTodo[targetTodoIndex] || [];
               
               // Check if tool already exists (prevent duplicates)
               const exists = existingTools.some(t => t.id === toolData.id);
               if (exists) {
-                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} already exists, skipping duplicate`);
+                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} already exists in todo[${targetTodoIndex}], skipping duplicate`);
                 break;
               }
               
+              if (DEBUG) console.log(`[useBuildWebSocket] Adding tool ${toolData.name} to todo[${targetTodoIndex}]`);
+              
               newState.toolsByTodo = {
                 ...newState.toolsByTodo,
-                [activeTodoIndex]: [
+                [targetTodoIndex]: [
                   ...existingTools,
                   {
                     id: toolData.id,
@@ -216,11 +242,13 @@ export function useBuildWebSocket({
                 ],
               };
             } else {
-              // Update existing tool with output
-              const tools = newState.toolsByTodo[activeTodoIndex] || [];
+              // Update existing tool with output in the EXPLICIT todo index
+              const tools = newState.toolsByTodo[targetTodoIndex] || [];
               const toolIndex = tools.findIndex(t => t.id === toolData.id);
               
               if (toolIndex >= 0) {
+                if (DEBUG) console.log(`[useBuildWebSocket] Updating tool ${toolData.id} output in todo[${targetTodoIndex}]`);
+                
                 const updatedTools = [...tools];
                 updatedTools[toolIndex] = {
                   ...updatedTools[toolIndex],
@@ -230,10 +258,10 @@ export function useBuildWebSocket({
                 
                 newState.toolsByTodo = {
                   ...newState.toolsByTodo,
-                  [activeTodoIndex]: updatedTools,
+                  [targetTodoIndex]: updatedTools,
                 };
               } else {
-                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} not found for output update`);
+                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} not found in todo[${targetTodoIndex}] for output update`);
               }
             }
             break;
