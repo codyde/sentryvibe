@@ -51,9 +51,23 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
 - Provide complete file contents for every modification`);
 
-  sections.push(`## Quality Expectations
-- Narrate key steps in the chat stream.
-- Include the mandatory todo list JSON in every response.`);
+  sections.push(`## Task Progress Communication
+At the start and after each major step, communicate your task breakdown by including a JSON code block:
+
+\`\`\`json
+{"todos":[
+  {"content":"Task description","activeForm":"What you're doing","status":"completed"},
+  {"content":"Next task","activeForm":"Working on this now","status":"in_progress"},
+  {"content":"Future task","activeForm":"Will do next","status":"pending"}
+]}
+\`\`\`
+
+Statuses:
+- "completed" = task is done
+- "in_progress" = currently working on this
+- "pending" = not started yet
+
+This helps track progress. Create as many tasks as needed (3, 5, 10, 15+ all fine).`);
 
   // Add tag-based configuration (same as claude-strategy)
   if (context.tags && context.tags.length > 0) {
