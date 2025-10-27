@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     const processEvent = () => {
       // Wrap publishRunnerEvent in span to trace persistence
-      Sentry.startSpan(
+      return Sentry.startSpan(
         {
           name: `api.runner.events.${event.type}`,
           op: 'api.runner.event.process',
@@ -73,11 +73,11 @@ export async function POST(request: Request) {
       await Sentry.continueTrace(
         { sentryTrace, baggage },
         async () => {
-          processEvent();
+          await processEvent();
         }
       );
     } else {
-      processEvent();
+      await processEvent();
     }
 
 
