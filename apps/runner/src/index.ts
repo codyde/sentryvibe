@@ -667,6 +667,9 @@ Don't just plan - TAKE ACTION and create/modify files.`;
         };
         yield postTaskUpdate;
       }
+
+      // Increment turn counter to prevent infinite loop
+      turnCount++;
     }
 
     buildLogger.codexQuery.sessionComplete(turnCount);
