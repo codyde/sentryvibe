@@ -252,6 +252,41 @@ function extractAndConvertTodoWrite(text: string): string {
     result = result.replace(original, replacement);
   }
 
+  // ALSO extract from JSON code blocks: ```json\n{"todos":[...]}\n```
+  const codeBlockPattern = /```json\s*\n([\s\S]*?)\n```/g;
+  let codeBlockMatch: RegExpExecArray | null;
+
+  while ((codeBlockMatch = codeBlockPattern.exec(result)) !== null) {
+    const jsonText = codeBlockMatch[1].trim();
+
+    try {
+      // Convert JS object notation to strict JSON
+      const strictJSON = convertJSObjectToJSON(jsonText);
+      const parsed = JSON.parse(strictJSON);
+
+      // Check if it's a todos array (with or without wrapper)
+      const todosArray = parsed.todos || (Array.isArray(parsed) ? parsed : null);
+
+      if (todosArray && Array.isArray(todosArray)) {
+        const validTodos = todosArray.filter((t: any) =>
+          t && typeof t === 'object' && (t.content || t.activeForm)
+        );
+
+        if (validTodos.length > 0) {
+          // Convert code block to TODO_WRITE marker
+          const todoWriteMarker = `TODO_WRITE : ${JSON.stringify({ todos: validTodos })}`;
+          result = result.replace(codeBlockMatch[0], todoWriteMarker);
+
+          streamLog.info(`[Codex Adapter] Extracted ${validTodos.length} todos from JSON code block`);
+          streamLog.info(`[Codex Adapter] First todo: ${JSON.stringify(validTodos[0])}`);
+        }
+      }
+    } catch (error) {
+      // Not a valid todos structure, leave code block as-is
+      streamLog.warn('[Codex Adapter] Code block is not valid todos JSON:', error);
+    }
+  }
+
   return result;
 }
 
