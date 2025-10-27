@@ -1287,6 +1287,19 @@ function HomeContent() {
       isElementChange,
       isRetry,
     });
+    
+    // CRITICAL DEBUG: Log project state and detected operation type
+    console.log("🎬 Starting build for existing project:", {
+      projectName: project.name,
+      projectId: project.id,
+      projectStatus: project.status,
+      hasRunCommand: !!project.runCommand,
+      runCommand: project.runCommand,
+      detectedOperationType: operationType,
+      isElementChange,
+      isRetry,
+    });
+    
     if (DEBUG_PAGE) console.log("🎬 Starting build:", {
       projectName: project.name,
       operationType,
@@ -2072,7 +2085,8 @@ function HomeContent() {
         setIsCreatingProject(false);
       }
     } else {
-      // Continue existing conversation - add user message to UI
+      // CRITICAL FIX: When currentProject exists, ALWAYS iterate on existing project
+      // Both chat and build tabs work on the same project, just different UI
       await startGeneration(currentProject.id, userPrompt, {
         addUserMessage: true,
       });
@@ -2781,7 +2795,11 @@ function HomeContent() {
                                         <BuildCompleteCard
                                           projectName={currentProject.name}
                                           onStartServer={startDevServer}
+                                          onStopServer={stopDevServer}
                                           progress={progress}
+                                          serverStatus={currentProject.devServerStatus}
+                                          isStartingServer={isStartingServer}
+                                          isStoppingServer={isStoppingServer}
                                         />
                                       );
                                     }

@@ -36,17 +36,33 @@ ALWAYS verify each step is complete before moving to the next.`,
   },
 });
 
+interface ProjectContext {
+  id: string;
+  name: string;
+  slug: string;
+  path: string;
+  projectType: string | null;
+  description: string | null;
+}
+
 export async function POST(req: Request) {
   const {
     messages,
     claudeModel,
-  }: { messages: UIMessage[]; claudeModel?: ClaudeModelId } = await req.json();
+    projectContext,
+  }: { 
+    messages: UIMessage[]; 
+    claudeModel?: ClaudeModelId;
+    projectContext?: ProjectContext;
+  } = await req.json();
   
   Sentry.logger.info(
     Sentry.logger.fmt`Processing chat messages ${{
       messageCount: messages.length,
       messages,
       claudeModel,
+      hasProjectContext: !!projectContext,
+      projectContext,
     }}`
   );
 
@@ -55,8 +71,51 @@ export async function POST(req: Request) {
       ? claudeModel
       : DEFAULT_CLAUDE_MODEL_ID;
 
+  // Build system prompt based on whether we have project context
+  let systemPrompt = "";
+  if (projectContext) {
+    systemPrompt = `You are a helpful coding assistant helping the user iterate on their existing project.
+
+PROJECT CONTEXT:
+- Name: ${projectContext.name}
+- Type: ${projectContext.projectType || "Unknown"}
+- Location: ${projectContext.path}
+${projectContext.description ? `- Description: ${projectContext.description}` : ""}
+
+IMPORTANT INSTRUCTIONS:
+- This is a CHAT conversation about an EXISTING project
+- The user is asking questions or requesting small iterations/clarifications
+- You have access to the project's file system through tools
+- Use tools to read files, understand the codebase, and make targeted changes
+- DO NOT create new projects or trigger full scaffolding
+- DO NOT use CLI scaffolding tools like "create-next-app" or "create vite"
+- Focus on understanding the current state and making precise, helpful changes
+- If the user wants major architectural changes, suggest they use the "Build" tab instead
+- Keep responses focused and conversational - this is a chat, not a full build process
+
+You can:
+✅ Read files to understand the project
+✅ Make small edits and fixes
+✅ Answer questions about the code
+✅ Explain how things work
+✅ Add new features to existing files
+✅ Debug issues
+
+You should NOT:
+❌ Create entirely new projects
+❌ Run CLI scaffolding commands
+❌ Make massive architectural changes
+❌ Delete or restructure the entire project
+
+Remember: This is an iterative chat about an existing project, not a full build session.`;
+  } else {
+    // No project context - this shouldn't normally happen but provide a basic prompt
+    systemPrompt = `You are a helpful coding assistant. You can answer questions and help with code, but for creating new projects, the user should use the main interface.`;
+  }
+
   const result = streamText({
     model: claudeCode(selectedClaudeModel),
+    system: systemPrompt,
     experimental_telemetry: {
       isEnabled: true,
       functionId: "Code",
