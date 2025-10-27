@@ -1228,13 +1228,24 @@ function HomeContent() {
       operationType,
     });
 
-    // Create FRESH generation state for this build
+    // Parse model tag to get effective agent and model BEFORE creating state
+    const modelTag = appliedTags.find(t => t.key === 'model');
+    let effectiveAgent = selectedAgentId;
+    let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+
+    if (modelTag?.value) {
+      const parsed = parseModelTag(modelTag.value);
+      effectiveAgent = parsed.agent;
+      effectiveClaudeModel = parsed.claudeModel;
+    }
+
+    // Create FRESH generation state for this build with tag-derived values
     const freshState = createFreshGenerationState({
       projectId: project.id,
       projectName: project.name,
       operationType,
-      agentId: selectedAgentId,
-      claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+      agentId: effectiveAgent,
+      claudeModelId: effectiveClaudeModel,
     });
 
     updateGenerationState(freshState);

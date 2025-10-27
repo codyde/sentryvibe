@@ -67,7 +67,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               />
             </div>
             <div className="flex-1">
-              <h1 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <h1 className="text-lg font-bold text-white">
                 SentryVibe
               </h1>
               <p className="text-xs text-gray-500">Mission Control</p>

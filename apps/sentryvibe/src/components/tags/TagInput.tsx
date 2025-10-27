@@ -125,8 +125,6 @@ export function TagInput({
   return (
     <div className={className}>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm text-gray-400 font-mono">tags:</span>
-
         {/* Applied tags */}
         {tags.map((tag, index) => (
           <TagBadge
