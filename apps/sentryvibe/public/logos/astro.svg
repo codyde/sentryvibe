@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256px" height="256px" viewBox="0 0 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid">
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="astroGradient">
+            <stop stop-color="#FF5D01" offset="0%"></stop>
+            <stop stop-color="#BC52EE" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g>
+        <path d="M163.008,18.626 C173.008,0.626 197.008,0.626 207.008,18.626 L255.008,118.626 C265.008,136.626 253.008,158.626 232.008,158.626 L136.008,158.626 C115.008,158.626 103.008,136.626 113.008,118.626 L163.008,18.626 Z" fill="url(#astroGradient)"></path>
+        <path d="M138.008,158.626 C130.008,175.626 138.008,195.626 156.008,201.626 C174.008,207.626 194.008,199.626 202.008,182.626 L232.008,158.626 L138.008,158.626 Z" fill="#FFFFFF"></path>
+    </g>
+</svg>

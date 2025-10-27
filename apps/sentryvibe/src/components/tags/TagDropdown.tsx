@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { TAG_DEFINITIONS, TagDefinition, TagOption } from '@sentryvibe/agent-core/config/tags';
 import { ColorPickerTag } from './ColorPickerTag';
 import { BrandThemePreview } from './BrandThemePreview';
+import { FrameworkPreview } from './FrameworkPreview';
 
 interface TagDropdownProps {
   open: boolean;
@@ -128,6 +129,8 @@ export function TagDropdown({
           {def.options?.map(option => {
             // Check if this is a brand option with theme values
             const isBrandOption = def.key === 'brand' && option.values;
+            // Check if this is a framework option
+            const isFrameworkOption = def.key === 'framework' && option.repository;
 
             const optionButton = (
               <button
@@ -171,7 +174,25 @@ export function TagDropdown({
               );
             }
 
-            // Return regular button for non-brand options
+            // Wrap framework options with HoverCard
+            if (isFrameworkOption) {
+              return (
+                <HoverCard key={option.value} openDelay={1000} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    {optionButton}
+                  </HoverCardTrigger>
+                  <HoverCardContent
+                    side="right"
+                    align="start"
+                    className="bg-gray-900 border-gray-800 w-auto min-w-96 max-w-[480px]"
+                  >
+                    <FrameworkPreview framework={option} />
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            }
+
+            // Return regular button for non-brand/non-framework options
             return optionButton;
           })}
         </div>
