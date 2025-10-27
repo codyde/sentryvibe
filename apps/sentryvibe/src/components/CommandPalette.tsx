@@ -244,71 +244,6 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       group: 'Actions',
     });
 
-    // Bulk actions (only show when items are selected)
-    if (selectedItems.size > 0) {
-      items.push({
-        id: 'bulk-stop-servers',
-        label: `Stop ${selectedItems.size} Server${selectedItems.size > 1 ? 's' : ''}`,
-        description: loadingAction === 'bulk-stop-servers' ? 'Stopping servers...' : 'Stop development servers for selected projects',
-        icon: Square,
-        action: {
-          type: 'action',
-          fn: async () => {
-            setLoadingAction('bulk-stop-servers');
-            await Promise.all(
-              Array.from(selectedItems).map((id) =>
-                fetch(`/api/projects/${id}/stop`, { method: 'POST' })
-              )
-            );
-            await refetch();
-            setLoadingAction(null);
-            setSelectedItems(new Set());
-            setBulkMode(false);
-            onOpenChange(false);
-          },
-        },
-        group: 'Bulk Actions',
-      });
-
-      items.push({
-        id: 'bulk-delete',
-        label: `Delete ${selectedItems.size} Project${selectedItems.size > 1 ? 's' : ''}`,
-        description: loadingAction === 'bulk-delete' ? 'Deleting projects...' : 'Permanently delete selected projects',
-        icon: Trash2,
-        action: {
-          type: 'action',
-          fn: async () => {
-            if (confirm(`Are you sure you want to delete ${selectedItems.size} project(s)?`)) {
-              setLoadingAction('bulk-delete');
-              await Promise.all(
-                Array.from(selectedItems).map((id) =>
-                  fetch(`/api/projects/${id}`, { method: 'DELETE' })
-                )
-              );
-              await refetch();
-              setLoadingAction(null);
-              setSelectedItems(new Set());
-              setBulkMode(false);
-              onOpenChange(false);
-            }
-          },
-        },
-        group: 'Bulk Actions',
-      });
-
-      items.push({
-        id: 'clear-selection',
-        label: 'Clear Selection',
-        description: 'Deselect all projects',
-        icon: XSquare,
-        action: {
-          type: 'action',
-          fn: () => setSelectedItems(new Set()),
-        },
-        group: 'Bulk Actions',
-      });
-    }
-
     // Project list - drill down on selection
     projects.forEach((project) => {
       // In bulk mode, show selection toggle
@@ -327,7 +262,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
 
       // Normal mode: Show project list, drill down to see actions
       const projectIcon = getIconComponent(project.icon);
-      const metadata = [];
+      const metadata: string[] = [];
       if (project.projectType) metadata.push(project.projectType);
       if (project.port || project.devServerPort) metadata.push(`Port ${project.devServerPort || project.port}`);
       if (project.runnerId) metadata.push(`Runner: ${project.runnerId.substring(0, 8)}`);
@@ -363,22 +298,58 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
     return Array.from(groups.entries());
   }, [commands]);
 
+  // Bulk action handlers
+  const handleBulkStopServers = async () => {
+    setLoadingAction('bulk-stop-servers');
+    await Promise.all(
+      Array.from(selectedItems).map((id) =>
+        fetch(`/api/projects/${id}/stop`, { method: 'POST' })
+      )
+    );
+    await refetch();
+    setLoadingAction(null);
+    setSelectedItems(new Set());
+    setBulkMode(false);
+    onOpenChange(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (confirm(`Are you sure you want to delete ${selectedItems.size} project(s)?`)) {
+      setLoadingAction('bulk-delete');
+      await Promise.all(
+        Array.from(selectedItems).map((id) =>
+          fetch(`/api/projects/${id}`, { method: 'DELETE' })
+        )
+      );
+      await refetch();
+      setLoadingAction(null);
+      setSelectedItems(new Set());
+      setBulkMode(false);
+      onOpenChange(false);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedItems(new Set());
+  };
+
   const handleSelect = (command: CommandItem) => {
-    switch (command.action.type) {
+    const action = command.action;
+    switch (action.type) {
       case 'navigate':
-        router.push(command.action.path);
+        router.push(action.path);
         onOpenChange(false);
         break;
       case 'action':
-        command.action.fn();
+        action.fn();
         break;
       case 'bulk-select':
         setSelectedItems((prev) => {
           const next = new Set(prev);
-          if (next.has(command.action.projectId)) {
-            next.delete(command.action.projectId);
+          if (next.has(action.projectId)) {
+            next.delete(action.projectId);
           } else {
-            next.add(command.action.projectId);
+            next.add(action.projectId);
           }
           return next;
         });
@@ -438,6 +409,43 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
             </span>
           )}
         </div>
+
+        {/* Bulk Action Buttons */}
+        {selectedItems.size > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-purple-500/5">
+            <button
+              onClick={handleBulkStopServers}
+              disabled={loadingAction === 'bulk-stop-servers'}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-red-500/20 border border-red-500/30 rounded-md hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingAction === 'bulk-stop-servers' ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Square className="h-3 w-3" />
+              )}
+              <span>Stop {selectedItems.size} Server{selectedItems.size > 1 ? 's' : ''}</span>
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={loadingAction === 'bulk-delete'}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-red-500/20 border border-red-500/30 rounded-md hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingAction === 'bulk-delete' ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              <span>Delete {selectedItems.size} Project{selectedItems.size > 1 ? 's' : ''}</span>
+            </button>
+            <button
+              onClick={handleClearSelection}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-800/50 border border-gray-700/50 rounded-md hover:bg-gray-800 hover:text-white transition-colors ml-auto"
+            >
+              <XSquare className="h-3 w-3" />
+              <span>Clear</span>
+            </button>
+          </div>
+        )}
 
         <Command.List className="max-h-[400px] overflow-y-auto p-2">
           <Command.Empty className="py-6 text-center text-sm text-gray-500">
