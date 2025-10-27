@@ -330,43 +330,69 @@ process.on('unhandledRejection', (reason, promise) => {
     instrument_1.Sentry.captureException(reason, { level: 'error' });
 });
 async function forwardEvent(event) {
-    try {
-        const headers = {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${SHARED_SECRET}`,
-        };
-        // Propagate Sentry trace headers if present
-        if (event._sentry?.trace) {
-            headers['sentry-trace'] = event._sentry.trace;
+    // Continue trace if event has trace context from runner
+    const forwardOperation = async () => {
+        try {
+            const headers = {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${SHARED_SECRET}`,
+            };
+            // Propagate Sentry trace headers if present
+            if (event._sentry?.trace) {
+                headers['sentry-trace'] = event._sentry.trace;
+            }
+            if (event._sentry?.baggage) {
+                headers['baggage'] = event._sentry.baggage;
+            }
+            const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(event),
+            }, 3);
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('[broker] Failed to forward event', response.status, text);
+                // Add to failed queue for retry
+                failedEvents.push({ event, attempts: 1 });
+                instrument_1.Sentry.captureMessage('Failed to forward event', {
+                    level: 'warning',
+                    tags: { eventType: event.type, statusCode: response.status },
+                    extra: { responseText: text },
+                });
+            }
         }
-        if (event._sentry?.baggage) {
-            headers['baggage'] = event._sentry.baggage;
-        }
-        const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(event),
-        }, 3);
-        if (!response.ok) {
-            const text = await response.text();
-            console.error('[broker] Failed to forward event', response.status, text);
+        catch (error) {
+            totalErrors++;
+            console.error('[broker] Error forwarding event', error);
             // Add to failed queue for retry
             failedEvents.push({ event, attempts: 1 });
-            instrument_1.Sentry.captureMessage('Failed to forward event', {
-                level: 'warning',
-                tags: { eventType: event.type, statusCode: response.status },
-                extra: { responseText: text },
+            instrument_1.Sentry.captureException(error, {
+                tags: { eventType: event.type, source: 'forward_event' },
+                level: 'error',
             });
         }
-    }
-    catch (error) {
-        totalErrors++;
-        console.error('[broker] Error forwarding event', error);
-        // Add to failed queue for retry
-        failedEvents.push({ event, attempts: 1 });
-        instrument_1.Sentry.captureException(error, {
-            tags: { eventType: event.type, source: 'forward_event' },
-            level: 'error',
+    };
+    // If event has trace context, continue the trace
+    if (event._sentry?.trace && event._sentry?.baggage) {
+        await instrument_1.Sentry.continueTrace({
+            sentryTrace: event._sentry.trace,
+            baggage: event._sentry.baggage,
+        }, async () => {
+            await instrument_1.Sentry.startSpan({
+                name: `broker.forwardEvent.${event.type}`,
+                op: 'broker.event.forward',
+                attributes: {
+                    'event.type': event.type,
+                    'event.projectId': event.projectId,
+                    'event.commandId': event.commandId,
+                },
+            }, async () => {
+                await forwardOperation();
+            });
         });
+    }
+    else {
+        // No trace context, just forward
+        await forwardOperation();
     }
 }
