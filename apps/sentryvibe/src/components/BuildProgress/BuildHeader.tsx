@@ -42,9 +42,20 @@ export function BuildHeader({
   onClose,
   templateInfo,
 }: BuildHeaderProps) {
+  // DEBUG: Log agent values
+  console.log('🔍 [BuildHeader] Agent values:', {
+    agentId,
+    claudeModelId,
+    projectName,
+    agentIdType: typeof agentId,
+    agentIdValue: agentId,
+    isCodex: agentId === 'openai-codex',
+    isClaude: agentId === 'claude-code',
+  });
+
   const agentLabel =
     agentId === 'openai-codex'
-      ? 'Codex'
+      ? 'OpenAI GPT-5 Codex'
       : `Claude Code • ${getClaudeModelLabel(claudeModelId ?? DEFAULT_CLAUDE_MODEL_ID)}`;
 
   return (

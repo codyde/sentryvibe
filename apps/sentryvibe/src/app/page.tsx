@@ -1228,13 +1228,24 @@ function HomeContent() {
       operationType,
     });
 
-    // Create FRESH generation state for this build
+    // Parse model tag to get effective agent and model BEFORE creating state
+    const modelTag = appliedTags.find(t => t.key === 'model');
+    let effectiveAgent = selectedAgentId;
+    let effectiveClaudeModel = selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined;
+
+    if (modelTag?.value) {
+      const parsed = parseModelTag(modelTag.value);
+      effectiveAgent = parsed.agent;
+      effectiveClaudeModel = parsed.claudeModel;
+    }
+
+    // Create FRESH generation state for this build with tag-derived values
     const freshState = createFreshGenerationState({
       projectId: project.id,
       projectName: project.name,
       operationType,
-      agentId: selectedAgentId,
-      claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+      agentId: effectiveAgent,
+      claudeModelId: effectiveClaudeModel,
     });
 
     updateGenerationState(freshState);
@@ -1930,18 +1941,27 @@ function HomeContent() {
           "🎬 Creating generation state for initial build:",
           project.name
         );
+        console.log("🔍 [page.tsx] Creating fresh state with agent:", {
+          effectiveAgent,
+          effectiveClaudeModel,
+          selectedAgentId,
+          selectedClaudeModelId,
+          tags: appliedTags,
+        });
         const freshState = createFreshGenerationState({
           projectId: project.id,
           projectName: project.name,
           operationType: "initial-build",
-          agentId: selectedAgentId,
-          claudeModelId: selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
+          agentId: effectiveAgent,
+          claudeModelId: effectiveAgent === "claude-code" ? effectiveClaudeModel : undefined,
         });
 
         if (DEBUG_PAGE) console.log("✅ Fresh state created:", {
           id: freshState.id,
           todosLength: freshState.todos.length,
           isActive: freshState.isActive,
+          agentId: freshState.agentId,
+          claudeModelId: freshState.claudeModelId,
         });
 
         updateGenerationState(freshState);

@@ -284,6 +284,11 @@ async function persistToolCall(
 
   const toolName = eventData.toolName;
 
+  console.log(`[persistent-processor] 💾 Persisting tool call: ${toolName} (${toolCallId})`);
+  console.log(`[persistent-processor]    State: ${state}`);
+  console.log(`[persistent-processor]    Session: ${context.sessionId}`);
+  console.log(`[persistent-processor]    TodoIndex: ${todoIndex}`);
+
   await retryOnTimeout(() =>
     db.insert(generationToolCalls).values({
       sessionId: context.sessionId,
@@ -308,6 +313,8 @@ async function persistToolCall(
       },
     })
   );
+
+  console.log(`[persistent-processor] ✅ Tool persisted: ${toolName} (${toolCallId}) as ${state}`);
 }
 
 async function appendNote(
@@ -389,6 +396,7 @@ async function persistEvent(
       // Store toolName in map for later output events
       if (eventData.toolCallId && eventData.toolName) {
         context.toolCallNameMap.set(eventData.toolCallId, eventData.toolName);
+        console.log(`[persistent-processor] 🔧 Tool started: ${eventData.toolName} (${eventData.toolCallId})`);
       }
 
       if (eventData.toolName === 'TodoWrite') {
@@ -436,13 +444,17 @@ async function persistEvent(
       break;
 
     case 'tool-output-available':
+      console.log(`[persistent-processor] ✅ Tool completed: ${eventData.toolName || 'unknown'} (${eventData.toolCallId || 'no-id'})`);
+
       // Try to restore toolName from map if missing
       if (!eventData.toolName && eventData.toolCallId) {
         const storedToolName = context.toolCallNameMap.get(eventData.toolCallId);
         if (storedToolName) {
           eventData.toolName = storedToolName;
+          console.log(`[persistent-processor]    Restored toolName from map: ${storedToolName}`);
         }
       }
+
       await persistToolCall(context, eventData, 'output-available');
       await refreshRawState(context);
       break;

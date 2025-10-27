@@ -7,6 +7,7 @@ import {
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
+import * as Sentry from '@sentry/node';
 
 export const maxDuration = 30;
 
@@ -59,7 +60,17 @@ export async function POST(
 
     console.log(`[analyze-route] Analyzing prompt for project ${id}`);
     console.log(`[analyze-route] Selected agent: ${selectedAgent}`);
-    console.log(`[analyze-route] Prompt: ${prompt.substring(0, 100)}...`);
+    
+    Sentry.logger.info(
+      Sentry.logger.fmt`Analyzing prompt for template selection ${{
+        prompt,
+        promptPreview: prompt.substring(0, 100),
+        projectId: id,
+        selectedAgent,
+        claudeModel: claudeModel || 'default',
+        operation: 'template_analysis',
+      }}`
+    );
 
     // Load available templates
     const templates = await loadTemplates();

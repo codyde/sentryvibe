@@ -233,7 +233,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
   const workspaceRoot = getWorkspaceRoot();
   const projectsDir = workspaceRoot;
   const projectName = project[0].slug;
-  const projectPath = project[0].path;
+  let projectPath = project[0].path;
 
   let systemPrompt = '';
   let selectedTemplate: Template | null = null;
@@ -276,11 +276,21 @@ async function runBuildPipeline(params: BuildPipelineParams) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       writer.write(downloadEvent as any);
 
+      // Update project path in database immediately after download
+      projectPath = downloadResult;
+      await db.update(projects)
+        .set({ 
+          path: projectPath,
+          lastActivityAt: new Date(),
+        })
+        .where(eq(projects.id, id));
+      if (process.env.DEBUG_BUILD === '1') console.log(`📁 Project path saved: ${projectPath}`);
+
       fileTree = await getProjectFileTree(downloadResult);
       systemPrompt = await buildInitialSystemPrompt({
         selectedTemplate,
         fileTree,
-        projectPath,
+        projectPath: downloadResult,
         prompt,
         projectsDir: projectsDirName,
         projectName,
@@ -799,9 +809,11 @@ The template is already downloaded. Follow this sequence:
 1. cd ${projectName} && ${selectedTemplate.setup?.installCommand}
 2. Customize existing files to match user's request
 3. Add new features as needed
-4. Mark final todo as complete
+4. Start the dev server to test the application
+5. Verify it works correctly, then stop the dev server (Ctrl+C)
+6. Mark final todo as complete
 ` : ''}
 
-DO NOT manually start/stop servers - the system handles this automatically!
+After completing all tasks, you MUST test by starting the dev server, then stop it before marking work complete!
 `;
 }

@@ -300,22 +300,32 @@ CRITICAL: CSS files must follow the design system and avoid generic resets.
    - Create meaningful component-based styles
    - Avoid unnecessary resets that conflict with framework defaults
 
-🚫 CRITICAL: DO NOT RUN THE DEV SERVER 🚫
+🧪 TESTING: START DEV SERVER AS FINAL STEP 🧪
 
-NEVER start the dev server yourself using Bash (npm run dev, npm start, etc.).
-The system will automatically start the dev server after your build completes.
-Your job is to:
+After completing all build tasks and installing dependencies, you MUST:
+
+1. Start the dev server to verify the application works:
+   - Run the appropriate command (npm run dev, npm start, etc.)
+   - Wait for the server to start successfully
+   - Check the terminal output for any errors
+
+2. Test the application:
+   - Verify the server started on the expected port
+   - Look for any runtime errors in the console
+   - Confirm the build is working correctly
+
+3. After testing is complete:
+   - Stop the dev server (Ctrl+C or kill the process)
+   - Do NOT leave the dev server running
+
+Your complete workflow should be:
 1. Create all necessary files
 2. Set up package.json with proper dependencies and scripts
 3. Install dependencies (npm install, pnpm install, etc.)
-4. Mark all todos as completed
-
-DO NOT:
-- Run background processes (npm run dev, npm start, etc.)
-- Kill shells you started
-- Leave any processes running
-
-The dev server will be started automatically by the system once you're done.
+4. Start the dev server to test
+5. Verify everything works
+6. Stop the dev server
+7. Mark all todos as completed
 
 NEVER manually create project files when a CLI tool exists.
 ALWAYS track your progress with TodoWrite.
@@ -390,6 +400,40 @@ Every design must have:
   ✓ Images use valid Pexels URLs (not downloaded)
 `;
 
-// UNIFIED: Codex now uses CLAUDE_SYSTEM_PROMPT (same prompt for both agents)
-// This export kept for backward compatibility
-export const CODEX_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT;
+// CODEX-SPECIFIC PROMPT: TodoWrite replaced with JSON code block approach
+export const CODEX_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT
+  // Remove all TodoWrite tool references
+  .replace(/🔧 CRITICAL: Use TodoWrite Tool ALWAYS 🔧[\s\S]*?(?=═══════════════|$)/g, `📋 TASK TRACKING VIA JSON CODE BLOCKS 📋
+
+You track your work by including JSON code blocks in your responses.
+
+**Format:**
+\`\`\`json
+{"todos":[
+  {"content":"Task description","status":"completed","activeForm":"Past tense of task"},
+  {"content":"Current task","status":"in_progress","activeForm":"Present continuous"},
+  {"content":"Future task","status":"pending","activeForm":"Will do"}
+]}
+\`\`\`
+
+**When to include:**
+- At the start: Include your initial task breakdown
+- After each major step: Update with new statuses
+- At the end: All tasks marked "completed"
+
+**Statuses:**
+- "pending" = not started
+- "in_progress" = currently working on this
+- "completed" = finished
+
+Create as many tasks as needed for the request (3-15+ tasks based on complexity).
+
+`)
+  // Replace TodoWrite({ examples with JSON block examples
+  .replace(/TodoWrite\(\{[\s\S]*?\}\)/g, '```json\n{"todos":[...]}\n```')
+  // Replace "call TodoWrite" with "include JSON code block"
+  .replace(/call TodoWrite/gi, 'include a JSON code block')
+  .replace(/TodoWrite tool/gi, 'JSON task tracking')
+  // Keep the rest of the prompt intact
+  .trim();
+

@@ -116,6 +116,46 @@ function getToolOutput(item: CodexThreadEvent['item']): any {
 }
 
 /**
+ * Helper to extract command name and filename from a full command string
+ * Example: "cd /path/to/project && npm install" -> "npm install"
+ * Example: "cat /long/path/to/file.ts" -> "cat file.ts"
+ */
+function simplifyCommand(fullCommand: string): string {
+  // Remove cd commands and everything before &&
+  let cmd = fullCommand.replace(/^.*&&\s*/, '').trim();
+  
+  // Strip leading and trailing quotes (single or double)
+  cmd = cmd.replace(/^["']|["']$/g, '');
+  
+  // For file operation commands (cat, grep, edit, etc.), extract just filename
+  const fileOpMatch = cmd.match(/^(\w+)\s+(.+)$/);
+  if (fileOpMatch) {
+    const [, command, args] = fileOpMatch;
+    // Split by spaces to handle multiple arguments
+    const argParts = args.split(/\s+/);
+    const simplifiedArgs = argParts.map(arg => {
+      // Strip quotes from individual arguments
+      const cleanArg = arg.replace(/^["']|["']$/g, '');
+      // If it looks like a file path, extract basename
+      if (cleanArg.includes('/')) {
+        return cleanArg.split('/').pop() || cleanArg;
+      }
+      return cleanArg;
+    });
+    return `${command} ${simplifiedArgs.join(' ')}`;
+  }
+  
+  return cmd;
+}
+
+/**
+ * Helper to extract just the filename from a path
+ */
+function getBasename(path: string): string {
+  return path.split('/').pop() || path;
+}
+
+/**
  * Convert JavaScript object notation to strict JSON
  * Handles unquoted keys like: { todos: [...] } → { "todos": [...] }
  */
@@ -339,13 +379,16 @@ export async function* transformCodexStream(
         const itemType = event.item.type;
 
         if (itemType === 'command_execution') {
+          const fullCommand = event.item.command || '';
+          const displayCommand = simplifyCommand(fullCommand);
+          
           // Store tool info for matching with completion
           inProgressTools.set(toolId, {
             type: 'command_execution',
-            command: event.item.command,
+            command: fullCommand,
           });
 
-          // Emit tool call immediately
+          // Emit tool call immediately with simplified command for display
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -354,13 +397,13 @@ export async function* transformCodexStream(
                 type: 'tool_use',
                 id: toolId,
                 name: 'Bash',
-                input: { command: event.item.command },
+                input: { command: displayCommand },
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-call-start', { toolName: 'Bash', toolId, command: event.item.command });
+          streamLog.yield('tool-call-start', { toolName: 'Bash', toolId, command: displayCommand });
           yield toolMessage;
         } else if (itemType === 'file_change') {
           // Store file change info
@@ -370,8 +413,8 @@ export async function* transformCodexStream(
             changes,
           });
 
-          // Emit tool call immediately
-          const paths = changes.map((c: any) => c.path).join(', ');
+          // Emit tool call immediately with simplified paths for display
+          const displayPaths = changes.map((c: any) => getBasename(c.path)).join(', ');
           const toolMessage: TransformedMessage = {
             type: 'assistant',
             message: {
@@ -380,13 +423,13 @@ export async function* transformCodexStream(
                 type: 'tool_use',
                 id: toolId,
                 name: 'Write',
-                input: { paths: changes },
+                input: { paths: displayPaths },
               }],
             },
           };
 
           yieldCount++;
-          streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths });
+          streamLog.yield('tool-call-start', { toolName: 'Write', toolId, paths: displayPaths });
           yield toolMessage;
         } else if (itemType === 'mcp_tool_call') {
           // MCP tool call started
@@ -496,15 +539,50 @@ export async function* transformCodexStream(
           }
 
           // Emit result
-          const output = event.item.aggregated_output || '';
+          let output = event.item.aggregated_output || '';
 
           // CRITICAL: Extract TodoWrite from bash command outputs
           // Codex doesn't have TodoWrite as a tool, so it uses printf/echo to output it
-          // We need to detect and extract it from command results
+
+          // FIRST: Check for raw JSON from Codex's custom todo scripts
+          // Format: {"todos": [{"content": "...", "status": "...", "activeForm": ""}]}
+          const rawJsonMatch = output.match(/\{"todos":\s*\[[\s\S]*?\]\}/);
+          if (rawJsonMatch) {
+            try {
+              const parsed = JSON.parse(rawJsonMatch[0]);
+              if (parsed.todos && Array.isArray(parsed.todos)) {
+                streamLog.info(`[Codex Adapter] 🎯 Found raw JSON in bash output: ${parsed.todos.length} todos`);
+
+                // Emit as TodoWrite so persistent processor tracks it
+                const todoWriteMessage: TransformedMessage = {
+                  type: 'assistant',
+                  message: {
+                    id: currentMessageId,
+                    content: [{
+                      type: 'tool_use',
+                      id: `bash-todo-${toolId}`,
+                      name: 'TodoWrite',
+                      input: { todos: parsed.todos },
+                    }],
+                  },
+                };
+
+                yieldCount++;
+                streamLog.yield('bash-json-todo', { toolId, count: parsed.todos.length });
+                yield todoWriteMessage;
+
+                streamLog.info('[Codex Adapter] ✅ Converted bash JSON to TodoWrite');
+              }
+            } catch (error) {
+              streamLog.warn('[Codex Adapter] Failed to parse JSON from bash output:', error);
+            }
+          }
+
+          // SECOND: Check for TodoWrite({...}) format
           const extractedTodoWrite = extractAndConvertTodoWrite(output);
           if (extractedTodoWrite !== output) {
             // TodoWrite was found and converted, emit as text
-            streamLog.info('[Codex Adapter] Extracted TodoWrite from bash output');
+            streamLog.info('[Codex Adapter] Extracted TodoWrite function call from bash output');
             const todoTextMessage: TransformedMessage = {
               type: 'assistant',
               message: {
@@ -684,6 +762,41 @@ export async function* transformCodexStream(
 
           // Emit result
           const mcpOutput = getToolOutput(event.item);
+          const mcpToolName = event.item.tool;
+
+          // Special handling for todo MCP tools - convert to TodoWrite format
+          if (mcpToolName === 'todo-list-tool' || mcpToolName === 'todo-update-tool') {
+            try {
+              const outputObj = typeof mcpOutput === 'string' ? JSON.parse(mcpOutput) : mcpOutput;
+
+              if (outputObj && outputObj.todos && Array.isArray(outputObj.todos)) {
+                streamLog.info(`[Codex Adapter] 🎯 MCP ${mcpToolName} returned ${outputObj.todos.length} todos`);
+
+                // Emit as TodoWrite so persistent processor picks it up
+                const todoWriteMessage: TransformedMessage = {
+                  type: 'assistant',
+                  message: {
+                    id: currentMessageId,
+                    content: [{
+                      type: 'tool_use',
+                      id: `mcp-todo-${toolId}`,
+                      name: 'TodoWrite',
+                      input: { todos: outputObj.todos },
+                    }],
+                  },
+                };
+
+                yieldCount++;
+                streamLog.yield('mcp-todo-converted', { toolId, count: outputObj.todos.length });
+                yield todoWriteMessage;
+
+                streamLog.info(`[Codex Adapter] ✅ Converted MCP ${mcpToolName} to TodoWrite`);
+              }
+            } catch (error) {
+              streamLog.warn('[Codex Adapter] Failed to parse MCP todo tool output:', error);
+            }
+          }
+
           const resultMessage: TransformedMessage = {
             type: 'user',
             message: {
@@ -697,8 +810,8 @@ export async function* transformCodexStream(
           };
 
           yieldCount++;
-          streamLog.yield('mcp-tool-result', { 
-            toolId, 
+          streamLog.yield('mcp-tool-result', {
+            toolId,
             server: event.item.server,
             tool: event.item.tool,
           });

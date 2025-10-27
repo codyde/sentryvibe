@@ -19,6 +19,16 @@ function getParentDirectory(filePath: string): string {
 function buildCodexSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
 
+  // PRIORITY 1: User-specified tags (must be first so AI sees them immediately)
+  if (context.tags && context.tags.length > 0) {
+    const resolved = resolveTags(context.tags);
+    const tagPrompt = generatePromptFromTags(resolved, context.projectName, context.isNewProject);
+    if (tagPrompt) {
+      sections.push(tagPrompt);
+    }
+  }
+
+  // PRIORITY 2: Project context and setup instructions
   if (context.isNewProject) {
     // NEW: Check if template was pre-selected by frontend
     if (context.templateMetadata) {
@@ -51,18 +61,24 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
 - Provide complete file contents for every modification`);
 
-  sections.push(`## Quality Expectations
-- Narrate key steps in the chat stream.
-- Include the mandatory todo list JSON in every response.`);
+  sections.push(`## Task Tracking - Internal System (NOT A TOOL)
 
-  // Add tag-based configuration (same as claude-strategy)
-  if (context.tags && context.tags.length > 0) {
-    const resolved = resolveTags(context.tags);
-    const tagPrompt = generatePromptFromTags(resolved, context.projectName);
-    if (tagPrompt) {
-      sections.push(tagPrompt);
-    }
-  }
+IMPORTANT: Task tracking is done by including JSON in your text responses.
+This is NOT a tool to call, NOT a command to run, NOT something to install.
+
+Simply include a JSON code block in your response like this:
+
+\`\`\`json
+{"todos":[
+  {"content":"Clone template","status":"completed","activeForm":"Cloned template"},
+  {"content":"Install dependencies","status":"in_progress","activeForm":"Installing dependencies"},
+  {"content":"Implement features","status":"pending","activeForm":"Implementing features"}
+]}
+\`\`\`
+
+The system automatically extracts this from your response text.
+DO NOT try to call it as a tool, run it as a command, or install it as a binary.
+Just include the JSON code block in your message.`);
 
   // NEW: Only include template catalog if template wasn't pre-selected
   if (context.templateSelectionContext && !context.templateMetadata) {
@@ -82,59 +98,123 @@ function buildFullPrompt(context: AgentStrategyContext, basePrompt: string): str
     const { repository, branch } = context.templateMetadata;
     return `USER REQUEST: ${basePrompt}
 
-CRITICAL: Each bash command runs in a fresh shell. You CANNOT cd once and expect it to persist. Instead, prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+WORKFLOW INSTRUCTIONS:
 
-SETUP STEPS (complete in order):
-1. Clone the template:
+You will complete this request in ONE continuous session by following these exact steps:
+
+STEP 1: CREATE TASK BREAKDOWN
+First, analyze the request and determine what specific tasks need to be done.
+
+Create AS MANY TASKS AS NEEDED to properly build the MVP. This could be:
+- Simple request: 3-4 tasks
+- Medium request: 5-8 tasks
+- Complex request: 10-15+ tasks
+
+Think through ALL the work required.
+
+Then include a JSON code block in your response:
+\`\`\`json
+{"todos":[
+  {"content":"Clone and configure template","status":"in_progress","activeForm":"Cloning and configuring template"},
+  {"content":"Install dependencies","status":"pending","activeForm":"Installing dependencies"},
+  {"content":"Implement features","status":"pending","activeForm":"Implementing features"},
+  ...as many as needed...
+  {"content":"Verify build","status":"pending","activeForm":"Verifying build"}
+]}
+\`\`\`
+
+The system will automatically extract this. Do NOT try to call it as a tool or command.
+
+STEP 2: CLONE AND CONFIGURE
    bash -lc 'npx degit ${repository}#${branch} ${context.projectName}'
-
-2. Verify the clone succeeded:
    bash -lc 'ls ${context.projectName}'
-
-3. Create .npmrc with required settings:
    bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF
 save-exact=true
 legacy-peer-deps=false
 engine-strict=true
 EOF'
-
-4. Update package.json name field:
    bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
 
-IMPLEMENTATION STEPS:
-- ALL file operations and commands MUST include the project directory path
-- Use "cd ${context.projectName} &&" prefix for every bash command
-- Examples:
-  * Read: bash -lc 'cd ${context.projectName} && cat src/App.tsx'
-  * Edit: bash -lc 'cd ${context.projectName} && cat > src/App.tsx << EOF\n...\nEOF'
-  * Install: bash -lc 'cd ${context.projectName} && npm install'
-  * Build: bash -lc 'cd ${context.projectName} && npm run build'
-- Modify template files to deliver the requested MVP
-- Confirm the core flow works end-to-end
+After setup, include updated JSON code block (mark setup as "completed")
 
-COMPLETION SIGNAL:
-When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
+STEP 3: INSTALL DEPENDENCIES
+   bash -lc 'cd ${context.projectName} && npm install'
+
+After installing, include updated JSON code block
+
+STEP 4: IMPLEMENT ALL FEATURES
+   - Modify template files to deliver the requested functionality
+   - Use: bash -lc 'cd ${context.projectName} && cat > filepath << EOF\n...\nEOF'
+   - Implement EVERY requested feature completely
+   - After each major feature, include updated JSON code block
+
+STEP 5: VERIFY BUILD
+   bash -lc 'cd ${context.projectName} && npm run build'
+
+After successful build, include final JSON code block with all tasks "completed"
+
+CRITICAL: You MUST complete ALL 5 steps in this single session.
+Each bash command runs in a fresh shell - prefix with "cd ${context.projectName} &&"
+Only respond "Implementation complete" after ALL steps are verified.`;
   }
 
-  // Fallback: Old catalog-based selection (backward compatibility)
+  // Fallback: Template not pre-selected - need to choose from catalog
   return `USER REQUEST: ${basePrompt}
 
-CRITICAL: Each bash command runs in a fresh shell. You CANNOT cd once and expect it to persist. Instead, prefix EVERY command with "cd ${context.projectName} &&" after cloning.
+WORKFLOW INSTRUCTIONS:
 
-SETUP STEPS (complete in order):
-1. Clone the chosen template (see catalog for commands)
-2. Verify the clone succeeded: bash -lc 'ls ${context.projectName}'
-3. Create .npmrc: bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
-4. Update package.json: bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
+You will complete this request in ONE continuous session by following these exact steps:
 
-IMPLEMENTATION STEPS:
-- ALL commands MUST include "cd ${context.projectName} &&" prefix
-- Modify template files to deliver the requested MVP
-- Install dependencies as needed
-- Confirm the core flow works end-to-end
+STEP 1: CREATE TASK BREAKDOWN
+First, analyze the request and determine what tasks are needed.
 
-COMPLETION SIGNAL:
-When the MVP is finished, respond with "Implementation complete" plus a brief summary.`;
+Create AS MANY TASKS AS NEEDED to properly build the MVP. This could be:
+- Simple request: 3-4 tasks
+- Medium request: 5-8 tasks
+- Complex request: 10-15+ tasks
+
+Think through ALL the work required.
+
+Then include a JSON code block in your response:
+\`\`\`json
+{"todos":[
+  {"content":"Select and clone template","status":"in_progress","activeForm":"Selecting and cloning template"},
+  {"content":"Install dependencies","status":"pending","activeForm":"Installing dependencies"},
+  ...as many tasks as needed...
+  {"content":"Verify build","status":"pending","activeForm":"Verifying build"}
+]}
+\`\`\`
+
+The system automatically extracts this. Do NOT try to call it as a tool or command.
+
+STEP 2: CLONE AND CONFIGURE
+   Choose appropriate template from available options
+   bash -lc 'npx degit <repository>#<branch> ${context.projectName}'
+   bash -lc 'ls ${context.projectName}'
+   bash -lc 'cd ${context.projectName} && cat > .npmrc << EOF\nsave-exact=true\nEOF'
+   bash -lc 'cd ${context.projectName} && npm pkg set name="${context.projectName}"'
+
+After setup, include updated JSON code block (mark setup as "completed")
+
+STEP 3: INSTALL DEPENDENCIES
+   bash -lc 'cd ${context.projectName} && npm install'
+
+After installing, include updated JSON code block
+
+STEP 4: IMPLEMENT ALL FEATURES
+   - Modify template files to deliver requested functionality
+   - ALL commands: bash -lc 'cd ${context.projectName} && ...'
+   - Implement EVERY requested feature completely
+   - After each major feature, include updated JSON code block
+
+STEP 5: VERIFY BUILD
+   bash -lc 'cd ${context.projectName} && npm run build'
+
+After successful build, include final JSON code block with all tasks "completed"
+
+CRITICAL: Complete ALL 5 steps in this single session.
+Each bash command runs in a fresh shell - prefix with "cd ${context.projectName} &&"
+Only respond "Implementation complete" after ALL steps are verified.`;
 }
 
 const codexStrategy: AgentStrategy = {

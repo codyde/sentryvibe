@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/node';
 import { createInstrumentedCodex } from '@sentry/node';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
@@ -8,8 +9,7 @@ import { createClaudeCode } from 'ai-sdk-provider-claude-code';
 import { generateObject } from 'ai';
 import { ProjectMetadataSchema } from '@/schemas/metadata';
 
-// Create Claude Code provider instance
-// This picks up ANTHROPIC_API_KEY from environment automatically
+// Create Claude Code provider - inherits authentication from local CLI
 const claudeCode = createClaudeCode();
 
 const CODEX_MODEL = 'gpt-5-codex';
@@ -79,15 +79,20 @@ export async function POST(request: Request) {
 
     console.log('Selected tags:', tags);
 
-    console.log(`[projects] Creating project from prompt: "${prompt.substring(0, 100)}..."`);
+    Sentry.logger.info(
+      Sentry.logger.fmt`Creating project from prompt ${{
+        prompt,
+        promptPreview: prompt.substring(0, 100),
+        agent,
+        operation: 'project_creation',
+      }}`
+    );
 
     const metadataPrompt = buildMetadataPrompt(prompt);
     let metadata;
 
-    // Use Claude Haiku with structured output via AI SDK
+    // Use Claude Haiku with structured output
     if (agent === 'claude-code') {
-      console.log('[projects] Using Claude Haiku for metadata extraction (structured output)');
-
       try {
         const result = await generateObject({
           model: claudeCode('claude-haiku-4-5'),
@@ -96,24 +101,27 @@ export async function POST(request: Request) {
         });
 
         metadata = result.object;
-        console.log('✅ Got structured metadata:', metadata);
       } catch (error) {
-        console.error('❌ Claude structured output failed:', error);
-        console.log('🔄 Falling back to simple metadata generation...');
+        // If validation failed but we got valid JSON, extract it with fallback icon
+        if (error && typeof error === 'object' && 'text' in error) {
+          try {
+            const parsed = JSON.parse((error as any).text);
+            metadata = {
+              slug: parsed.slug || 'generated-project',
+              friendlyName: parsed.friendlyName || 'Generated Project',
+              description: parsed.description || prompt.substring(0, 150),
+              icon: 'Code', // Fallback to Code if invalid icon chosen
+            };
+          } catch (parseError) {
+            // Fall through to simple metadata generation
+          }
+        }
       }
-    } else {
-      // Use Codex for metadata
-      console.log('[projects] Using Codex for metadata extraction');
-
+    } else if (agent === 'openai-codex') {
       try {
         const jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
 
-        if (!jsonResponse || jsonResponse.trim().length === 0) {
-          console.error('❌ Codex returned an empty response for metadata prompt');
-        } else {
-          console.log('📥 Raw Codex response:', JSON.stringify(jsonResponse));
-
-          // Try to parse Codex response
+        if (jsonResponse && jsonResponse.trim().length > 0) {
           let cleanedResponse = jsonResponse.trim();
           cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
           cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
@@ -136,15 +144,12 @@ export async function POST(request: Request) {
           }
         }
       } catch (error) {
-        console.error('❌ Codex metadata extraction failed:', error);
+        // Fall through to simple metadata generation
       }
     }
 
     // If metadata is still undefined, use fallback
     if (!metadata) {
-      console.log('🔄 Falling back to simple metadata generation...');
-
-      // Better slug generation
       const slug = prompt
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -163,8 +168,6 @@ export async function POST(request: Request) {
         description: prompt.substring(0, 150) || 'A new project',
         icon: 'Code',
       };
-
-      console.log('📋 Fallback metadata:', metadata);
     }
 
     // Check for slug collision

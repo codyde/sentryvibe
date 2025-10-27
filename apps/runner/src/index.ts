@@ -20,7 +20,8 @@ import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import {
-  CLAUDE_SYSTEM_PROMPT, // UNIFIED: Used for both Claude and Codex
+  CLAUDE_SYSTEM_PROMPT,
+  CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
   DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
@@ -130,12 +131,69 @@ function resolveCodexItemId(item: Record<string, unknown> | undefined): string {
   return randomUUID();
 }
 
+/**
+ * Helper to extract just the filename from a path
+ */
+function getBasename(path: string): string {
+  return path.split('/').pop() || path;
+}
+
+/**
+ * Helper to extract command name and filename from a full command string
+ * Example: "cd /path/to/project && npm install" -> "npm install"
+ * Example: "cat /long/path/to/file.ts" -> "cat file.ts"
+ */
+function simplifyCommand(fullCommand: string): string {
+  // Remove cd commands and everything before &&
+  let cmd = fullCommand.replace(/^.*&&\s*/, '').trim();
+  
+  // Strip leading and trailing quotes (single or double)
+  cmd = cmd.replace(/^["']|["']$/g, '');
+  
+  // For file operation commands (cat, grep, edit, etc.), extract just filename
+  const fileOpMatch = cmd.match(/^(\w+)\s+(.+)$/);
+  if (fileOpMatch) {
+    const [, command, args] = fileOpMatch;
+    // Split by spaces to handle multiple arguments
+    const argParts = args.split(/\s+/);
+    const simplifiedArgs = argParts.map(arg => {
+      // Strip quotes from individual arguments
+      const cleanArg = arg.replace(/^["']|["']$/g, '');
+      // If it looks like a file path, extract basename
+      if (cleanArg.includes('/')) {
+        return cleanArg.split('/').pop() || cleanArg;
+      }
+      return cleanArg;
+    });
+    return `${command} ${simplifiedArgs.join(' ')}`;
+  }
+  
+  return cmd;
+}
+
 function extractCodexToolInput(item: Record<string, unknown> | undefined) {
   if (!item) return {};
   const possibleKeys = ["arguments", "args", "input"] as const;
   for (const key of possibleKeys) {
     const value = item[key as keyof typeof item];
     if (value !== undefined) {
+      // Simplify paths in tool inputs for better display
+      if (typeof value === 'object' && value !== null) {
+        const inputObj = { ...value } as Record<string, unknown>;
+        
+        // Simplify file_path or path parameters
+        if (typeof inputObj.file_path === 'string') {
+          inputObj.file_path = getBasename(inputObj.file_path);
+        }
+        if (typeof inputObj.path === 'string') {
+          inputObj.path = getBasename(inputObj.path);
+        }
+        if (typeof inputObj.target_file === 'string') {
+          inputObj.target_file = getBasename(inputObj.target_file);
+        }
+        
+        return inputObj;
+      }
       return value;
     }
   }
@@ -212,6 +270,8 @@ async function* convertCodexEventsToAgentMessages(
             },
           };
         } else if (itemType === "command_execution") {
+          const fullCommand = (item?.command as string) || (item?.cmd as string) || "";
+          const displayCommand = simplifyCommand(fullCommand);
           yield {
             type: "assistant",
             message: {
@@ -222,8 +282,7 @@ async function* convertCodexEventsToAgentMessages(
                   id: itemId,
                   name: "command_execution",
                   input: {
-                    command:
-                      (item?.command as string) || (item?.cmd as string) || "",
+                    command: displayCommand,
                   },
                 },
               ],
@@ -233,7 +292,7 @@ async function* convertCodexEventsToAgentMessages(
           // Convert file_change events to tool_use for UI display
           const changes =
             (item?.changes as { kind: string; path: string }[]) || [];
-          const filePaths = changes.map((c) => c.path || "unknown").join(", ");
+          const filePaths = changes.map((c) => getBasename(c.path) || "unknown").join(", ");
           yield {
             type: "assistant",
             message: {
@@ -471,21 +530,28 @@ function createCodexQuery(): BuildQueryFn {
     fileLog.info("Prompt length:", prompt.length);
 
     const codex = await createInstrumentedCodex({
-      apiKey: process.env.OPENAI_API_KEY,
       workingDirectory,
     });
 
-    const systemParts: string[] = [CLAUDE_SYSTEM_PROMPT.trim()]; // UNIFIED: Use same prompt as Claude
+    const systemParts: string[] = [CODEX_SYSTEM_PROMPT.trim()]; // Use Codex-specific prompt (no TodoWrite tool)
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemParts.push(systemPrompt.trim());
     }
 
-    // Combine system prompt and user prompt for planning
+    // Combine system prompt and user prompt
     // Note: Codex SDK doesn't have system prompt configuration, so we prepend it to the user prompt
     const combinedPrompt = `${systemParts.join("\n\n")}\n\n${prompt}`;
 
+    fileLog.info('Using CODEX_SYSTEM_PROMPT (TodoWrite references replaced with JSON code blocks)');
+
     // Resume existing thread for enhancements, start new for initial builds
     let thread;
+
+    // NOTE: MCP server configuration
+    // The Codex SDK doesn't support mcpServers in ThreadOptions (checked types)
+    // MCP servers are auto-discovered from ~/.codex/config or environment
+    // TODO: Research proper MCP configuration method for Codex SDK
+
     if (codexThreadId) {
       log(`🔄 [codex-query] Resuming thread: ${codexThreadId}`);
       fileLog.info('Resuming Codex thread:', codexThreadId);
@@ -508,205 +574,28 @@ function createCodexQuery(): BuildQueryFn {
 
     buildLogger.codexQuery.threadStarting();
 
+    // ========================================
+    // AUTONOMOUS MULTI-TURN LOOP
+    // ========================================
+    // Like basic_streaming.ts but with automatic continuation
+    // Keep calling runStreamed() on same thread until work complete
+    log("🎯 [codex-query] Starting autonomous Codex execution...");
+
     const MAX_TURNS = 50;
     let turnCount = 0;
-    let smartTracker: SmartTodoTracker | null = null;
-
-    // ========================================
-    // PHASE 1: STRUCTURED TASK PLANNING
-    // ========================================
-    log(
-      "🎯 [codex-query] PHASE 1: Getting task plan with structured output..."
-    );
-    turnCount++;
-
-    const planningPrompt = `${combinedPrompt}
-
-Analyze this request and create a task plan. Break it into 3-8 high-level tasks focusing on USER-FACING FEATURES.
-
-Return your response as JSON with:
-- analysis: Brief overview of what you'll build (2-3 sentences)
-- todos: Array of tasks with content, activeForm, and status
-
-All tasks should start as "pending" except the first one which should be "in_progress".`;
-
-    let taskPlan;
-    try {
-      log("📋 [codex-query] Requesting structured task plan...");
-      
-      // Use runStreamed() instead of run() to preserve Sentry async context for AI span tracking
-      const planningTurn = await thread.runStreamed(planningPrompt, {
-        outputSchema: getTaskPlanJsonSchema(),
-      });
-
-      // Consume events directly to preserve Sentry instrumentation
-      // This ensures all tool calls in the planning phase are tracked
-      let planningResponse = '';
-      const responseFragments: string[] = [];
-
-      for await (const event of planningTurn.events) {
-        // Collect response from multiple possible event types
-        const eventAny = event as any;
-
-        // Check for structured output in item.completed events (Codex returns it here)
-        if (event.type === 'item.completed' && eventAny.item?.type === 'agent_message') {
-          const messageText = eventAny.item.text || '';
-
-          // Extract JSON from code block: ```json\n{...}\n```
-          const jsonBlockMatch = messageText.match(/```json\s*\n([\s\S]*?)\n```/);
-          if (jsonBlockMatch) {
-            const jsonText = jsonBlockMatch[1].trim();
-            fileLog.info('Found structured output in code block, length:', jsonText.length);
-
-            try {
-              const parsed = JSON.parse(jsonText);
-              if (parsed.todos || (parsed.analysis && parsed.todos)) {
-                // Found valid task plan in code block
-                taskPlan = {
-                  analysis: parsed.analysis || 'Building the requested application',
-                  todos: parsed.todos || parsed
-                };
-                fileLog.info('✅ Extracted structured planning from code block');
-                fileLog.info('   Todos found:', taskPlan.todos.length);
-              }
-            } catch (parseError) {
-              fileLog.warn('Failed to parse JSON from code block:', parseError);
-            }
-          }
-        }
-
-        // Try to extract response from various fields
-        if (eventAny.text) {
-          responseFragments.push(eventAny.text);
-        } else if (eventAny.delta) {
-          responseFragments.push(eventAny.delta);
-        } else if (eventAny.content && typeof eventAny.content === 'string') {
-          responseFragments.push(eventAny.content);
-        }
-
-        // Track usage data from planning phase
-        if (event.type === 'turn.completed') {
-          // For structured output, finalResponse is an object, not a string
-          const eventWithResponse = event as { finalResponse?: unknown };
-
-          if (eventWithResponse.finalResponse && !taskPlan) {
-            // If it's already an object (structured output), use it directly
-            if (typeof eventWithResponse.finalResponse === 'object') {
-              taskPlan = eventWithResponse.finalResponse as { analysis: string; todos: Array<{content: string; activeForm: string; status: string}> };
-              fileLog.info('Received structured planning response as object');
-            } else if (typeof eventWithResponse.finalResponse === 'string') {
-              // If it's a string, save it for parsing
-              planningResponse = eventWithResponse.finalResponse;
-            }
-          } else if (!taskPlan) {
-            // No finalResponse - try accumulated fragments
-            planningResponse = responseFragments.join('');
-          }
-
-          // Log usage statistics for cost tracking
-          const eventWithUsage = event as { usage?: unknown };
-          if (eventWithUsage.usage) {
-            fileLog.info('Planning phase usage:', eventWithUsage.usage);
-            // Add to Sentry span context
-            Sentry.setContext('codex_planning_usage', {
-              ...(eventWithUsage.usage as Record<string, unknown>),
-              phase: 'planning',
-            });
-          }
-        }
-      }
-
-      // Check if taskPlan was already set from structured output object
-      if (!taskPlan) {
-        // Need to parse from string response
-        if (!planningResponse || planningResponse.trim().length === 0) {
-          buildLogger.codexQuery.error("ERROR: Empty planning response from Codex - using fallback", new Error('Empty response'));
-          fileLog.warn('Using fallback task plan due to empty response');
-
-          // Fallback: Create a simple single-task plan
-          taskPlan = {
-            analysis: 'Building the requested application',
-            todos: [
-              {
-                content: 'Complete the build request',
-                activeForm: 'Building application',
-                status: 'in_progress'
-              }
-            ]
-          };
-        } else {
-          // Log response for debugging
-          fileLog.info('Raw planning response (first 500 chars):', planningResponse.substring(0, 500));
-
-          // Try to parse with better error handling
-          try {
-            taskPlan = JSON.parse(planningResponse);
-          } catch (parseError) {
-            buildLogger.codexQuery.error("ERROR: Failed to parse planning response as JSON - using fallback", parseError instanceof Error ? parseError : new Error('Parse failed'));
-            fileLog.error('Planning response that failed to parse:', planningResponse);
-            fileLog.error('Parse error:', parseError);
-
-            // Fallback: Create a simple single-task plan instead of failing
-            fileLog.warn('Using fallback task plan due to JSON parse error');
-            taskPlan = {
-              analysis: 'Building the requested application (fallback due to parsing error)',
-              todos: [
-                {
-                  content: 'Complete the build request',
-                  activeForm: 'Building application',
-                  status: 'in_progress'
-                }
-              ]
-            };
-          }
-        }
-      }
-
-      log("✅ [codex-query] Got structured task plan!");
-      log(`   Analysis: ${taskPlan.analysis}`);
-      log(`   Tasks: ${taskPlan.todos.length}`);
-
-      // Initialize smart tracker
-      smartTracker = createSmartTracker(taskPlan.todos);
-
-      // Send initial TodoWrite
-      const todoWriteEvent = {
-        type: "assistant",
-        message: {
-          id: `codex-planning-${Date.now()}`,
-          content: [
-            {
-              type: "tool_use",
-              id: `todo-init-${Date.now()}`,
-              name: "TodoWrite",
-              input: { todos: taskPlan.todos },
-            },
-          ],
-        },
-      };
-
-      yield todoWriteEvent;
-    } catch (error) {
-      buildLogger.codexQuery.error("ERROR in structured planning", error);
-      throw error;
-    }
-
-    // ========================================
-    // PHASE 2: TASK EXECUTION LOOP
-    // ========================================
-    log("🎯 [codex-query] PHASE 2: Executing tasks sequentially...");
-
-    // Track thread ID for future resumptions (populated after first turn)
     let capturedThreadId: string | null = null;
+    let lastTurnText = '';
+    let allTodosDone = false;
 
     while (turnCount < MAX_TURNS) {
-      // Capture thread ID if available (for future resumptions)
+      turnCount++;
+
+      // Capture thread ID
       if (!capturedThreadId && thread.id) {
         capturedThreadId = thread.id;
         fileLog.info('Codex thread ID captured:', capturedThreadId);
 
-        // Send thread ID to frontend to store in GenerationState
-        // This enables resumeThread() for follow-up messages and conversation continuity
+        // Send thread ID to frontend
         const threadIdEvent = {
           type: "assistant",
           message: {
@@ -723,84 +612,74 @@ All tasks should start as "pending" except the first one which should be "in_pro
         yield threadIdEvent;
         fileLog.info('Thread ID sent to frontend:', capturedThreadId);
       }
-      if (!smartTracker || isTrackerComplete(smartTracker)) {
-        log("✅ [codex-query] All tasks complete!");
-        break;
+
+      // Determine prompt for this turn
+      const turnPrompt = turnCount === 1
+        ? combinedPrompt
+        : "Continue working on the next step. Call todo-update-tool to track your progress.";
+
+      log(`🚀 [codex-query] Turn ${turnCount}: ${turnCount === 1 ? 'Initial request' : 'Continuing work'}...`);
+
+      // Log full prompt being sent to Codex
+      if (turnCount === 1) {
+        Sentry.logger.info(
+          Sentry.logger.fmt`Full Codex prompt (Turn 1) ${{
+            prompt: turnPrompt,
+            promptLength: turnPrompt.length,
+            promptPreview: turnPrompt.substring(0, 200),
+            operation: 'codex_query',
+            turnCount: 1,
+          }}`
+        );
+
+        // Also log to file
+        fileLog.info('━━━ FULL CODEX PROMPT ━━━');
+        fileLog.info(turnPrompt);
+        fileLog.info(`━━━ END PROMPT (${turnPrompt.length} chars) ━━━`);
+      } else {
+        fileLog.info(`Turn ${turnCount} prompt:`, turnPrompt);
       }
 
-      const currentTask = getCurrentTask(smartTracker);
-      if (!currentTask) {
-        log("❌ [codex-query] No current task - cannot continue");
-        break;
-      }
+      // Execute turn (like basic_streaming.ts but automated)
+      const { events } = await thread.runStreamed(turnPrompt);
 
-      const currentTaskIndex = smartTracker.currentIndex;
-      log(
-        `🚀 [codex-query] Working on task ${currentTaskIndex + 1}: ${
-          currentTask.content
-        }`
-      );
+      // Stream events from this turn through adapter
+      // transformCodexStream expects the full event stream
+      let turnHadContent = false;
+      for await (const message of transformCodexStream(events)) {
+        turnHadContent = true;
 
-      // Send pre-task TodoWrite to set active index
-      const preTaskUpdate = {
-        type: "assistant",
-        message: {
-          id: `pre-task-${Date.now()}`,
-          content: [
-            {
-              type: "tool_use",
-              id: `pre-todo-${Date.now()}`,
-              name: "TodoWrite",
-              input: { todos: smartTracker.todos },
-            },
-          ],
-        },
-      };
-      yield preTaskUpdate;
+        // Track text for completion detection
+        if (message.type === 'assistant' && message.message.content) {
+          for (const block of message.message.content) {
+            if (block.type === 'text' && block.text) {
+              lastTurnText = block.text.toLowerCase();
+            }
+          }
+        }
 
-      // Execute turn for this specific task
-      const taskPrompt = `Work on this specific task NOW: "${currentTask.content}"
-
-Execute ALL necessary file operations and commands to fully complete this task.
-Don't just plan - TAKE ACTION and create/modify files.`;
-
-      turnCount++;
-      log(
-        `🚀 [codex-query] Turn ${turnCount}: ${taskPrompt.substring(0, 80)}...`
-      );
-
-      // Stream events through Codex SDK adapter
-      const streamedTurn = await thread.runStreamed(taskPrompt);
-
-      // StreamedTurn has an 'events' property that's an AsyncGenerator<ThreadEvent>
-      // Pass the entire stream to transformer to preserve Sentry async context
-      for await (const message of transformCodexStream(streamedTurn.events)) {
         yield message;
       }
 
-      // Mark task as complete
-      smartTracker.todos[currentTaskIndex].status = "completed";
-      if (currentTaskIndex + 1 < smartTracker.todos.length) {
-        smartTracker.todos[currentTaskIndex + 1].status = "in_progress";
-        smartTracker.currentIndex = currentTaskIndex + 1;
+      // Check for completion signals
+      const hasCompletionSignal = lastTurnText.includes('implementation complete') ||
+                                   lastTurnText.includes('build complete') ||
+                                   lastTurnText.includes('all steps verified');
+
+      if (hasCompletionSignal) {
+        log("✅ [codex-query] Codex signaled completion");
+        allTodosDone = true;
+        break;
       }
 
-      // Send post-task TodoWrite
-      const postTaskUpdate = {
-        type: "assistant",
-        message: {
-          id: `post-task-${Date.now()}`,
-          content: [
-            {
-              type: "tool_use",
-              id: `post-todo-${Date.now()}`,
-              name: "TodoWrite",
-              input: { todos: smartTracker.todos },
-            },
-          ],
-        },
-      };
-      yield postTaskUpdate;
+      // Safety: Stop if turn produced no content
+      if (!turnHadContent) {
+        log("⚠️  [codex-query] Turn produced no content, stopping");
+        break;
+      }
+
+      // Log turn completion
+      fileLog.info(`Turn ${turnCount} complete, checking if more work needed...`);
     }
 
     buildLogger.codexQuery.sessionComplete(turnCount);

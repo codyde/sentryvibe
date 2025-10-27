@@ -244,8 +244,46 @@ export async function POST(
     const now = new Date();
     let sessionId: string;
 
+    // Create initial raw state with agent information
+    const initialRawState = JSON.stringify({
+      id: buildId,
+      projectId: id,
+      projectName: project[0].name,
+      operationType: body.operationType,
+      agentId,
+      claudeModelId: agentId === 'claude-code' ? claudeModel : undefined,
+      todos: [],
+      toolsByTodo: {},
+      textByTodo: {},
+      activeTodoIndex: -1,
+      isActive: true,
+      startTime: now.toISOString(),
+    });
+
     if (existingSession.length > 0) {
       sessionId = existingSession[0].id;
+      
+      // Merge agent info into existing rawState if it exists
+      let updatedRawState = initialRawState;
+      if (existingSession[0].rawState) {
+        try {
+          const existingState = typeof existingSession[0].rawState === 'string' 
+            ? JSON.parse(existingSession[0].rawState)
+            : existingSession[0].rawState;
+          
+          // Merge agent info into existing state
+          const mergedState = {
+            ...existingState,
+            agentId,
+            claudeModelId: agentId === 'claude-code' ? claudeModel : undefined,
+          };
+          updatedRawState = JSON.stringify(mergedState);
+        } catch (error) {
+          console.error('[build-route] Failed to parse existing rawState, using initial:', error);
+        }
+      }
+      
+      // Update existing session with merged rawState
       await db.update(generationSessions)
         .set({
           projectId: id,
@@ -253,6 +291,7 @@ export async function POST(
           status: 'active',
           startedAt: existingSession[0].startedAt ?? now,
           updatedAt: now,
+          rawState: updatedRawState,
         })
         .where(eq(generationSessions.id, sessionId));
     } else {
@@ -263,6 +302,7 @@ export async function POST(
         status: 'active',
         startedAt: now,
         updatedAt: now,
+        rawState: initialRawState,
       }).returning();
       sessionId = inserted[0].id;
     }
