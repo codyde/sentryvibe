@@ -12,6 +12,7 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../../types/generation';
 import { serializeGenerationState } from '../generation-persistence';
+import { buildWebSocketServer } from '../../index';
 
 interface ActiveBuildContext {
   commandId: string;
@@ -70,6 +71,15 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
   if (!sessionRow) {
     throw new Error('Generation session not found when building snapshot');
   }
+  
+  // Fetch project name from database
+  const [projectRow] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, sessionRow.projectId))
+    .limit(1);
+  
+  const projectName = projectRow?.name || context.projectId;
 
   const todoRows = await db
     .select()
@@ -144,7 +154,7 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
   const snapshot: GenerationState = {
     id: sessionRow.buildId,
     projectId: sessionRow.projectId,
-    projectName: '', // Will be filled in by caller if needed
+    projectName: projectName,
     operationType: (sessionRow.operationType ?? 'continuation') as GenerationState['operationType'],
     agentId: (persistedState?.agentId as GenerationState['agentId']) ?? context.agentId as GenerationState['agentId'],
     claudeModelId: (persistedState?.claudeModelId as GenerationState['claudeModelId']) ?? context.claudeModelId as GenerationState['claudeModelId'],
@@ -168,6 +178,13 @@ async function refreshRawState(context: ActiveBuildContext) {
     await db.update(generationSessions)
       .set({ rawState: serialized, updatedAt: new Date() })
       .where(eq(generationSessions.id, context.sessionId));
+    
+    // Broadcast state update via WebSocket
+    buildWebSocketServer.broadcastStateUpdate(
+      context.projectId,
+      context.sessionId,
+      snapshot
+    );
   } catch (snapshotError) {
     console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
   }
@@ -415,6 +432,9 @@ async function persistEvent(
         // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
         await refreshRawState(context);
         console.log(`[persistent-processor] ✅ Todos persisted and state refreshed, activeTodoIndex=${context.currentActiveTodoIndex}`);
+        
+        // Broadcast todo update via WebSocket (high priority - immediate flush)
+        buildWebSocketServer.broadcastTodoUpdate(context.projectId, context.sessionId, todos);
 
         // AUTO-FINALIZE: If all todos are complete, finalize the build
         // This handles cases where build-completed event is delayed or missing
@@ -435,6 +455,19 @@ async function persistEvent(
           console.log(`[persistent-processor] Injected todoIndex ${context.currentActiveTodoIndex} into ${eventData.toolName} tool`);
         }
         await persistToolCall(context, eventData, 'input-available');
+        
+        // Broadcast tool call via WebSocket with explicit todoIndex
+        const todoIndex = typeof eventData.todoIndex === 'number'
+          ? eventData.todoIndex
+          : context.currentActiveTodoIndex;
+        
+        buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
+          id: eventData.toolCallId || '',
+          name: eventData.toolName,
+          todoIndex: todoIndex,
+          input: eventData.input,
+          state: 'input-available',
+        });
       }
 
       // Only refresh if we didn't already refresh for TodoWrite
@@ -456,6 +489,22 @@ async function persistEvent(
       }
 
       await persistToolCall(context, eventData, 'output-available');
+      
+      // Broadcast tool completion via WebSocket with explicit todoIndex
+      if (eventData.toolName) {
+        const todoIndex = typeof eventData.todoIndex === 'number'
+          ? eventData.todoIndex
+          : context.currentActiveTodoIndex;
+        
+        buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
+          id: eventData.toolCallId || '',
+          name: eventData.toolName,
+          todoIndex: todoIndex,
+          input: undefined,
+          state: 'output-available',
+        });
+      }
+      
       await refreshRawState(context);
       break;
 

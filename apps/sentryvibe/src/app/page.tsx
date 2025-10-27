@@ -52,6 +52,8 @@ import type { TagOption } from "@sentryvibe/agent-core/config/tags";
 import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
 import { getClaudeModelLabel } from "@sentryvibe/agent-core/client";
 import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
+import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
+import { WebSocketStatus } from "@/components/WebSocketStatus";
 
 interface MessagePart {
   type: string;
@@ -122,6 +124,21 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
+  
+  // WebSocket connection for real-time updates (primary source)
+  // Enable if: project exists AND (actively generating OR has active session in state)
+  const hasActiveSession = generationState?.isActive === true;
+  const {
+    state: wsState,
+    isConnected: wsConnected,
+    isReconnecting: wsReconnecting,
+    error: wsError,
+    reconnect: wsReconnect,
+  } = useBuildWebSocket({
+    projectId: currentProject?.id || '',
+    sessionId: undefined, // Subscribe to all sessions for this project
+    enabled: !!currentProject && (isGenerating || hasActiveSession),
+  });
 
 
   const updateGenerationState = useCallback(
@@ -232,6 +249,50 @@ function HomeContent() {
   useEffect(() => {
     generationStateRef.current = generationState;
   }, [generationState]);
+  
+  // Sync WebSocket state to local state (both hydrated and live updates)
+  // IMPORTANT: Merge WebSocket updates with existing state to preserve metadata
+  useEffect(() => {
+    if (wsState) {
+      if (DEBUG_PAGE) console.log('🔌 WebSocket state update:', {
+        isConnected: wsConnected,
+        hasState: !!wsState,
+        agentId: wsState.agentId,
+        claudeModelId: wsState.claudeModelId,
+        projectName: wsState.projectName,
+        todosLength: wsState.todos?.length,
+      });
+      
+      setGenerationState((prevState) => {
+        // If no previous state, use WebSocket state as-is
+        if (!prevState) {
+          if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
+          return wsState;
+        }
+        
+        // Merge WebSocket updates with existing state
+        // This preserves fields like agentId, claudeModelId that may not be in WebSocket updates
+        const merged = {
+          ...prevState,
+          ...wsState,
+          // Ensure critical metadata is never lost (use WebSocket value OR previous value)
+          agentId: wsState.agentId || prevState.agentId,
+          claudeModelId: wsState.claudeModelId || prevState.claudeModelId,
+          projectId: wsState.projectId || prevState.projectId,
+          projectName: wsState.projectName || prevState.projectName,
+          operationType: wsState.operationType || prevState.operationType,
+        };
+        
+        if (DEBUG_PAGE) console.log('   Merged state:', {
+          agentId: merged.agentId,
+          claudeModelId: merged.claudeModelId,
+          projectName: merged.projectName,
+        });
+        
+        return merged;
+      });
+    }
+  }, [wsState, wsConnected]);
 
   const ensureGenerationState = useCallback(
     (prevState: GenerationState | null): GenerationState | null => {
@@ -685,6 +746,8 @@ function HomeContent() {
                       (raw.operationType as BuildOperationType) ??
                       (session?.operationType as BuildOperationType) ??
                       "continuation",
+                    agentId: raw.agentId as GenerationState['agentId'] | undefined,
+                    claudeModelId: raw.claudeModelId as GenerationState['claudeModelId'] | undefined,
                     todos,
                     toolsByTodo,
                     textByTodo,
@@ -704,6 +767,7 @@ function HomeContent() {
                       : session?.endedAt
                       ? new Date(session.endedAt as string | number)
                       : undefined,
+                    codex: raw.codex as GenerationState['codex'] | undefined,
                   };
                 } catch (err) {
                   if (DEBUG_PAGE) console.warn(
@@ -2237,6 +2301,16 @@ function HomeContent() {
       onRenameProject={setRenamingProject}
       onDeleteProject={setDeletingProject}
     >
+      {/* WebSocket Connection Status Indicator */}
+      {isGenerating && (
+        <WebSocketStatus
+          isConnected={wsConnected}
+          isReconnecting={wsReconnecting}
+          error={wsError}
+          onReconnect={wsReconnect}
+        />
+      )}
+      
       <SidebarProvider defaultOpen={false}>
         <AppSidebar
           onOpenProcessModal={() => setShowProcessModal(true)}

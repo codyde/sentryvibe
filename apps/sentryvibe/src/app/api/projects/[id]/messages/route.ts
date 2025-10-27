@@ -123,16 +123,38 @@ export async function GET(
       const sessionNotes = notes.filter(note => note.sessionId === session.id);
 
       let hydratedState: GenerationState | null = null;
+      let rawStateObj: Record<string, unknown> | null = null;
+      
+      // Try to parse rawState for metadata extraction
+      if (session.rawState) {
+        try {
+          rawStateObj = typeof session.rawState === 'string' 
+            ? JSON.parse(session.rawState)
+            : session.rawState as Record<string, unknown>;
+        } catch (err) {
+          console.warn('[messages-route] Failed to parse rawState:', err);
+        }
+      }
+      
+      // Try full deserialization first
       if (session.rawState && typeof session.rawState === 'string') {
         hydratedState = deserializeGenerationState(session.rawState);
       }
 
+      // Fallback: Build state from database tables if deserialization failed
       if (!hydratedState) {
+        // Extract agent metadata from rawState even if full deserialization failed
+        const agentId = rawStateObj?.agentId as GenerationState['agentId'] | undefined;
+        const claudeModelId = rawStateObj?.claudeModelId as GenerationState['claudeModelId'] | undefined;
+        const projectName = rawStateObj?.projectName as string | undefined;
+        
         hydratedState = {
           id: session.buildId,
           projectId: session.projectId,
-          projectName: '',
+          projectName: projectName || '',
           operationType: session.operationType as GenerationState['operationType'],
+          agentId: agentId,
+          claudeModelId: claudeModelId,
           todos: sessionTodos.map(todo => ({
             content: todo.content,
             status: todo.status as TodoItem['status'],
@@ -168,6 +190,7 @@ export async function GET(
           isActive: session.status === 'active',
           startTime: session.startedAt ?? new Date(),
           endTime: session.endedAt ?? undefined,
+          codex: rawStateObj?.codex as GenerationState['codex'] | undefined,
         };
       }
 
