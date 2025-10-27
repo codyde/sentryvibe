@@ -35,6 +35,16 @@ export function TagDropdown({
   children,
   existingTagKey
 }: TagDropdownProps) {
+  // Get tag definitions with runner options injected
+  const getTagDefinitions = () => {
+    return TAG_DEFINITIONS.map(def => {
+      if (def.key === 'runner') {
+        return { ...def, options: runnerOptions };
+      }
+      return def;
+    });
+  };
+
   const getInitialView = (): ViewState[] => {
     if (existingTagKey) {
       const def = getTagDefinitions().find(d => d.key === existingTagKey);
@@ -123,16 +133,6 @@ export function TagDropdown({
     onSelectTag(def.key, color);
     onOpenChange(false);
     resetViews();
-  };
-
-  // Get tag definitions with runner options injected
-  const getTagDefinitions = () => {
-    return TAG_DEFINITIONS.map(def => {
-      if (def.key === 'runner') {
-        return { ...def, options: runnerOptions };
-      }
-      return def;
-    });
   };
 
   // Get icon for tag category or specific tag key
