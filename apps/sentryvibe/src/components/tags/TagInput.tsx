@@ -73,6 +73,18 @@ export function TagInput({
     }
   };
 
+  const handleReplaceTag = (oldTag: AppliedTag, newKey: string, newValue: string, expandedValues?: Record<string, string>) => {
+    // Remove the old tag and add the new one
+    const filteredTags = tags.filter(t => !(t.key === oldTag.key && t.value === oldTag.value));
+    const newTag: AppliedTag = {
+      key: newKey,
+      value: newValue,
+      expandedValues,
+      appliedAt: new Date()
+    };
+    onTagsChange([...filteredTags, newTag]);
+  };
+
   // Validate tags whenever they change
   React.useEffect(() => {
     if (tags.length === 0) {
@@ -131,6 +143,8 @@ export function TagInput({
             key={`${tag.key}-${tag.value}-${index}`}
             tag={tag}
             onRemove={() => handleRemoveTag(tag.key, tag.value)}
+            onReplace={(key, value, expandedValues) => handleReplaceTag(tag, key, value, expandedValues)}
+            runnerOptions={runnerOptions}
           />
         ))}
 

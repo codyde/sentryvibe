@@ -3,17 +3,22 @@
 import { X } from 'lucide-react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
-import { findTagDefinition } from '@sentryvibe/agent-core/config/tags';
+import { findTagDefinition, TagOption } from '@sentryvibe/agent-core/config/tags';
 import { getBrandLogo } from '@/lib/brand-logos';
 import { getFrameworkLogo } from '@/lib/framework-logos';
 import { getModelLogo } from '@/lib/model-logos';
+import { TagDropdown } from './TagDropdown';
+import { useState } from 'react';
 
 interface TagBadgeProps {
   tag: AppliedTag;
   onRemove: () => void;
+  onReplace?: (key: string, newValue: string, expandedValues?: Record<string, string>) => void;
+  runnerOptions?: TagOption[];
 }
 
-export function TagBadge({ tag, onRemove }: TagBadgeProps) {
+export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBadgeProps) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const def = findTagDefinition(tag.key);
 
   if (!def) return null;
@@ -51,8 +56,14 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
   const frameworkLogo = tag.key === 'framework' ? getFrameworkLogo(tag.value) : null;
   const modelLogo = tag.key === 'model' ? getModelLogo(tag.value) : null;
 
+  const handleReplace = (key: string, value: string, expandedValues?: Record<string, string>) => {
+    if (onReplace) {
+      onReplace(key, value, expandedValues);
+    }
+  };
+
   const badge = (
-    <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors">
+    <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors cursor-pointer">
       {brandLogo && (
         <img
           src={brandLogo}
@@ -89,15 +100,28 @@ export function TagBadge({ tag, onRemove }: TagBadgeProps) {
     </div>
   );
 
+  // Wrap badge with TagDropdown to allow replacement
+  const badgeWithDropdown = onReplace ? (
+    <TagDropdown
+      open={dropdownOpen}
+      onOpenChange={setDropdownOpen}
+      onSelectTag={handleReplace}
+      runnerOptions={runnerOptions}
+      existingTagKey={tag.key}
+    >
+      {badge}
+    </TagDropdown>
+  ) : badge;
+
   if (!shouldShowHoverCard) {
-    return badge;
+    return badgeWithDropdown;
   }
 
   // Show hover card for brand tags with expanded values
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
-        {badge}
+        {badgeWithDropdown}
       </HoverCardTrigger>
       <HoverCardContent className="w-80 bg-gray-900 border-gray-700">
         <div className="space-y-2">
