@@ -71,6 +71,15 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
   if (!sessionRow) {
     throw new Error('Generation session not found when building snapshot');
   }
+  
+  // Fetch project name from database
+  const [projectRow] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, sessionRow.projectId))
+    .limit(1);
+  
+  const projectName = projectRow?.name || context.projectId;
 
   const todoRows = await db
     .select()
@@ -145,7 +154,7 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
   const snapshot: GenerationState = {
     id: sessionRow.buildId,
     projectId: sessionRow.projectId,
-    projectName: '', // Will be filled in by caller if needed
+    projectName: projectName,
     operationType: (sessionRow.operationType ?? 'continuation') as GenerationState['operationType'],
     agentId: (persistedState?.agentId as GenerationState['agentId']) ?? context.agentId as GenerationState['agentId'],
     claudeModelId: (persistedState?.claudeModelId as GenerationState['claudeModelId']) ?? context.claudeModelId as GenerationState['claudeModelId'],

@@ -126,6 +126,8 @@ function HomeContent() {
   const [generationRevision, setGenerationRevision] = useState(0);
   
   // WebSocket connection for real-time updates (primary source)
+  // Enable if: project exists AND (actively generating OR has active session in state)
+  const hasActiveSession = generationState?.isActive === true;
   const {
     state: wsState,
     isConnected: wsConnected,
@@ -135,7 +137,7 @@ function HomeContent() {
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
     sessionId: undefined, // Subscribe to all sessions for this project
-    enabled: !!currentProject && isGenerating,
+    enabled: !!currentProject && (isGenerating || hasActiveSession),
   });
 
 
@@ -249,10 +251,27 @@ function HomeContent() {
   }, [generationState]);
   
   // Sync WebSocket state to local state (WebSocket is primary when connected)
+  // IMPORTANT: Merge WebSocket updates with existing state to preserve metadata
   useEffect(() => {
     if (wsConnected && wsState) {
       if (DEBUG_PAGE) console.log('🔌 WebSocket state update received');
-      setGenerationState(wsState);
+      setGenerationState((prevState) => {
+        // If no previous state, use WebSocket state as-is
+        if (!prevState) return wsState;
+        
+        // Merge WebSocket updates with existing state
+        // This preserves fields like agentId, claudeModelId that may not be in WebSocket updates
+        return {
+          ...prevState,
+          ...wsState,
+          // Ensure critical metadata is never lost
+          agentId: wsState.agentId || prevState.agentId,
+          claudeModelId: wsState.claudeModelId || prevState.claudeModelId,
+          projectId: wsState.projectId || prevState.projectId,
+          projectName: wsState.projectName || prevState.projectName,
+          operationType: wsState.operationType || prevState.operationType,
+        };
+      });
     }
   }, [wsState, wsConnected]);
 
