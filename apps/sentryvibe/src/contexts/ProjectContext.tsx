@@ -20,6 +20,7 @@ export interface Project {
   tunnelUrl: string | null;
   runnerId: string | null; // Runner that created/manages this project
   generationState: string | null; // Serialized JSON of GenerationState
+  tags: any | null; // Serialized JSON of applied tags
   lastActivityAt: Date | null;
   errorMessage: string | null;
   createdAt: Date;
