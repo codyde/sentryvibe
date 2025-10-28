@@ -362,10 +362,81 @@ export async function GET(
                                           latestSession?.session?.status === 'finalized';
                   
                   if (isBuildComplete) {
-                    console.log('[github-repo] 🔍 Build complete, checking ALL messages as fallback');
+                    console.log('[github-repo] 🔍 Build complete, checking ALL messages and tool outputs as fallback');
                     
-                    for (let i = 0; i < allMessages.length; i++) {
-                      const message = allMessages[i];
+                    // First check tool outputs (from gh repo create command)
+                    for (const session of sessions) {
+                      const tools = session.tools || [];
+                      for (const tool of tools) {
+                        if (tool.name === 'Bash' && tool.output) {
+                          let toolOutput = '';
+                          try {
+                            // Tool output might be JSON stringified
+                            toolOutput = typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output);
+                            
+                            // Check if this is the gh repo create command
+                            const toolInput = typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input);
+                            if (toolInput.includes('gh repo create')) {
+                              console.log('[github-repo] 📋 Checking gh repo create tool output');
+                              
+                              // gh repo create outputs the URL as the first line
+                              const urlMatch = toolOutput.match(/https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+/);
+                              if (urlMatch) {
+                                const repoUrl = urlMatch[0];
+                                
+                                // Skip placeholders
+                                if (!repoUrl.includes('/username/') && !repoUrl.includes('/repo-name')) {
+                                  console.log('[github-repo] ✓ Found repo URL in tool output:', repoUrl);
+                                  
+                                  githubMetadata = {
+                                    ...githubMetadata,
+                                    status: 'completed',
+                                    repoUrl: repoUrl,
+                                    completedAt: new Date().toISOString(),
+                                  };
+                                  
+                                  await db
+                                    .update(projects)
+                                    .set({
+                                      generationState: JSON.stringify({
+                                        ...generationState,
+                                        github: githubMetadata,
+                                      }),
+                                      updatedAt: new Date(),
+                                    })
+                                    .where(eq(projects.id, projectId));
+                                  
+                                  console.log('[github-repo] ✅ Updated database with repo URL (from tool output)');
+                                  
+                                  Sentry.addBreadcrumb({
+                                    category: 'github-repo',
+                                    message: 'Successfully extracted GitHub repo URL from tool output',
+                                    level: 'info',
+                                    data: {
+                                      projectId,
+                                      repoUrl,
+                                    },
+                                  });
+                                  
+                                  break;
+                                }
+                              }
+                            }
+                          } catch (e) {
+                            // Ignore parsing errors
+                          }
+                        }
+                      }
+                      
+                      if (githubMetadata.status === 'completed') break;
+                    }
+                    
+                    // If still not found, check messages
+                    if (githubMetadata.status !== 'completed') {
+                      console.log('[github-repo] 🔍 Not found in tool outputs, checking messages');
+                      
+                      for (let i = 0; i < allMessages.length; i++) {
+                        const message = allMessages[i];
                       
                       let contentToSearch: string = '';
                       if (typeof message.content === 'string') {
@@ -398,6 +469,12 @@ export async function GET(
                               .replace(/["`']+$/, '')
                               .replace(/[.,;:!?]+$/, '')
                               .trim();
+                            
+                            // Skip placeholder/example URLs
+                            if (repoUrl.includes('/username/') || repoUrl.includes('/repo-name')) {
+                              console.log('[github-repo] ⚠️  Skipping placeholder URL:', repoUrl);
+                              continue;
+                            }
                             
                             if (repoUrl.match(/^https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/)) {
                               console.log('[github-repo] ✓ Found repo URL in fallback search:', repoUrl);
@@ -437,7 +514,8 @@ export async function GET(
                           }
                         }
                         
-                        if (githubMetadata.status === 'completed') break;
+                          if (githubMetadata.status === 'completed') break;
+                        }
                       }
                     }
                   }
