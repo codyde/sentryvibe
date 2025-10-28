@@ -395,10 +395,18 @@ async function forwardEvent(event: RunnerEvent) {
         Authorization: `Bearer ${SHARED_SECRET}`,
       };
 
-      // Note: We do NOT manually set sentry-trace and baggage headers here!
-      // Sentry's automatic HTTP instrumentation will handle this when fetch() is called.
-      // The fetch() will automatically create an http.client span and propagate trace context.
-      // This ensures http.server span in NextJS is a proper child of http.client span.
+      // Manually set trace headers as a fallback in case automatic instrumentation fails
+      // This MUST be called inside the broker.forwardEvent span for correct context
+      const activeSpan = Sentry.getActiveSpan();
+      if (activeSpan) {
+        const traceData = Sentry.getTraceData();
+        if (traceData['sentry-trace']) {
+          headers['sentry-trace'] = traceData['sentry-trace'];
+        }
+        if (traceData.baggage) {
+          headers['baggage'] = traceData.baggage;
+        }
+      }
 
       const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
         method: 'POST',
