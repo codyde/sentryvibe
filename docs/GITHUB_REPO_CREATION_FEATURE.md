@@ -125,6 +125,52 @@ When found, it:
 - Repository name conflicts
 - Permission issues
 
+## Observability & Error Tracking
+
+### Sentry Integration
+The feature includes comprehensive Sentry tracking for monitoring and debugging:
+
+#### Exception Tracking
+All errors are captured with detailed context:
+- **API Route Errors**: Parse failures, build trigger failures, database errors
+- **Frontend Errors**: API failures, polling errors, tag parsing errors
+- **Timeout Tracking**: 5-minute timeout warnings
+
+#### Tags for Filtering
+All Sentry events include these tags:
+- `operation: 'github-repo-creation'` - Easy filtering in Sentry
+- `component: 'PreviewPanel'` - Frontend events
+- `step: '<operation-step>'` - Specific operation that failed
+
+#### Breadcrumbs
+Success milestones tracked as breadcrumbs:
+- User initiates repo creation
+- API request successful
+- Polling started
+- Repo URL extracted
+- Creation completed
+- User opens repository
+
+#### Extra Context
+All events include relevant data:
+- `projectId` - Project identifier
+- `projectSlug` - Project slug
+- `repoUrl` - GitHub repository URL (when available)
+- `status` - Current status
+- Response codes and error messages
+
+### Querying in Sentry
+```
+# All GitHub repo creation events
+operation:github-repo-creation
+
+# Failed creations only
+operation:github-repo-creation level:error
+
+# Specific step failures
+operation:github-repo-creation step:parse-repo-url
+```
+
 ## Security Considerations
 
 1. **Authentication**: Uses runner's gh CLI authentication
