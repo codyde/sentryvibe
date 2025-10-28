@@ -352,7 +352,99 @@ export async function GET(
                 }
                 
                 if (githubMetadata?.status !== 'completed') {
-                  console.log('[github-repo] ⏳ No repo URL found yet in messages after creation start time, will check again on next poll');
+                  console.log('[github-repo] ⏳ No repo URL found in new messages');
+                  
+                  // FALLBACK: If build is complete, check ALL messages (not just new ones)
+                  // This handles cases where message timestamps are slightly off
+                  const sessions = messagesData.sessions || [];
+                  const latestSession = sessions[0];
+                  const isBuildComplete = latestSession?.session?.status === 'completed' || 
+                                          latestSession?.session?.status === 'finalized';
+                  
+                  if (isBuildComplete) {
+                    console.log('[github-repo] 🔍 Build complete, checking ALL messages as fallback');
+                    
+                    for (let i = 0; i < allMessages.length; i++) {
+                      const message = allMessages[i];
+                      
+                      let contentToSearch: string = '';
+                      if (typeof message.content === 'string') {
+                        contentToSearch = message.content;
+                      } else if (Array.isArray(message.content)) {
+                        contentToSearch = message.content
+                          .filter((block: any) => block.type === 'text' && block.text)
+                          .map((block: any) => block.text)
+                          .join('\n');
+                      }
+                      
+                      if (contentToSearch && contentToSearch.includes('REPO_URL:')) {
+                        const patterns = [
+                          /REPO_URL:\s*(https:\/\/github\.com\/[^\s)]+)/i,
+                          /(?:created|initialized|new)\s+repository[:\s]+(?:\[.*?\]\()?(https:\/\/github\.com\/[^\s)]+)/i,
+                          /(?:repository|repo)\s+(?:url|link|created)[:\s]+(?:\[.*?\]\()?(https:\/\/github\.com\/[^\s)]+)/i,
+                        ];
+                        
+                        for (const pattern of patterns) {
+                          const repoUrlMatch = contentToSearch.match(pattern);
+                          if (repoUrlMatch) {
+                            let repoUrl = repoUrlMatch[1] || repoUrlMatch[0];
+                            
+                            // Clean URL
+                            repoUrl = repoUrl
+                              .replace(/^[@]+/, '')
+                              .replace(/[\)\]]+$/, '')
+                              .replace(/%22/g, '')
+                              .replace(/%27/g, '')
+                              .replace(/["`']+$/, '')
+                              .replace(/[.,;:!?]+$/, '')
+                              .trim();
+                            
+                            if (repoUrl.match(/^https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/)) {
+                              console.log('[github-repo] ✓ Found repo URL in fallback search:', repoUrl);
+                              
+                              githubMetadata = {
+                                ...githubMetadata,
+                                status: 'completed',
+                                repoUrl: repoUrl,
+                                completedAt: new Date().toISOString(),
+                              };
+                              
+                              await db
+                                .update(projects)
+                                .set({
+                                  generationState: JSON.stringify({
+                                    ...generationState,
+                                    github: githubMetadata,
+                                  }),
+                                  updatedAt: new Date(),
+                                })
+                                .where(eq(projects.id, projectId));
+                              
+                              console.log('[github-repo] ✅ Updated database with repo URL (fallback)');
+                              
+                              Sentry.addBreadcrumb({
+                                category: 'github-repo',
+                                message: 'Successfully extracted GitHub repo URL (fallback)',
+                                level: 'info',
+                                data: {
+                                  projectId,
+                                  repoUrl,
+                                },
+                              });
+                              
+                              break;
+                            }
+                          }
+                        }
+                        
+                        if (githubMetadata.status === 'completed') break;
+                      }
+                    }
+                  }
+                  
+                  if (githubMetadata?.status !== 'completed') {
+                    console.log('[github-repo] ⏳ No repo URL found yet, will check again on next poll');
+                  }
                 }
               } catch (parseError) {
                 console.error('[github-repo] Error parsing messages for repo URL:', parseError);
