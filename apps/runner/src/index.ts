@@ -2221,8 +2221,9 @@ export async function startRunner(options: RunnerOptions = {}) {
   return performShutdown;
 }
 
-// If running this file directly, start the runner
-// ESM equivalent of: if (require.main === module)
-if (import.meta.url === `file://${process.argv[1]}`) {
-  startRunner();
-}
+// Note: Direct execution is not supported - use CLI commands instead
+// The runner requires proper configuration (sharedSecret, brokerUrl, etc.)
+// which should be provided via CLI commands like:
+// - sentryvibe start
+// - sentryvibe run
+// - sentryvibe start-traditional
