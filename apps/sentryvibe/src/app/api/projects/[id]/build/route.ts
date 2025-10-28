@@ -309,7 +309,7 @@ export async function POST(
           for (const msg of completedMessages) {
             try {
               await db.execute(
-                sql`INSERT INTO message (project_id, role, content) VALUES (${id}, ${msg.role}, ${JSON.stringify(msg.content)})`
+                sql`INSERT INTO messages (project_id, role, content) VALUES (${id}, ${msg.role}, ${JSON.stringify(msg.content)})`
               );
             } catch (error) {
               console.error('[build-route] Failed to save message:', error);
