@@ -180,11 +180,19 @@ async function refreshRawState(context: ActiveBuildContext) {
       .set({ rawState: serialized, updatedAt: new Date() })
       .where(eq(generationSessions.id, context.sessionId));
     
-    // Broadcast state update via WebSocket
+    // Capture current trace context for distributed tracing
+    const activeSpan = Sentry.getActiveSpan();
+    const traceContext = activeSpan ? {
+      trace: Sentry.getTraceData()['sentry-trace'],
+      baggage: Sentry.getTraceData().baggage,
+    } : undefined;
+    
+    // Broadcast state update via WebSocket with trace context
     buildWebSocketServer.broadcastStateUpdate(
       context.projectId,
       context.sessionId,
-      snapshot
+      snapshot,
+      traceContext
     );
   } catch (snapshotError) {
     console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
@@ -497,13 +505,25 @@ async function persistEvent(
           ? eventData.todoIndex
           : context.currentActiveTodoIndex;
         
-        buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
-          id: eventData.toolCallId || '',
-          name: eventData.toolName,
-          todoIndex: todoIndex,
-          input: undefined,
-          state: 'output-available',
-        });
+        // Capture current trace context for distributed tracing
+        const activeSpan = Sentry.getActiveSpan();
+        const traceContext = activeSpan ? {
+          trace: Sentry.getTraceData()['sentry-trace'],
+          baggage: Sentry.getTraceData().baggage,
+        } : undefined;
+        
+        buildWebSocketServer.broadcastToolCall(
+          context.projectId, 
+          context.sessionId, 
+          {
+            id: eventData.toolCallId || '',
+            name: eventData.toolName,
+            todoIndex: todoIndex,
+            input: undefined,
+            state: 'output-available',
+          },
+          traceContext
+        );
       }
       
       await refreshRawState(context);

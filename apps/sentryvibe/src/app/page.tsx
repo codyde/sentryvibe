@@ -134,6 +134,7 @@ function HomeContent() {
     isReconnecting: wsReconnecting,
     error: wsError,
     reconnect: wsReconnect,
+    sentryTrace: wsSentryTrace,
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
     sessionId: undefined, // Subscribe to all sessions for this project
@@ -362,7 +363,7 @@ function HomeContent() {
           phases: updated.codex?.phases.map((p) => `${p.id}:${p.status}`),
         });
 
-        saveGenerationState(updated.projectId, updated);
+        saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
         return updated;
       });
     },
@@ -1527,7 +1528,7 @@ function HomeContent() {
                 if (DEBUG_PAGE) console.log("   Active index set to:", activeIndex);
 
                 // Save to DB using projectId from state (always available!)
-                saveGenerationState(updated.projectId, updated);
+                saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
 
                 if (DEBUG_PAGE) console.log("🧠 Generation state snapshot:", {
                   todoCount: updated.todos.length,
@@ -1604,7 +1605,7 @@ function HomeContent() {
                 );
 
                 // Save to DB using projectId from state
-                saveGenerationState(updated.projectId, updated);
+                saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
 
                 return updated;
               });
@@ -1658,7 +1659,7 @@ function HomeContent() {
               };
 
               // Save to DB (tool completion is a checkpoint)
-              saveGenerationState(updated.projectId, updated);
+              saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
 
               return updated;
             });
@@ -1901,7 +1902,7 @@ function HomeContent() {
         if (DEBUG_PAGE) console.log(
           "✅ Final summary detected, marking last todo as completed"
         );
-        saveGenerationState(completedState.projectId, completedState);
+        saveGenerationState(completedState.projectId, completedState, wsSentryTrace || undefined);
 
         return completedState;
       });
@@ -1916,7 +1917,7 @@ function HomeContent() {
         };
 
         // CRITICAL: Save final state to DB
-        saveGenerationState(completed.projectId, completed);
+        saveGenerationState(completed.projectId, completed, wsSentryTrace || undefined);
 
         return completed;
       });
@@ -1949,7 +1950,7 @@ function HomeContent() {
         };
 
         // Save failed state to DB
-        saveGenerationState(failed.projectId, failed);
+        saveGenerationState(failed.projectId, failed, wsSentryTrace || undefined);
 
         return failed;
       });
@@ -2161,7 +2162,7 @@ function HomeContent() {
           );
 
           // Save to DB
-          saveGenerationState(prev.projectId, completed);
+          saveGenerationState(prev.projectId, completed, wsSentryTrace || undefined);
 
           return completed;
         });
