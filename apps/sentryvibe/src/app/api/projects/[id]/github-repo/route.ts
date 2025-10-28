@@ -374,15 +374,27 @@ export async function GET(
                             // Tool output might be JSON stringified
                             toolOutput = typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output);
                             
+                            // If it's JSON stringified, try to parse it
+                            if (toolOutput.startsWith('"') && toolOutput.endsWith('"')) {
+                              try {
+                                toolOutput = JSON.parse(toolOutput);
+                              } catch (e) {
+                                // If parse fails, use as is
+                              }
+                            }
+                            
                             // Check if this is the gh repo create command
                             const toolInput = typeof tool.input === 'string' ? tool.input : JSON.stringify(tool.input);
                             if (toolInput.includes('gh repo create')) {
                               console.log('[github-repo] 📋 Checking gh repo create tool output');
+                              console.log('[github-repo] Tool output preview:', toolOutput.substring(0, 150));
                               
                               // gh repo create outputs the URL as the first line
                               const urlMatch = toolOutput.match(/https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+/);
                               if (urlMatch) {
                                 const repoUrl = urlMatch[0];
+                                
+                                console.log('[github-repo] ✅ Found URL match:', repoUrl);
                                 
                                 // Skip placeholders
                                 if (!repoUrl.includes('/username/') && !repoUrl.includes('/repo-name')) {
@@ -419,11 +431,15 @@ export async function GET(
                                   });
                                   
                                   break;
+                                } else {
+                                  console.log('[github-repo] ⚠️  Skipping placeholder URL from tool output:', repoUrl);
                                 }
+                              } else {
+                                console.log('[github-repo] ❌ No URL found in gh repo create output');
                               }
                             }
                           } catch (e) {
-                            // Ignore parsing errors
+                            console.error('[github-repo] Error parsing tool output:', e);
                           }
                         }
                       }
