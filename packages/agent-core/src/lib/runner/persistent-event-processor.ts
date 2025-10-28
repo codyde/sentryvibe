@@ -187,6 +187,16 @@ async function refreshRawState(context: ActiveBuildContext) {
       baggage: Sentry.getTraceData().baggage,
     } : undefined;
     
+    // DEBUG: Log trace context capture
+    if (traceContext?.trace) {
+      console.log('[persistent-processor] 🔗 Captured trace context for WebSocket:', {
+        trace: traceContext.trace.substring(0, 40) + '...',
+        hasBaggage: !!traceContext.baggage,
+      });
+    } else {
+      console.log('[persistent-processor] ⚠️ No active span to capture trace context');
+    }
+    
     // Broadcast state update via WebSocket with trace context
     buildWebSocketServer.broadcastStateUpdate(
       context.projectId,

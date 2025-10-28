@@ -36,6 +36,16 @@ export async function PATCH(
   const sentryTrace = req.headers.get('sentry-trace');
   const baggage = req.headers.get('baggage');
   
+  // DEBUG: Log trace context reception
+  if (sentryTrace) {
+    console.log('[PATCH /api/projects/[id]] 🔗 Received trace context:', {
+      trace: sentryTrace.substring(0, 40) + '...',
+      hasBaggage: !!baggage,
+    });
+  } else {
+    console.log('[PATCH /api/projects/[id]] ⚠️ No trace context in headers');
+  }
+  
   const executeUpdate = async () => {
     const { id } = await params;
     const updates = await req.json();
