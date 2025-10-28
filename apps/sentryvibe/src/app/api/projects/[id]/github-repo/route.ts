@@ -69,10 +69,12 @@ export async function POST(
           }
         }
 
-        // Initialize GitHub repo metadata
+        // Initialize GitHub repo metadata with timestamp to filter messages
+        const startTime = new Date();
         const githubMetadata: GithubRepoMetadata = {
           status: 'pending',
-          startedAt: new Date().toISOString(),
+          startedAt: startTime.toISOString(),
+          buildId: generationState?.id, // Track the build that's creating the repo
         };
 
         // Update project with GitHub metadata
@@ -221,12 +223,14 @@ export async function GET(
             githubMetadata = generationState?.github || null;
             
             // If status is creating, try to parse logs for the repo URL
-            if (githubMetadata?.status === 'creating') {
+            if (githubMetadata?.status === 'creating' && githubMetadata.startedAt) {
               // Try to fetch recent messages to look for REPO_URL
               try {
-                console.log('[github-repo] 🔍 Checking messages for REPO_URL...');
+                const creationStartTime = new Date(githubMetadata.startedAt);
+                console.log('[github-repo] 🔍 Checking messages for REPO_URL created after', creationStartTime.toISOString());
+                
                 const messagesResponse = await fetch(
-                  `${req.nextUrl.protocol}//${req.nextUrl.host}/api/projects/${projectId}/messages?limit=20`,
+                  `${req.nextUrl.protocol}//${req.nextUrl.host}/api/projects/${projectId}/messages?limit=50`,
                   { cache: 'no-store' }
                 );
                 
@@ -235,11 +239,17 @@ export async function GET(
                 }
                 
                 const messagesData = await messagesResponse.json();
-                const messages = messagesData.messages || [];
+                const allMessages = messagesData.messages || [];
                 
-                console.log(`[github-repo] 📝 Found ${messages.length} messages to check`);
+                // Filter messages to only those created AFTER the GitHub repo creation was initiated
+                const messages = allMessages.filter((msg: any) => {
+                  const msgTime = new Date(msg.createdAt);
+                  return msgTime > creationStartTime;
+                });
                 
-                // Look for REPO_URL pattern in messages
+                console.log(`[github-repo] 📝 Found ${messages.length} messages created after repo creation started (${allMessages.length} total)`);
+                
+                // Look for REPO_URL pattern in messages created after we started
                 for (let i = 0; i < messages.length; i++) {
                   const message = messages[i];
                   
@@ -256,20 +266,34 @@ export async function GET(
                   }
                   
                   if (contentToSearch) {
-                    console.log(`[github-repo] Checking message ${i + 1}: ${contentToSearch.substring(0, 100)}...`);
+                    console.log(`[github-repo] Checking message ${i + 1} (${message.createdAt}): ${contentToSearch.substring(0, 100)}...`);
                     
-                    // Look for multiple URL patterns
+                    // Look for patterns indicating a NEW repository was created
+                    // Be more strict - require context words indicating creation
                     const patterns = [
-                      /REPO_URL:\s*(https:\/\/github\.com\/[^\s]+)/i,
-                      /repository\s+url:\s*(https:\/\/github\.com\/[^\s]+)/i,
-                      /created\s+repository:\s*(https:\/\/github\.com\/[^\s]+)/i,
-                      /https:\/\/github\.com\/[^\s]+/gi, // Any GitHub URL
+                      /REPO_URL:\s*(https:\/\/github\.com\/[^\s)]+)/i,
+                      /(?:created|initialized|new)\s+repository[:\s]+(?:\[.*?\]\()?(https:\/\/github\.com\/[^\s)]+)/i,
+                      /(?:repository|repo)\s+(?:url|link|created)[:\s]+(?:\[.*?\]\()?(https:\/\/github\.com\/[^\s)]+)/i,
+                      /successfully\s+created[:\s]+(?:\[.*?\]\()?(https:\/\/github\.com\/[^\s)]+)/i,
+                      /(?:view|visit|check out)\s+(?:the\s+)?(?:repository|repo)[:\s]+(?:\[.*?\]\()?(https:\/\/github\.com\/[^\s)]+)/i,
                     ];
                     
                     for (const pattern of patterns) {
                       const repoUrlMatch = contentToSearch.match(pattern);
                       if (repoUrlMatch) {
-                        const repoUrl = repoUrlMatch[1] || repoUrlMatch[0];
+                        // Extract URL - could be in capture group 1 or 0
+                        let repoUrl = repoUrlMatch[1] || repoUrlMatch[0];
+                        
+                        // If the entire match is the URL, extract just the GitHub URL part
+                        if (!repoUrl.startsWith('http')) {
+                          const urlMatch = repoUrl.match(/(https:\/\/github\.com\/[^\s)]+)/i);
+                          if (urlMatch) {
+                            repoUrl = urlMatch[1];
+                          }
+                        }
+                        
+                        // Clean up the URL (remove markdown link syntax if present)
+                        repoUrl = repoUrl.replace(/[\)\]]+$/, '');
                         
                         console.log('[github-repo] ✓ Found repo URL:', repoUrl);
                         
@@ -302,6 +326,7 @@ export async function GET(
                           data: {
                             projectId,
                             repoUrl,
+                            messageTimestamp: message.createdAt,
                           },
                         });
                         
@@ -314,7 +339,7 @@ export async function GET(
                 }
                 
                 if (githubMetadata?.status !== 'completed') {
-                  console.log('[github-repo] ⏳ No repo URL found yet, will check again on next poll');
+                  console.log('[github-repo] ⏳ No repo URL found yet in messages after creation start time, will check again on next poll');
                 }
               } catch (parseError) {
                 console.error('[github-repo] Error parsing messages for repo URL:', parseError);
