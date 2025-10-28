@@ -363,7 +363,8 @@ function HomeContent() {
           phases: updated.codex?.phases.map((p) => `${p.id}:${p.status}`),
         });
 
-        saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
+        // Note: No saveGenerationState() - persistent processor handles all DB writes
+        // Frontend just receives WebSocket updates (read-only)
         return updated;
       });
     },
@@ -1527,8 +1528,7 @@ function HomeContent() {
 
                 if (DEBUG_PAGE) console.log("   Active index set to:", activeIndex);
 
-                // Save to DB using projectId from state (always available!)
-                saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
+                // Note: No saveGenerationState() - persistent processor handles all DB writes
 
                 if (DEBUG_PAGE) console.log("🧠 Generation state snapshot:", {
                   todoCount: updated.todos.length,
@@ -1604,8 +1604,7 @@ function HomeContent() {
                     .join(", ")
                 );
 
-                // Save to DB using projectId from state
-                saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
+                // Note: No saveGenerationState() - persistent processor handles all DB writes
 
                 return updated;
               });
@@ -1658,8 +1657,7 @@ function HomeContent() {
                 toolsByTodo: newToolsByTodo,
               };
 
-              // Save to DB (tool completion is a checkpoint)
-              saveGenerationState(updated.projectId, updated, wsSentryTrace || undefined);
+              // Note: No saveGenerationState() - persistent processor handles all DB writes
 
               return updated;
             });
@@ -1902,7 +1900,7 @@ function HomeContent() {
         if (DEBUG_PAGE) console.log(
           "✅ Final summary detected, marking last todo as completed"
         );
-        saveGenerationState(completedState.projectId, completedState, wsSentryTrace || undefined);
+        // Note: No saveGenerationState() - persistent processor already finalized session
 
         return completedState;
       });
@@ -1916,8 +1914,7 @@ function HomeContent() {
           endTime: new Date(),
         };
 
-        // CRITICAL: Save final state to DB
-        saveGenerationState(completed.projectId, completed, wsSentryTrace || undefined);
+        // Note: No saveGenerationState() - persistent processor already finalized session
 
         return completed;
       });
@@ -1949,8 +1946,7 @@ function HomeContent() {
           endTime: new Date(),
         };
 
-        // Save failed state to DB
-        saveGenerationState(failed.projectId, failed, wsSentryTrace || undefined);
+        // Note: No saveGenerationState() - persistent processor already finalized session
 
         return failed;
       });
@@ -2161,8 +2157,7 @@ function HomeContent() {
             "🎉 Marking final todo as completed - server is running!"
           );
 
-          // Save to DB
-          saveGenerationState(prev.projectId, completed, wsSentryTrace || undefined);
+          // Note: No saveGenerationState() - persistent processor handles all DB writes
 
           return completed;
         });
