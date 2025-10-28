@@ -292,10 +292,23 @@ export async function GET(
                           }
                         }
                         
-                        // Clean up the URL (remove markdown link syntax if present)
-                        repoUrl = repoUrl.replace(/[\)\]]+$/, '');
+                        // Comprehensive URL cleanup
+                        repoUrl = repoUrl
+                          .replace(/^[@]+/, '')                    // Remove leading @
+                          .replace(/[\)\]]+$/, '')                 // Remove trailing ) or ]
+                          .replace(/%22/g, '')                     // Remove URL-encoded quotes
+                          .replace(/%27/g, '')                     // Remove URL-encoded single quotes
+                          .replace(/["`']+$/, '')                  // Remove trailing quotes
+                          .replace(/[.,;:!?]+$/, '')               // Remove trailing punctuation
+                          .trim();
                         
-                        console.log('[github-repo] ✓ Found repo URL:', repoUrl);
+                        // Validate it's a proper GitHub URL
+                        if (!repoUrl.match(/^https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/)) {
+                          console.log('[github-repo] ⚠️  Invalid GitHub URL format, skipping:', repoUrl);
+                          continue;
+                        }
+                        
+                        console.log('[github-repo] ✓ Found and cleaned repo URL:', repoUrl);
                         
                         // Update the GitHub metadata with the repo URL
                         githubMetadata = {
