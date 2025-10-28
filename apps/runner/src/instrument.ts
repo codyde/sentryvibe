@@ -36,12 +36,24 @@ const sentryOptions: RunnerSentryOptions = {
   debug: false,
   sendDefaultPii: true,
 
-  // Configure trace propagation
+  // Configure trace propagation (Runner → Broker communication)
   tracePropagationTargets: [
+    // Local development
     'localhost',
     'localhost:3000',
     'localhost:4000',
     /^https?:\/\/localhost:\d+$/,
+    
+    // Production domains
+    'sentryvibe.app',
+    'sentryvibe.up.railway.app',
+    'broker.sentryvibe.app',
+    'broker.up.railway.app',
+    
+    // Wildcard patterns for Railway
+    /^https?:\/\/.*\.railway\.app/,      // Railway deployments
+    /^https?:\/\/.*\.up\.railway\.app/,  // Railway preview deployments
+    /^https?:\/\/.*\.sentryvibe\.app/,   // Custom domain subdomains
   ],
 };
 

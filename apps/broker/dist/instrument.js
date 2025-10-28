@@ -58,12 +58,21 @@ Sentry.init({
     // Configure trace propagation for outgoing HTTP to Next.js
     // This tells Sentry to automatically add trace headers to these URLs
     tracePropagationTargets: [
+        // Local development
         'localhost',
         'localhost:3000',
         /^https?:\/\/localhost:\d+$/,
+        // Production domains
+        'sentryvibe.app',
+        'sentryvibe.up.railway.app',
+        'broker.sentryvibe.app',
+        'broker.up.railway.app',
+        // Wildcard patterns for Railway
         /^https?:\/\/.*\.railway\.app/, // Railway deployments
-        /^https?:\/\/.*\.up\.railway\.app/, // Railway custom domains
-        ...(process.env.EVENT_TARGET ? [process.env.EVENT_TARGET] : []), // Explicit target from env
+        /^https?:\/\/.*\.up\.railway\.app/, // Railway preview deployments
+        /^https?:\/\/.*\.sentryvibe\.app/, // Custom domain subdomains
+        // Explicit target from environment variable
+        ...(process.env.EVENT_TARGET ? [process.env.EVENT_TARGET] : []),
     ],
     // Environment
     environment: process.env.NODE_ENV || 'development',

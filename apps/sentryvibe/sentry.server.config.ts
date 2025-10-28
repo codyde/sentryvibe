@@ -38,9 +38,21 @@ Sentry.init({
   },
 
   tracePropagationTargets: [
+    // Local development
     'localhost',
     'localhost:4000',
     /^https?:\/\/localhost:\d+$/,
+    
+    // Production domains (NextJS → Broker communication)
+    'sentryvibe.app',
+    'sentryvibe.up.railway.app',
+    'broker.sentryvibe.app',
+    'broker.up.railway.app',
+    
+    // Wildcard patterns for Railway
+    /^https?:\/\/.*\.railway\.app/,      // Railway deployments
+    /^https?:\/\/.*\.up\.railway\.app/,  // Railway preview deployments
+    /^https?:\/\/.*\.sentryvibe\.app/,   // Custom domain subdomains
   ],
 
   enableLogs: true,
