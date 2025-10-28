@@ -1,7 +1,7 @@
 {
   "name": "sentryvibe-monorepo",
   "version": "0.10.0",
-  "description": "AI-powered project generation platform with Claude AI and remote runner architecture",
+  "description": "AI-powered project scaffolding that actually works. Stop copy-pasting, start shipping.",
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "repository": {

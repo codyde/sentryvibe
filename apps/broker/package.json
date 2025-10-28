@@ -1,7 +1,7 @@
 {
   "name": "sentryvibe-broker",
   "version": "0.10.0",
-  "description": "WebSocket broker service for routing commands between SentryVibe web app and local runners",
+  "description": "WebSocket broker - Routes your prompts to AI agents who'll actually build your stuff",
   "private": true,
   "main": "dist/index.js",
   "packageManager": "pnpm@9.15.0",

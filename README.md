@@ -1,7 +1,8 @@
 # SentryVibe
 
+**Stop copy-pasting boilerplate. Start shipping.**
 
-AI-powered project generation platform that uses Claude AI and OpenAI Codex to build web projects with real-time streaming, live previews, and tunnel support.
+AI agents scaffold complete web apps from your prompts. Watch them work in real-time, preview instantly with tunnels, and iterate until it's production-ready. Because you have better things to build than another Next.js starter template.
 
 ![SentryVibe Running](media/sentryviberunning.png)
 
@@ -24,7 +25,9 @@ Open http://localhost:3000 and start building!
 
 ## What is SentryVibe?
 
-SentryVibe lets you describe what you want to build ("Create a React todo app with TypeScript and Tailwind") and AI generates a complete, runnable project on your local machine. Watch Claude AI work in real-time, preview your app instantly either locally or remotely via Cloudflare Tunnels, and iterate with follow-up prompts.
+Describe what you need: "Create a React todo app with TypeScript and Tailwind." AI agents scaffold it. You start coding the interesting parts.
+
+Watch agents work in real-time, preview your app instantly (locally or via Cloudflare Tunnels), and iterate with follow-up prompts. It's project setup without the existential dread.
 
 SentryVibe also features a runner model that lets you run a remote runner anywhere and connect it back to your frontend - letting you provision headless on remote systems if you wish.
 
@@ -750,4 +753,4 @@ MIT
 
 ---
 
-Built with Claude AI, Next.js, and TypeScript.
+Built with AI agents, Next.js, and TypeScript. Maintained with coffee and the occasional curse word.
