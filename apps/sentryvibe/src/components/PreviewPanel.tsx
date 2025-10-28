@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, RefreshCw, Play, Square, Copy, Check, Monitor, Smartphone, Tablet, Cloud, Rocket } from 'lucide-react';
+import { ExternalLink, RefreshCw, Play, Square, Copy, Check, Monitor, Smartphone, Tablet, Cloud, Rocket, Github } from 'lucide-react';
 import { useProjects } from '@/contexts/ProjectContext';
 import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
@@ -42,6 +42,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const { edits, addEdit, removeEdit } = useElementEdits();
   const lastTunnelUrlRef = useRef<string | null>(null);
   const [verifiedTunnelUrl, setVerifiedTunnelUrl] = useState<string | null>(null);
+  
+  // GitHub repo creation state
+  const [isCreatingGithubRepo, setIsCreatingGithubRepo] = useState(false);
+  const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
+  const [githubRepoStatus, setGithubRepoStatus] = useState<'idle' | 'creating' | 'completed' | 'failed'>('idle');
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
@@ -386,6 +391,106 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     if (DEBUG_PREVIEW) console.log('✅ Sent to chat system');
   }, [edits, removeEdit]);
 
+  // GitHub repo creation handlers
+  const handleCreateGithubRepo = useCallback(async () => {
+    if (!currentProject?.id || isCreatingGithubRepo || isBuildActive) return;
+
+    setIsCreatingGithubRepo(true);
+    setGithubRepoStatus('creating');
+
+    try {
+      // Get applied tags from the current project
+      let appliedTags: any[] = [];
+      if (currentProject.tags) {
+        try {
+          appliedTags = typeof currentProject.tags === 'string' 
+            ? JSON.parse(currentProject.tags) 
+            : currentProject.tags;
+        } catch (e) {
+          console.error('[github-repo] Failed to parse tags:', e);
+        }
+      }
+
+      const response = await fetch(`/api/projects/${currentProject.id}/github-repo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tags: appliedTags,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create GitHub repository');
+      }
+
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        const statusResponse = await fetch(`/api/projects/${currentProject.id}/github-repo`);
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          if (statusData.github?.status === 'completed' && statusData.github?.repoUrl) {
+            setGithubRepoUrl(statusData.github.repoUrl);
+            setGithubRepoStatus('completed');
+            setIsCreatingGithubRepo(false);
+            clearInterval(pollInterval);
+          } else if (statusData.github?.status === 'failed') {
+            setGithubRepoStatus('failed');
+            setIsCreatingGithubRepo(false);
+            clearInterval(pollInterval);
+          }
+        }
+      }, 3000);
+
+      // Clean up interval after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (isCreatingGithubRepo) {
+          setIsCreatingGithubRepo(false);
+          setGithubRepoStatus('failed');
+        }
+      }, 300000);
+    } catch (error) {
+      console.error('[github-repo] Error creating repository:', error);
+      setGithubRepoStatus('failed');
+      setIsCreatingGithubRepo(false);
+    }
+  }, [currentProject, isCreatingGithubRepo, isBuildActive]);
+
+  const handleOpenGithubRepo = useCallback(() => {
+    if (githubRepoUrl) {
+      window.open(githubRepoUrl, '_blank');
+    }
+  }, [githubRepoUrl]);
+
+  // Check for existing GitHub repo status on mount
+  useEffect(() => {
+    if (!currentProject?.id) return;
+
+    const checkGithubStatus = async () => {
+      try {
+        const response = await fetch(`/api/projects/${currentProject.id}/github-repo`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.github) {
+            setGithubRepoStatus(data.github.status || 'idle');
+            if (data.github.repoUrl) {
+              setGithubRepoUrl(data.github.repoUrl);
+            }
+            if (data.github.status === 'creating') {
+              setIsCreatingGithubRepo(true);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[github-repo] Error checking status:', error);
+      }
+    };
+
+    checkGithubStatus();
+  }, [currentProject?.id]);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 50 }}
@@ -420,7 +525,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             {/* URL bar - Center */}
             <div className="flex-1 flex items-center gap-2 mx-3">
               <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors">
-                <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 flex-shrink-0"></div>
+                <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 shrink-0"></div>
                 <span className="text-xs font-mono text-gray-300 truncate">
                   {isLocalRunner
                     ? `http://localhost:${actualPort}`
@@ -428,7 +533,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 </span>
                 <button
                   onClick={handleCopyUrl}
-                  className="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                  className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
                   title="Copy URL"
                 >
                   {copied ? (
@@ -511,6 +616,32 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
         {/* Right controls - Server/Tunnel buttons - Always visible */}
         <div className="flex items-center gap-2 ml-auto">
+          {/* GitHub Repo Button - Always visible when project exists */}
+          {currentProject && (
+            <>
+              {githubRepoStatus === 'completed' && githubRepoUrl ? (
+                <button
+                  onClick={handleOpenGithubRepo}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-md transition-colors"
+                  title="Open GitHub repository"
+                >
+                  <Github className="w-3.5 h-3.5" />
+                  View Repo
+                </button>
+              ) : (
+                <button
+                  onClick={handleCreateGithubRepo}
+                  disabled={isCreatingGithubRepo || isBuildActive || githubRepoStatus === 'creating'}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 border border-gray-500/40 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isBuildActive ? 'Wait for build to complete' : 'Create GitHub repository'}
+                >
+                  <Github className={`w-3.5 h-3.5 ${isCreatingGithubRepo ? 'animate-pulse' : ''}`} />
+                  {isCreatingGithubRepo || githubRepoStatus === 'creating' ? 'Creating...' : 'Create Repo'}
+                </button>
+              )}
+            </>
+          )}
+
           {currentProject?.runCommand && (
             <>
               {currentProject.devServerStatus === 'running' ? (
