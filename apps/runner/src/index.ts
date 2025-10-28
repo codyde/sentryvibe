@@ -1055,14 +1055,10 @@ export async function startRunner(options: RunnerOptions = {}) {
     }
     
     // Wrap in span for critical events to trace through to database
+    // Only trace final build outcome - NOT errors, streaming, or intermediate events
     const traceableEvents = [
       'build-completed',
       'build-failed',
-      'build-stream',
-      'error',
-      'project-metadata',
-      'files-deleted',
-      'file-written'
     ];
 
     const shouldTrace = traceableEvents.includes(event.type);
