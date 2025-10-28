@@ -75,6 +75,7 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     workspaceRoot,
     designPreferences, // Pass through to strategy (deprecated - use tags)
     tags, // Tag-based configuration
+    // templateSystemPromptAddition will be set later after template is loaded
   };
 
   // PRIORITY: Check if tags specify a framework - if so, enforce it (tags override everything)
@@ -346,6 +347,13 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     runCommand: selectedTemplate?.setup.devCommand ?? providedTemplate?.runCommand ?? 'npm run dev',
     port: selectedTemplate?.setup.defaultPort ?? providedTemplate?.port ?? 3000,
   } : undefined;
+
+  // CRITICAL: Pass framework-specific instructions to strategy context
+  // This ensures Astro set:html requirements and other framework specifics are surfaced prominently
+  if (selectedTemplate?.ai?.systemPromptAddition) {
+    strategyContext.templateSystemPromptAddition = selectedTemplate.ai.systemPromptAddition;
+    buildLogger.log('info', 'orchestrator', `✓ Framework-specific instructions loaded for ${selectedTemplate.tech.framework}`);
+  }
 
   // Generate dynamic system prompt
   buildLogger.log('info', 'orchestrator', 'GENERATING SYSTEM PROMPT', {

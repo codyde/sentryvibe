@@ -19,6 +19,21 @@ function getParentDirectory(filePath: string): string {
 function buildCodexSections(context: AgentStrategyContext): string[] {
   const sections: string[] = [];
 
+  // PRIORITY 0: Framework-specific critical requirements (HIGHEST PRIORITY)
+  // These are non-negotiable framework requirements like Astro's set:html directive
+  if (context.templateSystemPromptAddition) {
+    sections.push(`═══════════════════════════════════════════════════════════════════
+🚨 CRITICAL FRAMEWORK REQUIREMENTS - HIGHEST PRIORITY 🚨
+═══════════════════════════════════════════════════════════════════
+
+⚠️  THESE REQUIREMENTS OVERRIDE ALL OTHER INSTRUCTIONS ⚠️
+
+${context.templateSystemPromptAddition}
+
+═══════════════════════════════════════════════════════════════════
+`);
+  }
+
   // PRIORITY 1: User-specified tags (must be first so AI sees them immediately)
   if (context.tags && context.tags.length > 0) {
     const resolved = resolveTags(context.tags);

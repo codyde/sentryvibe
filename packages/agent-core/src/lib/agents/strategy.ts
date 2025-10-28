@@ -24,6 +24,7 @@ export interface AgentStrategyContext {
   };
   designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
   tags?: AppliedTag[]; // Tag-based configuration system
+  templateSystemPromptAddition?: string; // Framework-specific critical instructions from template
 }
 
 export interface AgentStrategy {
