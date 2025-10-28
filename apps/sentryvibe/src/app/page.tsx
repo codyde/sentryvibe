@@ -2407,7 +2407,7 @@ function HomeContent() {
                   <div className="w-full text-center space-y-12 overflow-x-auto">
                     {/* Title */}
                     <div className="space-y-4">
-                      <h1 className="text-[6rem] md:text-[8rem] font-bold inline-block leading-tight">
+                      <h1 className="text-[3rem] sm:text-[4rem] md:text-[6rem] lg:text-[8rem] font-bold inline-block leading-tight">
                         <div>
                           Code{" "}
                           <span
@@ -2487,14 +2487,14 @@ function HomeContent() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0 overflow-hidden"
+                  className="flex-1 flex flex-col lg:flex-row gap-4 p-2 md:p-4 min-h-0 overflow-hidden"
                 >
-                  {/* Left Panel - Chat (1/3 width) */}
+                  {/* Left Panel - Chat (1/3 width on desktop, full width on mobile) */}
                   <motion.div
                     initial={{ opacity: 0, x: -50 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="lg:w-1/3 flex flex-col min-w-0 min-h-0 max-h-full"
+                    className="w-full lg:w-1/3 flex flex-col min-w-0 min-h-0 h-[50vh] lg:h-full max-h-full"
                   >
                     <div className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden">
                       {/* Project Status Header */}
@@ -3291,10 +3291,10 @@ function HomeContent() {
                     </div>
                   </motion.div>
 
-                  {/* Right Panel - Split into Tabbed Preview (top) and Terminal (bottom) (2/3 width) */}
-                  <div className="lg:w-2/3 flex flex-col gap-4 min-w-0">
+                  {/* Right Panel - Split into Tabbed Preview (top) and Terminal (bottom) (2/3 width on desktop, full width on mobile) */}
+                  <div className="w-full lg:w-2/3 flex flex-col gap-4 min-w-0 h-auto lg:h-full">
                     {/* Tabbed Preview Panel - Top */}
-                    <div className="flex-1 min-h-0">
+                    <div className="flex-1 min-h-0 h-[60vh] lg:h-auto">
                       <TabbedPreview
                         selectedProject={selectedProjectSlug}
                         projectId={currentProject?.id}
@@ -3312,7 +3312,7 @@ function HomeContent() {
                     </div>
 
                     {/* Terminal Output - Bottom */}
-                    <div className="h-60">
+                    <div className="h-48 lg:h-60">
                       <TerminalOutput
                         projectId={currentProject?.id}
                         onPortDetected={(port) => {
