@@ -18,9 +18,15 @@ export async function downloadTemplate(
   if (process.env.DEBUG_BUILD === '1') console.log(`   Branch: ${template.branch}`);
   if (process.env.DEBUG_BUILD === '1') console.log(`   Target: ${targetPath}`);
 
-  // Check if target already exists
+  // Check if target already exists and add random suffix if needed
+  let finalTargetPath = targetPath;
   if (existsSync(targetPath)) {
-    throw new Error(`Project directory already exists: ${targetPath}`);
+    // Generate a unique 4-character suffix
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    finalTargetPath = `${targetPath}-${randomSuffix}`;
+    
+    console.log(`[downloader] ⚠️  Directory already exists: ${targetPath}`);
+    console.log(`[downloader] 📁 Using unique path: ${finalTargetPath}`);
   }
 
   // Use degit to download template
@@ -30,7 +36,7 @@ export async function downloadTemplate(
     : template.repository;
 
   // Use simple-git directly (no spawn issues)
-  return await downloadTemplateWithGit(template, targetPath);
+  return await downloadTemplateWithGit(template, finalTargetPath);
 }
 
 /**
