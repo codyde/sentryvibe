@@ -21,31 +21,6 @@ import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { parseModelTag } from '@sentryvibe/agent-core/lib/tags/model-parser';
 import { TAG_DEFINITIONS } from '@sentryvibe/agent-core/config/tags';
 
-async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T | null> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await fn();
-    } catch (error: unknown) {
-      const err = error as { code?: string; errno?: number; message?: string };
-      const isTimeout = err?.code === 'ETIMEDOUT' || err?.errno === -60 || err?.message?.includes('timeout');
-      const isLastAttempt = attempt === retries;
-
-      if (isTimeout && !isLastAttempt) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
-        console.warn(`[build-route] DB timeout on attempt ${attempt + 1}/${retries}, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-
-      if (!isTimeout || isLastAttempt) {
-        console.error(`[build-route] DB operation failed after ${attempt + 1} attempts:`, err?.message || error);
-        throw error;
-      }
-    }
-  }
-  return null;
-}
-
 export const maxDuration = 30;
 
 interface TemplateConfig {

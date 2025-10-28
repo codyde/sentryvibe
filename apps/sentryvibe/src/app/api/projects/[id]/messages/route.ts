@@ -7,7 +7,7 @@ import {
   generationToolCalls,
   generationNotes,
 } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { eq, desc, inArray, sql } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
@@ -253,11 +253,11 @@ export async function POST(
       return NextResponse.json({ error: 'Role must be "user" or "assistant"' }, { status: 400 });
     }
 
-    const newMessage = await db.insert(messages).values({
-      projectId: id,
-      role,
-      content: serializeContent(content),
-    }).returning();
+    const newMessage = await db.execute(sql`
+      INSERT INTO message (project_id, role, content, created_at)
+      VALUES (${id}, ${role}, ${serializeContent(content)}, NOW())
+      RETURNING *;
+    `);
 
     const formatted = {
       ...newMessage[0],
