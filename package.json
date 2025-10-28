@@ -1,6 +1,6 @@
 {
   "name": "sentryvibe-monorepo",
-  "version": "0.10.0",
+  "version": "0.10.2",
   "description": "AI-powered project scaffolding that actually works. Stop copy-pasting, start shipping.",
   "private": true,
   "packageManager": "pnpm@9.15.0",

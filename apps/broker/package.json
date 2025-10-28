@@ -1,6 +1,6 @@
 {
   "name": "sentryvibe-broker",
-  "version": "0.10.0",
+  "version": "0.10.2",
   "description": "WebSocket broker - Routes your prompts to AI agents who'll actually build your stuff",
   "private": true,
   "main": "dist/index.js",
