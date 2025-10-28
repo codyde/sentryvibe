@@ -224,6 +224,7 @@ export async function GET(
             if (githubMetadata?.status === 'creating') {
               // Try to fetch recent messages to look for REPO_URL
               try {
+                console.log('[github-repo] 🔍 Checking messages for REPO_URL...');
                 const messagesResponse = await fetch(
                   `${req.nextUrl.protocol}//${req.nextUrl.host}/api/projects/${projectId}/messages?limit=20`,
                   { cache: 'no-store' }
@@ -236,48 +237,84 @@ export async function GET(
                 const messagesData = await messagesResponse.json();
                 const messages = messagesData.messages || [];
                 
+                console.log(`[github-repo] 📝 Found ${messages.length} messages to check`);
+                
                 // Look for REPO_URL pattern in messages
-                for (const message of messages) {
-                  if (message.content && typeof message.content === 'string') {
-                    const repoUrlMatch = message.content.match(/REPO_URL:\s*(https:\/\/github\.com\/[^\s]+)/i);
-                    if (repoUrlMatch) {
-                      const repoUrl = repoUrlMatch[1];
-                      
-                      // Update the GitHub metadata with the repo URL
-                      githubMetadata = {
-                        ...githubMetadata,
-                        status: 'completed',
-                        repoUrl: repoUrl,
-                        completedAt: new Date().toISOString(),
-                      };
-                      
-                      // Update in database
-                      await db
-                        .update(projects)
-                        .set({
-                          generationState: JSON.stringify({
-                            ...generationState,
-                            github: githubMetadata,
-                          }),
-                          updatedAt: new Date(),
-                        })
-                        .where(eq(projects.id, projectId));
-                      
-                      console.log('[github-repo] ✓ Extracted repo URL from messages:', repoUrl);
-                      
-                      Sentry.addBreadcrumb({
-                        category: 'github-repo',
-                        message: 'Successfully extracted GitHub repo URL',
-                        level: 'info',
-                        data: {
-                          projectId,
-                          repoUrl,
-                        },
-                      });
-                      
-                      break;
-                    }
+                for (let i = 0; i < messages.length; i++) {
+                  const message = messages[i];
+                  
+                  // Handle both string content and array content
+                  let contentToSearch: string = '';
+                  if (typeof message.content === 'string') {
+                    contentToSearch = message.content;
+                  } else if (Array.isArray(message.content)) {
+                    // Extract text from content blocks
+                    contentToSearch = message.content
+                      .filter((block: any) => block.type === 'text' && block.text)
+                      .map((block: any) => block.text)
+                      .join('\n');
                   }
+                  
+                  if (contentToSearch) {
+                    console.log(`[github-repo] Checking message ${i + 1}: ${contentToSearch.substring(0, 100)}...`);
+                    
+                    // Look for multiple URL patterns
+                    const patterns = [
+                      /REPO_URL:\s*(https:\/\/github\.com\/[^\s]+)/i,
+                      /repository\s+url:\s*(https:\/\/github\.com\/[^\s]+)/i,
+                      /created\s+repository:\s*(https:\/\/github\.com\/[^\s]+)/i,
+                      /https:\/\/github\.com\/[^\s]+/gi, // Any GitHub URL
+                    ];
+                    
+                    for (const pattern of patterns) {
+                      const repoUrlMatch = contentToSearch.match(pattern);
+                      if (repoUrlMatch) {
+                        const repoUrl = repoUrlMatch[1] || repoUrlMatch[0];
+                        
+                        console.log('[github-repo] ✓ Found repo URL:', repoUrl);
+                        
+                        // Update the GitHub metadata with the repo URL
+                        githubMetadata = {
+                          ...githubMetadata,
+                          status: 'completed',
+                          repoUrl: repoUrl,
+                          completedAt: new Date().toISOString(),
+                        };
+                        
+                        // Update in database
+                        await db
+                          .update(projects)
+                          .set({
+                            generationState: JSON.stringify({
+                              ...generationState,
+                              github: githubMetadata,
+                            }),
+                            updatedAt: new Date(),
+                          })
+                          .where(eq(projects.id, projectId));
+                        
+                        console.log('[github-repo] ✅ Updated database with repo URL');
+                        
+                        Sentry.addBreadcrumb({
+                          category: 'github-repo',
+                          message: 'Successfully extracted GitHub repo URL',
+                          level: 'info',
+                          data: {
+                            projectId,
+                            repoUrl,
+                          },
+                        });
+                        
+                        break;
+                      }
+                    }
+                    
+                    if (githubMetadata.status === 'completed') break;
+                  }
+                }
+                
+                if (githubMetadata?.status !== 'completed') {
+                  console.log('[github-repo] ⏳ No repo URL found yet, will check again on next poll');
                 }
               } catch (parseError) {
                 console.error('[github-repo] Error parsing messages for repo URL:', parseError);
