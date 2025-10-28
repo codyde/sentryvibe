@@ -5,6 +5,7 @@ import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/even
 import { registerBuild, cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { RunnerEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
+import { sql } from 'drizzle-orm';
 import {
   projects,
   messages,
@@ -307,11 +308,9 @@ export async function POST(
           // Save all completed messages to DB (legacy chat transcript)
           for (const msg of completedMessages) {
             try {
-              await db.insert(messages).values({
-                projectId: id,
-                role: msg.role,
-                content: JSON.stringify(msg.content),
-              });
+              await db.execute(
+                sql`INSERT INTO message (project_id, role, content) VALUES (${id}, ${msg.role}, ${JSON.stringify(msg.content)})`
+              );
             } catch (error) {
               console.error('[build-route] Failed to save message:', error);
             }
