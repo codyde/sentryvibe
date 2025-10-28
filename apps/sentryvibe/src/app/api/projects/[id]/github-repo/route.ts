@@ -56,6 +56,16 @@ export async function POST(
               : project.generationState;
           } catch (e) {
             console.error('[github-repo] Failed to parse generation state:', e);
+            Sentry.captureException(e, {
+              tags: {
+                operation: 'github-repo-creation',
+                step: 'parse-generation-state',
+              },
+              extra: {
+                projectId,
+                projectSlug: project.slug,
+              },
+            });
           }
         }
 
@@ -104,7 +114,21 @@ Execute these steps and return the repository URL.`,
         );
 
         if (!buildResponse.ok) {
-          throw new Error('Failed to start GitHub repo creation build');
+          const errorText = await buildResponse.text();
+          const error = new Error(`Failed to start GitHub repo creation build: ${errorText}`);
+          Sentry.captureException(error, {
+            tags: {
+              operation: 'github-repo-creation',
+              step: 'trigger-build',
+            },
+            extra: {
+              projectId,
+              projectSlug: project.slug,
+              buildResponseStatus: buildResponse.status,
+              buildResponseText: errorText,
+            },
+          });
+          throw error;
         }
 
         // Update status to creating
@@ -122,6 +146,17 @@ Execute these steps and return the repository URL.`,
           })
           .where(eq(projects.id, projectId));
 
+        Sentry.addBreadcrumb({
+          category: 'github-repo',
+          message: 'GitHub repository creation started',
+          level: 'info',
+          data: {
+            projectId,
+            projectSlug: project.slug,
+            buildId: generationState?.id,
+          },
+        });
+
         return Response.json({
           success: true,
           message: 'GitHub repository creation started',
@@ -129,7 +164,15 @@ Execute these steps and return the repository URL.`,
         });
       } catch (error) {
         console.error('[github-repo] Error:', error);
-        Sentry.captureException(error);
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'github-repo-creation',
+            step: 'create-repo-request',
+          },
+          extra: {
+            projectId: (await params).id,
+          },
+        });
         return Response.json(
           { error: 'Failed to create GitHub repository' },
           { status: 500 }
@@ -186,49 +229,80 @@ export async function GET(
                   { cache: 'no-store' }
                 );
                 
-                if (messagesResponse.ok) {
-                  const messagesData = await messagesResponse.json();
-                  const messages = messagesData.messages || [];
-                  
-                  // Look for REPO_URL pattern in messages
-                  for (const message of messages) {
-                    if (message.content && typeof message.content === 'string') {
-                      const repoUrlMatch = message.content.match(/REPO_URL:\s*(https:\/\/github\.com\/[^\s]+)/i);
-                      if (repoUrlMatch) {
-                        const repoUrl = repoUrlMatch[1];
-                        
-                        // Update the GitHub metadata with the repo URL
-                        githubMetadata = {
-                          ...githubMetadata,
-                          status: 'completed',
-                          repoUrl: repoUrl,
-                          completedAt: new Date().toISOString(),
-                        };
-                        
-                        // Update in database
-                        await db
-                          .update(projects)
-                          .set({
-                            generationState: JSON.stringify({
-                              ...generationState,
-                              github: githubMetadata,
-                            }),
-                            updatedAt: new Date(),
-                          })
-                          .where(eq(projects.id, projectId));
-                        
-                        console.log('[github-repo] ✓ Extracted repo URL from messages:', repoUrl);
-                        break;
-                      }
+                if (!messagesResponse.ok) {
+                  throw new Error(`Failed to fetch messages: ${messagesResponse.status}`);
+                }
+                
+                const messagesData = await messagesResponse.json();
+                const messages = messagesData.messages || [];
+                
+                // Look for REPO_URL pattern in messages
+                for (const message of messages) {
+                  if (message.content && typeof message.content === 'string') {
+                    const repoUrlMatch = message.content.match(/REPO_URL:\s*(https:\/\/github\.com\/[^\s]+)/i);
+                    if (repoUrlMatch) {
+                      const repoUrl = repoUrlMatch[1];
+                      
+                      // Update the GitHub metadata with the repo URL
+                      githubMetadata = {
+                        ...githubMetadata,
+                        status: 'completed',
+                        repoUrl: repoUrl,
+                        completedAt: new Date().toISOString(),
+                      };
+                      
+                      // Update in database
+                      await db
+                        .update(projects)
+                        .set({
+                          generationState: JSON.stringify({
+                            ...generationState,
+                            github: githubMetadata,
+                          }),
+                          updatedAt: new Date(),
+                        })
+                        .where(eq(projects.id, projectId));
+                      
+                      console.log('[github-repo] ✓ Extracted repo URL from messages:', repoUrl);
+                      
+                      Sentry.addBreadcrumb({
+                        category: 'github-repo',
+                        message: 'Successfully extracted GitHub repo URL',
+                        level: 'info',
+                        data: {
+                          projectId,
+                          repoUrl,
+                        },
+                      });
+                      
+                      break;
                     }
                   }
                 }
               } catch (parseError) {
                 console.error('[github-repo] Error parsing messages for repo URL:', parseError);
+                Sentry.captureException(parseError, {
+                  tags: {
+                    operation: 'github-repo-creation',
+                    step: 'parse-repo-url',
+                  },
+                  extra: {
+                    projectId,
+                  },
+                });
               }
             }
           } catch (e) {
             console.error('[github-repo] Failed to parse generation state:', e);
+            Sentry.captureException(e, {
+              tags: {
+                operation: 'github-repo-creation',
+                step: 'get-parse-generation-state',
+              },
+              extra: {
+                projectId,
+              },
+            });
           }
         }
 
@@ -237,7 +311,15 @@ export async function GET(
         });
       } catch (error) {
         console.error('[github-repo] Error fetching status:', error);
-        Sentry.captureException(error);
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'github-repo-creation',
+            step: 'get-status',
+          },
+          extra: {
+            projectId: (await params).id,
+          },
+        });
         return Response.json(
           { error: 'Failed to fetch GitHub repository status' },
           { status: 500 }
@@ -285,6 +367,15 @@ export async function PATCH(
               : project.generationState;
           } catch (e) {
             console.error('[github-repo] Failed to parse generation state:', e);
+            Sentry.captureException(e, {
+              tags: {
+                operation: 'github-repo-creation',
+                step: 'patch-parse-generation-state',
+              },
+              extra: {
+                projectId,
+              },
+            });
           }
         }
 
@@ -311,13 +402,33 @@ export async function PATCH(
           })
           .where(eq(projects.id, projectId));
 
+        Sentry.addBreadcrumb({
+          category: 'github-repo',
+          message: 'GitHub repository metadata updated',
+          level: 'info',
+          data: {
+            projectId,
+            status: updatedGithub.status,
+            hasRepoUrl: !!updatedGithub.repoUrl,
+          },
+        });
+
         return Response.json({
           success: true,
           github: updatedGithub,
         });
       } catch (error) {
         console.error('[github-repo] Error updating status:', error);
-        Sentry.captureException(error);
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'github-repo-creation',
+            step: 'patch-update',
+          },
+          extra: {
+            projectId: (await params).id,
+            requestedStatus: (await req.json()).status,
+          },
+        });
         return Response.json(
           { error: 'Failed to update GitHub repository status' },
           { status: 500 }

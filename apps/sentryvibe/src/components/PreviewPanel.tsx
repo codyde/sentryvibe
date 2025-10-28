@@ -9,6 +9,7 @@ import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
 import AsciiLoadingAnimation from './AsciiLoadingAnimation';
+import * as Sentry from '@sentry/nextjs';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
@@ -399,6 +400,16 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     setGithubRepoStatus('creating');
 
     try {
+      Sentry.addBreadcrumb({
+        category: 'github-repo',
+        message: 'User initiated GitHub repo creation',
+        level: 'info',
+        data: {
+          projectId: currentProject.id,
+          projectSlug: currentProject.slug,
+        },
+      });
+
       // Get applied tags from the current project
       let appliedTags: any[] = [];
       if (currentProject.tags) {
@@ -408,6 +419,16 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             : currentProject.tags;
         } catch (e) {
           console.error('[github-repo] Failed to parse tags:', e);
+          Sentry.captureException(e, {
+            tags: {
+              component: 'PreviewPanel',
+              operation: 'github-repo-creation',
+              step: 'parse-tags',
+            },
+            extra: {
+              projectId: currentProject.id,
+            },
+          });
         }
       }
 
@@ -422,24 +443,85 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create GitHub repository');
+        const errorText = await response.text();
+        const error = new Error(`Failed to create GitHub repository: ${response.status} ${errorText}`);
+        
+        Sentry.captureException(error, {
+          tags: {
+            component: 'PreviewPanel',
+            operation: 'github-repo-creation',
+            step: 'api-request',
+          },
+          extra: {
+            projectId: currentProject.id,
+            responseStatus: response.status,
+            responseText: errorText,
+          },
+        });
+        
+        throw error;
       }
+
+      Sentry.addBreadcrumb({
+        category: 'github-repo',
+        message: 'GitHub repo creation request successful, polling for completion',
+        level: 'info',
+        data: {
+          projectId: currentProject.id,
+        },
+      });
 
       // Poll for completion
       const pollInterval = setInterval(async () => {
-        const statusResponse = await fetch(`/api/projects/${currentProject.id}/github-repo`);
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
-          if (statusData.github?.status === 'completed' && statusData.github?.repoUrl) {
-            setGithubRepoUrl(statusData.github.repoUrl);
-            setGithubRepoStatus('completed');
-            setIsCreatingGithubRepo(false);
-            clearInterval(pollInterval);
-          } else if (statusData.github?.status === 'failed') {
-            setGithubRepoStatus('failed');
-            setIsCreatingGithubRepo(false);
-            clearInterval(pollInterval);
+        try {
+          const statusResponse = await fetch(`/api/projects/${currentProject.id}/github-repo`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.github?.status === 'completed' && statusData.github?.repoUrl) {
+              setGithubRepoUrl(statusData.github.repoUrl);
+              setGithubRepoStatus('completed');
+              setIsCreatingGithubRepo(false);
+              clearInterval(pollInterval);
+              
+              Sentry.addBreadcrumb({
+                category: 'github-repo',
+                message: 'GitHub repo creation completed',
+                level: 'info',
+                data: {
+                  projectId: currentProject.id,
+                  repoUrl: statusData.github.repoUrl,
+                },
+              });
+            } else if (statusData.github?.status === 'failed') {
+              setGithubRepoStatus('failed');
+              setIsCreatingGithubRepo(false);
+              clearInterval(pollInterval);
+              
+              Sentry.captureMessage('GitHub repo creation failed', {
+                level: 'warning',
+                tags: {
+                  component: 'PreviewPanel',
+                  operation: 'github-repo-creation',
+                },
+                extra: {
+                  projectId: currentProject.id,
+                  error: statusData.github?.error,
+                },
+              });
+            }
           }
+        } catch (pollError) {
+          console.error('[github-repo] Error polling status:', pollError);
+          Sentry.captureException(pollError, {
+            tags: {
+              component: 'PreviewPanel',
+              operation: 'github-repo-creation',
+              step: 'poll-status',
+            },
+            extra: {
+              projectId: currentProject.id,
+            },
+          });
         }
       }, 3000);
 
@@ -449,20 +531,52 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         if (isCreatingGithubRepo) {
           setIsCreatingGithubRepo(false);
           setGithubRepoStatus('failed');
+          
+          Sentry.captureMessage('GitHub repo creation timed out', {
+            level: 'warning',
+            tags: {
+              component: 'PreviewPanel',
+              operation: 'github-repo-creation',
+            },
+            extra: {
+              projectId: currentProject.id,
+              timeoutMinutes: 5,
+            },
+          });
         }
       }, 300000);
     } catch (error) {
       console.error('[github-repo] Error creating repository:', error);
       setGithubRepoStatus('failed');
       setIsCreatingGithubRepo(false);
+      
+      Sentry.captureException(error, {
+        tags: {
+          component: 'PreviewPanel',
+          operation: 'github-repo-creation',
+          step: 'create-handler',
+        },
+        extra: {
+          projectId: currentProject?.id,
+        },
+      });
     }
   }, [currentProject, isCreatingGithubRepo, isBuildActive]);
 
   const handleOpenGithubRepo = useCallback(() => {
     if (githubRepoUrl) {
+      Sentry.addBreadcrumb({
+        category: 'github-repo',
+        message: 'User opened GitHub repository',
+        level: 'info',
+        data: {
+          projectId: currentProject?.id,
+          repoUrl: githubRepoUrl,
+        },
+      });
       window.open(githubRepoUrl, '_blank');
     }
-  }, [githubRepoUrl]);
+  }, [githubRepoUrl, currentProject?.id]);
 
   // Check for existing GitHub repo status on mount
   useEffect(() => {
@@ -480,11 +594,33 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             }
             if (data.github.status === 'creating') {
               setIsCreatingGithubRepo(true);
+              
+              Sentry.addBreadcrumb({
+                category: 'github-repo',
+                message: 'Found in-progress GitHub repo creation',
+                level: 'info',
+                data: {
+                  projectId: currentProject.id,
+                  status: data.github.status,
+                },
+              });
             }
           }
+        } else {
+          throw new Error(`Failed to fetch GitHub status: ${response.status}`);
         }
       } catch (error) {
         console.error('[github-repo] Error checking status:', error);
+        Sentry.captureException(error, {
+          tags: {
+            component: 'PreviewPanel',
+            operation: 'github-repo-creation',
+            step: 'check-initial-status',
+          },
+          extra: {
+            projectId: currentProject.id,
+          },
+        });
       }
     };
 
