@@ -25,7 +25,7 @@ export function parseModelTag(modelTagValue: string): ParsedModel {
     // Fallback to default
     return {
       agent: 'claude-code' as AgentId,
-      claudeModel: 'claude-haiku-4.5' as ClaudeModelId
+      claudeModel: 'claude-haiku-4-5' as ClaudeModelId
     };
   }
 
