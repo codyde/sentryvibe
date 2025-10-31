@@ -1226,6 +1226,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             command: runCmd,
             cwd: workingDirectory,
             env: envVars,
+            port: allocatedPort ?? undefined,
           });
 
           // Forward logs to API
@@ -1267,9 +1268,33 @@ export async function startRunner(options: RunnerOptions = {}) {
             });
           });
 
-          // Log successful start (port already in database from API route)
+          // Run health check if port is allocated
           if (allocatedPort) {
-            log(`✅ Dev server started for project ${command.projectId} on port ${allocatedPort}`);
+            log(`🔍 Running health check for port ${allocatedPort}...`);
+            
+            const { runHealthCheck } = await import('./lib/process-manager.js');
+            const healthResult = await runHealthCheck(command.projectId, allocatedPort);
+            
+            if (healthResult.healthy) {
+              log(`✅ Dev server started and healthy for project ${command.projectId} on port ${allocatedPort}`);
+              
+              sendEvent({
+                type: "ack",
+                ...buildEventBase(command.projectId, command.id),
+                message: `Dev server is running and healthy on port ${allocatedPort}`,
+              });
+            } else {
+              log(`⚠️  Dev server started but health check failed: ${healthResult.error}`);
+              
+              sendEvent({
+                type: "error",
+                ...buildEventBase(command.projectId, command.id),
+                error: `Health check failed: ${healthResult.error}`,
+              });
+            }
+          } else {
+            // No port allocated - just log spawn
+            log(`✅ Dev server process spawned for project ${command.projectId}`);
           }
 
         } catch (error) {

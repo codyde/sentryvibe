@@ -1,12 +1,39 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
+import { createServer } from 'net';
 
 // Silent mode for TUI
 let isSilentMode = false;
 
 export function setSilentMode(silent: boolean): void {
   isSilentMode = silent;
+}
+
+/**
+ * Process lifecycle states
+ */
+export enum ProcessState {
+  IDLE = 'idle',
+  STARTING = 'starting',
+  RUNNING = 'running',
+  STOPPING = 'stopping',
+  STOPPED = 'stopped',
+  FAILED = 'failed'
+}
+
+/**
+ * Failure reason classification
+ */
+export enum FailureReason {
+  PORT_IN_USE = 'port_in_use',
+  COMMAND_NOT_FOUND = 'command_not_found',
+  DIRECTORY_MISSING = 'directory_missing',
+  PERMISSION_DENIED = 'permission_denied',
+  IMMEDIATE_CRASH = 'immediate_crash',
+  HEALTH_CHECK_TIMEOUT = 'health_check_timeout',
+  HEALTH_CHECK_FAILED = 'health_check_failed',
+  UNKNOWN = 'unknown'
 }
 
 /**
@@ -52,14 +79,162 @@ interface DevServerOptions {
   command: string;
   cwd: string;
   env: Record<string, string>;
+  port?: number;
 }
 
 interface DevServerProcess {
+  projectId: string;
   process: ChildProcess;
   emitter: EventEmitter;
+  port?: number;
+  tunnelUrl?: string;
+  state: ProcessState;
+  command: string;
+  cwd: string;
+  startedAt: Date;
+  lastHealthCheck?: Date;
+  stopReason?: string;
+  failureReason?: FailureReason;
 }
 
 const activeProcesses = new Map<string, DevServerProcess>();
+
+/**
+ * Check if a port is in use (listening)
+ */
+async function checkPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(true); // Port is in use
+      } else {
+        resolve(false);
+      }
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(false); // Port is free
+    });
+    
+    server.listen(port);
+  });
+}
+
+/**
+ * Verify server health after start
+ * @param port - Port to check
+ * @param maxAttempts - Maximum number of health check attempts (default: 30)
+ * @returns Health check result
+ */
+async function verifyServerHealth(port: number, maxAttempts = 30): Promise<{
+  healthy: boolean;
+  error?: string;
+}> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      // Check if port is listening
+      const isListening = await checkPortInUse(port);
+      
+      if (!isListening) {
+        // Port is still free, server hasn't started yet
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      
+      // Port is listening, try HTTP request to verify it's responding
+      try {
+        const response = await fetch(`http://localhost:${port}`, {
+          method: 'HEAD',
+          signal: AbortSignal.timeout(2000)
+        });
+        
+        if (!isSilentMode) {
+          console.log(`[process-manager] ✅ Health check passed for port ${port}`);
+        }
+        return { healthy: true };
+      } catch (fetchError) {
+        // Server is listening but not responding to HTTP yet
+        // This is OK for some frameworks that take time to be ready
+        if (!isSilentMode) {
+          console.log(`[process-manager] Port ${port} listening but not responding yet (attempt ${i + 1}/${maxAttempts})`);
+        }
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+    } catch (error) {
+      return { 
+        healthy: false, 
+        error: `Health check failed: ${error instanceof Error ? error.message : String(error)}` 
+      };
+    }
+  }
+  
+  return { 
+    healthy: false, 
+    error: `Server failed to become healthy within ${maxAttempts} seconds` 
+  };
+}
+
+/**
+ * Classify startup error to provide better error messages
+ */
+function classifyStartupError(error: unknown, processInfo: Partial<DevServerProcess>): {
+  reason: FailureReason;
+  message: string;
+  suggestion: string;
+} {
+  const errorStr = String(error);
+  
+  if (errorStr.includes('EADDRINUSE')) {
+    return {
+      reason: FailureReason.PORT_IN_USE,
+      message: `Port ${processInfo.port} is already in use`,
+      suggestion: 'Another process is using this port. Stop it or the system will reallocate.'
+    };
+  }
+  
+  if (errorStr.includes('ENOENT') || errorStr.includes('command not found')) {
+    return {
+      reason: FailureReason.COMMAND_NOT_FOUND,
+      message: `Command not found: ${processInfo.command}`,
+      suggestion: 'Check that dependencies are installed (npm install, pnpm install, etc.)'
+    };
+  }
+  
+  if (errorStr.includes('EACCES') || errorStr.includes('permission denied')) {
+    return {
+      reason: FailureReason.PERMISSION_DENIED,
+      message: 'Permission denied',
+      suggestion: 'Check file permissions and ownership'
+    };
+  }
+  
+  if (processInfo.cwd && !existsSync(processInfo.cwd)) {
+    return {
+      reason: FailureReason.DIRECTORY_MISSING,
+      message: `Working directory does not exist: ${processInfo.cwd}`,
+      suggestion: 'Project may have been deleted or moved'
+    };
+  }
+  
+  // If process exited within 3 seconds of starting
+  if (processInfo.startedAt && Date.now() - processInfo.startedAt.getTime() < 3000) {
+    return {
+      reason: FailureReason.IMMEDIATE_CRASH,
+      message: 'Process crashed immediately after starting',
+      suggestion: 'Check logs for syntax errors or missing dependencies'
+    };
+  }
+  
+  return {
+    reason: FailureReason.UNKNOWN,
+    message: errorStr,
+    suggestion: 'Check the logs for more details'
+  };
+}
 
 /**
  * Start a development server for a project
@@ -96,8 +271,14 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
   if (!isSilentMode) console.log(`[process-manager] Child process spawned, PID: ${childProcess.pid}`);
 
   const devProcess: DevServerProcess = {
+    projectId,
     process: childProcess,
     emitter,
+    port: options.port,
+    state: ProcessState.STARTING,
+    command,
+    cwd,
+    startedAt: new Date(),
   };
 
   activeProcesses.set(projectId, devProcess);
@@ -136,6 +317,25 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   // Handle exit
   childProcess.on('exit', (code, signal) => {
+    // Update state based on exit
+    if (code === 0 || devProcess.state === ProcessState.STOPPING) {
+      devProcess.state = ProcessState.STOPPED;
+    } else {
+      devProcess.state = ProcessState.FAILED;
+      
+      // Classify the failure
+      const classification = classifyStartupError(
+        new Error(`Process exited with code ${code}, signal ${signal}`),
+        devProcess
+      );
+      devProcess.failureReason = classification.reason;
+      
+      if (!isSilentMode) {
+        console.error(`[process-manager] ❌ ${classification.message}`);
+        console.error(`[process-manager]    Suggestion: ${classification.suggestion}`);
+      }
+    }
+    
     emitter.emit('exit', { code, signal });
     activeProcesses.delete(projectId);
 
@@ -153,7 +353,15 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 
   // Handle errors
   childProcess.on('error', (error) => {
-    console.error(`[process-manager] Process error for ${projectId}:`, error);
+    devProcess.state = ProcessState.FAILED;
+    
+    // Classify the error
+    const classification = classifyStartupError(error, devProcess);
+    devProcess.failureReason = classification.reason;
+    
+    console.error(`[process-manager] ❌ Process error for ${projectId}: ${classification.message}`);
+    console.error(`[process-manager]    Suggestion: ${classification.suggestion}`);
+    
     emitter.emit('error', error);
   });
 
@@ -186,11 +394,17 @@ export async function stopDevServer(
     console.log(`[process-manager] Stopping dev server for ${projectId} (reason: ${reason})`);
   }
 
+  // Update state to STOPPING
+  devProcess.state = ProcessState.STOPPING;
+  devProcess.stopReason = reason;
+
   // Step 1: Close tunnel first (if tunnelManager and port provided)
-  if (tunnelManager && port) {
+  const tunnelPort = port || devProcess.port;
+  if (tunnelManager && tunnelPort) {
     try {
-      if (!isSilentMode) console.log(`[process-manager] Closing tunnel for port ${port}...`);
-      await tunnelManager.closeTunnel(port);
+      if (!isSilentMode) console.log(`[process-manager] Closing tunnel for port ${tunnelPort}...`);
+      await tunnelManager.closeTunnel(tunnelPort);
+      devProcess.tunnelUrl = undefined;
     } catch (error) {
       console.error(`[process-manager] Failed to close tunnel:`, error);
       // Continue anyway - we still need to stop the process
@@ -229,6 +443,34 @@ export async function stopDevServer(
 }
 
 /**
+ * Run health check on a dev server and update state
+ * @param projectId - Project ID to health check
+ * @param port - Port to check
+ * @returns Health check result
+ */
+export async function runHealthCheck(projectId: string, port: number): Promise<{
+  healthy: boolean;
+  error?: string;
+}> {
+  const devProcess = activeProcesses.get(projectId);
+  if (!devProcess) {
+    return { healthy: false, error: 'Process not found' };
+  }
+
+  const result = await verifyServerHealth(port);
+  
+  if (result.healthy) {
+    devProcess.state = ProcessState.RUNNING;
+    devProcess.lastHealthCheck = new Date();
+  } else {
+    devProcess.state = ProcessState.FAILED;
+    devProcess.failureReason = FailureReason.HEALTH_CHECK_FAILED;
+  }
+  
+  return result;
+}
+
+/**
  * Get active process for a project
  */
 export function getDevServer(projectId: string): DevServerProcess | undefined {
@@ -257,4 +499,11 @@ export async function stopAllDevServers(tunnelManager?: any): Promise<void> {
       })
     )
   );
+}
+
+/**
+ * Get process state for debugging/monitoring
+ */
+export function getProcessState(projectId: string): ProcessState | undefined {
+  return activeProcesses.get(projectId)?.state;
 }
