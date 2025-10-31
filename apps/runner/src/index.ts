@@ -1037,7 +1037,11 @@ export async function startRunner(options: RunnerOptions = {}) {
   let reconnectAttempts = 0;
   let isShuttingDown = false; // Prevent reconnection during shutdown
   const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
+  const MAX_RECONNECT_ATTEMPTS = 50; // ~30 minutes of reconnection attempts
   const PING_INTERVAL = 30000; // Ping every 30 seconds
+  const PONG_TIMEOUT = 45000; // 45 seconds (1.5x ping interval)
+  const CONNECTION_HANDSHAKE_TIMEOUT = 10000; // 10 second connection timeout
+  let lastPongReceived = Date.now();
 
   // Track verified listening ports per project (single source of truth)
   const verifiedPortsByProject = new Map<string, number>();
@@ -2054,7 +2058,25 @@ export async function startRunner(options: RunnerOptions = {}) {
     heartbeatTimer = setInterval(() => publishStatus(), HEARTBEAT_INTERVAL_MS);
   }
 
+  function cleanupSocket() {
+    if (socket) {
+      socket.removeAllListeners();
+      socket.terminate();
+      socket = null;
+    }
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+    if (pingTimer) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+  }
+
   function connect() {
+    // Clean up old socket and listeners to prevent memory leaks
+    cleanupSocket();
     const url = new URL(BROKER_URL);
     url.searchParams.set("runnerId", RUNNER_ID);
 
@@ -2062,10 +2084,12 @@ export async function startRunner(options: RunnerOptions = {}) {
       headers: {
         Authorization: `Bearer ${SHARED_SECRET}`,
       },
+      handshakeTimeout: CONNECTION_HANDSHAKE_TIMEOUT,
     });
 
     socket.on("open", () => {
       reconnectAttempts = 0; // Reset on successful connection
+      lastPongReceived = Date.now(); // Reset pong timer on new connection
       log("connected to broker", url.toString());
       publishStatus();
       scheduleHeartbeat();
@@ -2073,6 +2097,12 @@ export async function startRunner(options: RunnerOptions = {}) {
       // Start ping/pong to keep connection alive
       if (pingTimer) clearInterval(pingTimer);
       pingTimer = setInterval(() => {
+        // Check if pong timeout exceeded - indicates zombie connection
+        if (Date.now() - lastPongReceived > PONG_TIMEOUT) {
+          log("No pong received, forcing reconnection");
+          socket?.close(1002, "Pong timeout");
+          return;
+        }
         if (socket && socket.readyState === WebSocket.OPEN) {
           socket.ping();
         }
@@ -2143,6 +2173,14 @@ export async function startRunner(options: RunnerOptions = {}) {
         return;
       }
 
+      // Check if max reconnection attempts reached
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.error(
+          `Max reconnection attempts reached (${MAX_RECONNECT_ATTEMPTS}). Giving up.`
+        );
+        return;
+      }
+
       // Exponential backoff with max delay
       reconnectAttempts++;
       const delay = Math.min(
@@ -2155,11 +2193,14 @@ export async function startRunner(options: RunnerOptions = {}) {
     });
 
     socket.on("pong", () => {
-      // Connection is alive
+      // Update timestamp to track connection health
+      lastPongReceived = Date.now();
     });
 
     socket.on("error", (error: Error) => {
       console.error("socket error", error);
+      // Close socket to trigger reconnection
+      socket?.close(1006, "Error occurred");
     });
   }
 
