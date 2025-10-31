@@ -1230,6 +1230,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             command: runCmd,
             cwd: workingDirectory,
             env: envVars,
+            port: allocatedPort ?? undefined,
           });
 
           // Forward logs to API
@@ -1271,9 +1272,33 @@ export async function startRunner(options: RunnerOptions = {}) {
             });
           });
 
-          // Log successful start (port already in database from API route)
+          // Run health check if port is allocated
           if (allocatedPort) {
-            log(`✅ Dev server started for project ${command.projectId} on port ${allocatedPort}`);
+            log(`🔍 Running health check for port ${allocatedPort}...`);
+            
+            const { runHealthCheck } = await import('./lib/process-manager.js');
+            const healthResult = await runHealthCheck(command.projectId, allocatedPort);
+            
+            if (healthResult.healthy) {
+              log(`✅ Dev server started and healthy for project ${command.projectId} on port ${allocatedPort}`);
+              
+              sendEvent({
+                type: "ack",
+                ...buildEventBase(command.projectId, command.id),
+                message: `Dev server is running and healthy on port ${allocatedPort}`,
+              });
+            } else {
+              log(`⚠️  Dev server started but health check failed: ${healthResult.error}`);
+              
+              sendEvent({
+                type: "error",
+                ...buildEventBase(command.projectId, command.id),
+                error: `Health check failed: ${healthResult.error}`,
+              });
+            }
+          } else {
+            // No port allocated - just log spawn
+            log(`✅ Dev server process spawned for project ${command.projectId}`);
           }
 
         } catch (error) {
@@ -1291,12 +1316,31 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "stop-dev-server": {
-        const stopped = stopDevServer(command.projectId);
-        if (!stopped) {
+        try {
+          const stopped = await stopDevServer(command.projectId, {
+            tunnelManager,
+            reason: 'manual'
+          });
+          
+          if (!stopped) {
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error: "No running dev server found for project",
+            });
+          } else {
+            // Successfully stopped - send ack
+            sendEvent({
+              type: "ack",
+              ...buildEventBase(command.projectId, command.id),
+              message: "Dev server stopped successfully",
+            });
+          }
+        } catch (error) {
           sendEvent({
             type: "error",
             ...buildEventBase(command.projectId, command.id),
-            error: "No running dev server found for project",
+            error: error instanceof Error ? error.message : "Failed to stop dev server",
           });
         }
         break;
@@ -1410,7 +1454,10 @@ export async function startRunner(options: RunnerOptions = {}) {
           console.log(`[runner]   Path: ${projectPath}`);
 
           // First, stop any running dev server for this project to release file locks
-          const wasStopped = stopDevServer(command.projectId);
+          const wasStopped = await stopDevServer(command.projectId, {
+            tunnelManager,
+            reason: 'deletion'
+          });
           if (wasStopped) {
             console.log(`[runner]   Stopped dev server before deletion`);
             // Wait a bit for processes to fully exit and release file locks
@@ -2244,10 +2291,10 @@ export async function startRunner(options: RunnerOptions = {}) {
     // Stop all running dev servers and cleanup tunnels
     const { stopAllDevServers } = await import('./lib/process-manager.js');
     
-    // Stop all dev server processes
-    stopAllDevServers();
+    // Stop all dev server processes (this also handles tunnel cleanup per-process)
+    await stopAllDevServers(tunnelManager);
 
-    // Cleanup all tunnels (no need to track ports individually)
+    // Final cleanup of any remaining tunnels
     await tunnelManager.closeAll();
 
     // Flush Sentry events before exiting
