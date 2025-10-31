@@ -69,7 +69,7 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
-    const { prompt, agent = 'claude-code', tags } = (await request.json()) as { prompt: string; agent?: AgentId; tags?: any[] };
+    const { prompt, agent = 'claude-code', tags } = (await request.json()) as { prompt: string; agent?: AgentId; tags?: { key: string; value: string }[] };
 
     if (!prompt) {
       return NextResponse.json(
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
         // If validation failed but we got valid JSON, extract it with fallback icon
         if (error && typeof error === 'object' && 'text' in error) {
           try {
-            const parsed = JSON.parse((error as any).text);
+            const parsed = JSON.parse((error as { text: string }).text);
             metadata = {
               slug: parsed.slug || 'generated-project',
               friendlyName: parsed.friendlyName || 'Generated Project',
