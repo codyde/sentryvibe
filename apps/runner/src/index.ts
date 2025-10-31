@@ -1300,6 +1300,7 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-tunnel": {
+        const tunnelStartTime = Date.now();
         try {
           const { port } = command.payload;
           log(`🔗 Starting tunnel for port ${port}...`);
@@ -1319,6 +1320,16 @@ export async function startRunner(options: RunnerOptions = {}) {
           const tunnelUrl = await tunnelManager.createTunnel(port);
           log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
 
+          // Instrument tunnel startup timing
+          const tunnelDuration = Date.now() - tunnelStartTime;
+          Sentry.metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+            unit: 'millisecond',
+            tags: {
+              port: port.toString(),
+              success: 'true'
+            }
+          });
+
           sendEvent({
             type: "tunnel-created",
             ...buildEventBase(command.projectId, command.id),
@@ -1327,6 +1338,18 @@ export async function startRunner(options: RunnerOptions = {}) {
           });
         } catch (error) {
           console.error("Failed to create tunnel:", error);
+
+          // Instrument failed tunnel startup timing
+          const tunnelDuration = Date.now() - tunnelStartTime;
+          Sentry.metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+            unit: 'millisecond',
+            tags: {
+              port: command.payload.port.toString(),
+              success: 'false',
+              error_type: error instanceof Error ? error.constructor.name : 'unknown'
+            }
+          });
+
           sendEvent({
             type: "error",
             ...buildEventBase(command.projectId, command.id),
