@@ -21,6 +21,10 @@ Sentry.init({
     }),
   ],
 
+  _experiments: {
+    enableMetrics: true,
+  },
+
   // Use tracesSampler instead of tracesSampleRate for granular control
   tracesSampler: ({ name, attributes }) => {
     // Never trace runner status polling endpoints - these pollute traces

@@ -8,7 +8,6 @@ import { TagDropdown } from './TagDropdown';
 import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 import { TagOption, findTagDefinition } from '@sentryvibe/agent-core/config/tags';
 import { validateTagSet } from '@sentryvibe/agent-core/lib/tags/resolver';
-import * as Sentry from '@sentry/nextjs';
 
 interface TagInputProps {
   tags: AppliedTag[];
@@ -50,16 +49,6 @@ export function TagInput({
         appliedAt: new Date()
       };
       onTagsChange([...filteredTags, newTag]);
-
-      // Instrument tag selection metric
-      Sentry.metrics.increment('tag_select', 1, {
-        tags: {
-          tag_key: key,
-          tag_value: value,
-          browser: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'
-        }
-      });
-
       return;
     }
 
@@ -72,15 +61,6 @@ export function TagInput({
     };
 
     onTagsChange([...tags, newTag]);
-
-    // Instrument tag selection metric
-    Sentry.metrics.increment('tag_select', 1, {
-      tags: {
-        tag_key: key,
-        tag_value: value,
-        browser: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'
-      }
-    });
   };
 
   const handleRemoveTag = (key: string, value?: string) => {
@@ -139,7 +119,7 @@ export function TagInput({
 
       // Apply suggested tags
       if (Array.isArray(suggestedTags) && suggestedTags.length > 0) {
-        const newTags = suggestedTags.map((tag: any) => ({
+        const newTags = suggestedTags.map((tag: { key: string; value: string; expandedValues?: Record<string, string> }) => ({
           key: tag.key,
           value: tag.value,
           expandedValues: tag.expandedValues,

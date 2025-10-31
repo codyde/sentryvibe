@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/node';
 import { createInstrumentedCodex } from '@sentry/node';
+import { metrics } from '@sentry/core';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -192,6 +193,26 @@ export async function POST(request: Request) {
     }).returning();
 
     console.log(`✅ Project created: ${project.id}`);
+
+    // Track project submission with key tags
+    const submissionAttributes: Record<string, string> = {
+      project_id: project.id,
+    };
+    
+    // Extract the 4 key tags we care about
+    if (tags && Array.isArray(tags)) {
+      tags.forEach((tag: { key: string; value: string }) => {
+        if (tag.key === 'model' || tag.key === 'framework' || tag.key === 'runner' || tag.key === 'brand') {
+          submissionAttributes[tag.key] = tag.value;
+        }
+      });
+    }
+    
+    // Track project submission
+    metrics.count('project.submitted', 1, {
+      attributes: submissionAttributes
+      // e.g., { project_id: '123', model: 'claude-sonnet-4-5', framework: 'next', brand: 'sentry', runner: 'abc-123' }
+    });
 
     return NextResponse.json({
       project,

@@ -5,6 +5,7 @@
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { createInstrumentedQueryForProvider } from "@sentry/node";
+import { metrics } from "@sentry/core"; // Import metrics directly from @sentry/core (TypeScript workaround)
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { fileLog } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
@@ -40,13 +41,7 @@ import {
 } from "./lib/message-transformer.js";
 import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
 import { transformCodexStream } from "./lib/codex-sdk-adapter.js";
-import {
-  createSmartTracker,
-  isComplete as isTrackerComplete,
-  getCurrentTask,
-  type SmartTodoTracker,
-} from "./lib/smart-todo-tracker.js";
-import { getTaskPlanJsonSchema } from "./lib/codex-task-schema.js";
+
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
@@ -1322,9 +1317,9 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Instrument tunnel startup timing
           const tunnelDuration = Date.now() - tunnelStartTime;
-          Sentry.metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+          metrics.distribution('tunnel_startup_duration', tunnelDuration, {
             unit: 'millisecond',
-            tags: {
+            attributes: {
               port: port.toString(),
               success: 'true'
             }
@@ -1341,9 +1336,9 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Instrument failed tunnel startup timing
           const tunnelDuration = Date.now() - tunnelStartTime;
-          Sentry.metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+          metrics.distribution('tunnel_startup_duration', tunnelDuration, {
             unit: 'millisecond',
-            tags: {
+            attributes: {
               port: command.payload.port.toString(),
               success: 'false',
               error_type: error instanceof Error ? error.constructor.name : 'unknown'
