@@ -16,7 +16,6 @@ interface PreviewPanelProps {
   onStopServer?: () => void;
   onStartTunnel?: () => void;
   onStopTunnel?: () => void;
-  terminalPort?: number | null;
   isStartingServer?: boolean;
   isStoppingServer?: boolean;
   isStartingTunnel?: boolean;
@@ -28,7 +27,7 @@ type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
 const DEBUG_PREVIEW = false; // Set to true to enable verbose preview panel logging
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, terminalPort, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel, isBuildActive }: PreviewPanelProps) {
+export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel, isBuildActive }: PreviewPanelProps) {
   const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
@@ -50,8 +49,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Use live project data if available (from SSE), otherwise fall back to context
   const currentProject = liveProject || project;
 
-  // Use terminal-detected port if available, otherwise fall back to DB port
-  const actualPort = terminalPort || currentProject?.devServerPort;
+  // Port comes from database (pre-allocated in start route)
+  const actualPort = currentProject?.devServerPort;
 
   // Track SSE connection health
   const [isSSEConnected, setIsSSEConnected] = useState(false);

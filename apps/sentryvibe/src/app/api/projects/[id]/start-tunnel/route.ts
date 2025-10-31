@@ -3,9 +3,34 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { createConnection } from 'net';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { StartTunnelCommand } from '@/shared/runner/messages';
+
+/**
+ * Check if a port is reachable (has a server listening)
+ */
+async function isPortReachable(port: number, host: string = 'localhost', timeout: number = 3000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ port, host, timeout });
+    
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    
+    socket.once('error', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
 
 // POST /api/projects/:id/start-tunnel - Start tunnel for dev server
 export async function POST(
@@ -47,6 +72,14 @@ export async function POST(
         message: 'Tunnel already exists',
         tunnelUrl: proj.tunnelUrl,
       });
+    }
+
+    // Verify port is actually listening before creating tunnel
+    const isReachable = await isPortReachable(proj.devServerPort);
+    if (!isReachable) {
+      return NextResponse.json({
+        error: `Port ${proj.devServerPort} is not reachable yet. Please wait for the dev server to finish starting.`
+      }, { status: 400 });
     }
 
     const runnerCommand: StartTunnelCommand = {

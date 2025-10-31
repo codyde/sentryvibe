@@ -82,21 +82,7 @@ export async function POST(request: Request) {
     }
 
     switch (event.type) {
-      case 'port-detected': {
-        const [updated] = await db.update(projects)
-          .set({
-            devServerStatus: 'running',
-            devServerPort: event.port,
-            port: event.port,
-            tunnelUrl: event.tunnelUrl || null,
-            lastActivityAt: new Date(),
-          })
-          .where(eq(projects.id, event.projectId))
-          .returning();
-        // No port reservation - framework handles port selection
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
-        break;
-      }
+      // Port is now pre-allocated in the start route, no need for port-detected event
       case 'tunnel-created': {
         const [updated] = await db.update(projects)
           .set({

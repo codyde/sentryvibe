@@ -3,6 +3,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { StopDevServerCommand } from '@/shared/runner/messages';
@@ -32,6 +33,7 @@ export async function POST(
       );
     }
 
+    // Update status to stopping
     await db.update(projects)
       .set({
         devServerStatus: 'stopping',
@@ -47,6 +49,22 @@ export async function POST(
     };
 
     await sendCommandToRunner(runnerId, command);
+
+    // Release port allocation immediately
+    // The runner will handle killing the process, but we free the port now
+    await releasePortForProject(id);
+    
+    // Clear port and tunnel info from database
+    await db.update(projects)
+      .set({
+        devServerPort: null,
+        tunnelUrl: null,
+        devServerStatus: 'stopped',
+        lastActivityAt: new Date(),
+      })
+      .where(eq(projects.id, id));
+
+    console.log(`🛑 Released port allocation for project ${id}`);
 
     return NextResponse.json({
       message: 'Dev server stop requested',
