@@ -214,7 +214,7 @@ function extractCodexToolOutput(item: Record<string, unknown> | undefined) {
   return null;
 }
 
-metrics.increment('codex.event.count', 1);
+metrics.count('codex.event.count', 1);
 
 async function* convertCodexEventsToAgentMessages(
   events: AsyncIterable<unknown>
