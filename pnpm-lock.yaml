@@ -2215,19 +2215,19 @@ packages:
     hasBin: true
 
   '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz':
-    resolution: {integrity: sha512-1k0DU8U/dqJ2tBnWg/wCekPjv4dRC0gcJ2P+sBgnCz2ak9dMXJUr3tqcha4aK5mRBsKqjoQHWayBTFA7OFfbgw==, tarball: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz}
+    resolution: {integrity: sha512-3ZbDVaMwUYXiYc2K4gYrCNnpPp5r01u9pbeKFlD0IPIZcHjJnWqdKuLWEPbhwVPtOPXlq7M/cnPHOl2uHpBxmA==, tarball: file:apps/sentryvibe/vendor/sentry-core-LOCAL.tgz}
     version: 10.22.0
     engines: {node: '>=18'}
 
   '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz':
-    resolution: {integrity: sha512-iGrN3px8qR2YN+SjhqW2oshr8JQxM61QXzSJ3fBWYzj5ScayiJzasIXRPUryg6/aQm3UhZeEH8krt6XMHHuElA==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz}
+    resolution: {integrity: sha512-wyorx1bqECUQjx4VQ9LoqZ/+0QMNb+0FfYKP0k7yWP3wYgfQYsg+smFtkJlQ8UnRMBI8VrTQ/nVmaLj/kFncUA==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-LOCAL.tgz}
     version: 10.22.0
     engines: {node: '>=18'}
     peerDependencies:
       next: ^13.2.0 || ^14.0 || ^15.0.0-rc.0 || ^16.0.0-0
 
   '@sentry/node-core@file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz':
-    resolution: {integrity: sha512-crlwf8mUGMFeq0WYFGCfngeq8kEPQZehminOY6n8DaEftJr6a2PoBJKVLD1KBtoUcSjgZ3/UwQSt1TKTpqeyVw==, tarball: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz}
+    resolution: {integrity: sha512-PEM8ufFs6vtnOjSoONFC1Hh8uH9SOhyukU/1IOLmV51nue5YYViaqBCls6gyOvDjK1hlZUekWTcr+zXwh3gyYw==, tarball: file:apps/sentryvibe/vendor/sentry-node-core-LOCAL.tgz}
     version: 10.22.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -2240,7 +2240,7 @@ packages:
       '@opentelemetry/semantic-conventions': ^1.37.0
 
   '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz':
-    resolution: {integrity: sha512-oufWo7cJZBbZI3bOGHFD6+ILeDa+Ee6XQLHwewQCE4xZAWnYr39tnABUAIpHf7zybkEEN97ryFOzHp4kJHqIGA==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
+    resolution: {integrity: sha512-D9i7s6VTyHAmnwHKe9ex9AzvMpKqgU/WvNvnAaVUZF560NkkrSKQL+4imsAs9ELUuwbu/aeRQ2y6ub1zaZ45TQ==, tarball: file:apps/sentryvibe/vendor/sentry-node-LOCAL.tgz}
     version: 10.22.0
     engines: {node: '>=18'}
 
