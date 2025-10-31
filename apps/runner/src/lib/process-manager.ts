@@ -257,7 +257,17 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     console.error(`[process-manager]`, error.message);
     emitter.emit('error', error);
     // Return a dummy process since we can't spawn
-    return { process: null as any, emitter };
+    return {
+      projectId,
+      process: null as any,
+      emitter,
+      port: options.port,
+      state: ProcessState.FAILED,
+      command,
+      cwd,
+      startedAt: new Date(),
+      failureReason: FailureReason.DIRECTORY_MISSING,
+    };
   }
 
   // Use shell to execute the full command (handles complex args better)
