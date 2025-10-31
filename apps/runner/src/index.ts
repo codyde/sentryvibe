@@ -214,6 +214,8 @@ function extractCodexToolOutput(item: Record<string, unknown> | undefined) {
   return null;
 }
 
+Sentry.metrics.increment('codex.event.count', 1) 
+
 async function* convertCodexEventsToAgentMessages(
   events: AsyncIterable<unknown>
 ): AsyncGenerator<Record<string, unknown>, void, unknown> {
@@ -968,6 +970,14 @@ export async function startRunner(options: RunnerOptions = {}) {
     tunnelManager.setSilent(true);
   }
 
+  // Clean up abandoned port allocations on startup
+  try {
+    const { cleanupAbandonedPorts } = await import('@sentryvibe/agent-core/lib/port-allocator');
+    await cleanupAbandonedPorts();
+  } catch (error) {
+    console.error('Failed to cleanup abandoned ports:', error);
+  }
+
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
   log("workspace root:", WORKSPACE_ROOT);
 
@@ -1037,9 +1047,6 @@ export async function startRunner(options: RunnerOptions = {}) {
   const PONG_TIMEOUT = 45000; // 45 seconds (1.5x ping interval)
   const CONNECTION_HANDSHAKE_TIMEOUT = 10000; // 10 second connection timeout
   let lastPongReceived = Date.now();
-
-  // Track verified listening ports per project (single source of truth)
-  const verifiedPortsByProject = new Map<string, number>();
 
   function assertNever(value: never): never {
     throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
@@ -1194,12 +1201,18 @@ export async function startRunner(options: RunnerOptions = {}) {
             runCommand: runCmd,
             workingDirectory,
             env = {},
-            framework,
+            preferredPort,
           } = command.payload;
 
-          // Don't allocate port - let the dev server choose and we'll detect it
-          // Build environment without forcing a specific port
-          // Filter out undefined values to satisfy Record<string, string> type
+          // Port is pre-allocated in the database by the API route
+          // We use the port from the payload (which includes env vars with PORT set)
+          const allocatedPort = preferredPort ?? null;
+          
+          if (allocatedPort) {
+            log(`🔌 Using pre-allocated port ${allocatedPort} for project ${command.projectId}`);
+          }
+
+          // Merge port enforcement environment variables
           const envVars: Record<string, string> = {};
           for (const [key, value] of Object.entries({
             ...process.env,
@@ -1219,6 +1232,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             env: envVars,
           });
 
+          // Forward logs to API
           devProcess.emitter.on("log", (logEvent) => {
             sendEvent({
               type: "log-chunk",
@@ -1229,30 +1243,12 @@ export async function startRunner(options: RunnerOptions = {}) {
             });
           });
 
-          devProcess.emitter.on("port", async (port: number) => {
-            // Store VERIFIED listening port for this project (single source of truth)
-            verifiedPortsByProject.set(command.projectId, port);
-            log(
-              `✅ Verified listening port ${port} for project ${command.projectId}`
-            );
-
-            // Send port-detected event immediately without tunnel
-            // Tunnel creation is now manual via start-tunnel command
-            sendEvent({
-              type: "port-detected",
-              ...buildEventBase(command.projectId, command.id),
-              port,
-              framework: framework ?? "unknown",
-            });
-          });
-
+          // Handle process exit
           devProcess.emitter.on("exit", async ({ code, signal }) => {
-            // Use verified port for cleanup (single source of truth)
-            const verifiedPort = verifiedPortsByProject.get(command.projectId);
-            if (verifiedPort) {
-              log(`🔗 Closing tunnel for verified port ${verifiedPort}`);
-              await tunnelManager.closeTunnel(verifiedPort);
-              verifiedPortsByProject.delete(command.projectId);
+            // Close tunnel if one exists for this port
+            if (allocatedPort) {
+              log(`🔗 Closing tunnel for port ${allocatedPort}`);
+              await tunnelManager.closeTunnel(allocatedPort);
             }
 
             sendEvent({
@@ -1264,6 +1260,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             });
           });
 
+          // Handle process errors
           devProcess.emitter.on("error", (error: unknown) => {
             sendEvent({
               type: "error",
@@ -1273,6 +1270,12 @@ export async function startRunner(options: RunnerOptions = {}) {
               stack: error instanceof Error ? error.stack : undefined,
             });
           });
+
+          // Log successful start (port already in database from API route)
+          if (allocatedPort) {
+            log(`✅ Dev server started for project ${command.projectId} on port ${allocatedPort}`);
+          }
+
         } catch (error) {
           console.error("Failed to start dev server", error);
           sendEvent({
@@ -2239,22 +2242,12 @@ export async function startRunner(options: RunnerOptions = {}) {
     }
 
     // Stop all running dev servers and cleanup tunnels
-    const { getAllActiveProjectIds, stopAllDevServers } = await import('./lib/process-manager.js');
-    const activeProjectIds = getAllActiveProjectIds();
-
-    for (const projectId of activeProjectIds) {
-      // Cleanup any open tunnels for verified ports
-      const verifiedPort = verifiedPortsByProject.get(projectId);
-      if (verifiedPort) {
-        await tunnelManager.closeTunnel(verifiedPort);
-        verifiedPortsByProject.delete(projectId);
-      }
-    }
-
+    const { stopAllDevServers } = await import('./lib/process-manager.js');
+    
     // Stop all dev server processes
     stopAllDevServers();
 
-    // Cleanup all tunnels
+    // Cleanup all tunnels (no need to track ports individually)
     await tunnelManager.closeAll();
 
     // Flush Sentry events before exiting

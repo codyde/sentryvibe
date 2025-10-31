@@ -3,7 +3,12 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { getRunCommand } from '@sentryvibe/agent-core/lib/port-allocator';
+import { 
+  getRunCommand, 
+  reserveOrReallocatePort, 
+  buildEnvForFramework,
+  withEnforcedPort
+} from '@sentryvibe/agent-core/lib/port-allocator';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { StartDevServerCommand } from '@/shared/runner/messages';
@@ -58,32 +63,50 @@ export async function POST(
     }
 
     try {
-      // No port reservation - let framework auto-increment if needed
       console.log(`🚀 Starting dev server for ${proj.name}`);
 
-      // Update status to starting and clear any previous errors
+      // Step 1: Allocate port BEFORE spawning (proactive allocation)
+      const portInfo = await reserveOrReallocatePort({
+        projectId: id,
+        projectType: proj.projectType,
+        runCommand: proj.runCommand,
+        preferredPort: proj.devServerPort, // Try to reuse existing port if available
+      });
+
+      console.log(`📍 Allocated port ${portInfo.port} for framework ${portInfo.framework}`);
+
+      // Step 2: Update database with allocated port BEFORE sending command
+      // This makes devServerPort the single source of truth
       await db.update(projects)
         .set({
           devServerStatus: 'starting',
-          devServerPort: null, // Will be detected from stdout
+          devServerPort: portInfo.port,
           errorMessage: null,
           lastActivityAt: new Date(),
         })
         .where(eq(projects.id, id));
 
-      const baseCommand = getRunCommand(proj.runCommand);
-      console.log(`📝 Run command: ${baseCommand}`);
+      // Step 3: Build environment variables to enforce port
+      const portEnv = buildEnvForFramework(portInfo.framework, portInfo.port);
 
+      // Step 4: Enforce port in command (for frameworks that need CLI flags)
+      const baseCommand = getRunCommand(proj.runCommand);
+      const enforcedCommand = withEnforcedPort(baseCommand, portInfo.framework, portInfo.port);
+      
+      console.log(`📝 Run command: ${enforcedCommand}`);
+      console.log(`🔧 Port environment: ${JSON.stringify(portEnv)}`);
+
+      // Step 5: Send command to runner with pre-allocated port
       const runnerCommand: StartDevServerCommand = {
         id: randomUUID(),
         type: 'start-dev-server',
         projectId: id,
         timestamp: new Date().toISOString(),
         payload: {
-          runCommand: baseCommand,
+          runCommand: enforcedCommand,
           workingDirectory: proj.path,
-          env: {}, // No port enforcement
-          preferredPort: null,
+          env: portEnv,
+          preferredPort: portInfo.port,
         },
       };
 
@@ -91,6 +114,7 @@ export async function POST(
 
       return NextResponse.json({
         message: 'Dev server start requested',
+        port: portInfo.port,
       }, { status: 202 });
 
     } catch (error) {

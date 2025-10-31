@@ -1,6 +1,7 @@
 import { db } from './db/client';
 import { portAllocations } from './db/schema';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql, isNotNull, lt } from 'drizzle-orm';
+import { createServer } from 'net';
 
 interface ReservePortParams {
   projectId: string;
@@ -241,36 +242,179 @@ export function withEnforcedPort(command: string, framework: FrameworkKey, port:
   const trimmed = command.trim();
   if (!trimmed) return command;
 
-  const needsExplicitPort = framework === 'vite' || framework === 'astro';
-  if (!needsExplicitPort) {
-    return command;
-  }
+  // Vite and Astro need explicit --port flags with --strictPort
+  if (framework === 'vite' || framework === 'astro') {
+    const cliArgs = `--port ${port} --host 0.0.0.0 --strictPort`;
 
-  const cliArgs = `--port ${port} --host 0.0.0.0 --strictPort`;
+    if (/^npm\s+run\s+/i.test(trimmed)) {
+      return `${trimmed} -- ${cliArgs}`;
+    }
 
-  if (/^npm\s+run\s+/i.test(trimmed)) {
+    if (/^pnpm\s+/i.test(trimmed)) {
+      return `${trimmed} -- ${cliArgs}`;
+    }
+
+    if (/^yarn\s+/i.test(trimmed)) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
+    if (/^bun\s+/i.test(trimmed)) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
+    if (trimmed.includes('astro') || trimmed.includes('vite')) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
     return `${trimmed} -- ${cliArgs}`;
   }
 
-  if (/^pnpm\s+/i.test(trimmed)) {
+  // Next.js needs -p flag (passed after --)
+  if (framework === 'next') {
+    const cliArgs = `-p ${port}`;
+
+    if (/^npm\s+run\s+/i.test(trimmed)) {
+      return `${trimmed} -- ${cliArgs}`;
+    }
+
+    if (/^pnpm\s+/i.test(trimmed)) {
+      return `${trimmed} -- ${cliArgs}`;
+    }
+
+    if (/^yarn\s+/i.test(trimmed)) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
+    if (/^bun\s+/i.test(trimmed)) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
+    if (trimmed.includes('next')) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
     return `${trimmed} -- ${cliArgs}`;
   }
 
-  if (/^yarn\s+/i.test(trimmed)) {
-    return `${trimmed} ${cliArgs}`;
+  // For node and default, rely on PORT env var
+  return command;
+}
+
+/**
+ * Check if a port is available by attempting to bind to it
+ * Returns true if port is free, false if in use
+ */
+export async function checkPortAvailability(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false);
+      } else {
+        // Other errors (e.g., EACCES) also mean port is not available
+        resolve(false);
+      }
+    });
+
+    server.once('listening', () => {
+      server.close(() => {
+        resolve(true);
+      });
+    });
+
+    server.listen(port, '0.0.0.0');
+  });
+}
+
+/**
+ * Get existing port allocation for a project
+ * Returns null if no allocation exists
+ */
+export async function getPortForProject(projectId: string): Promise<ReservedPortInfo | null> {
+  const rows = await db.select()
+    .from(portAllocations)
+    .where(eq(portAllocations.projectId, projectId))
+    .limit(1)
+    .execute();
+
+  if (rows.length === 0) {
+    return null;
   }
 
-  if (/^bun\s+/i.test(trimmed)) {
-    return `${trimmed} ${cliArgs}`;
-  }
+  const allocation = rows[0];
+  return {
+    port: allocation.port,
+    framework: toFrameworkKey(allocation.framework),
+  };
+}
 
-  if (trimmed.includes('astro')) {
-    return `${trimmed} ${cliArgs}`;
+/**
+ * Reserve a port for a project, with automatic reallocation if unavailable
+ * This is the main function to use when starting dev servers
+ */
+export async function reserveOrReallocatePort(params: ReservePortParams): Promise<ReservedPortInfo> {
+  // First, try to get existing allocation
+  const existing = await getPortForProject(params.projectId);
+  
+  if (existing) {
+    // Check if the allocated port is actually available
+    const isAvailable = await checkPortAvailability(existing.port);
+    
+    if (isAvailable) {
+      // Port is free, reuse it (update timestamp)
+      await db.update(portAllocations)
+        .set({ reservedAt: new Date() })
+        .where(eq(portAllocations.projectId, params.projectId))
+        .execute();
+      
+      return existing;
+    }
+    
+    // Port is in use by another process, need to reallocate
+    console.warn(`Port ${existing.port} allocated to project ${params.projectId} is in use. Reallocating...`);
   }
-
-  if (trimmed.includes('vite')) {
-    return `${trimmed} ${cliArgs}`;
+  
+  // No existing allocation or port unavailable - allocate new port
+  const framework = resolveFramework(params.projectType, params.runCommand);
+  const range = FRAMEWORK_RANGES[framework];
+  
+  // Try to find an available port in the range
+  for (let attempts = 0; attempts < 10; attempts++) {
+    const allocation = await reservePortForProject(params);
+    const isAvailable = await checkPortAvailability(allocation.port);
+    
+    if (isAvailable) {
+      return allocation;
+    }
+    
+    // Port allocated but not available, release it and try again
+    console.warn(`Allocated port ${allocation.port} is not available, trying another...`);
+    await releasePortForProject(params.projectId);
   }
+  
+  throw new Error(`Unable to find available port in range ${range.start}-${range.end} after 10 attempts`);
+}
 
-  return `${trimmed} -- ${cliArgs}`;
+/**
+ * Clean up port allocations for projects that have been inactive for more than 7 days
+ * This should be called periodically (e.g., on app startup or via cron)
+ */
+export async function cleanupAbandonedPorts(): Promise<number> {
+  const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+  
+  const result = await db.update(portAllocations)
+    .set({ projectId: null, reservedAt: null })
+    .where(and(
+      isNotNull(portAllocations.projectId),
+      lt(portAllocations.reservedAt, threshold)
+    ))
+    .returning();
+  
+  const cleanedCount = result.length;
+  if (cleanedCount > 0) {
+    console.log(`🧹 Cleaned up ${cleanedCount} abandoned port allocation(s)`);
+  }
+  
+  return cleanedCount;
 }

@@ -12,7 +12,6 @@ interface TabbedPreviewProps {
   onStopServer?: () => void;
   onStartTunnel?: () => void;
   onStopTunnel?: () => void;
-  terminalPort?: number | null;
   isStartingServer?: boolean;
   isStoppingServer?: boolean;
   isStartingTunnel?: boolean;
@@ -27,7 +26,6 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   onStopServer,
   onStartTunnel,
   onStopTunnel,
-  terminalPort,
   isStartingServer,
   isStoppingServer,
   isStartingTunnel,
@@ -96,7 +94,6 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
             onStopServer={onStopServer}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
-            terminalPort={terminalPort}
             isStartingServer={isStartingServer}
             isStoppingServer={isStoppingServer}
             isStartingTunnel={isStartingTunnel}

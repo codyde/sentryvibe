@@ -1,7 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
-import { isPortReady } from './port-checker.js';
 
 // Silent mode for TUI
 let isSilentMode = false;
@@ -124,53 +123,10 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       });
   }
 
-  // Track if we've already emitted a port for this process
-  let portEmitted = false;
-  let portVerificationInProgress = false;
-
-  // Handle stdout
+  // Handle stdout - just forward logs (port is pre-allocated by API)
   childProcess.stdout?.on('data', (data: Buffer) => {
     const text = data.toString();
     emitter.emit('log', { type: 'stdout', data: text });
-
-    // Try to detect port (only emit once per project)
-    if (!portEmitted && !portVerificationInProgress) {
-      const portMatch = text.match(/(?:localhost:|port[:\s]+|:)(\d{4,5})/i);
-      if (portMatch) {
-        const port = parseInt(portMatch[1], 10);
-        if (port >= 3000 && port <= 65535) {
-          portVerificationInProgress = true;
-
-          // Verify port is actually listening before emitting
-          if (!isSilentMode) console.log(`[process-manager] Detected potential port ${port}, verifying...`);
-
-          // Give the server a moment to fully bind
-          setTimeout(async () => {
-            const ready = await isPortReady(port, 'localhost', 2000);
-            if (ready && !portEmitted) {
-              portEmitted = true;
-              if (!isSilentMode) console.log(`[process-manager] ✅ Verified port ${port} is listening`);
-              emitter.emit('port', port);
-
-              // Update port via API
-              callAPI(`/api/runner/process/${projectId}/port`, {
-                method: 'PATCH',
-                body: JSON.stringify({ port }),
-              })
-                .then(() => {
-                  if (!isSilentMode) console.log(`[process-manager] ✅ Updated port ${port} via API`);
-                })
-                .catch((err: unknown) => {
-                  console.error(`[process-manager] ❌ Failed to update port via API:`, err);
-                });
-            } else if (!ready) {
-              if (!isSilentMode) console.log(`[process-manager] ⚠️  Port ${port} not ready, will retry on next output`);
-              portVerificationInProgress = false;
-            }
-          }, 500);
-        }
-      }
-    }
   });
 
   // Handle stderr
