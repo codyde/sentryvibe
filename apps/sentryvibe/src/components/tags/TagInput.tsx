@@ -119,7 +119,7 @@ export function TagInput({
 
       // Apply suggested tags
       if (Array.isArray(suggestedTags) && suggestedTags.length > 0) {
-        const newTags = suggestedTags.map((tag: any) => ({
+        const newTags = suggestedTags.map((tag: { key: string; value: string; expandedValues?: Record<string, string> }) => ({
           key: tag.key,
           value: tag.value,
           expandedValues: tag.expandedValues,

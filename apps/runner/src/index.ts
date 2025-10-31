@@ -5,6 +5,7 @@
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { createInstrumentedQueryForProvider } from "@sentry/node";
+import { metrics } from "@sentry/core"; // Import metrics directly from @sentry/core (TypeScript workaround)
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { fileLog } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
@@ -40,13 +41,7 @@ import {
 } from "./lib/message-transformer.js";
 import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
 import { transformCodexStream } from "./lib/codex-sdk-adapter.js";
-import {
-  createSmartTracker,
-  isComplete as isTrackerComplete,
-  getCurrentTask,
-  type SmartTodoTracker,
-} from "./lib/smart-todo-tracker.js";
-import { getTaskPlanJsonSchema } from "./lib/codex-task-schema.js";
+
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
@@ -1304,6 +1299,7 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-tunnel": {
+        const tunnelStartTime = Date.now();
         try {
           const { port } = command.payload;
           log(`🔗 Starting tunnel for port ${port}...`);
@@ -1323,6 +1319,16 @@ export async function startRunner(options: RunnerOptions = {}) {
           const tunnelUrl = await tunnelManager.createTunnel(port);
           log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
 
+          // Instrument tunnel startup timing
+          const tunnelDuration = Date.now() - tunnelStartTime;
+          metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+            unit: 'millisecond',
+            attributes: {
+              port: port.toString(),
+              success: 'true'
+            }
+          });
+
           sendEvent({
             type: "tunnel-created",
             ...buildEventBase(command.projectId, command.id),
@@ -1331,6 +1337,18 @@ export async function startRunner(options: RunnerOptions = {}) {
           });
         } catch (error) {
           console.error("Failed to create tunnel:", error);
+
+          // Instrument failed tunnel startup timing
+          const tunnelDuration = Date.now() - tunnelStartTime;
+          metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+            unit: 'millisecond',
+            attributes: {
+              port: command.payload.port.toString(),
+              success: 'false',
+              error_type: error instanceof Error ? error.constructor.name : 'unknown'
+            }
+          });
+
           sendEvent({
             type: "error",
             ...buildEventBase(command.projectId, command.id),

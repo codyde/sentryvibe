@@ -152,16 +152,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
             // IMPORTANT: Use the actual URL (no cache-bust on verification)
             // We want to know when the REAL URL resolves, not a cache-busted variant
-            await fetch(currentTunnelUrl, {
-              method: 'HEAD',
-              mode: 'no-cors',
-              cache: 'no-store',
-              // Force DNS re-resolution on each attempt
-              headers: {
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
-              },
-            });
+            // NOTE: Do not set custom request headers when using `mode: 'no-cors'` -
+            // browsers will reject the request with a TypeError ("Failed to fetch").
+            // Use an AbortController to bound the check time and rely on the
+            // opaque response from `no-cors` to indicate reachability.
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            try {
+              await fetch(currentTunnelUrl, {
+                method: 'HEAD',
+                mode: 'no-cors',
+                cache: 'no-store',
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timeoutId);
+            }
 
             if (DEBUG_PREVIEW) console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
             resolved = true;

@@ -148,6 +148,15 @@ export async function DELETE(
     // Delete from database (cascade will delete messages and running_processes)
     await db.delete(projects).where(eq(projects.id, id));
 
+    // Instrument project deletion metric
+    Sentry.metrics.increment('project_delete', 1, {
+      tags: {
+        project_id: id,
+        delete_files: deleteFiles.toString(),
+        had_dev_server: (!!project[0].devServerPid).toString()
+      }
+    });
+
     // Optionally delete filesystem - delegate to runner
     if (deleteFiles && project[0].slug) {
       try {

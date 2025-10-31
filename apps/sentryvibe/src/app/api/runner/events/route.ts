@@ -7,6 +7,7 @@ import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stre
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { projectEvents } from '@/lib/project-events';
 import * as Sentry from '@sentry/nextjs';
+import { metrics } from '@sentry/core';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -166,7 +167,29 @@ export async function POST(request: Request) {
           })
           .where(eq(projects.id, event.projectId))
           .returning();
-        if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        
+        if (updated) {
+          emitProjectUpdateFromData(event.projectId, updated);
+          
+          // Track project completion with key tags
+          const completionAttributes: Record<string, string> = {
+            project_id: updated.id,
+          };
+          
+          // Extract the 4 key tags from the project
+          if (updated.tags && Array.isArray(updated.tags)) {
+            updated.tags.forEach((tag: any) => {
+              if (tag.key === 'model' || tag.key === 'framework' || tag.key === 'runner' || tag.key === 'brand') {
+                completionAttributes[tag.key] = tag.value;
+              }
+            });
+          }
+          
+          metrics.count('project.completed', 1, {
+            attributes: completionAttributes
+            // e.g., { project_id: '123', model: 'claude-sonnet-4-5', framework: 'next', brand: 'sentry' }
+          });
+        }
         break;
       }
       case 'build-failed':
