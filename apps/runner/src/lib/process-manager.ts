@@ -161,16 +161,70 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
 }
 
 /**
- * Stop a development server for a project
+ * Stop a development server for a project with graceful shutdown
+ * @param projectId - The project ID to stop
+ * @param options - Shutdown options
+ * @returns Promise<boolean> - true if stopped, false if no process found
  */
-export function stopDevServer(projectId: string): boolean {
+export async function stopDevServer(
+  projectId: string,
+  options?: {
+    timeout?: number;
+    reason?: string;
+    tunnelManager?: any; // TunnelManager instance
+    port?: number;
+  }
+): Promise<boolean> {
+  const { timeout = 10000, reason = 'manual', tunnelManager, port } = options || {};
+  
   const devProcess = activeProcesses.get(projectId);
   if (!devProcess) {
     return false;
   }
 
+  if (!isSilentMode) {
+    console.log(`[process-manager] Stopping dev server for ${projectId} (reason: ${reason})`);
+  }
+
+  // Step 1: Close tunnel first (if tunnelManager and port provided)
+  if (tunnelManager && port) {
+    try {
+      if (!isSilentMode) console.log(`[process-manager] Closing tunnel for port ${port}...`);
+      await tunnelManager.closeTunnel(port);
+    } catch (error) {
+      console.error(`[process-manager] Failed to close tunnel:`, error);
+      // Continue anyway - we still need to stop the process
+    }
+  }
+
+  // Step 2: Send SIGTERM for graceful shutdown
+  if (!isSilentMode) console.log(`[process-manager] Sending SIGTERM to PID ${devProcess.process.pid}`);
   devProcess.process.kill('SIGTERM');
+
+  // Step 3: Wait for exit with timeout
+  const exitPromise = new Promise<void>((resolve) => {
+    devProcess.emitter.once('exit', () => resolve());
+  });
+
+  const timeoutPromise = new Promise<void>((resolve) => {
+    setTimeout(() => resolve(), timeout);
+  });
+
+  await Promise.race([exitPromise, timeoutPromise]);
+
+  // Step 4: Force kill if still running
+  if (devProcess.process.exitCode === null && !devProcess.process.killed) {
+    console.warn(`[process-manager] Process ${projectId} didn't exit gracefully, sending SIGKILL`);
+    devProcess.process.kill('SIGKILL');
+    // Wait a bit for SIGKILL to take effect
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  // Step 5: Cleanup
   activeProcesses.delete(projectId);
+  
+  if (!isSilentMode) console.log(`[process-manager] ✅ Stopped dev server for ${projectId}`);
+  
   return true;
 }
 
@@ -191,9 +245,16 @@ export function getAllActiveProjectIds(): string[] {
 /**
  * Stop all running dev servers
  */
-export function stopAllDevServers(): void {
+export async function stopAllDevServers(tunnelManager?: any): Promise<void> {
   const projectIds = getAllActiveProjectIds();
-  for (const projectId of projectIds) {
-    stopDevServer(projectId);
-  }
+  
+  // Stop all processes in parallel
+  await Promise.allSettled(
+    projectIds.map(projectId => 
+      stopDevServer(projectId, { 
+        tunnelManager,
+        reason: 'shutdown' 
+      })
+    )
+  );
 }
