@@ -16,7 +16,7 @@ import { isRunnerEvent } from './shared/runner/messages';
 const PORT = parseInt(process.env.PORT || process.env.BROKER_PORT || '4000', 10);
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
 const EVENT_TARGET = process.env.RUNNER_EVENT_TARGET_URL ?? 'http://localhost:3000';
-const HEARTBEAT_TIMEOUT = 60_000; // 60 seconds
+const HEARTBEAT_TIMEOUT = 90_000; // 90 seconds - increased buffer for network latency
 const PING_INTERVAL = 30_000; // 30 seconds
 
 if (!SHARED_SECRET) {
