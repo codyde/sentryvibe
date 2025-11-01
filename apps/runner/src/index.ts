@@ -970,13 +970,8 @@ export async function startRunner(options: RunnerOptions = {}) {
     tunnelManager.setSilent(true);
   }
 
-  // Clean up abandoned port allocations on startup
-  try {
-    const { cleanupAbandonedPorts } = await import('@sentryvibe/agent-core/lib/port-allocator');
-    await cleanupAbandonedPorts();
-  } catch (error) {
-    console.error('Failed to cleanup abandoned ports:', error);
-  }
+  // Note: Port cleanup is handled by the web app, not the runner
+  // The runner is stateless and doesn't manage database operations directly
 
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
   log("workspace root:", WORKSPACE_ROOT);
