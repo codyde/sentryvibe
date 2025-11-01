@@ -99,7 +99,7 @@ export function RichProjectCard({
           }`} />
           <span className={`text-sm truncate flex-1 ${
             isCurrentProject ? 'text-white font-medium' : 'text-white'
-          }`}>{project.name}</span>
+          }`}>{project.name || 'Untitled Project'}</span>
 
           {/* Runner badge */}
           {project.runnerId && !isHovered && (
@@ -198,7 +198,7 @@ export function RichProjectCard({
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-medium text-white truncate">{project.name}</h3>
+            <h3 className="text-sm font-medium text-white truncate">{project.name || 'Untitled Project'}</h3>
             {project.description && (
               <p className="text-xs text-gray-500 truncate">{project.description}</p>
             )}
