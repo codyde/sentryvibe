@@ -101,6 +101,7 @@ const activeProcesses = new Map<string, DevServerProcess>();
 
 /**
  * Check if a port is in use (listening)
+ * Binds to 0.0.0.0 to match dev servers that bind to all interfaces
  */
 async function checkPortInUse(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -108,31 +109,45 @@ async function checkPortInUse(port: number): Promise<boolean> {
     
     server.once('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
+        if (!isSilentMode) {
+          console.log(`[process-manager] 🔍 Port ${port} is IN USE (EADDRINUSE)`);
+        }
         resolve(true); // Port is in use
       } else {
+        if (!isSilentMode) {
+          console.log(`[process-manager] 🔍 Port ${port} check error: ${err.code}`);
+        }
         resolve(false);
       }
     });
     
     server.once('listening', () => {
+      if (!isSilentMode) {
+        console.log(`[process-manager] 🔍 Port ${port} is FREE (we could bind to it)`);
+      }
       server.close();
       resolve(false); // Port is free
     });
     
-    server.listen(port);
+    // Bind to 0.0.0.0 to match dev servers (not just localhost)
+    server.listen(port, '0.0.0.0');
   });
 }
 
 /**
  * Verify server health after start
  * @param port - Port to check
- * @param maxAttempts - Maximum number of health check attempts (default: 30)
+ * @param maxAttempts - Maximum number of health check attempts (default: 60)
  * @returns Health check result
  */
-async function verifyServerHealth(port: number, maxAttempts = 30): Promise<{
+async function verifyServerHealth(port: number, maxAttempts = 60): Promise<{
   healthy: boolean;
   error?: string;
 }> {
+  if (!isSilentMode) {
+    console.log(`[process-manager] Starting health check for port ${port}...`);
+  }
+
   for (let i = 0; i < maxAttempts; i++) {
     try {
       // Check if port is listening
@@ -140,30 +155,23 @@ async function verifyServerHealth(port: number, maxAttempts = 30): Promise<{
       
       if (!isListening) {
         // Port is still free, server hasn't started yet
+        if (!isSilentMode && i % 5 === 0) {
+          console.log(`[process-manager] Waiting for port ${port} to be listening... (${i}s)`);
+        }
         await new Promise(r => setTimeout(r, 1000));
         continue;
       }
       
-      // Port is listening, try HTTP request to verify it's responding
-      try {
-        const response = await fetch(`http://localhost:${port}`, {
-          method: 'HEAD',
-          signal: AbortSignal.timeout(2000)
-        });
-        
-        if (!isSilentMode) {
-          console.log(`[process-manager] ✅ Health check passed for port ${port}`);
-        }
-        return { healthy: true };
-      } catch (fetchError) {
-        // Server is listening but not responding to HTTP yet
-        // This is OK for some frameworks that take time to be ready
-        if (!isSilentMode) {
-          console.log(`[process-manager] Port ${port} listening but not responding yet (attempt ${i + 1}/${maxAttempts})`);
-        }
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
+      // Port is listening! For dev servers, this is good enough.
+      // Many frameworks (Astro, Vite, Next) listen on the port but continue
+      // building/bundling before serving HTTP requests.
+      // Waiting for HTTP responses can cause false timeouts.
+      
+      if (!isSilentMode) {
+        console.log(`[process-manager] ✅ Health check passed - port ${port} is listening (after ${i}s)`);
       }
+      return { healthy: true };
+      
     } catch (error) {
       return { 
         healthy: false, 
@@ -174,7 +182,7 @@ async function verifyServerHealth(port: number, maxAttempts = 30): Promise<{
   
   return { 
     healthy: false, 
-    error: `Server failed to become healthy within ${maxAttempts} seconds` 
+    error: `Server failed to start listening on port ${port} within ${maxAttempts} seconds` 
   };
 }
 
