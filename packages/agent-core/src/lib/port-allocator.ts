@@ -11,7 +11,7 @@ interface ReservePortParams {
   projectType: string | null;
   runCommand: string | null;
   preferredPort?: number | null;
-  projectPath?: string | null;  // For filesystem-based detection
+  detectedFramework?: string | null;  // Framework detected during build
 }
 
 interface ReservedPortInfo {
@@ -39,8 +39,9 @@ const FRAMEWORK_ENV_MAP: Record<FrameworkKey, string[]> = {
 
 /**
  * Detect framework from project filesystem (package.json and config files)
+ * Exported for use by runner to detect framework after build completion
  */
-async function detectFrameworkFromFilesystem(projectPath: string): Promise<FrameworkKey | null> {
+export async function detectFrameworkFromFilesystem(projectPath: string): Promise<FrameworkKey | null> {
   try {
     // Check for config files first (most reliable)
     if (existsSync(join(projectPath, 'astro.config.mjs')) || 
@@ -91,26 +92,25 @@ async function detectFrameworkFromFilesystem(projectPath: string): Promise<Frame
 
 /**
  * Resolve framework type from multiple sources
- * Priority: filesystem analysis > projectType field > runCommand
+ * Priority: saved detectedFramework > projectType field > runCommand > 'default'
+ * Note: Filesystem detection removed from here - now happens on build completion
  */
 async function resolveFramework(
   projectType: string | null, 
   runCommand: string | null,
-  projectPath?: string | null
+  savedFramework?: string | null
 ): Promise<FrameworkKey> {
   // Debug logging
   console.log(`[port-allocator] Framework detection:`);
+  console.log(`  savedFramework: "${savedFramework}"`);
   console.log(`  projectType: "${projectType}"`);
   console.log(`  runCommand: "${runCommand}"`);
-  console.log(`  projectPath: "${projectPath}"`);
 
-  // Strategy 1: Try filesystem detection (most reliable)
-  if (projectPath) {
-    const fsDetected = await detectFrameworkFromFilesystem(projectPath);
-    if (fsDetected) {
-      console.log(`  ✅ Detected from filesystem: ${fsDetected}`);
-      return fsDetected;
-    }
+  // Strategy 1: Use saved framework (most reliable - detected during build)
+  if (savedFramework) {
+    const framework = toFrameworkKey(savedFramework);
+    console.log(`  ✅ Using saved framework: ${framework}`);
+    return framework;
   }
 
   // Strategy 2: Check projectType field
@@ -164,7 +164,7 @@ function toFrameworkKey(value: string): FrameworkKey {
 }
 
 export async function reservePortForProject(params: ReservePortParams): Promise<ReservedPortInfo> {
-  const framework = await resolveFramework(params.projectType, params.runCommand, params.projectPath);
+  const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
   const preferred = params.preferredPort ?? undefined;
 
@@ -471,7 +471,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams): Promis
   }
   
   // No existing allocation or port unavailable - allocate new port
-  const framework = await resolveFramework(params.projectType, params.runCommand, params.projectPath);
+  const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
   
   // Try to find an available port in the range

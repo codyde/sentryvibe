@@ -146,9 +146,18 @@ export async function POST(request: Request) {
       case 'build-completed': {
         // Mark project as completed
         // Note: runCommand should already be set by project-metadata event
+        
+        // Extract detected framework from payload if available
+        const detectedFramework = (event.payload as any)?.detectedFramework || null;
+        
+        if (detectedFramework) {
+          console.log(`[events] 🔍 Saving detected framework for project ${event.projectId}: ${detectedFramework}`);
+        }
+        
         const [updated] = await db.update(projects)
           .set({
             status: 'completed',
+            detectedFramework, // Save detected framework
             lastActivityAt: new Date(),
           })
           .where(eq(projects.id, event.projectId))

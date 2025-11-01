@@ -10,6 +10,7 @@ export const projects = pgTable('projects', {
   icon: text('icon').default('Folder'),
   status: text('status').notNull().default('pending'),
   projectType: text('project_type'),
+  detectedFramework: text('detected_framework'), // Auto-detected framework (astro, next, vite, etc.)
   path: text('path'), // Nullable - deprecated, path should be calculated from slug
   runCommand: text('run_command'),
   port: integer('port'),

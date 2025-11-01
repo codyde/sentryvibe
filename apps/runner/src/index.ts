@@ -2060,13 +2060,32 @@ export async function startRunner(options: RunnerOptions = {}) {
               );
               buildLog(`   Total chunks processed: (stream ended)`);
 
+              // Detect framework from generated files
+              let detectedFramework: string | null = null;
+              try {
+                const { detectFrameworkFromFilesystem } = await import('@sentryvibe/agent-core/lib/port-allocator');
+                const framework = await detectFrameworkFromFilesystem(projectDirectory);
+                detectedFramework = framework;
+                
+                if (framework) {
+                  buildLog(`   🔍 Detected framework: ${framework}`);
+                  log(`[build] Detected framework for ${command.projectId}: ${framework}`);
+                }
+              } catch (error) {
+                log(`[build] Failed to detect framework:`, error);
+              }
+
               // Send build completion event while span is still active
               // This ensures the event processing spans (broker → nextjs → db)
               // are properly linked to this build span and its AI spans
               sendEvent({
                 type: "build-completed",
                 ...buildEventBase(command.projectId, command.id),
-                payload: { todos: [], summary: "Build completed" },
+                payload: { 
+                  todos: [], 
+                  summary: "Build completed",
+                  detectedFramework, // Send detected framework to API
+                },
               });
               
               // Note: Span will automatically end when this async callback completes

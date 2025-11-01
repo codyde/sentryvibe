@@ -228,6 +228,7 @@ export interface BuildCompletedEvent extends BaseEvent {
       status: 'completed' | 'skipped';
     }>;
     summary?: string;
+    detectedFramework?: string | null; // Framework detected from project files
   };
 }
 
