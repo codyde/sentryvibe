@@ -474,20 +474,45 @@ export async function reserveOrReallocatePort(params: ReservePortParams): Promis
   const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
   
+  // Keep track of tried ports to avoid infinite loops
+  const triedPorts = new Set<number>();
+  
   // Try to find an available port in the range
   for (let attempts = 0; attempts < 10; attempts++) {
     const allocation = await reservePortForProject(params);
+    
+    // Check if we already tried this port (infinite loop detection)
+    if (triedPorts.has(allocation.port)) {
+      console.error(`[port-allocator] Infinite loop detected - already tried port ${allocation.port}`);
+      await releasePortForProject(params.projectId);
+      
+      // Manually try next port
+      const nextPort = allocation.port + 1;
+      if (nextPort <= range.end) {
+        params.preferredPort = nextPort;
+        continue;
+      } else {
+        break;
+      }
+    }
+    
+    triedPorts.add(allocation.port);
     const isAvailable = await checkPortAvailability(allocation.port);
     
     if (isAvailable) {
       return allocation;
     }
     
-    // Port allocated but not available, release it and try again
+    // Port allocated but not available - mark it in DB as taken but try next port
     console.warn(`Allocated port ${allocation.port} is not available, trying another...`);
-    await releasePortForProject(params.projectId);
+    
+    // Don't release - leave it marked so next iteration picks a higher port
+    // Instead, set preferredPort to next in sequence
+    params.preferredPort = allocation.port + 1;
   }
   
+  // Clean up if we failed
+  await releasePortForProject(params.projectId);
   throw new Error(`Unable to find available port in range ${range.start}-${range.end} after 10 attempts`);
 }
 
