@@ -71,6 +71,7 @@ export async function POST(
         projectType: proj.projectType,
         runCommand: proj.runCommand,
         preferredPort: proj.devServerPort, // Try to reuse existing port if available
+        projectPath: proj.path, // For filesystem-based framework detection
       });
 
       console.log(`📍 Allocated port ${portInfo.port} for framework ${portInfo.framework}`);

@@ -2,12 +2,16 @@ import { db } from './db/client';
 import { portAllocations } from './db/schema';
 import { and, eq, isNull, sql, isNotNull, lt } from 'drizzle-orm';
 import { createServer } from 'net';
+import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 interface ReservePortParams {
   projectId: string;
   projectType: string | null;
   runCommand: string | null;
   preferredPort?: number | null;
+  projectPath?: string | null;  // For filesystem-based detection
 }
 
 interface ReservedPortInfo {
@@ -33,26 +37,117 @@ const FRAMEWORK_ENV_MAP: Record<FrameworkKey, string[]> = {
   default: ['PORT'],
 };
 
-function resolveFramework(projectType: string | null, runCommand: string | null): FrameworkKey {
-  const normalizedType = projectType?.toLowerCase() ?? '';
-  const normalizedCommand = runCommand?.toLowerCase() ?? '';
+/**
+ * Detect framework from project filesystem (package.json and config files)
+ */
+async function detectFrameworkFromFilesystem(projectPath: string): Promise<FrameworkKey | null> {
+  try {
+    // Check for config files first (most reliable)
+    if (existsSync(join(projectPath, 'astro.config.mjs')) || 
+        existsSync(join(projectPath, 'astro.config.ts')) ||
+        existsSync(join(projectPath, 'astro.config.js'))) {
+      return 'astro';
+    }
+    
+    if (existsSync(join(projectPath, 'next.config.ts')) || 
+        existsSync(join(projectPath, 'next.config.js')) ||
+        existsSync(join(projectPath, 'next.config.mjs'))) {
+      return 'next';
+    }
+    
+    if (existsSync(join(projectPath, 'vite.config.ts')) || 
+        existsSync(join(projectPath, 'vite.config.js'))) {
+      return 'vite';
+    }
 
-  if (normalizedType.includes('vite') || normalizedCommand.includes('vite')) {
+    // Check package.json dependencies
+    const pkgPath = join(projectPath, 'package.json');
+    if (existsSync(pkgPath)) {
+      const pkgContent = await readFile(pkgPath, 'utf-8');
+      const pkg = JSON.parse(pkgContent);
+      
+      const allDeps = { 
+        ...pkg.dependencies, 
+        ...pkg.devDependencies 
+      };
+      
+      // Order matters: Astro uses Vite internally, so check Astro first
+      if (allDeps['astro']) return 'astro';
+      if (allDeps['next']) return 'next';
+      if (allDeps['vite']) return 'vite';
+      
+      // Check scripts for clues
+      const devScript = pkg.scripts?.dev?.toLowerCase() || '';
+      if (devScript.includes('astro')) return 'astro';
+      if (devScript.includes('next')) return 'next';
+      if (devScript.includes('vite')) return 'vite';
+    }
+  } catch (error) {
+    console.error('[port-allocator] Failed to detect framework from filesystem:', error);
+  }
+  
+  return null; // Couldn't detect
+}
+
+/**
+ * Resolve framework type from multiple sources
+ * Priority: filesystem analysis > projectType field > runCommand
+ */
+async function resolveFramework(
+  projectType: string | null, 
+  runCommand: string | null,
+  projectPath?: string | null
+): Promise<FrameworkKey> {
+  // Debug logging
+  console.log(`[port-allocator] Framework detection:`);
+  console.log(`  projectType: "${projectType}"`);
+  console.log(`  runCommand: "${runCommand}"`);
+  console.log(`  projectPath: "${projectPath}"`);
+
+  // Strategy 1: Try filesystem detection (most reliable)
+  if (projectPath) {
+    const fsDetected = await detectFrameworkFromFilesystem(projectPath);
+    if (fsDetected) {
+      console.log(`  ✅ Detected from filesystem: ${fsDetected}`);
+      return fsDetected;
+    }
+  }
+
+  // Strategy 2: Check projectType field
+  const normalizedType = projectType?.toLowerCase() ?? '';
+  if (normalizedType.includes('vite')) {
+    console.log(`  ✅ Detected from projectType: vite`);
     return 'vite';
   }
-
-  if (normalizedType.includes('astro') || normalizedCommand.includes('astro')) {
+  if (normalizedType.includes('astro')) {
+    console.log(`  ✅ Detected from projectType: astro`);
     return 'astro';
   }
-
-  if (normalizedType.includes('next') || normalizedCommand.includes('next')) {
+  if (normalizedType.includes('next')) {
+    console.log(`  ✅ Detected from projectType: next`);
     return 'next';
   }
-
   if (normalizedType.includes('node')) {
+    console.log(`  ✅ Detected from projectType: node`);
     return 'node';
   }
 
+  // Strategy 3: Check runCommand
+  const normalizedCommand = runCommand?.toLowerCase() ?? '';
+  if (normalizedCommand.includes('vite')) {
+    console.log(`  ✅ Detected from runCommand: vite`);
+    return 'vite';
+  }
+  if (normalizedCommand.includes('astro')) {
+    console.log(`  ✅ Detected from runCommand: astro`);
+    return 'astro';
+  }
+  if (normalizedCommand.includes('next')) {
+    console.log(`  ✅ Detected from runCommand: next`);
+    return 'next';
+  }
+
+  console.log(`  ⚠️  No framework detected, using default (port 6000+)`);
   return 'default';
 }
 
@@ -69,7 +164,7 @@ function toFrameworkKey(value: string): FrameworkKey {
 }
 
 export async function reservePortForProject(params: ReservePortParams): Promise<ReservedPortInfo> {
-  const framework = resolveFramework(params.projectType, params.runCommand);
+  const framework = await resolveFramework(params.projectType, params.runCommand, params.projectPath);
   const range = FRAMEWORK_RANGES[framework];
   const preferred = params.preferredPort ?? undefined;
 
@@ -376,7 +471,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams): Promis
   }
   
   // No existing allocation or port unavailable - allocate new port
-  const framework = resolveFramework(params.projectType, params.runCommand);
+  const framework = await resolveFramework(params.projectType, params.runCommand, params.projectPath);
   const range = FRAMEWORK_RANGES[framework];
   
   // Try to find an available port in the range
