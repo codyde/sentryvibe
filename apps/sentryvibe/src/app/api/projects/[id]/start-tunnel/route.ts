@@ -74,12 +74,19 @@ export async function POST(
       });
     }
 
-    // Verify port is actually listening before creating tunnel
-    const isReachable = await isPortReachable(proj.devServerPort);
-    if (!isReachable) {
-      return NextResponse.json({
-        error: `Port ${proj.devServerPort} is not reachable yet. Please wait for the dev server to finish starting.`
-      }, { status: 400 });
+    // Skip port reachability check for remote runners (API can't reach runner's localhost)
+    // The runner's health check already verified the port is listening
+    const isRemoteRunner = runnerId !== 'local';
+    if (!isRemoteRunner) {
+      // Only check reachability for local runners (same machine as API)
+      const isReachable = await isPortReachable(proj.devServerPort);
+      if (!isReachable) {
+        return NextResponse.json({
+          error: `Port ${proj.devServerPort} is not reachable yet. Please wait for the dev server to finish starting.`
+        }, { status: 400 });
+      }
+    } else {
+      console.log(`[start-tunnel] Skipping port reachability check for remote runner ${runnerId}`);
     }
 
     const runnerCommand: StartTunnelCommand = {
