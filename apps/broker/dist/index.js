@@ -17,7 +17,7 @@ const messages_1 = require("./shared/runner/messages");
 const PORT = parseInt(process.env.PORT || process.env.BROKER_PORT || '4000', 10);
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
 const EVENT_TARGET = process.env.RUNNER_EVENT_TARGET_URL ?? 'http://localhost:3000';
-const HEARTBEAT_TIMEOUT = 60000; // 60 seconds
+const HEARTBEAT_TIMEOUT = 90000; // 90 seconds - increased buffer for network latency
 const PING_INTERVAL = 30000; // 30 seconds
 if (!SHARED_SECRET) {
     console.error('[broker] RUNNER_SHARED_SECRET is required');

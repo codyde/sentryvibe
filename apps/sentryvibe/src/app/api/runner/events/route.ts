@@ -105,6 +105,24 @@ export async function POST(request: Request) {
         if (updated) emitProjectUpdateFromData(event.projectId, updated);
         break;
       }
+      case 'ack': {
+        // Check if this is a health check success (server is healthy)
+        const message = (event as any).message || '';
+        if (message.includes('healthy') || message.includes('running')) {
+          const [updated] = await db.update(projects)
+            .set({
+              devServerStatus: 'running',
+              lastActivityAt: new Date(),
+            })
+            .where(eq(projects.id, event.projectId))
+            .returning();
+          if (updated) {
+            console.log(`[events] ✅ Updated devServerStatus to 'running' for project ${event.projectId}`);
+            emitProjectUpdateFromData(event.projectId, updated);
+          }
+        }
+        break;
+      }
       case 'process-exited': {
         // Exit code 143 = 128 + 15 = SIGTERM, 130 = 128 + 2 = SIGINT, 137 = 128 + 9 = SIGKILL
         const signalExitCodes = [130, 137, 143];
