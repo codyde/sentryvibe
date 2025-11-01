@@ -247,13 +247,22 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       hasAutoStartedTunnel.current = false;
     }
 
+    // Debug auto-tunnel logic
+    console.log('[PreviewPanel] Auto-tunnel check:', {
+      needsTunnel,
+      onStartTunnel: !!onStartTunnel,
+      isStartingTunnel,
+      hasAutoStarted: hasAutoStartedTunnel.current,
+      willCreate: needsTunnel && onStartTunnel && !isStartingTunnel && !hasAutoStartedTunnel.current
+    });
+
     // Auto-start tunnel when:
     // - Remote frontend (Railway)
     // - Server just started
     // - No tunnel exists
     // - Haven't already auto-started for this server session
     if (needsTunnel && onStartTunnel && !isStartingTunnel && !hasAutoStartedTunnel.current) {
-      if (DEBUG_PREVIEW) console.log('🔗 Remote frontend detected - auto-creating tunnel for first time...');
+      console.log('🔗 Remote frontend detected - auto-creating tunnel...');
       hasAutoStartedTunnel.current = true;
       onStartTunnel();
     }
