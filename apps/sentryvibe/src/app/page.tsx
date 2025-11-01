@@ -2265,6 +2265,11 @@ function HomeContent() {
             setIsStartingTunnel(false);
           }
         }, 1000);
+      } else {
+        // API returned an error
+        const error = await res.json();
+        console.error("Failed to start tunnel:", error);
+        setIsStartingTunnel(false);
       }
     } catch (error) {
       console.error("Failed to start tunnel:", error);
