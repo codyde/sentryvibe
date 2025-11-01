@@ -269,6 +269,19 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     (!frontendIsRemote || currentProject?.tunnelUrl || isTunnelLoading);
     // Show if: Local frontend (always) OR tunnel exists OR tunnel being created
 
+  // Debug logging
+  if (DEBUG_PREVIEW && currentProject?.devServerStatus === 'running') {
+    console.log('[PreviewPanel] Can show preview?', {
+      canShowPreview,
+      actualPort,
+      devServerStatus: currentProject?.devServerStatus,
+      frontendIsRemote,
+      tunnelUrl: currentProject?.tunnelUrl,
+      isTunnelLoading,
+      needsTunnel,
+    });
+  }
+
   const previewUrl = canShowPreview
     ? `/api/projects/${currentProject.id}/proxy?path=/`
     : '';
