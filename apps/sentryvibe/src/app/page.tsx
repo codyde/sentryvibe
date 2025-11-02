@@ -1,5 +1,10 @@
 "use client";
 
+// Required for TanStack DB: useLiveQuery uses useSyncExternalStore which needs
+// getServerSnapshot for SSR. Since TanStack DB is client-focused (beta), we use
+// dynamic rendering to skip pre-rendering entirely. This is the correct pattern.
+export const dynamic = 'force-dynamic';
+
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -133,21 +138,49 @@ function HomeContent() {
   // This eliminates the need for manual polling in server operations
   useProjectStatusSSE(currentProject?.id, !!currentProject);
 
-  // MIGRATION: TanStack DB Collections (temporarily disabled for testing)
-  // TODO: Re-enable after fixing hook conditional call issue
+  // MIGRATION: TanStack DB Collections
+  // Client-only hydration pattern (SSR-safe)
+  const [isDBHydrated, setIsDBHydrated] = useState(false);
 
-  // const messagesFromDB = useLiveQuery((q) =>
-  //   messageCollection
-  //     ? q
-  //         .from({ message: messageCollection })
-  //         .where(({ message }) => message.projectId === currentProject?.id)
-  //         .orderBy(({ message }) => message.timestamp)
-  //     : q.from({ message: [] })
-  // ).data;
+  useEffect(() => {
+    setIsDBHydrated(true);
+  }, []);
 
-  // For now, use legacy state
-  const messages = messages_LEGACY;
-  const activeTab = activeTab_LEGACY;
+  // ALWAYS call hook (Rules of Hooks), return undefined during SSR
+  const { data: messagesFromDB } = useLiveQuery(
+    (q) => {
+      // Return undefined during SSR or before mount (valid per signature)
+      if (!isDBHydrated || !messageCollection || !currentProject?.id) {
+        return undefined;
+      }
+
+      // Client-mounted with collection - return query builder
+      return q
+        .from({ message: messageCollection })
+        .where(({ message }) => message.projectId === currentProject.id)
+        .orderBy(({ message }) => message.timestamp);
+    },
+    [isDBHydrated, currentProject?.id] // Re-evaluate when these change
+  );
+
+  // Use TanStack DB when available, fallback to legacy during migration
+  const messages =
+    messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
+
+  // UI state query (always call hook, return undefined during SSR)
+  const { data: uiStates } = useLiveQuery(
+    (q) => {
+      if (!isDBHydrated || !uiStateCollection) {
+        return undefined;
+      }
+      return q.from({ ui: uiStateCollection });
+    },
+    [isDBHydrated]
+  );
+
+  // Get global UI state
+  const currentUIState = uiStates?.find((ui) => ui.id === "global");
+  const activeTab = currentUIState?.activeTab || activeTab_LEGACY;
 
 
   const updateGenerationState = useCallback(

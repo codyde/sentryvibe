@@ -32,7 +32,8 @@ const getQueryClient = () => {
 let _messageCollection: any = null;
 
 export const getMessageCollection = () => {
-  if (!_messageCollection && typeof window !== 'undefined') {
+  // Only create collection in browser environment (not during build/SSR)
+  if (!_messageCollection && typeof window !== 'undefined' && typeof document !== 'undefined') {
     // TEMPORARY: Using localOnlyCollectionOptions instead of queryCollectionOptions
     // because /api/messages endpoint doesn't exist yet
     // Messages currently stored per-project in /api/projects/[id]/messages
@@ -50,6 +51,8 @@ export const getMessageCollection = () => {
         // TODO: Create /api/messages endpoints or adapt to use /api/projects/[id]/messages
       })
     );
+
+    console.log('✅ [messageCollection] Initialized in browser');
   }
   return _messageCollection;
 };
