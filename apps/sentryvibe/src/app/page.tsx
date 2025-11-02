@@ -159,7 +159,13 @@ function HomeContent() {
               )(prev)
             : updater;
 
-        generationStateRef.current = next;
+        // Defensive check: Ensure generationStateRef is a valid ref object
+        // before attempting to set its .current property
+        if (generationStateRef && typeof generationStateRef === 'object' && 'current' in generationStateRef) {
+          generationStateRef.current = next;
+        } else {
+          console.error('⚠️ generationStateRef is not a valid ref object:', generationStateRef);
+        }
         setGenerationRevision((rev) => rev + 1);
         return next;
       });
@@ -2098,6 +2104,11 @@ function HomeContent() {
     }
   };
 
+  const handleCloseGenerationState = useCallback(() => {
+    if (DEBUG_PAGE) console.log("🔄 Closing generation state");
+    updateGenerationState(null);
+  }, [updateGenerationState]);
+
   const startDevServer = async () => {
     if (!currentProject || isStartingServer) return;
 
@@ -2871,7 +2882,7 @@ function HomeContent() {
                                     state={generationState}
                                     templateInfo={selectedTemplate}
                                     defaultCollapsed={false}
-                                    onClose={() => updateGenerationState(null)}
+                                    onClose={handleCloseGenerationState}
                                     onViewFiles={() => {
                                       window.dispatchEvent(
                                         new CustomEvent("switch-to-editor")
