@@ -1,10 +1,5 @@
 "use client";
 
-// Required for TanStack DB: useLiveQuery uses useSyncExternalStore which needs
-// getServerSnapshot for SSR. Since TanStack DB is client-focused (beta), we use
-// dynamic rendering to skip pre-rendering entirely. This is the correct pattern.
-export const dynamic = 'force-dynamic';
-
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -60,22 +55,26 @@ import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
-import { useLiveQuery } from "@tanstack/react-db";
+import dynamic from "next/dynamic";
 import {
   messageCollection,
   upsertMessage,
-  uiStateCollection,
-  setActiveTab,
-  setActiveView,
-  openProcessModal,
-  closeProcessModal,
-  openRenameModal,
-  closeRenameModal,
-  openDeleteModal,
-  closeDeleteModal,
-  setSelectedTemplate,
 } from "@/collections";
 import type { Message, MessagePart, ElementChange } from "@/types/messages";
+
+// Dynamic import for ChatInterface - client-only component using TanStack DB
+// ssr: false prevents Next.js pre-rendering, solving useSyncExternalStore issue
+const ChatInterface = dynamic(
+  () => import("@/components/ChatInterface").then((mod) => ({ default: mod.ChatInterface })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-gray-400">Loading chat...</div>
+      </div>
+    ),
+  }
+);
 
 const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 
@@ -138,49 +137,10 @@ function HomeContent() {
   // This eliminates the need for manual polling in server operations
   useProjectStatusSSE(currentProject?.id, !!currentProject);
 
-  // MIGRATION: TanStack DB Collections
-  // Client-only hydration pattern (SSR-safe)
-  const [isDBHydrated, setIsDBHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsDBHydrated(true);
-  }, []);
-
-  // ALWAYS call hook (Rules of Hooks), return undefined during SSR
-  const { data: messagesFromDB } = useLiveQuery(
-    (q) => {
-      // Return undefined during SSR or before mount (valid per signature)
-      if (!isDBHydrated || !messageCollection || !currentProject?.id) {
-        return undefined;
-      }
-
-      // Client-mounted with collection - return query builder
-      return q
-        .from({ message: messageCollection })
-        .where(({ message }) => message.projectId === currentProject.id)
-        .orderBy(({ message }) => message.timestamp);
-    },
-    [isDBHydrated, currentProject?.id] // Re-evaluate when these change
-  );
-
-  // Use TanStack DB when available, fallback to legacy during migration
-  const messages =
-    messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
-
-  // UI state query (always call hook, return undefined during SSR)
-  const { data: uiStates } = useLiveQuery(
-    (q) => {
-      if (!isDBHydrated || !uiStateCollection) {
-        return undefined;
-      }
-      return q.from({ ui: uiStateCollection });
-    },
-    [isDBHydrated]
-  );
-
-  // Get global UI state
-  const currentUIState = uiStates?.find((ui) => ui.id === "global");
-  const activeTab = currentUIState?.activeTab || activeTab_LEGACY;
+  // MIGRATION: TanStack DB Collections moved to ChatInterface component
+  // useLiveQuery is now in client-only component (no SSR issues)
+  const messages = messages_LEGACY;
+  const activeTab = activeTab_LEGACY;
 
 
   const updateGenerationState = useCallback(

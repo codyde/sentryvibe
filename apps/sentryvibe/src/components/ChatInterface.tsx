@@ -1,0 +1,151 @@
+'use client';
+
+import { useLiveQuery } from '@tanstack/react-db';
+import { messageCollection, uiStateCollection, type Message } from '@/collections';
+import ChatUpdate from './ChatUpdate';
+import { useEffect, useState } from 'react';
+
+interface ChatInterfaceProps {
+  currentProjectId: string | undefined;
+  messages_LEGACY: Message[];
+  isLoadingProject: boolean;
+  isGenerating: boolean;
+  generationState: any;
+  messagesEndRef: React.RefObject<HTMLDivElement>;
+}
+
+/**
+ * ChatInterface - Client-Only Component
+ *
+ * This component uses TanStack DB collections and useLiveQuery,
+ * which require client-side rendering only (no SSR).
+ *
+ * Imported with dynamic(() => import(), { ssr: false }) to avoid
+ * Next.js pre-rendering issues with useSyncExternalStore.
+ */
+export function ChatInterface({
+  currentProjectId,
+  messages_LEGACY,
+  isLoadingProject,
+  isGenerating,
+  generationState,
+  messagesEndRef,
+}: ChatInterfaceProps) {
+  // Client-only hydration pattern
+  const [isDBHydrated, setIsDBHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsDBHydrated(true);
+  }, []);
+
+  // TanStack DB Live Query for messages
+  const { data: messagesFromDB } = useLiveQuery(
+    (q) => {
+      if (!isDBHydrated || !messageCollection || !currentProjectId) {
+        return undefined;
+      }
+
+      return q
+        .from({ message: messageCollection })
+        .where(({ message }) => message.projectId === currentProjectId)
+        .orderBy(({ message }) => message.timestamp);
+    },
+    [isDBHydrated, currentProjectId]
+  );
+
+  // Use TanStack DB if available, fallback to legacy
+  const messages =
+    messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      {messages.map((message, index) => {
+        const isUser = message.role === "user";
+
+        return (
+          <div
+            key={message.id || index}
+            className={`flex ${isUser ? "justify-end" : "justify-start"} animate-in fade-in duration-500`}
+          >
+            <div
+              className={`max-w-[80%] rounded-lg p-4 ${
+                isUser
+                  ? "bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30"
+                  : "bg-white/5 border border-white/10"
+              }`}
+            >
+              {message.parts.map((part, partIndex) => {
+                // Render text parts
+                if (part.type === "text" && part.text) {
+                  return (
+                    <ChatUpdate
+                      key={partIndex}
+                      content={part.text}
+                      defaultCollapsed={false}
+                    />
+                  );
+                }
+
+                // Skip tool parts (rendered elsewhere)
+                if (part.type.startsWith("tool-")) {
+                  return null;
+                }
+
+                return null;
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Loading indicator for project messages */}
+      {isLoadingProject && (
+        <div className="flex justify-start animate-in fade-in duration-500">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+              <div
+                className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                style={{ animationDelay: "0.2s" }}
+              ></div>
+              <div
+                className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                style={{ animationDelay: "0.4s" }}
+              ></div>
+              <span className="ml-2 text-sm text-gray-400">
+                Loading messages...
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading indicator in chat view */}
+      {isGenerating &&
+        (!generationState ||
+          generationState?.todos.length === 0 ||
+          generationState?.isActive) && (
+          <div className="flex justify-start animate-in fade-in duration-500">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                <div
+                  className="w-2 h-2 bg-white rounded-full animate-bounce"
+                  style={{ animationDelay: "0.2s" }}
+                ></div>
+                <div
+                  className="w-2 h-2 bg-white rounded-full animate-bounce"
+                  style={{ animationDelay: "0.4s" }}
+                ></div>
+                <span className="ml-2 text-sm text-gray-400">
+                  Initializing...
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+      <div ref={messagesEndRef} />
+    </div>
+  );
+}
