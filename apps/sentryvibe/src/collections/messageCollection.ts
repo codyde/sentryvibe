@@ -33,99 +33,21 @@ let _messageCollection: any = null;
 
 export const getMessageCollection = () => {
   if (!_messageCollection && typeof window !== 'undefined') {
+    // TEMPORARY: Using localOnlyCollectionOptions instead of queryCollectionOptions
+    // because /api/messages endpoint doesn't exist yet
+    // Messages currently stored per-project in /api/projects/[id]/messages
+    // TODO: Either create /api/messages endpoints or adapt to use per-project endpoints
+
+    const { localOnlyCollectionOptions } = require('@tanstack/react-db');
+
     _messageCollection = createCollection(
-      queryCollectionOptions<Message, string>({
-        queryClient: getQueryClient(),
-        queryKey: ['messages'],
-        queryFn: async () => {
-          console.log('📥 [messageCollection] Fetching messages from PostgreSQL');
-
-          const res = await fetch('/api/messages');
-          if (!res.ok) {
-            throw new Error('Failed to fetch messages from PostgreSQL');
-          }
-
-          const data = await res.json();
-          const messages = data.messages || [];
-
-          console.log(`✅ [messageCollection] Loaded ${messages.length} messages from PostgreSQL`);
-
-          return messages;
-        },
+      localOnlyCollectionOptions<Message, string>({
         getKey: (message) => message.id,
 
-    // Sync new messages to PostgreSQL
-    onInsert: async ({ transaction }) => {
-      const { changes: message } = transaction.mutations[0];
-      console.log('💾 [messageCollection] Inserting message to PostgreSQL:', message.id);
-
-      try {
-        const res = await fetch('/api/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(message),
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to insert message to PostgreSQL');
-        }
-
-        console.log('✅ [messageCollection] Message inserted to PostgreSQL:', message.id);
-      } catch (error) {
-        console.error('❌ [messageCollection] Failed to insert message:', error);
-        throw error;
-      }
-    },
-
-    // Sync message updates to PostgreSQL
-    onUpdate: async ({ transaction }) => {
-      const { original, changes } = transaction.mutations[0];
-
-      // Skip PostgreSQL sync for streaming messages (too many updates)
-      // Streaming messages will be saved once complete via explicit save
-      // You can add a 'streaming' or 'finalized' flag to Message type to control this
-      // For now, we'll sync all updates (can optimize later)
-
-      console.log('💾 [messageCollection] Updating message in PostgreSQL:', original.id);
-
-      try {
-        const res = await fetch(`/api/messages/${original.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(changes),
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to update message in PostgreSQL');
-        }
-
-        console.log('✅ [messageCollection] Message updated in PostgreSQL:', original.id);
-      } catch (error) {
-        console.error('❌ [messageCollection] Failed to update message:', error);
-        throw error;
-      }
-    },
-
-    // Sync message deletions to PostgreSQL
-    onDelete: async ({ transaction }) => {
-      const { original } = transaction.mutations[0];
-      console.log('🗑️  [messageCollection] Deleting message from PostgreSQL:', original.id);
-
-      try {
-        const res = await fetch(`/api/messages/${original.id}`, {
-          method: 'DELETE',
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to delete message from PostgreSQL');
-        }
-
-        console.log('✅ [messageCollection] Message deleted from PostgreSQL:', original.id);
-      } catch (error) {
-        console.error('❌ [messageCollection] Failed to delete message:', error);
-        throw error;
-      }
-    },
+        // TEMPORARY: No sync handlers - /api/messages endpoint doesn't exist
+        // Collection works as in-memory store
+        // Messages will be lost on refresh (acceptable for testing reactivity)
+        // TODO: Create /api/messages endpoints or adapt to use /api/projects/[id]/messages
       })
     );
   }
