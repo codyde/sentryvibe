@@ -1,21 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { X, Terminal, Square, Server, Cloud, Monitor, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRunner } from '@/contexts/RunnerContext';
-
-interface RunningProcess {
-  projectId: string;
-  projectName: string;
-  projectSlug: string;
-  pid: number | null;
-  port: number | null;
-  tunnelUrl: string | null;
-  status: string;
-  inMemory: boolean;
-  runnerId: string;
-}
+import { useProcesses, type RunningProcess } from '@/queries/processes';
+import { useStopProcess, useStopTunnel } from '@/mutations/processes';
 
 interface ProcessManagerModalProps {
   isOpen: boolean;
@@ -23,55 +12,21 @@ interface ProcessManagerModalProps {
 }
 
 export default function ProcessManagerModal({ isOpen, onClose }: ProcessManagerModalProps) {
-  const [processes, setProcesses] = useState<RunningProcess[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { availableRunners, selectedRunnerId, setSelectedRunnerId } = useRunner();
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchProcesses();
-    }
-  }, [isOpen]);
+  // TanStack Query hooks
+  const { data, isLoading, refetch } = useProcesses(isOpen);
+  const stopProcessMutation = useStopProcess();
+  const stopTunnelMutation = useStopTunnel();
 
-  const fetchProcesses = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch('/api/processes');
-      const data = await res.json();
-      setProcesses(data.processes || []);
-    } catch (error) {
-      console.error('Failed to fetch processes:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  const processes = data?.processes || [];
+
+  const handleStopProcess = (projectId: string) => {
+    stopProcessMutation.mutate({ projectId, runnerId: selectedRunnerId });
   };
 
-  const stopProcess = async (projectId: string) => {
-    try {
-      await fetch(`/api/projects/${projectId}/stop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runnerId: selectedRunnerId }),
-      });
-      // Refetch immediately after stopping
-      setTimeout(fetchProcesses, 500);
-    } catch (error) {
-      console.error('Failed to stop process:', error);
-    }
-  };
-
-  const stopTunnel = async (projectId: string) => {
-    try {
-      await fetch(`/api/projects/${projectId}/stop-tunnel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runnerId: selectedRunnerId }),
-      });
-      // Refetch immediately after stopping tunnel
-      setTimeout(fetchProcesses, 500);
-    } catch (error) {
-      console.error('Failed to stop tunnel:', error);
-    }
+  const handleStopTunnel = (projectId: string) => {
+    stopTunnelMutation.mutate({ projectId, runnerId: selectedRunnerId });
   };
 
   if (!isOpen) return null;
@@ -218,7 +173,7 @@ export default function ProcessManagerModal({ isOpen, onClose }: ProcessManagerM
                                 </span>
                               )}
                               <button
-                                onClick={() => stopProcess(proc.projectId)}
+                                onClick={() => handleStopProcess(proc.projectId)}
                                 className="flex items-center gap-1.5 px-2 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
                               >
                                 <Square className="w-3 h-3" />
@@ -245,7 +200,7 @@ export default function ProcessManagerModal({ isOpen, onClose }: ProcessManagerM
                                   {proc.tunnelUrl.replace('https://', '')}
                                 </a>
                                 <button
-                                  onClick={() => stopTunnel(proc.projectId)}
+                                  onClick={() => handleStopTunnel(proc.projectId)}
                                   className="flex items-center gap-1.5 px-2 py-1 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 rounded transition-colors"
                                 >
                                   <Square className="w-3 h-3" />
@@ -270,7 +225,7 @@ export default function ProcessManagerModal({ isOpen, onClose }: ProcessManagerM
             {/* Footer */}
             <div className="flex items-center justify-between gap-3 p-6 border-t border-white/10">
               <button
-                onClick={fetchProcesses}
+                onClick={() => refetch()}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
               >

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Trash2, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDeleteProject } from '@/mutations/projects';
 
 interface DeleteProjectModalProps {
   isOpen: boolean;
@@ -23,9 +24,11 @@ export default function DeleteProjectModal({
 }: DeleteProjectModalProps) {
   const [confirmText, setConfirmText] = useState('');
   const [deleteFiles, setDeleteFiles] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [copiedName, setCopiedName] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
+
+  // Use TanStack Query mutation
+  const deleteMutation = useDeleteProject();
 
   const isValid = confirmText === projectName || confirmText === projectSlug;
 
@@ -43,28 +46,20 @@ export default function DeleteProjectModal({
   const handleDelete = async () => {
     if (!isValid) return;
 
-    setIsDeleting(true);
-
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteFiles }),
+      await deleteMutation.mutateAsync({
+        projectId,
+        options: { deleteFiles },
       });
 
-      if (res.ok) {
-        onDeleteComplete();
-        onClose();
-        setConfirmText('');
-        setDeleteFiles(false);
-      } else {
-        alert('Failed to delete project');
-      }
+      // Success - close modal and call callback
+      onDeleteComplete();
+      onClose();
+      setConfirmText('');
+      setDeleteFiles(false);
     } catch (error) {
       console.error('Failed to delete project:', error);
       alert('Failed to delete project');
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -193,10 +188,10 @@ export default function DeleteProjectModal({
               </button>
               <button
                 onClick={handleDelete}
-                disabled={!isValid || isDeleting}
+                disabled={!isValid || deleteMutation.isPending}
                 className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isDeleting ? 'Deleting...' : 'Delete Project'}
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete Project'}
               </button>
             </div>
           </motion.div>

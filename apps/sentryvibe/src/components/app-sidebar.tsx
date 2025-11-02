@@ -19,6 +19,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar"
+import { useQueryClient } from "@tanstack/react-query"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onOpenProcessModal: () => void;
@@ -27,16 +28,21 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProject, ...props }: AppSidebarProps) {
-  const { projects, refetch, isLoading } = useProjects();
+  const { projects, isLoading } = useProjects();
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
+  const queryClient = useQueryClient();
 
+  // Note: These handlers still use fetch directly for now
+  // The cache will be automatically invalidated by window focus refetch
+  // TODO: Refactor SmartProjectGroups to use mutation hooks directly
   const handleStartServer = async (projectId: string) => {
     try {
       const res = await fetch(`/api/projects/${projectId}/start`, { method: 'POST' });
       if (res.ok) {
-        refetch();
+        // Invalidate projects queries to trigger refetch
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
       }
     } catch (error) {
       console.error('Failed to start server:', error);
@@ -47,7 +53,8 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
     try {
       const res = await fetch(`/api/projects/${projectId}/stop`, { method: 'POST' });
       if (res.ok) {
-        refetch();
+        // Invalidate projects queries to trigger refetch
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
       }
     } catch (error) {
       console.error('Failed to stop server:', error);

@@ -54,39 +54,23 @@ import { getClaudeModelLabel } from "@sentryvibe/agent-core/client";
 import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
-
-interface MessagePart {
-  type: string;
-  text?: string;
-  toolCallId?: string;
-  toolName?: string;
-  input?: unknown;
-  output?: unknown;
-  state?: string;
-}
-
-interface ElementChange {
-  id: string;
-  elementSelector: string;
-  changeRequest: string;
-  elementInfo?: Record<string, unknown>;
-  status: "processing" | "completed" | "failed";
-  toolCalls: Array<{
-    name: string;
-    input?: Record<string, unknown>;
-    output?: Record<string, unknown>;
-    status: "running" | "completed" | "failed";
-  }>;
-  error?: string;
-}
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  parts: MessagePart[];
-  generationState?: GenerationState; // For generation messages
-  elementChange?: ElementChange; // For element selector changes
-}
+import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
+import { useLiveQuery } from "@tanstack/react-db";
+import {
+  messageCollection,
+  upsertMessage,
+  uiStateCollection,
+  setActiveTab,
+  setActiveView,
+  openProcessModal,
+  closeProcessModal,
+  openRenameModal,
+  closeRenameModal,
+  openDeleteModal,
+  closeDeleteModal,
+  setSelectedTemplate,
+} from "@/collections";
+import type { Message, MessagePart, ElementChange } from "@/types/messages";
 
 const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 
@@ -140,6 +124,10 @@ function HomeContent() {
     sessionId: undefined, // Subscribe to all sessions for this project
     enabled: !!currentProject && (isGenerating || hasActiveSession),
   });
+
+  // SSE connection for real-time project status updates
+  // This eliminates the need for manual polling in server operations
+  useProjectStatusSSE(currentProject?.id, !!currentProject);
 
 
   const updateGenerationState = useCallback(
