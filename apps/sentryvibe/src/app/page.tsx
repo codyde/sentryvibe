@@ -93,7 +93,6 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
@@ -2768,8 +2767,8 @@ function HomeContent() {
                         {/* TABBED VIEW - Separate Chat and Build tabs */}
                         {!isCreatingProject && (
                           <BuildChatTabs
-                            activeTab={activeTab}
-                            onTabChange={setActiveTab}
+                            activeTab={activeView}
+                            onTabChange={switchTab}
                             chatContent={
                               <div className="space-y-4 p-4">
                                 {/* Active Todo Indicator (Chat Tab Only - when build is active) */}
