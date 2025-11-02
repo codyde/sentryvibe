@@ -64,6 +64,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    
+    // Parse query parameters
+    const url = new URL(req.url);
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
 
     // CLEANUP: On reconnection, check for and finalize stuck builds
     // This runs every time a user reconnects/refreshes, providing natural cleanup
@@ -75,11 +80,18 @@ export async function GET(
       console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);
     }
 
-    const projectMessages = await db
+    // Build query with optional limit
+    let query = db
       .select()
       .from(messages)
       .where(eq(messages.projectId, id))
-      .orderBy(messages.createdAt);
+      .orderBy(desc(messages.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as typeof query;
+    }
+    
+    const projectMessages = await query;
 
     const formattedMessages = projectMessages.map(msg => ({
       ...msg,
@@ -254,7 +266,7 @@ export async function POST(
     }
 
     const newMessage = await db.execute(sql`
-      INSERT INTO message (project_id, role, content, created_at)
+      INSERT INTO messages (project_id, role, content, created_at)
       VALUES (${id}, ${role}, ${serializeContent(content)}, NOW())
       RETURNING *;
     `);
