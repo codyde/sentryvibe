@@ -2816,7 +2816,7 @@ function HomeContent() {
                         {!isCreatingProject && (
                           <BuildChatTabs
                             activeTab={activeTab}
-                            onTabChange={setActiveTab}
+                            onTabChange={setActiveTab_LEGACY}
                             chatContent={
                               <div className="space-y-4 p-4">
                                 {/* Active Todo Indicator (Chat Tab Only - when build is active) */}
