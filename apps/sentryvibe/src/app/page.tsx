@@ -133,30 +133,21 @@ function HomeContent() {
   // This eliminates the need for manual polling in server operations
   useProjectStatusSSE(currentProject?.id, !!currentProject);
 
-  // MIGRATION: TanStack DB Collections
-  // Only query when collections are initialized (client-side only)
-  const messagesFromDB =
-    messageCollection && currentProject?.id
-      ? useLiveQuery((q) =>
-          q
-            .from({ message: messageCollection })
-            .where(({ message }) => message.projectId === currentProject.id)
-            .orderBy(({ message }) => message.timestamp)
-        ).data
-      : null;
+  // MIGRATION: TanStack DB Collections (temporarily disabled for testing)
+  // TODO: Re-enable after fixing hook conditional call issue
 
-  // Use TanStack DB if available, fallback to legacy during migration
-  const messages =
-    messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
+  // const messagesFromDB = useLiveQuery((q) =>
+  //   messageCollection
+  //     ? q
+  //         .from({ message: messageCollection })
+  //         .where(({ message }) => message.projectId === currentProject?.id)
+  //         .orderBy(({ message }) => message.timestamp)
+  //     : q.from({ message: [] })
+  // ).data;
 
-  // Live query for UI state (only when collection exists)
-  const uiStates = uiStateCollection
-    ? useLiveQuery((q) => q.from({ ui: uiStateCollection })).data
-    : null;
-
-  // Get global UI state (only one item with id='global')
-  const currentUIState = uiStates?.find((ui) => ui.id === "global");
-  const activeTab = currentUIState?.activeTab || activeTab_LEGACY;
+  // For now, use legacy state
+  const messages = messages_LEGACY;
+  const activeTab = activeTab_LEGACY;
 
 
   const updateGenerationState = useCallback(
