@@ -642,8 +642,10 @@ function HomeContent() {
                 // Regular message
                 regularMessages.push({
                   id: msg.id,
+                  projectId: projectId, // Add for TanStack DB Message type
                   role: msg.role,
                   parts,
+                  timestamp: Date.now(), // Add for TanStack DB Message type
                 });
               }
             }
@@ -656,6 +658,12 @@ function HomeContent() {
             archivedElementChanges.length,
             "element changes"
           );
+
+          // MIGRATION: With TanStack DB, this manual loading is replaced by QueryCollection
+          // The messageCollection automatically fetches from PostgreSQL via queryCollectionOptions
+          // This loadMessages function can be deleted after migration complete
+
+          // Legacy hydration (keeping during migration)
           setMessages(regularMessages);
 
           if (archivedElementChanges.length > 0) {
@@ -912,7 +920,15 @@ function HomeContent() {
 
       setCurrentProject(null);
       setActiveProjectId(null);
+
+      // MIGRATION: With TanStack DB, no need to clear messages manually!
+      // The useLiveQuery automatically filters by currentProject.id
+      // When currentProject is null, query returns empty array
+      // messageCollection keeps all messages (per-project history)
+
+      // Legacy (keeping during migration)
       setMessages([]);
+
       updateGenerationState(null);
       setActiveElementChanges([]);
       setTemplateProvisioningInfo(null);
@@ -1272,9 +1288,16 @@ function HomeContent() {
     if (addUserMessage) {
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
+        projectId: projectId,
         role: "user",
         parts: [{ type: "text", text: prompt }],
+        timestamp: Date.now(),
       };
+
+      // MIGRATION: Use TanStack DB collection
+      messageCollection.insert(userMessage);
+
+      // Legacy (keeping during migration, will remove)
       setMessages((prev) => [...prev, userMessage]);
     }
 
@@ -1422,9 +1445,14 @@ function HomeContent() {
             // Don't create messages during generation - they're captured in generationState
             currentMessage = {
               id: data.messageId || `msg-${Date.now()}`,
+              projectId: projectId,
               role: "assistant",
               parts: [],
+              timestamp: Date.now(),
             };
+
+            // MIGRATION: Insert initial assistant message into collection
+            messageCollection.insert(currentMessage);
           } else if (data.type === "text-start") {
             textBlocksMap.set(data.id, { type: "text", text: "" });
           } else if (data.type === "text-delta") {
@@ -1453,6 +1481,10 @@ function HomeContent() {
 
               currentMessage = updatedMessage;
 
+              // MIGRATION: Use TanStack DB upsertMessage (O(1) instead of O(2n)!)
+              upsertMessage(updatedMessage);
+
+              // Legacy (keeping during migration, will remove)
               setMessages((prev) =>
                 prev.some((m) => m.id === updatedMessage.id)
                   ? prev.map((m) =>
@@ -1696,6 +1728,10 @@ function HomeContent() {
 
                 currentMessage = updatedMessage;
 
+                // MIGRATION: Use TanStack DB upsertMessage
+                upsertMessage(updatedMessage);
+
+                // Legacy (keeping during migration, will remove)
                 setMessages((prev) =>
                   prev.some((m) => m.id === updatedMessage.id)
                     ? prev.map((m) =>
@@ -2076,9 +2112,19 @@ function HomeContent() {
         // Add user message
         const userMessage: Message = {
           id: `msg-${Date.now()}`,
+          projectId: project.id,
           role: "user",
           parts: [{ type: "text", text: userPrompt }],
+          timestamp: Date.now(),
         };
+
+        // MIGRATION: Use TanStack DB collection
+        // Note: With TanStack DB, we keep message history (no clearing)
+        // The live query filters by project, showing only relevant messages
+        // This is actually better UX - full chat history preserved!
+        messageCollection.insert(userMessage);
+
+        // Legacy (keeping during migration, will remove)
         setMessages([userMessage]);
 
         // Start generation stream (don't add user message again)
