@@ -7,6 +7,8 @@
  * - QueryCollection: Synced with PostgreSQL via TanStack Query
  * - LocalOnlyCollection: Ephemeral, no PostgreSQL sync
  *
+ * SSR Safe: All collections use lazy initialization (only create on client)
+ *
  * Import from this file:
  *   import { messageCollection, uiStateCollection } from '@/collections';
  */
@@ -14,18 +16,22 @@
 // Message collection (synced with PostgreSQL)
 export {
   messageCollection,
+  getMessageCollection,
   upsertMessage,
 } from './messageCollection';
 
 // Generation state collection (synced with PostgreSQL via projects.generationState)
 export {
   generationStateCollection,
+  getGenerationStateCollection,
   upsertGenerationState,
+  type GenerationStateWithId,
 } from './generationStateCollection';
 
 // UI state collection (ephemeral, no sync)
 export {
   uiStateCollection,
+  getUIStateCollection,
   openProcessModal,
   closeProcessModal,
   setActiveTab,

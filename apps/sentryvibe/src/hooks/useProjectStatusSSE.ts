@@ -14,14 +14,14 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    // Don't connect if disabled or no project ID
-    if (!enabled || !projectId) {
+    // Don't connect if disabled, no project ID, or not in browser (SSR)
+    if (!enabled || !projectId || typeof window === 'undefined') {
       return;
     }
 
     console.log(`📡 [SSE] Connecting to status stream for project: ${projectId}`);
 
-    // Create EventSource connection
+    // Create EventSource connection (browser only)
     const eventSource = new EventSource(`/api/projects/${projectId}/status-stream`);
     eventSourceRef.current = eventSource;
 
@@ -99,8 +99,8 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
     };
   }, [projectId, enabled, queryClient]);
 
-  // Return connection status
+  // Return connection status (SSR-safe)
   return {
-    isConnected: eventSourceRef.current?.readyState === EventSource.OPEN,
+    isConnected: typeof window !== 'undefined' && eventSourceRef.current?.readyState === 1, // EventSource.OPEN = 1
   };
 }

@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering to avoid SSR/prerendering issues with EventSource and collections
+export const dynamic = 'force-dynamic';
+
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -134,22 +137,24 @@ function HomeContent() {
   useProjectStatusSSE(currentProject?.id, !!currentProject);
 
   // MIGRATION: TanStack DB Collections
-  // Live query for messages from TanStack DB
-  const { data: messagesFromDB } = useLiveQuery((q) =>
-    q.from({ message: messageCollection })
-     .where(({ message }) =>
-        currentProject?.id ? message.projectId === currentProject.id : false
-     )
-     .orderBy(({ message }) => message.timestamp)
-  );
+  // SSR-safe: Only query on client side
+  const { data: messagesFromDB } = typeof window !== 'undefined' && messageCollection
+    ? useLiveQuery((q) =>
+        q.from({ message: messageCollection })
+         .where(({ message }) =>
+            currentProject?.id ? message.projectId === currentProject.id : false
+         )
+         .orderBy(({ message }) => message.timestamp)
+      )
+    : { data: null };
 
   // Use TanStack DB if available, fallback to legacy during migration
   const messages = (messagesFromDB && messagesFromDB.length > 0) ? messagesFromDB : messages_LEGACY;
 
-  // Live query for UI state
-  const { data: uiStates } = useLiveQuery((q) =>
-    q.from({ ui: uiStateCollection })
-  );
+  // Live query for UI state (SSR-safe)
+  const { data: uiStates } = typeof window !== 'undefined' && uiStateCollection
+    ? useLiveQuery((q) => q.from({ ui: uiStateCollection }))
+    : { data: null };
 
   // Get global UI state (only one item with id='global')
   const currentUIState = uiStates?.find(ui => ui.id === 'global');

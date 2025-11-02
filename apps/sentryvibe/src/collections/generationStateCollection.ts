@@ -16,53 +16,70 @@ import type { GenerationState } from '@/types/generation';
  *
  * This is a LocalOnlyCollection because data comes from WebSocket, not REST.
  * We use onUpdate handler to sync changes back to PostgreSQL.
+ *
+ * SSR Safe: Only initializes on client side
  */
 
 // Extended type to include ID for collection key
 export type GenerationStateWithId = GenerationState & { id: string };
 
-export const generationStateCollection = createCollection(
-  localOnlyCollectionOptions<GenerationStateWithId, string>({
-    getKey: (state) => state.id,
+// Create collection lazily to avoid SSR issues
+let _generationStateCollection: any = null;
 
-    // Sync updates to PostgreSQL (stored in projects.generationState JSONB)
-    onUpdate: async ({ transaction }) => {
-      const { original } = transaction.mutations[0];
-      const projectId = original.id;
+export const getGenerationStateCollection = () => {
+  if (!_generationStateCollection && typeof window !== 'undefined') {
+    _generationStateCollection = createCollection(
+      localOnlyCollectionOptions<GenerationStateWithId, string>({
+        getKey: (state) => state.id,
 
-      console.log('💾 [generationStateCollection] Updating generation state in PostgreSQL:', projectId);
+        // Sync updates to PostgreSQL (stored in projects.generationState JSONB)
+        onUpdate: async ({ transaction }) => {
+          const { original } = transaction.mutations[0];
+          const projectId = original.id;
 
-      try {
-        const res = await fetch(`/api/projects/${projectId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            generationState: original,
-          }),
-        });
+          console.log('💾 [generationStateCollection] Updating generation state in PostgreSQL:', projectId);
 
-        if (!res.ok) {
-          throw new Error('Failed to update generation state in PostgreSQL');
-        }
+          try {
+            const res = await fetch(`/api/projects/${projectId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                generationState: original,
+              }),
+            });
 
-        console.log('✅ [generationStateCollection] Generation state updated in PostgreSQL:', projectId);
-      } catch (error) {
-        console.error('❌ [generationStateCollection] Failed to update generation state:', error);
-        throw error;
-      }
-    },
-  })
-);
+            if (!res.ok) {
+              throw new Error('Failed to update generation state in PostgreSQL');
+            }
+
+            console.log('✅ [generationStateCollection] Generation state updated in PostgreSQL:', projectId);
+          } catch (error) {
+            console.error('❌ [generationStateCollection] Failed to update generation state:', error);
+            throw error;
+          }
+        },
+      })
+    );
+  }
+  return _generationStateCollection;
+};
+
+// Export for convenience (will be null during SSR)
+export const generationStateCollection = typeof window !== 'undefined' ? getGenerationStateCollection() : null as any;
 
 /**
  * Helper function to upsert generation state
+ * SSR Safe: Only runs on client
  */
 export function upsertGenerationState(projectId: string, state: GenerationState) {
-  const existing = generationStateCollection.get(projectId);
+  if (typeof window === 'undefined') return; // Skip during SSR
+
+  const collection = getGenerationStateCollection();
+  const existing = collection.get(projectId);
 
   if (existing) {
-    generationStateCollection.update(projectId, () => ({ ...state, id: projectId }));
+    collection.update(projectId, () => ({ ...state, id: projectId }));
   } else {
-    generationStateCollection.insert({ ...state, id: projectId });
+    collection.insert({ ...state, id: projectId });
   }
 }

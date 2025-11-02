@@ -31,97 +31,124 @@ export interface UIState {
  * - Unified state management (no scattered useState)
  * - Type-safe updates
  * - Can query UI state (e.g., "is any modal open?")
+ *
+ * SSR Safe: Only initializes on client side
  */
-export const uiStateCollection = createCollection(
-  localOnlyCollectionOptions<UIState, string>({
-    getKey: (state) => state.id,
-    initialData: [
-      {
-        id: 'global',
-        activeTab: 'chat',
-        activeView: 'chat',
-        showProcessModal: false,
-        commandPaletteOpen: false,
-        renamingProject: null,
-        deletingProject: null,
-        selectedTemplate: null,
-      },
-    ],
-  })
-);
+
+// Create collection lazily to avoid SSR issues
+let _uiStateCollection: any = null;
+
+export const getUIStateCollection = () => {
+  if (!_uiStateCollection && typeof window !== 'undefined') {
+    _uiStateCollection = createCollection(
+      localOnlyCollectionOptions<UIState, string>({
+        getKey: (state) => state.id,
+        initialData: [
+          {
+            id: 'global',
+            activeTab: 'chat',
+            activeView: 'chat',
+            showProcessModal: false,
+            commandPaletteOpen: false,
+            renamingProject: null,
+            deletingProject: null,
+            selectedTemplate: null,
+          },
+        ],
+      })
+    );
+  }
+  return _uiStateCollection;
+};
+
+// Export for convenience (will be null during SSR)
+export const uiStateCollection = typeof window !== 'undefined' ? getUIStateCollection() : null as any;
 
 /**
  * Helper functions for common UI state operations
+ * All SSR-safe: Skip during server-side rendering
  */
 
 export function openProcessModal() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.showProcessModal = true;
   });
 }
 
 export function closeProcessModal() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.showProcessModal = false;
   });
 }
 
 export function setActiveTab(tab: 'chat' | 'build') {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.activeTab = tab;
   });
 }
 
 export function setActiveView(view: 'chat' | 'build') {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.activeView = view;
   });
 }
 
 export function openCommandPalette() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.commandPaletteOpen = true;
   });
 }
 
 export function closeCommandPalette() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.commandPaletteOpen = false;
   });
 }
 
 export function toggleCommandPalette() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.commandPaletteOpen = !draft.commandPaletteOpen;
   });
 }
 
 export function openRenameModal(project: { id: string; name: string }) {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.renamingProject = project;
   });
 }
 
 export function closeRenameModal() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.renamingProject = null;
   });
 }
 
 export function openDeleteModal(project: { id: string; name: string; slug: string }) {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.deletingProject = project;
   });
 }
 
 export function closeDeleteModal() {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.deletingProject = null;
   });
 }
 
 export function setSelectedTemplate(template: { id: string; name: string; timestamp?: Date } | null) {
-  uiStateCollection.update('global', (draft) => {
+  if (typeof window === 'undefined') return;
+  getUIStateCollection().update('global', (draft) => {
     draft.selectedTemplate = template;
   });
 }
