@@ -1276,16 +1276,18 @@ function HomeContent() {
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
         projectId: projectId,
-        role: "user",
-        parts: [{ type: "text", text: prompt }],
+        type: "user", // Simplified: just type and content
+        content: prompt,
         timestamp: Date.now(),
       };
 
       // MIGRATION: Use TanStack DB collection
-      messageCollection.insert(userMessage);
+      if (messageCollection) {
+        messageCollection.insert(userMessage);
+      }
 
       // Legacy (keeping during migration, will remove)
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages((prev) => [...prev, userMessage as any]);
     }
 
     // Find project and detect operation type
@@ -1429,18 +1431,21 @@ function HomeContent() {
           if (DEBUG_PAGE) console.log(`\n🌊 [${eventTimestamp}] SSE Event: ${data.type}`, data.toolName ? `(${data.toolName})` : "");
 
           if (data.type === "start") {
-            // Don't create messages during generation - they're captured in generationState
+            // Create initial assistant message (simplified structure)
             currentMessage = {
               id: data.messageId || `msg-${Date.now()}`,
               projectId: projectId,
-              role: "assistant",
-              parts: [],
+              type: "assistant",
+              content: "", // Will be updated as text streams
               timestamp: Date.now(),
             };
 
             // MIGRATION: Insert initial assistant message into collection
-            messageCollection.insert(currentMessage);
+            if (messageCollection) {
+              messageCollection.insert(currentMessage);
+            }
           } else if (data.type === "text-start") {
+            // Track text blocks for accumulation
             textBlocksMap.set(data.id, { type: "text", text: "" });
           } else if (data.type === "text-delta") {
             const blockId = data.id;
@@ -1455,21 +1460,24 @@ function HomeContent() {
             // Accumulate text
             textBlock.text += data.delta;
 
-            // Add text to main conversation (chat area) - NOT to textByTodo
+            // Update message content (simplified - just update content string!)
             if (currentMessage?.id) {
-              const textParts = Array.from(textBlocksMap.values());
-              const filteredParts = currentMessage.parts.filter(
-                (p) => !p.type.startsWith("text")
-              );
+              // Combine all text blocks into content
+              const allText = Array.from(textBlocksMap.values())
+                .map(block => block.text)
+                .join('');
+
               const updatedMessage: Message = {
                 ...currentMessage,
-                parts: [...textParts, ...filteredParts],
+                content: allText, // Simple string update!
               };
 
               currentMessage = updatedMessage;
 
-              // MIGRATION: Use TanStack DB upsertMessage (O(1) instead of O(2n)!)
-              upsertMessage(updatedMessage);
+              // MIGRATION: Use TanStack DB - O(1) update!
+              if (messageCollection) {
+                upsertMessage(updatedMessage);
+              }
 
               // Legacy (keeping during migration, will remove)
               setMessages((prev) =>
@@ -1477,7 +1485,7 @@ function HomeContent() {
                   ? prev.map((m) =>
                       m.id === updatedMessage.id ? updatedMessage : m
                     )
-                  : [...prev, updatedMessage]
+                  : [...prev, updatedMessage as any]
               );
             }
           } else if (data.type === "text-end") {
@@ -2096,12 +2104,12 @@ function HomeContent() {
         router.replace(`/?project=${project.slug}`, { scroll: false });
         if (DEBUG_PAGE) console.log("🔄 URL updated");
 
-        // Add user message
+        // Add user message (simplified structure)
         const userMessage: Message = {
           id: `msg-${Date.now()}`,
           projectId: project.id,
-          role: "user",
-          parts: [{ type: "text", text: userPrompt }],
+          type: "user", // Simplified: type instead of role
+          content: userPrompt, // Simplified: content instead of parts
           timestamp: Date.now(),
         };
 
@@ -2109,10 +2117,12 @@ function HomeContent() {
         // Note: With TanStack DB, we keep message history (no clearing)
         // The live query filters by project, showing only relevant messages
         // This is actually better UX - full chat history preserved!
-        messageCollection.insert(userMessage);
+        if (messageCollection) {
+          messageCollection.insert(userMessage);
+        }
 
         // Legacy (keeping during migration, will remove)
-        setMessages([userMessage]);
+        setMessages([userMessage as any]);
 
         // Start generation stream (don't add user message again)
         if (DEBUG_PAGE) console.log("🚀 Starting generation stream...");

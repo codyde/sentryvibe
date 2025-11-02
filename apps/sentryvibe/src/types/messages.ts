@@ -1,7 +1,35 @@
-import type { GenerationState } from './generation';
+/**
+ * Simplified Message Structure
+ *
+ * Each interaction (user input, assistant response, tool call, system message)
+ * is its own message in a flat array. This matches the database schema perfectly
+ * and makes TanStack DB queries much simpler.
+ *
+ * Benefits:
+ * - Matches PostgreSQL schema (id, project_id, role, content)
+ * - No complex parts array to parse
+ * - Easy to append new messages
+ * - Simple to query and filter
+ * - Better for TanStack DB differential dataflow
+ */
+export interface Message {
+  id: string;
+  projectId: string;
+  type: 'user' | 'assistant' | 'system' | 'tool-call' | 'tool-result';
+  content: string;
+  timestamp: number;
+  metadata?: {
+    toolName?: string;
+    toolCallId?: string;
+    input?: unknown;
+    output?: unknown;
+    [key: string]: unknown;
+  };
+}
 
 /**
- * Message part types for different content in chat messages
+ * Legacy types - keeping for backward compatibility during migration
+ * Can be removed after full migration
  */
 export interface MessagePart {
   type: string;
@@ -13,9 +41,6 @@ export interface MessagePart {
   state?: string;
 }
 
-/**
- * Element change tracking for UI modification requests
- */
 export interface ElementChange {
   id: string;
   elementSelector: string;
@@ -29,18 +54,4 @@ export interface ElementChange {
     status: 'running' | 'completed' | 'failed';
   }>;
   error?: string;
-}
-
-/**
- * Chat message interface
- * Used in TanStack DB messageCollection
- */
-export interface Message {
-  id: string;
-  projectId: string; // Added for collection filtering
-  role: 'user' | 'assistant';
-  parts: MessagePart[];
-  timestamp: number; // Added for ordering
-  generationState?: GenerationState;
-  elementChange?: ElementChange;
 }

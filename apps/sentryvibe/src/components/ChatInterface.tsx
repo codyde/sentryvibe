@@ -60,7 +60,14 @@ export function ChatInterface({
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       {messages.map((message, index) => {
-        const isUser = message.role === "user";
+        const isUser = message.type === "user";
+        const isSystem = message.type === "system";
+        const isToolCall = message.type === "tool-call";
+
+        // Skip tool calls and system messages for now (can render differently later)
+        if (isToolCall || isSystem) {
+          return null;
+        }
 
         return (
           <div
@@ -74,25 +81,10 @@ export function ChatInterface({
                   : "bg-white/5 border border-white/10"
               }`}
             >
-              {message.parts.map((part, partIndex) => {
-                // Render text parts
-                if (part.type === "text" && part.text) {
-                  return (
-                    <ChatUpdate
-                      key={partIndex}
-                      content={part.text}
-                      defaultCollapsed={false}
-                    />
-                  );
-                }
-
-                // Skip tool parts (rendered elsewhere)
-                if (part.type.startsWith("tool-")) {
-                  return null;
-                }
-
-                return null;
-              })}
+              <ChatUpdate
+                content={message.content}
+                defaultCollapsed={false}
+              />
             </div>
           </div>
         );
