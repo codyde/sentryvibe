@@ -76,8 +76,12 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 
 function HomeContent() {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
+
+  // MIGRATION: Side-by-side approach
+  // Keep legacy state during migration, will remove after testing
+  const [messages_LEGACY, setMessages] = useState<Message[]>([]);
+
+  const [activeTab_LEGACY, setActiveTab_LEGACY] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
@@ -128,6 +132,28 @@ function HomeContent() {
   // SSE connection for real-time project status updates
   // This eliminates the need for manual polling in server operations
   useProjectStatusSSE(currentProject?.id, !!currentProject);
+
+  // MIGRATION: TanStack DB Collections
+  // Live query for messages from TanStack DB
+  const { data: messagesFromDB } = useLiveQuery((q) =>
+    q.from({ message: messageCollection })
+     .where(({ message }) =>
+        currentProject?.id ? message.projectId === currentProject.id : false
+     )
+     .orderBy(({ message }) => message.timestamp)
+  );
+
+  // Use TanStack DB if available, fallback to legacy during migration
+  const messages = (messagesFromDB && messagesFromDB.length > 0) ? messagesFromDB : messages_LEGACY;
+
+  // Live query for UI state
+  const { data: uiStates } = useLiveQuery((q) =>
+    q.from({ ui: uiStateCollection })
+  );
+
+  // Get global UI state (only one item with id='global')
+  const currentUIState = uiStates?.find(ui => ui.id === 'global');
+  const activeTab = currentUIState?.activeTab || activeTab_LEGACY;
 
 
   const updateGenerationState = useCallback(
