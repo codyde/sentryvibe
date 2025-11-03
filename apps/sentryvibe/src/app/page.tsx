@@ -2866,41 +2866,37 @@ function HomeContent() {
                                   })()
                                 )}
 
-                                {/* Chat Messages */}
+                                {/* Chat Messages - Simplified Structure */}
                                 {messages.map((message) => {
-                              // Skip element changes
-                              if (message.elementChange) return null;
+                              // Skip tool calls and system messages
+                              if (message.type === 'tool-call' || message.type === 'system') {
+                                return null;
+                              }
 
-                              // Only show text content in conversation
-                              const textParts = message.parts.filter(
-                                (part) => part.type === "text" && part.text
-                              );
-                              if (textParts.length === 0) return null;
+                              // Skip empty messages
+                              if (!message.content || message.content.trim().length === 0) {
+                                return null;
+                              }
 
                               return (
                                 <div
                                   key={message.id}
                                   className={`flex ${
-                                    message.role === "user"
+                                    message.type === "user"
                                       ? "justify-end"
                                       : "justify-start"
                                   }`}
                                 >
                                   <div
                                     className={`max-w-[85%] rounded-lg p-4 shadow-lg ${
-                                      message.role === "user"
+                                      message.type === "user"
                                         ? "bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30"
                                         : "bg-white/5 border border-white/10 text-white"
                                     }`}
                                   >
-                                    {textParts.map((part, i) => (
-                                      <div
-                                        key={i}
-                                        className="prose prose-invert max-w-none text-sm"
-                                      >
-                                        {part.text}
-                                      </div>
-                                    ))}
+                                    <div className="prose prose-invert max-w-none text-sm">
+                                      {message.content}
+                                    </div>
                                   </div>
                                 </div>
                               );
