@@ -48,20 +48,42 @@ export function ChatInterface({
   }, []);
 
   // TanStack DB Live Query for messages
-  // ALWAYS call hook (Rules of Hooks), return null when not ready (not undefined!)
+  // ALWAYS call hook (Rules of Hooks), return null when not ready
   const { data: messagesFromDB } = useLiveQuery(
     (q) => {
-      // Return null (not undefined) when not ready - TanStack DB handles null better
-      if (!isDBHydrated || !messageCollection || !currentProjectId) {
-        console.log('[ChatInterface] Query skipped - not ready:', { isDBHydrated, hasCollection: !!messageCollection, hasProjectId: !!currentProjectId });
+      // Guard against null/undefined at query execution time
+      try {
+        if (!isDBHydrated) {
+          console.log('[ChatInterface] Query skipped - DB not hydrated');
+          return null;
+        }
+
+        if (!messageCollection) {
+          console.log('[ChatInterface] Query skipped - collection not initialized');
+          return null;
+        }
+
+        if (!currentProjectId) {
+          console.log('[ChatInterface] Query skipped - no projectId');
+          return null;
+        }
+
+        console.log('[ChatInterface] Building query for projectId:', currentProjectId);
+
+        // Double-check collection is still valid before building query
+        if (!messageCollection || typeof messageCollection.getAll !== 'function') {
+          console.log('[ChatInterface] Collection invalid at query build time');
+          return null;
+        }
+
+        return q
+          .from({ message: messageCollection })
+          .where(({ message }) => message.projectId === currentProjectId)
+          .orderBy(({ message }) => message.timestamp);
+      } catch (error) {
+        console.error('[ChatInterface] Error building query:', error);
         return null;
       }
-
-      console.log('[ChatInterface] Building query for projectId:', currentProjectId);
-      return q
-        .from({ message: messageCollection })
-        .where(({ message }) => message.projectId === currentProjectId)
-        .orderBy(({ message }) => message.timestamp);
     },
     [isDBHydrated, currentProjectId]
   );
