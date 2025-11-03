@@ -301,16 +301,20 @@ export async function POST(
           if (closed) return;
           closed = true;
 
-          // Save all completed messages to DB (legacy chat transcript)
+          // Save all completed messages to DB
+          console.log(`[build-route] Saving ${completedMessages.length} messages to DB`);
           for (const msg of completedMessages) {
             try {
               await db.execute(
                 sql`INSERT INTO messages (project_id, role, content) VALUES (${id}, ${msg.role}, ${JSON.stringify(msg.content)})`
               );
+              console.log(`[build-route] ✅ Saved message`);
             } catch (error) {
-              console.error('[build-route] Failed to save message:', error);
+              console.error('[build-route] ❌ Failed to save message:', error);
             }
           }
+          console.log(`[build-route] Finished saving messages`);
+
 
           // Unsubscribe from SSE stream (persistent processor continues independently)
           unsubscribe();
