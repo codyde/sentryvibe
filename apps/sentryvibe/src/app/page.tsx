@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ChevronDown, User as UserIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import TabbedPreview from "@/components/TabbedPreview";
 import TerminalOutput from "@/components/TerminalOutput";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
@@ -27,6 +28,7 @@ import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
+import { useProjectMessages } from "@/queries/projects";
 import type {
   GenerationState,
   ToolCall,
@@ -55,6 +57,8 @@ import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
+import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 // TanStack DB removed - using TanStack Query only
 // Simplified message structure kept
 interface MessagePart {
@@ -114,6 +118,63 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  const classifyMessage = useCallback((message: Message) => {
+    const role = (message.role ?? message.type ?? '').toLowerCase();
+    if (role === 'user') return 'user';
+    if (role === 'assistant' || role === 'tool-result') return 'assistant';
+    return 'other';
+  }, []);
+
+  const getMessageContent = useCallback((message: Message | null | undefined) => {
+    if (!message) return '';
+    if (message.content && message.content.trim().length > 0) {
+      return message.content;
+    }
+    if (message.parts && message.parts.length > 0) {
+      return message.parts
+        .filter((part) => part.type === 'text' && part.text)
+        .map((part) => part.text)
+        .join(' ')
+        .trim();
+    }
+    return '';
+  }, []);
+
+  const conversationMessages = useMemo(() => {
+    return messages.filter((message) => {
+      if (classifyMessage(message) === 'other') return false;
+      return getMessageContent(message).trim().length > 0;
+    });
+  }, [messages, classifyMessage, getMessageContent]);
+
+  const latestConversationMessage = useMemo(() => {
+    if (conversationMessages.length === 0) return null;
+    return conversationMessages[conversationMessages.length - 1];
+  }, [conversationMessages]);
+
+  const historicalConversationMessages = useMemo(() => {
+    if (conversationMessages.length <= 1) return [];
+    return conversationMessages.slice(0, conversationMessages.length - 1);
+  }, [conversationMessages]);
+
+  const hasHistoryMessages = conversationMessages.length > 0;
+
+  const formatMessageTimestamp = useCallback((message: Message): string | null => {
+    const raw = message.timestamp;
+    if (!raw) return null;
+    const date = raw instanceof Date ? raw : new Date(raw);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }, []);
+
+  const showAgentTyping =
+    (isGenerating || generationState?.isActive) &&
+    (!latestConversationMessage || classifyMessage(latestConversationMessage) !== 'assistant');
   
   // WebSocket connection for real-time updates (primary source)
   // Enable if: project exists AND (actively generating OR has active session in state)
@@ -132,12 +193,18 @@ function HomeContent() {
   });
 
   // SSE connection for real-time project status updates
-  // This eliminates the need for manual polling in server operations
   useProjectStatusSSE(currentProject?.id, !!currentProject);
 
-  // MIGRATION: TanStack DB Collections moved to ChatInterface component
-  // useLiveQuery is now in client-only component (no SSR issues)
+  // Load messages from database when project changes
+  const { data: messagesFromDB } = useProjectMessages(currentProject?.id);
 
+  // Hydrate messages from database on project load
+  useEffect(() => {
+    if (messagesFromDB && messagesFromDB.length > 0 && !isGenerating) {
+      console.log('[page] Loading messages from DB:', messagesFromDB.length);
+      setMessages(messagesFromDB as any);
+    }
+  }, [messagesFromDB, currentProject?.id, isGenerating]);
 
   const updateGenerationState = useCallback(
     (
@@ -2817,36 +2884,165 @@ function HomeContent() {
                                   })()
                                 )}
 
-                                {/* Simple message rendering - TanStack Query only */}
-                                {messages.map((message, index) => {
-                                  const isUser = message.role === 'user' || message.type === 'user';
+                                <div className="space-y-6">
+                                  {latestConversationMessage ? (
+                                    <>
+                                      {(() => {
+                                        const role = classifyMessage(latestConversationMessage);
+                                        const align = role === 'assistant' ? 'right' : 'left';
+                                        const tone = role === 'assistant' ? 'agent' : 'user';
+                                        const timestamp = formatMessageTimestamp(latestConversationMessage);
+                                        const icon =
+                                          role === 'assistant' ? (
+                                            <Sparkles className="h-4 w-4 text-purple-200" />
+                                          ) : (
+                                            <UserIcon className="h-4 w-4 text-white" />
+                                          );
 
-                                  // Skip if no content
-                                  if (!message.content && (!message.parts || message.parts.length === 0)) {
-                                    return null;
-                                  }
+                                        return (
+                                          <motion.div
+                                            key={latestConversationMessage.id ?? 'latest-message'}
+                                            className={cn(
+                                              'flex',
+                                              align === 'right' ? 'justify-end' : 'justify-start'
+                                            )}
+                                            initial={{ opacity: 0, translateY: 16 }}
+                                            animate={{ opacity: 1, translateY: 0 }}
+                                            transition={{ duration: 0.25 }}
+                                          >
+                                            <div
+                                              className={cn(
+                                                'flex max-w-full items-end gap-3',
+                                                align === 'right' ? 'flex-row-reverse' : 'flex-row'
+                                              )}
+                                            >
+                                              <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                {icon}
+                                              </div>
+                                              <ChatUpdate
+                                                content={getMessageContent(latestConversationMessage)}
+                                                align={align}
+                                                tone={tone}
+                                                variant="live"
+                                                timestamp={timestamp}
+                                              />
+                                            </div>
+                                          </motion.div>
+                                        );
+                                      })()}
 
-                                  // Get content
-                                  const content = message.content ||
-                                    message.parts?.filter(p => p.type === 'text' && p.text)
-                                      .map(p => p.text).join(' ') || '';
-
-                                  if (!content.trim()) return null;
-
-                                  return (
-                                    <div key={message.id || index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                                      <div className={`max-w-[80%] rounded-lg p-4 ${
-                                        isUser
-                                          ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30'
-                                          : 'bg-white/5 border border-white/10'
-                                      }`}>
-                                        <ChatUpdate content={content} defaultCollapsed={false} />
+                                      {showAgentTyping && (
+                                        <motion.div
+                                          className="flex justify-end"
+                                          initial={{ opacity: 0 }}
+                                          animate={{ opacity: 1 }}
+                                          transition={{ duration: 0.3 }}
+                                        >
+                                          <div className="flex max-w-full items-end gap-3 flex-row-reverse">
+                                            <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                              <Sparkles className="h-4 w-4 text-purple-200" />
+                                            </div>
+                                            <div className="max-w-[80%] w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 shadow-lg shadow-black/20 text-left">
+                                              <div className="flex items-center gap-2 text-sm text-zinc-300">
+                                                <span className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300" />
+                                                <span
+                                                  className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+                                                  style={{ animationDelay: '0.15s' }}
+                                                />
+                                                <span
+                                                  className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+                                                  style={{ animationDelay: '0.3s' }}
+                                                />
+                                                <span className="ml-2 text-xs text-zinc-400">
+                                                  Agent is thinking…
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </>
+                                  ) : showAgentTyping ? (
+                                    <motion.div
+                                      className="flex justify-end"
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      transition={{ duration: 0.3 }}
+                                    >
+                                      <div className="flex max-w-full items-end gap-3 flex-row-reverse">
+                                        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                          <Sparkles className="h-4 w-4 text-purple-200" />
+                                        </div>
+                                        <div className="max-w-[80%] w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 shadow-lg shadow-black/20 text-left">
+                                          <div className="flex items-center gap-2 text-sm text-zinc-300">
+                                            <span className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300" />
+                                            <span
+                                              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+                                              style={{ animationDelay: '0.15s' }}
+                                            />
+                                            <span
+                                              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+                                              style={{ animationDelay: '0.3s' }}
+                                            />
+                                            <span className="ml-2 text-xs text-zinc-400">
+                                              Agent is thinking…
+                                            </span>
+                                          </div>
+                                        </div>
                                       </div>
+                                    </motion.div>
+                                  ) : (
+                                    <div className="text-center text-sm text-gray-500">
+                                      No messages yet—start the conversation below.
                                     </div>
-                                  );
-                                })}
+                                  )}
 
-                                <div ref={messagesEndRef} />
+                                  <div ref={messagesEndRef} />
+
+                                  <Separator className="bg-white/10" />
+
+                                  <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                                    <CollapsibleTrigger className="w-full flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10">
+                                      <span>Chat History</span>
+                                      <ChevronDown
+                                        className={`h-4 w-4 text-white transition-transform ${
+                                          isHistoryOpen ? 'rotate-180' : ''
+                                        }`}
+                                      />
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="mt-4 space-y-3">
+                                      {historicalConversationMessages.map((message, index) => {
+                                        const role = classifyMessage(message);
+                                        const align = role === 'assistant' ? 'right' : 'left';
+                                        const tone = role === 'assistant' ? 'agent' : 'user';
+                                        const timestamp = formatMessageTimestamp(message);
+                                        return (
+                                          <div
+                                            key={message.id || index}
+                                            className={cn(
+                                              'flex',
+                                              align === 'right' ? 'justify-end' : 'justify-start'
+                                            )}
+                                          >
+                                            <ChatUpdate
+                                              content={getMessageContent(message)}
+                                              align={align}
+                                              tone={tone}
+                                              variant="history"
+                                              timestamp={timestamp}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                      {!hasHistoryMessages || historicalConversationMessages.length === 0 ? (
+                                        <p className="text-center text-sm text-gray-500">
+                                          No chat history yet.
+                                        </p>
+                                      ) : null}
+                                      <div ref={messagesEndRef} />
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                </div>
                                 </div>
                                 </>
                             }
