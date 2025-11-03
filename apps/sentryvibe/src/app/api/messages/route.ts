@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { messages } from '@sentryvibe/agent-core/lib/db/schema';
-import { desc } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
 
 /**
  * Serialize message parts to string for database storage
@@ -54,15 +54,43 @@ export async function GET() {
     const allMessages = await db
       .select()
       .from(messages)
-      .orderBy(desc(messages.createdAt));
+      .where(
+        // Only load user and assistant messages (skip system/tool messages)
+        sql`role IN ('user', 'assistant')`
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(100); // Performance: Only load recent 100 messages
 
-    const formattedMessages = allMessages.map((msg) => ({
-      id: msg.id,
-      projectId: msg.projectId,
-      type: msg.role, // Map DB role to Message type
-      content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-      timestamp: msg.createdAt.getTime(),
-    }));
+    const formattedMessages = allMessages.map((msg) => {
+      let content = msg.content;
+
+      // Handle old JSON-formatted content: [{"type":"text","text":"..."}]
+      if (typeof content === 'string' && content.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) {
+            // Extract text from parts array
+            const textParts = parsed
+              .filter((p: any) => p.type === 'text' && p.text)
+              .map((p: any) => p.text)
+              .join(' ');
+            content = textParts || content;
+          }
+        } catch {
+          // If parse fails, use as-is
+        }
+      }
+
+      return {
+        id: msg.id,
+        projectId: msg.projectId,
+        type: msg.role, // Map DB role to Message type
+        content: typeof content === 'string' ? content : JSON.stringify(content),
+        timestamp: msg.createdAt.getTime(),
+      };
+    });
+
+    console.log(`[API] Loaded ${formattedMessages.length} chat messages (filtered user/assistant only)`);
 
     return NextResponse.json({ messages: formattedMessages });
   } catch (error) {
