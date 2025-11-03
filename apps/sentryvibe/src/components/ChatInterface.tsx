@@ -55,9 +55,13 @@ export function ChatInterface({
     [isDBHydrated, currentProjectId]
   );
 
-  // Hybrid display: Use legacy during active generation (live updates)
-  // Use TanStack DB after generation complete (persisted messages)
-  const messages = messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
+  // Hybrid display strategy:
+  // - During generation: Use legacy (has live streaming updates)
+  // - After complete/refresh: Use TanStack DB (persisted from backend)
+  // Prefer legacy if it has MORE messages (means generation is active)
+  const messages = (messages_LEGACY.length > (messagesFromDB?.length || 0))
+    ? messages_LEGACY  // Live updates during generation
+    : (messagesFromDB || messages_LEGACY);  // Persisted after complete
 
   // Debug: Log what we're using
   useEffect(() => {
