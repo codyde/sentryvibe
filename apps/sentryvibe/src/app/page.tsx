@@ -1283,6 +1283,7 @@ function HomeContent() {
 
       // MIGRATION: Use TanStack DB collection
       if (messageCollection) {
+        console.log('[INSERT #1] User message from startGenerationStream:', userMessage.id, userMessage.content.substring(0, 50));
         messageCollection.insert(userMessage);
       }
 
@@ -2089,6 +2090,7 @@ function HomeContent() {
         // The live query filters by project, showing only relevant messages
         // This is actually better UX - full chat history preserved!
         if (messageCollection) {
+          console.log('[INSERT #2] User message from handleCreateProject:', userMessage.id, userMessage.content.substring(0, 50));
           messageCollection.insert(userMessage);
         }
 
