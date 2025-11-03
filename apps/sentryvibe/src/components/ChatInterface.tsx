@@ -65,12 +65,12 @@ export function ChatInterface({
 
   // Debug: Log what we're using
   useEffect(() => {
-    console.log('[ChatInterface] Message source:', {
-      fromDB: messagesFromDB?.length || 0,
-      fromLegacy: messages_LEGACY.length,
-      using: messagesFromDB?.length > 0 ? 'TanStack DB' : 'Legacy',
-      displaying: messages.length,
-    });
+    const dbCount = messagesFromDB?.length || 0;
+    const legacyCount = messages_LEGACY.length;
+    const displayCount = messages.length;
+    const source = (legacyCount > dbCount) ? 'Legacy' : 'TanStack DB';
+
+    console.log(`[ChatInterface] DB:${dbCount} Legacy:${legacyCount} Using:${source} Display:${displayCount}`);
   }, [messagesFromDB, messages_LEGACY, messages]);
 
   return (
