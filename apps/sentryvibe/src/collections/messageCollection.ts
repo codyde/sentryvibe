@@ -40,6 +40,9 @@ export const getMessageCollection = () => {
       queryCollectionOptions<Message, string>({
         queryClient: getQueryClient(),
         queryKey: ['messages'],
+        enabled: true, // Explicitly enable the query
+        refetchOnMount: true, // Fetch messages on every mount
+        staleTime: 10000, // Consider messages stale after 10 seconds
         queryFn: async () => {
           console.log('📥 [messageCollection] Fetching messages from PostgreSQL via /api/messages');
 
