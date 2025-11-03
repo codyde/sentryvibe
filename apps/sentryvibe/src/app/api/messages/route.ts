@@ -61,34 +61,52 @@ export async function GET() {
       .orderBy(desc(messages.createdAt))
       .limit(100); // Performance: Only load recent 100 messages
 
-    const formattedMessages = allMessages.map((msg) => {
-      let content = msg.content;
+    const formattedMessages = allMessages
+      .map((msg) => {
+        let content = msg.content;
 
-      // Handle old JSON-formatted content: [{"type":"text","text":"..."}]
-      if (typeof content === 'string' && content.trim().startsWith('[')) {
-        try {
-          const parsed = JSON.parse(content);
-          if (Array.isArray(parsed)) {
-            // Extract text from parts array
-            const textParts = parsed
-              .filter((p: any) => p.type === 'text' && p.text)
-              .map((p: any) => p.text)
-              .join(' ');
-            content = textParts || content;
+        // Handle old JSON-formatted content: [{"type":"text","text":"..."}]
+        if (typeof content === 'string' && content.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed)) {
+              // Check if this is a tool message (has tool-* type parts)
+              const hasToolParts = parsed.some((p: any) =>
+                typeof p.type === 'string' && p.type.startsWith('tool-')
+              );
+
+              // Skip messages that are primarily tool calls
+              if (hasToolParts) {
+                return null; // Will be filtered out
+              }
+
+              // Extract ONLY text parts
+              const textParts = parsed
+                .filter((p: any) => p.type === 'text' && p.text)
+                .map((p: any) => p.text)
+                .join(' ');
+
+              content = textParts;
+            }
+          } catch {
+            // If parse fails, use as-is
           }
-        } catch {
-          // If parse fails, use as-is
         }
-      }
 
-      return {
-        id: msg.id,
-        projectId: msg.projectId,
-        type: msg.role, // Map DB role to Message type
-        content: typeof content === 'string' ? content : JSON.stringify(content),
-        timestamp: msg.createdAt.getTime(),
-      };
-    });
+        // Skip empty content
+        if (!content || content.trim().length === 0) {
+          return null; // Will be filtered out
+        }
+
+        return {
+          id: msg.id,
+          projectId: msg.projectId,
+          type: msg.role, // Map DB role to Message type
+          content: typeof content === 'string' ? content : JSON.stringify(content),
+          timestamp: msg.createdAt.getTime(),
+        };
+      })
+      .filter((msg): msg is NonNullable<typeof msg> => msg !== null); // Remove nulls
 
     console.log(`[API] Loaded ${formattedMessages.length} chat messages (filtered user/assistant only)`);
 
