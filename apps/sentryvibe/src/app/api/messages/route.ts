@@ -108,11 +108,9 @@ export async function GET() {
       })
       .filter((msg): msg is NonNullable<typeof msg> => msg !== null); // Remove nulls
 
-    console.log(`[API] Loaded ${formattedMessages.length} chat messages (filtered user/assistant only)`);
-
     return NextResponse.json({ messages: formattedMessages });
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('❌ [API] Fetch error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch messages' },
       { status: 500 }
@@ -132,15 +130,8 @@ export async function POST(req: Request) {
   try {
     const message = await req.json();
 
-    console.log('[API] POST /api/messages - Received:', {
-      id: message.id,
-      projectId: message.projectId,
-      type: message.type,
-      contentLength: message.content?.length,
-    });
-
     if (!message.projectId || !message.type) {
-      console.error('[API] Missing required fields:', { projectId: message.projectId, type: message.type });
+      console.error('❌ [API] Missing required fields:', { projectId: message.projectId, type: message.type });
       return NextResponse.json(
         { error: 'projectId and type are required' },
         { status: 400 }
@@ -159,14 +150,11 @@ export async function POST(req: Request) {
       })
       .returning();
 
-    console.log('✅ [API] Message inserted to PostgreSQL:', newMessage.id);
-
     return NextResponse.json({ message: newMessage });
   } catch (error) {
-    console.error('❌ [API] Error creating message:', error);
-    console.error('[API] Error details:', error instanceof Error ? error.message : error);
+    console.error('❌ [API] Insert error:', error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: 'Failed to create message', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to create message' },
       { status: 500 }
     );
   }

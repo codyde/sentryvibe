@@ -23,8 +23,6 @@ export const messageCollection = createCollection(
     queryClient,
     queryKey: ['messages'],
     queryFn: async () => {
-      console.log('📥 [messageCollection] Fetching messages from PostgreSQL');
-
       const res = await fetch('/api/messages');
       if (!res.ok) {
         console.error('❌ [messageCollection] Fetch failed:', res.status);
@@ -32,18 +30,13 @@ export const messageCollection = createCollection(
       }
 
       const data = await res.json();
-      const messages = data.messages || [];
-
-      console.log(`✅ [messageCollection] Loaded ${messages.length} messages`);
-
-      return messages;
+      return data.messages || [];
     },
     getKey: (message) => message.id,
 
     // Sync new messages to PostgreSQL
     onInsert: async ({ transaction }) => {
       const { changes: message } = transaction.mutations[0];
-      console.log('💾 [messageCollection] Inserting message:', message.id);
 
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -52,16 +45,14 @@ export const messageCollection = createCollection(
       });
 
       if (!res.ok) {
+        console.error('❌ [messageCollection] Insert failed:', message.id, res.status);
         throw new Error('Failed to insert message');
       }
-
-      console.log('✅ [messageCollection] Message inserted:', message.id);
     },
 
     // Sync updates to PostgreSQL
     onUpdate: async ({ transaction }) => {
       const { original, changes } = transaction.mutations[0];
-      console.log('💾 [messageCollection] Updating message:', original.id);
 
       const res = await fetch(`/api/messages/${original.id}`, {
         method: 'PATCH',
@@ -70,26 +61,23 @@ export const messageCollection = createCollection(
       });
 
       if (!res.ok) {
+        console.error('❌ [messageCollection] Update failed:', original.id, res.status);
         throw new Error('Failed to update message');
       }
-
-      console.log('✅ [messageCollection] Message updated:', original.id);
     },
 
     // Sync deletions to PostgreSQL
     onDelete: async ({ transaction }) => {
       const { original } = transaction.mutations[0];
-      console.log('🗑️  [messageCollection] Deleting message:', original.id);
 
       const res = await fetch(`/api/messages/${original.id}`, {
         method: 'DELETE',
       });
 
       if (!res.ok) {
+        console.error('❌ [messageCollection] Delete failed:', original.id, res.status);
         throw new Error('Failed to delete message');
       }
-
-      console.log('✅ [messageCollection] Message deleted:', original.id);
     },
   })
 );

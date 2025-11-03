@@ -35,65 +35,27 @@ export function ChatInterface({
   // Start as true since this component only loads client-side (ssr: false)
   const [isDBHydrated, setIsDBHydrated] = useState(true);
 
-  useEffect(() => {
-    console.log('[ChatInterface] Component mounted');
-  }, []);
-
   // TanStack DB Live Query for messages
-  // ALWAYS call hook (Rules of Hooks), return null when not ready
   const { data: messagesFromDB } = useLiveQuery(
     (q) => {
-      // Guard against null/undefined at query execution time
       try {
-        if (!isDBHydrated) {
-          console.log('[ChatInterface] Query skipped - DB not hydrated');
+        if (!isDBHydrated || !messageCollection || !currentProjectId) {
           return null;
         }
 
-        if (!messageCollection) {
-          console.log('[ChatInterface] Query skipped - collection not initialized');
-          return null;
-        }
-
-        if (!currentProjectId) {
-          console.log('[ChatInterface] Query skipped - no projectId');
-          return null;
-        }
-
-        console.log('[ChatInterface] Building query for projectId:', currentProjectId);
-
-        // Collection is valid, build the query using proper operators
         return q
           .from({ message: messageCollection })
           .where(({ message }) => eq(message.projectId, currentProjectId))
           .orderBy(({ message }) => message.timestamp, 'asc');
       } catch (error) {
-        console.error('[ChatInterface] Error building query:', error);
+        console.error('❌ [ChatInterface] Query error:', error);
         return null;
       }
     },
     [isDBHydrated, currentProjectId]
   );
 
-  // Use TanStack DB exclusively (no legacy fallback)
-  // Persistence is working, no need for fallback
   const messages = messagesFromDB || [];
-
-  // Debug logging
-  useEffect(() => {
-    console.log('[ChatInterface] Messages updated:', {
-      count: messagesFromDB?.length || 0,
-      projectId: currentProjectId,
-    });
-
-    if (messagesFromDB && messagesFromDB.length > 0) {
-      console.log('[ChatInterface] Loaded messages:', messagesFromDB.map(m => ({
-        id: m.id.substring(0, 8),
-        type: m.type,
-        preview: m.content.substring(0, 30) + '...',
-      })));
-    }
-  }, [messagesFromDB, currentProjectId]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">

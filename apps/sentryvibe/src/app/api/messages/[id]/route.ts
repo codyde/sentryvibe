@@ -57,11 +57,9 @@ export async function PATCH(
       );
     }
 
-    console.log('✅ [API] Message updated in PostgreSQL:', id);
-
     return NextResponse.json({ message: updatedMessage });
   } catch (error) {
-    console.error('Error updating message:', error);
+    console.error('❌ [API] Update error:', error);
     return NextResponse.json(
       { error: 'Failed to update message' },
       { status: 500 }
@@ -92,11 +90,9 @@ export async function DELETE(
       );
     }
 
-    console.log('✅ [API] Message deleted from PostgreSQL:', id);
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting message:', error);
+    console.error('❌ [API] Delete error:', error);
     return NextResponse.json(
       { error: 'Failed to delete message' },
       { status: 500 }
