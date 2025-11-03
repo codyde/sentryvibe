@@ -1957,6 +1957,28 @@ function HomeContent() {
         }
       }
 
+      // Save final message if it exists (arrives after backend closes)
+      if (currentMessage && currentMessage.content && currentMessage.content.trim().length > 0) {
+        console.log('[page] Saving final message to DB:', currentMessage.content.substring(0, 100));
+
+        try {
+          await fetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: currentMessage.id || crypto.randomUUID(),
+              projectId: projectId,
+              type: 'assistant',
+              content: currentMessage.content,
+              timestamp: Date.now(),
+            }),
+          });
+          console.log('[page] ✅ Final message saved');
+        } catch (error) {
+          console.error('[page] ❌ Failed to save final message:', error);
+        }
+      }
+
       // Ensure final summary todo is marked completed before finishing
       updateGenerationState((prev) => {
         if (!prev || !prev.todos || prev.todos.length === 0) return prev;
