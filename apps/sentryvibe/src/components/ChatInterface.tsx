@@ -57,15 +57,26 @@ export function ChatInterface({
   const messages =
     messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
 
-  // Debug logging
+  // Debug logging - detailed
   useEffect(() => {
     console.log('[ChatInterface] Messages updated:', {
       fromDB: messagesFromDB?.length || 0,
       fromLegacy: messages_LEGACY.length,
       using: messagesFromDB?.length > 0 ? 'TanStack DB' : 'Legacy',
       total: messages.length,
+      projectId: currentProjectId,
+      collectionInitialized: !!messageCollection,
+      isDBHydrated,
     });
-  }, [messagesFromDB, messages_LEGACY, messages]);
+
+    if (messagesFromDB && messagesFromDB.length > 0) {
+      console.log('[ChatInterface] Messages from DB:', messagesFromDB.map(m => ({
+        id: m.id.substring(0, 8),
+        type: m.type,
+        contentPreview: m.content.substring(0, 50),
+      })));
+    }
+  }, [messagesFromDB, messages_LEGACY, messages, currentProjectId, isDBHydrated]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">

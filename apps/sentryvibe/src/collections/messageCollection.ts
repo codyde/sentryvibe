@@ -41,17 +41,26 @@ export const getMessageCollection = () => {
         queryClient: getQueryClient(),
         queryKey: ['messages'],
         queryFn: async () => {
-          console.log('📥 [messageCollection] Fetching messages from PostgreSQL');
+          console.log('📥 [messageCollection] Fetching messages from PostgreSQL via /api/messages');
 
           const res = await fetch('/api/messages');
           if (!res.ok) {
-            throw new Error('Failed to fetch messages from PostgreSQL');
+            console.error('❌ [messageCollection] Fetch failed:', res.status, res.statusText);
+            throw new Error(`Failed to fetch messages: ${res.status}`);
           }
 
           const data = await res.json();
           const messages = data.messages || [];
 
           console.log(`✅ [messageCollection] Loaded ${messages.length} messages from PostgreSQL`);
+          if (messages.length > 0) {
+            console.log('[messageCollection] Sample message:', {
+              id: messages[0].id,
+              projectId: messages[0].projectId,
+              type: messages[0].type,
+              contentPreview: messages[0].content?.substring(0, 50),
+            });
+          }
 
           return messages;
         },
