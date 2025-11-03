@@ -55,35 +55,33 @@ import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
-import dynamic from "next/dynamic";
-import {
-  messageCollection,
-  upsertMessage,
-} from "@/collections";
-import type { Message, MessagePart, ElementChange } from "@/types/messages";
+// TanStack DB removed - using TanStack Query only
+// Simplified message structure kept
+interface MessagePart {
+  type: string;
+  text?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
 
-// Dynamic import for ChatInterface - client-only component using TanStack DB
-// ssr: false prevents Next.js pre-rendering, solving useSyncExternalStore issue
-const ChatInterface = dynamic(
-  () => import("@/components/ChatInterface").then((mod) => ({ default: mod.ChatInterface })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-gray-400">Loading chat...</div>
-      </div>
-    ),
-  }
-);
+interface Message {
+  id: string;
+  projectId?: string;
+  type?: 'user' | 'assistant' | 'system' | 'tool-call' | 'tool-result';
+  role?: 'user' | 'assistant';
+  content?: string;
+  parts?: MessagePart[];
+  timestamp?: number;
+}
 
 const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 
 function HomeContent() {
   const [input, setInput] = useState("");
-
-  // MIGRATION: Side-by-side approach
-  // Keep legacy state during migration, will remove after testing
-  const [messages_LEGACY, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const [activeTab_LEGACY, setActiveTab_LEGACY] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -139,8 +137,6 @@ function HomeContent() {
 
   // MIGRATION: TanStack DB Collections moved to ChatInterface component
   // useLiveQuery is now in client-only component (no SSR issues)
-  const messages = messages_LEGACY;
-  const activeTab = activeTab_LEGACY;
 
 
   const updateGenerationState = useCallback(
@@ -647,7 +643,7 @@ function HomeContent() {
           );
 
           // MIGRATION: With TanStack DB, this manual loading is replaced by QueryCollection
-          // The messageCollection automatically fetches from PostgreSQL via queryCollectionOptions
+          // The // Removed TanStack DB automatically fetches from PostgreSQL via queryCollectionOptions
           // This loadMessages function can be deleted after migration complete
 
           // Legacy hydration (keeping during migration)
@@ -911,7 +907,7 @@ function HomeContent() {
       // MIGRATION: With TanStack DB, no need to clear messages manually!
       // The useLiveQuery automatically filters by currentProject.id
       // When currentProject is null, query returns empty array
-      // messageCollection keeps all messages (per-project history)
+      // // Removed TanStack DB keeps all messages (per-project history)
 
       // Legacy (keeping during migration)
       setMessages([]);
@@ -1281,11 +1277,6 @@ function HomeContent() {
         timestamp: Date.now(),
       };
 
-      // MIGRATION: Use TanStack DB collection
-      if (messageCollection) {
-        console.log('[INSERT #1] User message from startGenerationStream:', userMessage.id, userMessage.content.substring(0, 50));
-        messageCollection.insert(userMessage);
-      }
 
       // Legacy (keeping during migration, will remove)
       setMessages((prev) => [...prev, userMessage as any]);
@@ -2080,16 +2071,7 @@ function HomeContent() {
           timestamp: Date.now(),
         };
 
-        // MIGRATION: Use TanStack DB collection
-        // Note: With TanStack DB, we keep message history (no clearing)
-        // The live query filters by project, showing only relevant messages
-        // This is actually better UX - full chat history preserved!
-        if (messageCollection) {
-          console.log('[INSERT #2] User message from handleCreateProject:', userMessage.id, userMessage.content.substring(0, 50));
-          messageCollection.insert(userMessage);
-        }
-
-        // Legacy fallback: APPEND to array (don't replace!)
+        // Save user message to state for immediate display
         setMessages(prev => [...prev, userMessage as any]);
 
         // Start generation stream (don't add user message again)
@@ -2108,19 +2090,10 @@ function HomeContent() {
         setIsCreatingProject(false);
       }
     } else {
-      // DISABLED: This was causing duplicate inserts during project creation
-      // When project is created, currentProject gets set, then this runs again
-      // Creating a second insert with different UUID
-
-      // TODO: Fix the flow so this doesn't run during initial project creation
-      // For now, commenting out to eliminate duplicates
-
-      console.warn('[handleSubmit] Skipping - currentProject exists but should use different handler');
-      return;
-
-      // await startGeneration(currentProject.id, userPrompt, {
-      //   addUserMessage: true,
-      // });
+      // Continue conversation on existing project
+      await startGeneration(currentProject.id, userPrompt, {
+        addUserMessage: true,
+      });
     }
   };
 
@@ -2844,18 +2817,38 @@ function HomeContent() {
                                   })()
                                 )}
 
-                                {/* TanStack DB ChatInterface - Messages with PostgreSQL Persistence */}
-                                <ChatInterface
-                                  currentProjectId={currentProject?.id}
-                                  messages_LEGACY={messages_LEGACY}
-                                  isLoadingProject={isLoadingProject}
-                                  isGenerating={isGenerating}
-                                  generationState={generationState}
-                                  messagesEndRef={messagesEndRef}
-                                />
+                                {/* Simple message rendering - TanStack Query only */}
+                                {messages.map((message, index) => {
+                                  const isUser = message.role === 'user' || message.type === 'user';
+
+                                  // Skip if no content
+                                  if (!message.content && (!message.parts || message.parts.length === 0)) {
+                                    return null;
+                                  }
+
+                                  // Get content
+                                  const content = message.content ||
+                                    message.parts?.filter(p => p.type === 'text' && p.text)
+                                      .map(p => p.text).join(' ') || '';
+
+                                  if (!content.trim()) return null;
+
+                                  return (
+                                    <div key={message.id || index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                                      <div className={`max-w-[80%] rounded-lg p-4 ${
+                                        isUser
+                                          ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30'
+                                          : 'bg-white/5 border border-white/10'
+                                      }`}>
+                                        <ChatUpdate content={content} defaultCollapsed={false} />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                <div ref={messagesEndRef} />
                                 </div>
                                 </>
-
                             }
                             buildContent={
                               <div className="space-y-4 p-4">

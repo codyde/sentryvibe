@@ -5,7 +5,6 @@ import { ProjectProvider } from "@/contexts/ProjectContext";
 import { RunnerProvider } from "@/contexts/RunnerContext";
 import { AgentProvider } from "@/contexts/AgentContext";
 import { QueryProvider } from "./providers";
-import { DBInitializer } from "./db-provider";
 
 const rubik = Rubik({
   subsets: ["latin"],
@@ -32,7 +31,6 @@ export default function RootLayout({
           <AgentProvider>
             <RunnerProvider>
               <ProjectProvider>
-                <DBInitializer />
                 {children}
               </ProjectProvider>
             </RunnerProvider>
