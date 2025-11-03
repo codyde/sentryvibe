@@ -225,6 +225,12 @@ export const SELECTION_SCRIPT = `
 
   // Generate unique CSS selector for element
   function generateSelector(element) {
+    // BUG FIX: Add defensive checks for undefined/null element
+    if (!element) {
+      console.warn('[ChatInterface] Collection invalid at query build time');
+      return 'body'; // Fallback selector
+    }
+
     // Strategy 1: data-testid (best)
     const testId = element.getAttribute('data-testid');
     if (testId) {
@@ -237,35 +243,38 @@ export const SELECTION_SCRIPT = `
     }
 
     // Strategy 3: Class + tag (ok) - but skip classes with colons (Tailwind responsive)
-    const classes = Array.from(element.classList)
-      .filter(c => !c.match(/^(hover:|focus:|active:|group-|animate-|transition-)/))
-      .filter(c => !c.includes(':')) // Skip Tailwind responsive classes
-      .slice(0, 3) // Limit to first 3 classes
-      .join('.');
+    // BUG FIX: Check if classList exists before accessing it
+    if (element.classList) {
+      const classes = Array.from(element.classList)
+        .filter(c => !c.match(/^(hover:|focus:|active:|group-|animate-|transition-)/))
+        .filter(c => !c.includes(':')) // Skip Tailwind responsive classes
+        .slice(0, 3) // Limit to first 3 classes
+        .join('.');
 
-    if (classes) {
-      const tagName = element.tagName.toLowerCase();
+      if (classes) {
+        const tagName = element.tagName ? element.tagName.toLowerCase() : 'div';
 
-      try {
-        // Check if unique enough
-        const selector = \`\${tagName}.\${classes}\`;
-        const matches = document.querySelectorAll(selector);
+        try {
+          // Check if unique enough
+          const selector = \`\${tagName}.\${classes}\`;
+          const matches = document.querySelectorAll(selector);
 
-        if (matches.length === 1) {
+          if (matches.length === 1) {
+            return selector;
+          }
+
+          // Add nth-child if multiple matches
+          const parent = element.parentElement;
+          if (parent) {
+            const siblings = Array.from(parent.children);
+            const index = siblings.indexOf(element) + 1;
+            return \`\${selector}:nth-child(\${index})\`;
+          }
+
           return selector;
+        } catch (err) {
+          console.warn('Invalid selector, falling back to path:', err);
         }
-
-        // Add nth-child if multiple matches
-        const parent = element.parentElement;
-        if (parent) {
-          const siblings = Array.from(parent.children);
-          const index = siblings.indexOf(element) + 1;
-          return \`\${selector}:nth-child(\${index})\`;
-        }
-
-        return selector;
-      } catch (err) {
-        console.warn('Invalid selector, falling back to path:', err);
       }
     }
 
@@ -275,10 +284,21 @@ export const SELECTION_SCRIPT = `
 
   // Get full CSS path to element
   function getFullPath(element) {
+    // BUG FIX: Add defensive checks for undefined/null element
+    if (!element) {
+      console.warn('[ChatInterface] Collection invalid at query build time');
+      return 'body';
+    }
+
     const path = [];
     let current = element;
 
     while (current && current !== document.body) {
+      // BUG FIX: Check if tagName exists before calling toLowerCase
+      if (!current.tagName) {
+        break;
+      }
+
       let selector = current.tagName.toLowerCase();
 
       if (current.id) {
@@ -303,24 +323,41 @@ export const SELECTION_SCRIPT = `
       current = current.parentElement;
     }
 
-    return path.join(' > ');
+    return path.join(' > ') || 'body';
   }
 
   // Capture element data and click position
   function captureElementData(element, clickEvent) {
+    // BUG FIX: Add defensive checks for undefined/null element
+    if (!element) {
+      console.warn('[ChatInterface] Collection invalid at query build time');
+      return {
+        selector: 'body',
+        tagName: 'unknown',
+        className: '',
+        id: '',
+        textContent: '',
+        innerHTML: '',
+        attributes: {},
+        boundingRect: { top: 0, left: 0, width: 0, height: 0 },
+        clickPosition: { x: clickEvent?.clientX || 0, y: clickEvent?.clientY || 0 },
+        computedStyles: { backgroundColor: '', color: '', fontSize: '', fontFamily: '' }
+      };
+    }
+
     const rect = element.getBoundingClientRect();
 
     return {
       selector: generateSelector(element),
-      tagName: element.tagName.toLowerCase(),
-      className: element.className,
-      id: element.id,
+      tagName: element.tagName ? element.tagName.toLowerCase() : 'unknown',
+      className: element.className || '',
+      id: element.id || '',
       textContent: element.textContent?.trim().slice(0, 100),
       innerHTML: element.innerHTML?.slice(0, 200),
-      attributes: Array.from(element.attributes).reduce((acc, attr) => {
+      attributes: element.attributes ? Array.from(element.attributes).reduce((acc, attr) => {
         acc[attr.name] = attr.value;
         return acc;
-      }, {}),
+      }, {}) : {},
       boundingRect: {
         top: rect.top,
         left: rect.left,
@@ -328,8 +365,8 @@ export const SELECTION_SCRIPT = `
         height: rect.height,
       },
       clickPosition: {
-        x: clickEvent.clientX,
-        y: clickEvent.clientY,
+        x: clickEvent?.clientX || 0,
+        y: clickEvent?.clientY || 0,
       },
       computedStyles: {
         backgroundColor: window.getComputedStyle(element).backgroundColor,
