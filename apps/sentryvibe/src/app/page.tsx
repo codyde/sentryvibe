@@ -2799,7 +2799,9 @@ function HomeContent() {
                             activeTab={activeTab}
                             onTabChange={setActiveTab_LEGACY}
                             chatContent={
-                              <div className="space-y-4 p-4">
+                              <>
+                                {/* Active Todo Indicator and Build Complete Card */}
+                                <div className="p-4 space-y-4">
                                 {/* Active Todo Indicator (Chat Tab Only - when build is active) */}
                                 {generationState && generationState.isActive && generationState.todos && generationState.activeTodoIndex >= 0 && (
                                   <ActiveTodoIndicator
@@ -2837,42 +2839,18 @@ function HomeContent() {
                                   })()
                                 )}
 
-                                {/* Chat Messages - Simplified Structure */}
-                                {messages.map((message) => {
-                              // Skip tool calls and system messages
-                              if (message.type === 'tool-call' || message.type === 'system') {
-                                return null;
-                              }
-
-                              // Skip empty messages
-                              if (!message.content || message.content.trim().length === 0) {
-                                return null;
-                              }
-
-                              return (
-                                <div
-                                  key={message.id}
-                                  className={`flex ${
-                                    message.type === "user"
-                                      ? "justify-end"
-                                      : "justify-start"
-                                  }`}
-                                >
-                                  <div
-                                    className={`max-w-[85%] rounded-lg p-4 shadow-lg ${
-                                      message.type === "user"
-                                        ? "bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30"
-                                        : "bg-white/5 border border-white/10 text-white"
-                                    }`}
-                                  >
-                                    <div className="prose prose-invert max-w-none text-sm">
-                                      {message.content}
-                                    </div>
-                                  </div>
+                                {/* TanStack DB ChatInterface - Messages with PostgreSQL Persistence */}
+                                <ChatInterface
+                                  currentProjectId={currentProject?.id}
+                                  messages_LEGACY={messages_LEGACY}
+                                  isLoadingProject={isLoadingProject}
+                                  isGenerating={isGenerating}
+                                  generationState={generationState}
+                                  messagesEndRef={messagesEndRef}
+                                />
                                 </div>
-                              );
-                            })}
-                              </div>
+                                </>
+
                             }
                             buildContent={
                               <div className="space-y-4 p-4">
