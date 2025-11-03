@@ -1432,19 +1432,18 @@ function HomeContent() {
           if (DEBUG_PAGE) console.log(`\n🌊 [${eventTimestamp}] SSE Event: ${data.type}`, data.toolName ? `(${data.toolName})` : "");
 
           if (data.type === "start") {
-            // Create initial assistant message (simplified structure)
+            // Track assistant message locally for UI updates
+            // Backend will save to DB (hybrid approach for reliability)
             currentMessage = {
-              id: crypto.randomUUID(), // ALWAYS generate UUID (ignore data.messageId - it's not UUID format!)
+              id: crypto.randomUUID(),
               projectId: projectId,
               type: "assistant",
-              content: "", // Will be updated as text streams
+              content: "",
               timestamp: Date.now(),
             };
 
-            // MIGRATION: Insert initial assistant message into collection
-            if (messageCollection) {
-              messageCollection.insert(currentMessage);
-            }
+            // Don't insert to collection - backend saves assistant messages
+            // This prevents duplicates and ensures messages persist even if user disconnects
           } else if (data.type === "text-start") {
             // Track text blocks for accumulation
             textBlocksMap.set(data.id, { type: "text", text: "" });
@@ -1475,10 +1474,8 @@ function HomeContent() {
 
               currentMessage = updatedMessage;
 
-              // MIGRATION: Use TanStack DB - O(1) update!
-              if (messageCollection) {
-                upsertMessage(updatedMessage);
-              }
+              // Don't update collection - backend saves assistant messages
+              // Just update legacy state for immediate UI feedback
 
               // Legacy (keeping during migration, will remove)
               setMessages((prev) =>

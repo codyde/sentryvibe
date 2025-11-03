@@ -35,9 +35,18 @@ export const messageCollection = createCollection(
     getKey: (message) => message.id,
 
     // Sync new messages to PostgreSQL
+    // HYBRID APPROACH: Only sync USER messages
+    // Assistant messages saved by backend during generation (reliable even if user disconnects)
     onInsert: async ({ transaction }) => {
       const { changes: message } = transaction.mutations[0];
 
+      // Skip assistant messages - backend saves these during generation
+      if (message.type === 'assistant') {
+        // console.log('[messageCollection] Skipping insert - assistant message saved by backend');
+        return;
+      }
+
+      // Sync user messages (user is connected, can save directly)
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,8 +60,14 @@ export const messageCollection = createCollection(
     },
 
     // Sync updates to PostgreSQL
+    // HYBRID: Only sync USER messages (assistant messages managed by backend)
     onUpdate: async ({ transaction }) => {
       const { original, changes } = transaction.mutations[0];
+
+      // Skip assistant messages - backend manages these
+      if (original.type === 'assistant') {
+        return;
+      }
 
       const res = await fetch(`/api/messages/${original.id}`, {
         method: 'PATCH',
