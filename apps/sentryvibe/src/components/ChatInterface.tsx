@@ -1,6 +1,6 @@
 'use client';
 
-import { useLiveQuery } from '@tanstack/react-db';
+import { useLiveQuery, eq } from '@tanstack/react-db';
 import { messageCollection, uiStateCollection, type Message } from '@/collections';
 import ChatUpdate from './ChatUpdate';
 import { useEffect, useState } from 'react';
@@ -62,11 +62,11 @@ export function ChatInterface({
 
         console.log('[ChatInterface] Building query for projectId:', currentProjectId);
 
-        // Collection is valid, build the query
+        // Collection is valid, build the query using proper operators
         return q
           .from({ message: messageCollection })
-          .where(({ message }) => message.projectId === currentProjectId)
-          .orderBy(({ message }) => message.timestamp);
+          .where(({ message }) => eq(message.projectId, currentProjectId))
+          .orderBy(({ message }) => message.timestamp, 'asc');
       } catch (error) {
         console.error('[ChatInterface] Error building query:', error);
         return null;
