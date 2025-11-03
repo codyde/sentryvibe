@@ -83,7 +83,7 @@ function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const [activeTab_LEGACY, setActiveTab_LEGACY] = useState<'chat' | 'build'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
@@ -2774,8 +2774,8 @@ function HomeContent() {
                         {/* TABBED VIEW - Separate Chat and Build tabs */}
                         {!isCreatingProject && (
                           <BuildChatTabs
-                            activeTab={activeTab_LEGACY}
-                            onTabChange={setActiveTab_LEGACY}
+                            activeTab={activeTab}
+                            onTabChange={setActiveTab}
                             chatContent={
                               <>
                                 {/* Active Todo Indicator and Build Complete Card */}
