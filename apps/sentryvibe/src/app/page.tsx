@@ -1274,7 +1274,7 @@ function HomeContent() {
     // Only add user message to UI if this is a continuation (not auto-start)
     if (addUserMessage) {
       const userMessage: Message = {
-        id: `msg-${Date.now()}`,
+        id: crypto.randomUUID(), // Use UUID to match database
         projectId: projectId,
         type: "user", // Simplified: just type and content
         content: prompt,
@@ -1433,7 +1433,7 @@ function HomeContent() {
           if (data.type === "start") {
             // Create initial assistant message (simplified structure)
             currentMessage = {
-              id: data.messageId || `msg-${Date.now()}`,
+              id: data.messageId || crypto.randomUUID(), // Use UUID to match database
               projectId: projectId,
               type: "assistant",
               content: "", // Will be updated as text streams
@@ -2106,7 +2106,7 @@ function HomeContent() {
 
         // Add user message (simplified structure)
         const userMessage: Message = {
-          id: `msg-${Date.now()}`,
+          id: crypto.randomUUID(), // Use UUID to match database
           projectId: project.id,
           type: "user", // Simplified: type instead of role
           content: userPrompt, // Simplified: content instead of parts
