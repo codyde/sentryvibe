@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ChevronDown, User as UserIcon } from "lucide-react";
+import { Sparkles, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TabbedPreview from "@/components/TabbedPreview";
 import TerminalOutput from "@/components/TerminalOutput";
@@ -57,8 +57,7 @@ import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
-import { Separator } from "@/components/ui/separator";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 // TanStack DB removed - using TanStack Query only
 // Simplified message structure kept
 interface MessagePart {
@@ -118,7 +117,7 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [showFullHistory, setShowFullHistory] = useState(false);
 
   const classifyMessage = useCallback((message: Message) => {
     const role = (message.role ?? message.type ?? '').toLowerCase();
@@ -127,20 +126,44 @@ function HomeContent() {
     return 'other';
   }, []);
 
+  const sanitizeMessageText = useCallback((raw: string) => {
+    if (!raw) return '';
+    let text = raw.trim();
+    if (!text) return '';
+
+    // Skip formatting multi-line content (e.g., markdown summaries)
+    if (text.includes('\n')) {
+      return text;
+    }
+
+    // Remove trailing colon if present
+    if (text.endsWith(':')) {
+      text = text.slice(0, -1).trimEnd();
+    }
+
+    // Ensure the sentence ends with terminal punctuation
+    if (text && !/[.!?]$/.test(text)) {
+      text = `${text}.`;
+    }
+
+    return text;
+  }, []);
+
   const getMessageContent = useCallback((message: Message | null | undefined) => {
     if (!message) return '';
     if (message.content && message.content.trim().length > 0) {
-      return message.content;
+      return sanitizeMessageText(message.content);
     }
     if (message.parts && message.parts.length > 0) {
-      return message.parts
+      return sanitizeMessageText(
+        message.parts
         .filter((part) => part.type === 'text' && part.text)
         .map((part) => part.text)
         .join(' ')
-        .trim();
+      );
     }
     return '';
-  }, []);
+  }, [sanitizeMessageText]);
 
   const conversationMessages = useMemo(() => {
     return messages.filter((message) => {
@@ -149,17 +172,76 @@ function HomeContent() {
     });
   }, [messages, classifyMessage, getMessageContent]);
 
-  const latestConversationMessage = useMemo(() => {
-    if (conversationMessages.length === 0) return null;
-    return conversationMessages[conversationMessages.length - 1];
-  }, [conversationMessages]);
+  const initialUserMessage = useMemo(() => {
+    if (conversationMessages.length === 0) {
+      return null;
+    }
 
-  const historicalConversationMessages = useMemo(() => {
-    if (conversationMessages.length <= 1) return [];
-    return conversationMessages.slice(0, conversationMessages.length - 1);
-  }, [conversationMessages]);
+    const first = conversationMessages[0];
+    if (classifyMessage(first) === 'user') {
+      return first;
+    }
 
-  const hasHistoryMessages = conversationMessages.length > 0;
+    const firstUser = conversationMessages.find((message) => classifyMessage(message) === 'user');
+    return firstUser ?? first;
+  }, [conversationMessages, classifyMessage]);
+
+  const displayedInitialMessage = useMemo(() => {
+    if (initialUserMessage) {
+      return initialUserMessage;
+    }
+
+    if (currentProject?.originalPrompt) {
+      const fallbackDate =
+        (currentProject.createdAt instanceof Date
+          ? currentProject.createdAt
+          : currentProject.createdAt
+        ) ??
+        (currentProject.updatedAt instanceof Date
+          ? currentProject.updatedAt
+          : currentProject.updatedAt) ??
+        new Date();
+
+      return {
+        id: 'project-original-prompt',
+        projectId: currentProject.id,
+        role: 'user' as const,
+        type: 'user' as const,
+        content: currentProject.originalPrompt,
+        timestamp: new Date(fallbackDate).getTime(),
+      } satisfies Message;
+    }
+
+    return null;
+  }, [initialUserMessage, currentProject]);
+
+  const latestAgentMessage = useMemo(() => {
+    for (let i = conversationMessages.length - 1; i >= 0; i--) {
+      const message = conversationMessages[i];
+      if (classifyMessage(message) === 'assistant') {
+        return message;
+      }
+    }
+    return null;
+  }, [conversationMessages, classifyMessage]);
+
+  const fullConversationMessages = useMemo(() => {
+    const result: Message[] = [];
+    const seen = new Set<string>();
+
+    const push = (message: Message | null | undefined) => {
+      if (!message) return;
+      const key = message.id ?? `${message.role ?? 'unknown'}-${result.length}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(message);
+    };
+
+    push(displayedInitialMessage);
+    conversationMessages.forEach(push);
+
+    return result;
+  }, [displayedInitialMessage, conversationMessages]);
 
   const formatMessageTimestamp = useCallback((message: Message): string | null => {
     const raw = message.timestamp;
@@ -172,10 +254,43 @@ function HomeContent() {
     });
   }, []);
 
+  const lastConversationMessage =
+    conversationMessages.length > 0 ? conversationMessages[conversationMessages.length - 1] : null;
+
   const showAgentTyping =
     (isGenerating || generationState?.isActive) &&
-    (!latestConversationMessage || classifyMessage(latestConversationMessage) !== 'assistant');
-  
+    (!latestAgentMessage ||
+      (lastConversationMessage !== null && classifyMessage(lastConversationMessage) !== 'assistant'));
+
+  const TypingIndicator = () => (
+    <motion.div
+      className="flex justify-end"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="flex max-w-full items-end gap-3 flex-row-reverse">
+        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+          <Sparkles className="h-4 w-4 text-purple-200" />
+        </div>
+        <div className="max-w-[80%] w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 shadow-lg shadow-black/20 text-left">
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <span className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300" />
+            <span
+              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+              style={{ animationDelay: '0.15s' }}
+            />
+            <span
+              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+              style={{ animationDelay: '0.3s' }}
+            />
+            <span className="ml-2 text-xs text-zinc-400">Agent is thinking…</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+
   // WebSocket connection for real-time updates (primary source)
   // Enable if: project exists AND (actively generating OR has active session in state)
   const hasActiveSession = generationState?.isActive === true;
@@ -335,7 +450,7 @@ function HomeContent() {
   useEffect(() => {
     generationStateRef.current = generationState;
   }, [generationState]);
-  
+
   // Sync WebSocket state to local state (both hydrated and live updates)
   // IMPORTANT: Merge WebSocket updates with existing state to preserve metadata
   useEffect(() => {
@@ -2724,17 +2839,25 @@ function HomeContent() {
                                 </span>
                               )}
                             </div>
-                            {messages.length > 0 && (
-                              <span className="text-xs text-gray-500">
-                                {messages.length} messages
-                              </span>
-                            )}
+                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                              {messages.length > 0 && (
+                                <span>{messages.length} messages</span>
+                              )}
+                              <label className="flex items-center gap-2 text-gray-400">
+                                <Switch
+                                  checked={showFullHistory}
+                                  onCheckedChange={setShowFullHistory}
+                                  aria-label="Toggle chat history"
+                                />
+                                <span>Show chat history</span>
+                              </label>
+                            </div>
                           </div>
                         )}
 
                       <div
                         ref={scrollContainerRef}
-                        className="flex-1 overflow-y-auto p-6 min-h-0 space-y-4"
+                        className="flex-1 overflow-y-auto p-6 min-h-0"
                       >
                         {/* Beautiful loading */}
                         {isCreatingProject && (
@@ -2928,163 +3051,125 @@ function HomeContent() {
                                 )}
 
                                 <div className="space-y-6">
-                                  {latestConversationMessage ? (
+                                  {showFullHistory ? (
                                     <>
-                                      {(() => {
-                                        const role = classifyMessage(latestConversationMessage);
-                                        const align = role === 'assistant' ? 'right' : 'left';
-                                        const tone = role === 'assistant' ? 'agent' : 'user';
-                                        const timestamp = formatMessageTimestamp(latestConversationMessage);
-                                        const icon =
-                                          role === 'assistant' ? (
-                                            <Sparkles className="h-4 w-4 text-purple-200" />
-                                          ) : (
-                                            <UserIcon className="h-4 w-4 text-white" />
-                                          );
-
-                                        return (
-                                          <motion.div
-                                            key={latestConversationMessage.id ?? 'latest-message'}
-                                            className={cn(
-                                              'flex',
-                                              align === 'right' ? 'justify-end' : 'justify-start'
-                                            )}
-                                            initial={{ opacity: 0, translateY: 16 }}
-                                            animate={{ opacity: 1, translateY: 0 }}
-                                            transition={{ duration: 0.25 }}
-                                          >
-                                            <div
-                                              className={cn(
-                                                'flex max-w-full items-end gap-3',
-                                                align === 'right' ? 'flex-row-reverse' : 'flex-row'
-                                              )}
-                                            >
-                                              <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
-                                                {icon}
-                                              </div>
-                                              <ChatUpdate
-                                                content={getMessageContent(latestConversationMessage)}
-                                                align={align}
-                                                tone={tone}
-                                                variant="live"
-                                                timestamp={timestamp}
-                                              />
-                                            </div>
-                                          </motion.div>
-                                        );
-                                      })()}
-
-                                      {showAgentTyping && (
-                                        <motion.div
-                                          className="flex justify-end"
-                                          initial={{ opacity: 0 }}
-                                          animate={{ opacity: 1 }}
-                                          transition={{ duration: 0.3 }}
-                                        >
-                                          <div className="flex max-w-full items-end gap-3 flex-row-reverse">
-                                            <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                      {fullConversationMessages.length > 0 ? (
+                                        fullConversationMessages.map((message, index) => {
+                                          const role = classifyMessage(message);
+                                          const align = role === 'assistant' ? 'right' : 'left';
+                                          const tone = role === 'assistant' ? 'agent' : 'user';
+                                          const timestamp = formatMessageTimestamp(message);
+                                          const icon =
+                                            role === 'assistant' ? (
                                               <Sparkles className="h-4 w-4 text-purple-200" />
-                                            </div>
-                                            <div className="max-w-[80%] w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 shadow-lg shadow-black/20 text-left">
-                                              <div className="flex items-center gap-2 text-sm text-zinc-300">
-                                                <span className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300" />
-                                                <span
-                                                  className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
-                                                  style={{ animationDelay: '0.15s' }}
+                                            ) : (
+                                              <UserIcon className="h-4 w-4 text-white" />
+                                            );
+
+                                          return (
+                                            <motion.div
+                                              key={message.id || index}
+                                              className={cn(
+                                                'flex',
+                                                align === 'right' ? 'justify-end' : 'justify-start'
+                                              )}
+                                              initial={{ opacity: 0, translateY: 12 }}
+                                              animate={{ opacity: 1, translateY: 0 }}
+                                              transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.2) }}
+                                            >
+                                              <div
+                                                className={cn(
+                                                  'flex max-w-full items-end gap-3',
+                                                  align === 'right' ? 'flex-row-reverse' : 'flex-row'
+                                                )}
+                                              >
+                                                <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                  {icon}
+                                                </div>
+                                                <ChatUpdate
+                                                  content={getMessageContent(message)}
+                                                  align={align}
+                                                  tone={tone}
+                                                  variant="live"
+                                                  timestamp={timestamp}
                                                 />
-                                                <span
-                                                  className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
-                                                  style={{ animationDelay: '0.3s' }}
-                                                />
-                                                <span className="ml-2 text-xs text-zinc-400">
-                                                  Agent is thinking…
-                                                </span>
                                               </div>
-                                            </div>
+                                            </motion.div>
+                                          );
+                                        })
+                                      ) : (
+                                        !showAgentTyping && (
+                                          <div className="text-center text-sm text-gray-500">
+                                            No messages yet—start the conversation below.
                                           </div>
-                                        </motion.div>
+                                        )
+                                      )}
+
+                                      {showAgentTyping && <TypingIndicator />}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {displayedInitialMessage || latestAgentMessage ? (
+                                        <>
+                                          {displayedInitialMessage && (
+                                            <motion.div
+                                              key={displayedInitialMessage.id ?? 'initial-user'}
+                                              className="flex justify-start"
+                                              initial={{ opacity: 0, translateY: 16 }}
+                                              animate={{ opacity: 1, translateY: 0 }}
+                                              transition={{ duration: 0.25 }}
+                                            >
+                                              <div className="flex max-w-full items-end gap-3 flex-row">
+                                                <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                  <UserIcon className="h-4 w-4 text-white" />
+                                                </div>
+                                                <ChatUpdate
+                                                  content={getMessageContent(displayedInitialMessage)}
+                                                  align="left"
+                                                  tone="user"
+                                                  variant="live"
+                                                  timestamp={formatMessageTimestamp(displayedInitialMessage)}
+                                                />
+                                              </div>
+                                            </motion.div>
+                                          )}
+
+                                          {latestAgentMessage && (
+                                            <motion.div
+                                              key={latestAgentMessage.id ?? 'latest-agent'}
+                                              className="flex justify-end"
+                                              initial={{ opacity: 0, translateY: 16 }}
+                                              animate={{ opacity: 1, translateY: 0 }}
+                                              transition={{ duration: 0.25, delay: displayedInitialMessage ? 0.05 : 0 }}
+                                            >
+                                              <div className="flex max-w-full items-end gap-3 flex-row-reverse">
+                                                <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                  <Sparkles className="h-4 w-4 text-purple-200" />
+                                                </div>
+                                                <ChatUpdate
+                                                  content={getMessageContent(latestAgentMessage)}
+                                                  align="right"
+                                                  tone="agent"
+                                                  variant="live"
+                                                  timestamp={formatMessageTimestamp(latestAgentMessage)}
+                                                />
+                                              </div>
+                                            </motion.div>
+                                          )}
+
+                                          {showAgentTyping && <TypingIndicator />}
+                                        </>
+                                      ) : showAgentTyping ? (
+                                        <TypingIndicator />
+                                      ) : (
+                                        <div className="text-center text-sm text-gray-500">
+                                          No messages yet—start the conversation below.
+                                        </div>
                                       )}
                                     </>
-                                  ) : showAgentTyping ? (
-                                    <motion.div
-                                      className="flex justify-end"
-                                      initial={{ opacity: 0 }}
-                                      animate={{ opacity: 1 }}
-                                      transition={{ duration: 0.3 }}
-                                    >
-                                      <div className="flex max-w-full items-end gap-3 flex-row-reverse">
-                                        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
-                                          <Sparkles className="h-4 w-4 text-purple-200" />
-                                        </div>
-                                        <div className="max-w-[80%] w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 shadow-lg shadow-black/20 text-left">
-                                          <div className="flex items-center gap-2 text-sm text-zinc-300">
-                                            <span className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300" />
-                                            <span
-                                              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
-                                              style={{ animationDelay: '0.15s' }}
-                                            />
-                                            <span
-                                              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
-                                              style={{ animationDelay: '0.3s' }}
-                                            />
-                                            <span className="ml-2 text-xs text-zinc-400">
-                                              Agent is thinking…
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  ) : (
-                                    <div className="text-center text-sm text-gray-500">
-                                      No messages yet—start the conversation below.
-                                    </div>
                                   )}
 
                                   <div ref={messagesEndRef} />
-
-                                  <Separator className="bg-white/10" />
-
-                                  <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-                                    <CollapsibleTrigger className="w-full flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10">
-                                      <span>Chat History</span>
-                                      <ChevronDown
-                                        className={`h-4 w-4 text-white transition-transform ${
-                                          isHistoryOpen ? 'rotate-180' : ''
-                                        }`}
-                                      />
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent className="mt-4 space-y-3">
-                                      {historicalConversationMessages.map((message, index) => {
-                                        const role = classifyMessage(message);
-                                        const align = role === 'assistant' ? 'right' : 'left';
-                                        const tone = role === 'assistant' ? 'agent' : 'user';
-                                        const timestamp = formatMessageTimestamp(message);
-                                        return (
-                                          <div
-                                            key={message.id || index}
-                                            className={cn(
-                                              'flex',
-                                              align === 'right' ? 'justify-end' : 'justify-start'
-                                            )}
-                                          >
-                                            <ChatUpdate
-                                              content={getMessageContent(message)}
-                                              align={align}
-                                              tone={tone}
-                                              variant="history"
-                                              timestamp={timestamp}
-                                            />
-                                          </div>
-                                        );
-                                      })}
-                                      {!hasHistoryMessages || historicalConversationMessages.length === 0 ? (
-                                        <p className="text-center text-sm text-gray-500">
-                                          No chat history yet.
-                                        </p>
-                                      ) : null}
-                                      <div ref={messagesEndRef} />
-                                    </CollapsibleContent>
-                                  </Collapsible>
                                 </div>
                                 </div>
                                 </>

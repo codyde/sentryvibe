@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/node';
 import { createInstrumentedCodex } from '@sentry/node';
 import { metrics } from '@sentry/core';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
-import { projects } from '@sentryvibe/agent-core/lib/db/schema';
+import { projects, messages } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
@@ -193,6 +193,17 @@ export async function POST(request: Request) {
     }).returning();
 
     console.log(`✅ Project created: ${project.id}`);
+
+    // Persist initial user prompt as first chat message
+    try {
+      await db.insert(messages).values({
+        projectId: project.id,
+        role: 'user',
+        content: prompt,
+      });
+    } catch (messageError) {
+      console.error(`[projects POST] Failed to persist initial prompt for project ${project.id}:`, messageError);
+    }
 
     // Track project submission with key tags
     const submissionAttributes: Record<string, string> = {
