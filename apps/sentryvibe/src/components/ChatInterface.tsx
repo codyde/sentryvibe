@@ -70,12 +70,7 @@ export function ChatInterface({
 
         console.log('[ChatInterface] Building query for projectId:', currentProjectId);
 
-        // Double-check collection is still valid before building query
-        if (!messageCollection || typeof messageCollection.getAll !== 'function') {
-          console.log('[ChatInterface] Collection invalid at query build time');
-          return null;
-        }
-
+        // Collection is valid, build the query
         return q
           .from({ message: messageCollection })
           .where(({ message }) => message.projectId === currentProjectId)

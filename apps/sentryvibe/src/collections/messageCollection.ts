@@ -1,170 +1,112 @@
 import { createCollection } from '@tanstack/react-db';
 import { queryCollectionOptions } from '@tanstack/query-db-collection';
+import { queryClient } from '@/app/providers';
 import type { Message } from '@/types/messages';
-
-// Lazy import queryClient to avoid SSR issues
-let _queryClient: any = null;
-const getQueryClient = () => {
-  if (!_queryClient && typeof window !== 'undefined') {
-    // Only import on client side
-    _queryClient = require('@/app/providers').queryClient;
-  }
-  return _queryClient;
-};
 
 /**
  * Message Collection
  *
- * Syncs with PostgreSQL messages table via API endpoints.
- * Provides instant updates to UI via differential dataflow while
- * reliably persisting all messages to the database.
+ * Following TanStack DB docs pattern exactly:
+ * - Create collection at module level (like docs example)
+ * - No typeof window checks (module only loads in client component)
+ * - This file imported only in ChatInterface (ssr: false), so always client-side
  *
  * Sync Strategy:
- * - Load: PostgreSQL → TanStack Query → Collection (automatic)
- * - Insert: Collection (instant UI) → onInsert → PostgreSQL (async)
- * - Update: Collection (instant UI) → onUpdate → PostgreSQL (async)
- * - Streaming: Use context.streaming flag to skip PostgreSQL saves during stream
- *
- * SSR Safe: Only initializes on client side
+ * - Load: PostgreSQL → TanStack Query → Collection (queryFn)
+ * - Insert: Collection → onInsert → PostgreSQL
+ * - Update: Collection → onUpdate → PostgreSQL
+ * - Delete: Collection → onDelete → PostgreSQL
  */
 
-// Create collection lazily to avoid SSR issues
-let _messageCollection: any = null;
+export const messageCollection = createCollection(
+  queryCollectionOptions<Message, string>({
+    queryClient,
+    queryKey: ['messages'],
+    queryFn: async () => {
+      console.log('📥 [messageCollection] Fetching messages from PostgreSQL');
 
-export const getMessageCollection = () => {
-  // Only create collection in browser environment (not during build/SSR)
-  if (!_messageCollection && typeof window !== 'undefined' && typeof document !== 'undefined') {
-    const { queryCollectionOptions } = require('@tanstack/query-db-collection');
+      const res = await fetch('/api/messages');
+      if (!res.ok) {
+        console.error('❌ [messageCollection] Fetch failed:', res.status);
+        throw new Error(`Failed to fetch messages: ${res.status}`);
+      }
 
-    _messageCollection = createCollection(
-      queryCollectionOptions<Message, string>({
-        queryClient: getQueryClient(),
-        queryKey: ['messages'],
-        enabled: true, // Explicitly enable the query
-        refetchOnMount: true, // Fetch messages on every mount
-        staleTime: 10000, // Consider messages stale after 10 seconds
-        queryFn: async () => {
-          console.log('📥 [messageCollection] Fetching messages from PostgreSQL via /api/messages');
+      const data = await res.json();
+      const messages = data.messages || [];
 
-          const res = await fetch('/api/messages');
-          if (!res.ok) {
-            console.error('❌ [messageCollection] Fetch failed:', res.status, res.statusText);
-            throw new Error(`Failed to fetch messages: ${res.status}`);
-          }
+      console.log(`✅ [messageCollection] Loaded ${messages.length} messages`);
 
-          const data = await res.json();
-          const messages = data.messages || [];
+      return messages;
+    },
+    getKey: (message) => message.id,
 
-          console.log(`✅ [messageCollection] Loaded ${messages.length} messages from PostgreSQL`);
-          if (messages.length > 0) {
-            console.log('[messageCollection] Sample message:', {
-              id: messages[0].id,
-              projectId: messages[0].projectId,
-              type: messages[0].type,
-              contentPreview: messages[0].content?.substring(0, 50),
-            });
-          }
+    // Sync new messages to PostgreSQL
+    onInsert: async ({ transaction }) => {
+      const { changes: message } = transaction.mutations[0];
+      console.log('💾 [messageCollection] Inserting message:', message.id);
 
-          return messages;
-        },
-        getKey: (message) => message.id,
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message),
+      });
 
-        // Sync new messages to PostgreSQL
-        onInsert: async ({ transaction }) => {
-          const { changes: message } = transaction.mutations[0];
-          console.log('💾 [messageCollection] Inserting message to PostgreSQL:', message.id);
+      if (!res.ok) {
+        throw new Error('Failed to insert message');
+      }
 
-          try {
-            const res = await fetch('/api/messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(message),
-            });
+      console.log('✅ [messageCollection] Message inserted:', message.id);
+    },
 
-            if (!res.ok) {
-              throw new Error('Failed to insert message to PostgreSQL');
-            }
+    // Sync updates to PostgreSQL
+    onUpdate: async ({ transaction }) => {
+      const { original, changes } = transaction.mutations[0];
+      console.log('💾 [messageCollection] Updating message:', original.id);
 
-            console.log('✅ [messageCollection] Message inserted to PostgreSQL:', message.id);
-          } catch (error) {
-            console.error('❌ [messageCollection] Failed to insert message:', error);
-            throw error;
-          }
-        },
+      const res = await fetch(`/api/messages/${original.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      });
 
-        // Sync message updates to PostgreSQL
-        onUpdate: async ({ transaction }) => {
-          const { original, changes } = transaction.mutations[0];
+      if (!res.ok) {
+        throw new Error('Failed to update message');
+      }
 
-          console.log('💾 [messageCollection] Updating message in PostgreSQL:', original.id);
+      console.log('✅ [messageCollection] Message updated:', original.id);
+    },
 
-          try {
-            const res = await fetch(`/api/messages/${original.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(changes),
-            });
+    // Sync deletions to PostgreSQL
+    onDelete: async ({ transaction }) => {
+      const { original } = transaction.mutations[0];
+      console.log('🗑️  [messageCollection] Deleting message:', original.id);
 
-            if (!res.ok) {
-              throw new Error('Failed to update message in PostgreSQL');
-            }
+      const res = await fetch(`/api/messages/${original.id}`, {
+        method: 'DELETE',
+      });
 
-            console.log('✅ [messageCollection] Message updated in PostgreSQL:', original.id);
-          } catch (error) {
-            console.error('❌ [messageCollection] Failed to update message:', error);
-            throw error;
-          }
-        },
+      if (!res.ok) {
+        throw new Error('Failed to delete message');
+      }
 
-        // Sync message deletions to PostgreSQL
-        onDelete: async ({ transaction }) => {
-          const { original } = transaction.mutations[0];
-          console.log('🗑️  [messageCollection] Deleting message from PostgreSQL:', original.id);
+      console.log('✅ [messageCollection] Message deleted:', original.id);
+    },
+  })
+);
 
-          try {
-            const res = await fetch(`/api/messages/${original.id}`, {
-              method: 'DELETE',
-            });
-
-            if (!res.ok) {
-              throw new Error('Failed to delete message from PostgreSQL');
-            }
-
-            console.log('✅ [messageCollection] Message deleted from PostgreSQL:', original.id);
-          } catch (error) {
-            console.error('❌ [messageCollection] Failed to delete message:', error);
-            throw error;
-          }
-        },
-      })
-    );
-
-    console.log('✅ [messageCollection] Initialized with PostgreSQL sync');
-  }
-  return _messageCollection;
-};
-
-// Export for convenience (will be null during SSR)
-export const messageCollection = typeof window !== 'undefined' ? getMessageCollection() : null as any;
+console.log('✅ [messageCollection] Initialized');
 
 /**
- * Helper function to upsert a message
- * Handles both insert (if new) and update (if exists) cases
- * SSR Safe: Only runs on client
+ * Helper: Upsert a message (insert if new, update if exists)
  */
 export function upsertMessage(message: Message) {
-  if (typeof window === 'undefined') return; // Skip during SSR
-
-  const collection = getMessageCollection();
-  const existing = collection.get(message.id);
+  const existing = messageCollection.get(message.id);
 
   if (existing) {
-    // Update existing message
-    collection.update(message.id, (draft) => {
+    messageCollection.update(message.id, (draft) => {
       Object.assign(draft, message);
     });
   } else {
-    // Insert new message
-    collection.insert(message);
+    messageCollection.insert(message);
   }
 }
