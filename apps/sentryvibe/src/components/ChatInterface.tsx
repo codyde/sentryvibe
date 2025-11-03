@@ -32,11 +32,11 @@ export function ChatInterface({
   messagesEndRef,
 }: ChatInterfaceProps) {
   // Client-only hydration pattern
-  const [isDBHydrated, setIsDBHydrated] = useState(false);
+  // Start as true since this component only loads client-side (ssr: false)
+  const [isDBHydrated, setIsDBHydrated] = useState(true);
 
   useEffect(() => {
-    setIsDBHydrated(true);
-    console.log('[ChatInterface] Component mounted and hydrated');
+    console.log('[ChatInterface] Component mounted');
   }, []);
 
   // TanStack DB Live Query for messages
@@ -103,12 +103,23 @@ export function ChatInterface({
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       {messages.map((message, index) => {
+        // Skip if no message or no content
+        if (!message || !message.content) {
+          return null;
+        }
+
         const isUser = message.type === "user";
         const isSystem = message.type === "system";
         const isToolCall = message.type === "tool-call";
+        const isToolResult = message.type === "tool-result";
 
-        // Skip tool calls and system messages for now (can render differently later)
-        if (isToolCall || isSystem) {
+        // Skip tool calls, system messages, and tool results (shown in BuildProgress)
+        if (isToolCall || isSystem || isToolResult) {
+          return null;
+        }
+
+        // Skip empty content
+        if (message.content.trim().length === 0) {
           return null;
         }
 
