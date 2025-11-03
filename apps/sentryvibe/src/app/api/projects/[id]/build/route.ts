@@ -195,12 +195,8 @@ export async function POST(
     let currentMessageId: string | null = null;
     const completedMessages: Array<{role: 'assistant'; content: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}>}> = [];
 
-    // Save user message first
-    await db.insert(messages).values({
-      projectId: id,
-      role: 'user',
-      content: JSON.stringify([{ type: 'text', text: body.prompt }]),
-    });
+    // User message already saved by frontend via TanStack DB
+    // Skip duplicate save here (hybrid approach - frontend saves user messages)
 
     // Update project with runnerId if not already set (for existing projects)
     if (!project[0].runnerId) {
