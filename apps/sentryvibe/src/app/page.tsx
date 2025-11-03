@@ -1433,7 +1433,7 @@ function HomeContent() {
           if (data.type === "start") {
             // Create initial assistant message (simplified structure)
             currentMessage = {
-              id: data.messageId || crypto.randomUUID(), // Use UUID to match database
+              id: crypto.randomUUID(), // ALWAYS generate UUID (ignore data.messageId - it's not UUID format!)
               projectId: projectId,
               type: "assistant",
               content: "", // Will be updated as text streams
@@ -1703,39 +1703,10 @@ function HomeContent() {
               return updated;
             });
 
-            // Also update in message for DB persistence
-            if (currentMessage?.id) {
-              const toolPartIndex = currentMessage.parts.findIndex(
-                (p) => p.toolCallId === data.toolCallId
-              );
-              if (toolPartIndex >= 0) {
-                const updatedParts = [...currentMessage.parts];
-                updatedParts[toolPartIndex] = {
-                  ...updatedParts[toolPartIndex],
-                  output: data.output,
-                  state: "output-available",
-                };
-
-                const updatedMessage: Message = {
-                  ...currentMessage,
-                  parts: updatedParts,
-                };
-
-                currentMessage = updatedMessage;
-
-                // MIGRATION: Use TanStack DB upsertMessage
-                upsertMessage(updatedMessage);
-
-                // Legacy (keeping during migration, will remove)
-                setMessages((prev) =>
-                  prev.some((m) => m.id === updatedMessage.id)
-                    ? prev.map((m) =>
-                        m.id === updatedMessage.id ? updatedMessage : m
-                      )
-                    : [...prev, updatedMessage]
-                );
-              }
-            }
+            // REMOVED: Tool output handling for messages
+            // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
+            // This code was trying to use old Message.parts structure which doesn't exist
+            // in simplified Message (type + content only)
           } else if (
             data.type === "data-reasoning" ||
             data.type === "reasoning"
@@ -2121,8 +2092,8 @@ function HomeContent() {
           messageCollection.insert(userMessage);
         }
 
-        // Legacy (keeping during migration, will remove)
-        setMessages([userMessage as any]);
+        // Legacy fallback: APPEND to array (don't replace!)
+        setMessages(prev => [...prev, userMessage as any]);
 
         // Start generation stream (don't add user message again)
         if (DEBUG_PAGE) console.log("🚀 Starting generation stream...");
@@ -3037,43 +3008,51 @@ function HomeContent() {
                                 return null;
                               }
 
-                              // Skip messages with no visible content (only tools during active generation)
-                              const hasVisibleContent = message.parts.some(
-                                (part) => {
-                                  if (part.type === "text" && part.text)
-                                    return true;
-                                  if (
-                                    part.type.startsWith("tool-") &&
-                                    part.toolName !== "TodoWrite" &&
-                                    !generationStateRef.current?.isActive
-                                  )
-                                    return true;
-                                  return false;
-                                }
-                              );
-
-                              if (!hasVisibleContent) {
+                              // MIGRATION: Simplified Message structure (type + content)
+                              // Skip tool calls and system messages
+                              if (message.type === 'tool-call' || message.type === 'system') {
                                 return null;
                               }
 
-                              // Regular message rendering
+                              // Skip empty messages
+                              if (!message.content || message.content.trim().length === 0) {
+                                return null;
+                              }
+
+                              // Regular message rendering (simplified)
                               return (
                                 <div
                                   key={message.id}
                                   className={`flex ${
-                                    message.role === "user"
+                                    message.type === "user"
                                       ? "justify-end"
                                       : "justify-start"
                                   } animate-in slide-in-from-bottom-4 duration-500`}
                                 >
                                   <div
                                     className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
-                                      message.role === "user"
+                                      message.type === "user"
                                         ? "bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30"
                                         : "bg-white/5 border border-white/10 text-white"
                                     }`}
                                   >
-                                    {message.parts.map((part, i) => {
+                                    {/* Simplified: Just render content directly */}
+                                    <div className="prose prose-invert max-w-none text-sm">
+                                      {message.content}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* REMOVED: Complex legacy message.parts.map() rendering
+                                This was ~100 lines of code for old parts-based structure
+                                Now using simple message.content rendering above
+                            */}
+                            {false && messages.map((message) => {
+                              {/* Old complex parts rendering code - keeping for reference but disabled */}
+                              return null;
+                            })}
                                       if (part.type === "text") {
                                         // Check if this is a summary message
                                         const isSummary =
