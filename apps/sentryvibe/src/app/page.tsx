@@ -1442,8 +1442,9 @@ function HomeContent() {
               timestamp: Date.now(),
             };
 
-            // Don't insert to collection - backend saves assistant messages
-            // This prevents duplicates and ensures messages persist even if user disconnects
+            // Add to legacy state for immediate UI display (not to collection)
+            // Backend persists to DB, collection loads it later
+            setMessages((prev) => [...prev, currentMessage as any]);
           } else if (data.type === "text-start") {
             // Track text blocks for accumulation
             textBlocksMap.set(data.id, { type: "text", text: "" });
@@ -1474,10 +1475,7 @@ function HomeContent() {
 
               currentMessage = updatedMessage;
 
-              // Don't update collection - backend saves assistant messages
-              // Just update legacy state for immediate UI feedback
-
-              // Legacy (keeping during migration, will remove)
+              // Update legacy state for live UI (not collection - backend saves)
               setMessages((prev) =>
                 prev.some((m) => m.id === updatedMessage.id)
                   ? prev.map((m) =>

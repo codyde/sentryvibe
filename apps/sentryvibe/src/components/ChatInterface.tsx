@@ -55,7 +55,9 @@ export function ChatInterface({
     [isDBHydrated, currentProjectId]
   );
 
-  const messages = messagesFromDB || [];
+  // Hybrid display: Use legacy during active generation (live updates)
+  // Use TanStack DB after generation complete (persisted messages)
+  const messages = messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
