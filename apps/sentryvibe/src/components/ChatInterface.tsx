@@ -75,30 +75,25 @@ export function ChatInterface({
     [isDBHydrated, currentProjectId]
   );
 
-  // Use TanStack DB if available, fallback to legacy
-  const messages =
-    messagesFromDB && messagesFromDB.length > 0 ? messagesFromDB : messages_LEGACY;
+  // Use TanStack DB exclusively (no legacy fallback)
+  // Persistence is working, no need for fallback
+  const messages = messagesFromDB || [];
 
-  // Debug logging - detailed
+  // Debug logging
   useEffect(() => {
     console.log('[ChatInterface] Messages updated:', {
-      fromDB: messagesFromDB?.length || 0,
-      fromLegacy: messages_LEGACY.length,
-      using: messagesFromDB?.length > 0 ? 'TanStack DB' : 'Legacy',
-      total: messages.length,
+      count: messagesFromDB?.length || 0,
       projectId: currentProjectId,
-      collectionInitialized: !!messageCollection,
-      isDBHydrated,
     });
 
     if (messagesFromDB && messagesFromDB.length > 0) {
-      console.log('[ChatInterface] Messages from DB:', messagesFromDB.map(m => ({
+      console.log('[ChatInterface] Loaded messages:', messagesFromDB.map(m => ({
         id: m.id.substring(0, 8),
         type: m.type,
-        contentPreview: m.content.substring(0, 50),
+        preview: m.content.substring(0, 30) + '...',
       })));
     }
-  }, [messagesFromDB, messages_LEGACY, messages, currentProjectId, isDBHydrated]);
+  }, [messagesFromDB, currentProjectId]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
