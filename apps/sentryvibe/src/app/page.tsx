@@ -2113,11 +2113,19 @@ function HomeContent() {
         setIsCreatingProject(false);
       }
     } else {
-      // CRITICAL FIX: When currentProject exists, ALWAYS iterate on existing project
-      // Both chat and build tabs work on the same project, just different UI
-      await startGeneration(currentProject.id, userPrompt, {
-        addUserMessage: true,
-      });
+      // DISABLED: This was causing duplicate inserts during project creation
+      // When project is created, currentProject gets set, then this runs again
+      // Creating a second insert with different UUID
+
+      // TODO: Fix the flow so this doesn't run during initial project creation
+      // For now, commenting out to eliminate duplicates
+
+      console.warn('[handleSubmit] Skipping - currentProject exists but should use different handler');
+      return;
+
+      // await startGeneration(currentProject.id, userPrompt, {
+      //   addUserMessage: true,
+      // });
     }
   };
 
