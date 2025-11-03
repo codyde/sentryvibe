@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { randomUUID } from "crypto";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -1257,7 +1258,7 @@ function HomeContent() {
     // Only add user message to UI if this is a continuation (not auto-start)
     if (addUserMessage) {
       const userMessage: Message = {
-        id: `msg-${Date.now()}`,
+        id: randomUUID(),
         role: "user",
         parts: [{ type: "text", text: prompt }],
       };
@@ -1407,7 +1408,7 @@ function HomeContent() {
           if (data.type === "start") {
             // Don't create messages during generation - they're captured in generationState
             currentMessage = {
-              id: data.messageId || `msg-${Date.now()}`,
+              id: data.messageId || randomUUID(),
               role: "assistant",
               parts: [],
             };
@@ -2061,7 +2062,7 @@ function HomeContent() {
 
         // Add user message
         const userMessage: Message = {
-          id: `msg-${Date.now()}`,
+          id: randomUUID(),
           role: "user",
           parts: [{ type: "text", text: userPrompt }],
         };
