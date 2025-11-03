@@ -36,15 +36,7 @@ export function ChatInterface({
 
   useEffect(() => {
     setIsDBHydrated(true);
-
-    // CRITICAL: Manually trigger QueryCollection fetch on mount
-    // QueryCollection queryFn doesn't auto-run, needs explicit refetch
-    if (messageCollection) {
-      console.log('[ChatInterface] Triggering manual refetch of messages');
-      messageCollection.utils.refetch().catch((err: Error) => {
-        console.error('[ChatInterface] Failed to refetch messages:', err);
-      });
-    }
+    console.log('[ChatInterface] Component mounted and hydrated');
   }, []);
 
   // TanStack DB Live Query for messages

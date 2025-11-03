@@ -16,7 +16,6 @@
 // Message collection (synced with PostgreSQL)
 export {
   messageCollection,
-  getMessageCollection,
   upsertMessage,
 } from './messageCollection';
 
