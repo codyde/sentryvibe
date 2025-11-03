@@ -48,12 +48,16 @@ export function ChatInterface({
   }, []);
 
   // TanStack DB Live Query for messages
+  // ALWAYS call hook (Rules of Hooks), return null when not ready (not undefined!)
   const { data: messagesFromDB } = useLiveQuery(
     (q) => {
+      // Return null (not undefined) when not ready - TanStack DB handles null better
       if (!isDBHydrated || !messageCollection || !currentProjectId) {
-        return undefined;
+        console.log('[ChatInterface] Query skipped - not ready:', { isDBHydrated, hasCollection: !!messageCollection, hasProjectId: !!currentProjectId });
+        return null;
       }
 
+      console.log('[ChatInterface] Building query for projectId:', currentProjectId);
       return q
         .from({ message: messageCollection })
         .where(({ message }) => message.projectId === currentProjectId)
