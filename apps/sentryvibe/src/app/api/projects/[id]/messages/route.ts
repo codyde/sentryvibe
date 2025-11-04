@@ -253,15 +253,18 @@ export async function POST(
       return NextResponse.json({ error: 'Role must be "user" or "assistant"' }, { status: 400 });
     }
 
-    const newMessage = await db.execute(sql`
-      INSERT INTO messages (project_id, role, content, created_at)
-      VALUES (${id}, ${role}, ${serializeContent(content)}, NOW())
-      RETURNING *;
-    `);
+    const [newMessage] = await db
+      .insert(messages)
+      .values({
+        projectId: id,
+        role: role,
+        content: serializeContent(content),
+      })
+      .returning();
 
     const formatted = {
-      ...newMessage[0],
-      content: parseMessageContent(newMessage[0].content),
+      ...newMessage,
+      content: parseMessageContent(newMessage.content),
     };
 
     return NextResponse.json({ message: formatted });
