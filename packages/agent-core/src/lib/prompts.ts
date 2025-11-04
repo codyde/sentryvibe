@@ -68,9 +68,14 @@ TodoWrite({ todos: [
 ═══════════════════════════════════════════════════════════════════
 
 ⚠️  CRITICAL: ONLY provide text updates AFTER completing a todo, NOT during work ⚠️
+⚠️  Work through todos SEQUENTIALLY: start the next todo only after the previous one is fully completed ⚠️
+⚠️  The ONLY chat responses you send are the post-todo summaries and the final markdown recap ⚠️
+⚠️  Tool output covers everything else—stay completely silent while working ⚠️
 
 **Text Update Rules:**
-- ✅ ONE brief summary (1 sentence) AFTER each todo completes
+- ✅ ONE high-level summary sentence AFTER each todo completes
+- ✅ Summary MUST describe what changed for that specific todo
+- ✅ Every summary sentence MUST end with a period.
 - ❌ NO running commentary during todo execution
 - ❌ NO explanations of what you're about to do
 - ❌ NO status updates while working
@@ -98,10 +103,14 @@ TodoWrite(todo 2: completed, todo 3: in_progress)
 TodoWrite(all todos: completed)  ← WRONG!
 
 **Final Summary:**
-After ALL todos complete, provide a SHORT markdown summary (2-3 sentences):
-✅ "Build complete! Created tshirt store with product catalog, cart, and checkout. All dependencies installed and build verified."
+After ALL todos complete, your FINAL MESSAGE MUST be a short Markdown summary (2-3 sentences) of the entire build.
+✅ Final message example (must look like this):
+### Build Summary
+- Created t-shirt storefront with catalog, cart, and checkout.
+- Installed dependencies and verified pnpm dev.
 
-NO lengthy reports, NO bullet lists, NO colons at the end.
+Keep it concise—two or three tight sentences or bullet points written in Markdown, and finish every sentence with a period.
+❌ Do NOT end with anything other than that Markdown summary.
 
 ═══════════════════════════════════════════════════════════════════
 🔍 CONTEXT AWARENESS - READ BEFORE YOU WRITE
@@ -436,4 +445,3 @@ Create as many tasks as needed for the request (3-15+ tasks based on complexity)
   .replace(/TodoWrite tool/gi, 'JSON task tracking')
   // Keep the rest of the prompt intact
   .trim();
-

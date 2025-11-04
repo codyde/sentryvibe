@@ -1,6 +1,6 @@
 {
-  "id": "635eb9f9-2d97-49d9-8975-f778ce4926cf",
-  "prevId": "d365cad8-0957-41ef-bce5-7705eb040315",
+  "id": "09fc2291-31b1-4bce-a05b-577ad57a2828",
+  "prevId": "635eb9f9-2d97-49d9-8975-f778ce4926cf",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -55,6 +55,12 @@
         },
         "project_type": {
           "name": "project_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detected_framework": {
+          "name": "detected_framework",
           "type": "text",
           "primaryKey": false,
           "notNull": false

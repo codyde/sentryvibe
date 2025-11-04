@@ -8,6 +8,7 @@ import { TagDropdown } from './TagDropdown';
 import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 import { TagOption, findTagDefinition } from '@sentryvibe/agent-core/config/tags';
 import { validateTagSet } from '@sentryvibe/agent-core/lib/tags/resolver';
+import { useTagSuggestions } from '@/mutations/tags';
 
 interface TagInputProps {
   tags: AppliedTag[];
@@ -25,8 +26,10 @@ export function TagInput({
   prompt
 }: TagInputProps) {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = React.useState(false);
   const [validationErrors, setValidationErrors] = React.useState<string[]>([]);
+
+  // TanStack Query mutation for AI tag suggestions
+  const tagSuggestionsMutation = useTagSuggestions();
 
   const handleAddTag = (key: string, value: string, expandedValues?: Record<string, string>) => {
     const def = findTagDefinition(key);
@@ -102,24 +105,12 @@ export function TagInput({
       return;
     }
 
-    setIsLoadingSuggestions(true);
-
     try {
-      const response = await fetch('/api/tags/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get tag suggestions');
-      }
-
-      const { tags: suggestedTags } = await response.json();
+      const result = await tagSuggestionsMutation.mutateAsync(prompt);
 
       // Apply suggested tags
-      if (Array.isArray(suggestedTags) && suggestedTags.length > 0) {
-        const newTags = suggestedTags.map((tag: { key: string; value: string; expandedValues?: Record<string, string> }) => ({
+      if (Array.isArray(result.tags) && result.tags.length > 0) {
+        const newTags = result.tags.map((tag) => ({
           key: tag.key,
           value: tag.value,
           expandedValues: tag.expandedValues,
@@ -129,8 +120,6 @@ export function TagInput({
       }
     } catch (error) {
       console.error('[TagInput] Failed to get tag suggestions:', error);
-    } finally {
-      setIsLoadingSuggestions(false);
     }
   };
 
@@ -171,10 +160,10 @@ export function TagInput({
             variant="outline"
             size="sm"
             onClick={handleSuggestTags}
-            disabled={isLoadingSuggestions}
+            disabled={tagSuggestionsMutation.isPending}
             className="h-7 px-2 bg-purple-900/20 border-purple-700/50 hover:bg-purple-800/30 hover:border-purple-600 font-mono text-xs text-purple-300"
           >
-            {isLoadingSuggestions ? (
+            {tagSuggestionsMutation.isPending ? (
               <>
                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                 Suggesting...

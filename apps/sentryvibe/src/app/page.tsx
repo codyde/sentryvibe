@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, User as UserIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import TabbedPreview from "@/components/TabbedPreview";
 import TerminalOutput from "@/components/TerminalOutput";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
@@ -27,6 +28,8 @@ import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
+import { useProjectMessages } from "@/queries/projects";
+import { useSaveMessage } from "@/mutations/messages";
 import type {
   GenerationState,
   ToolCall,
@@ -54,7 +57,9 @@ import { getClaudeModelLabel } from "@sentryvibe/agent-core/client";
 import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/serialization";
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
-
+import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
+import { Switch } from "@/components/ui/switch";
+// Simplified message structure kept
 interface MessagePart {
   type: string;
   text?: string;
@@ -65,27 +70,14 @@ interface MessagePart {
   state?: string;
 }
 
-interface ElementChange {
-  id: string;
-  elementSelector: string;
-  changeRequest: string;
-  elementInfo?: Record<string, unknown>;
-  status: "processing" | "completed" | "failed";
-  toolCalls: Array<{
-    name: string;
-    input?: Record<string, unknown>;
-    output?: Record<string, unknown>;
-    status: "running" | "completed" | "failed";
-  }>;
-  error?: string;
-}
-
 interface Message {
   id: string;
-  role: "user" | "assistant";
-  parts: MessagePart[];
-  generationState?: GenerationState; // For generation messages
-  elementChange?: ElementChange; // For element selector changes
+  projectId?: string;
+  type?: 'user' | 'assistant' | 'system' | 'tool-call' | 'tool-result';
+  role?: 'user' | 'assistant';
+  content?: string;
+  parts?: MessagePart[];
+  timestamp?: number;
 }
 
 const DEBUG_PAGE = false; // Set to true to enable verbose page logging
@@ -93,6 +85,10 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+
+  // Message mutation hook for saving
+  const saveMessageMutation = useSaveMessage();
+
   const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -124,7 +120,180 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
-  
+  const [showFullHistory, setShowFullHistory] = useState(false);
+
+  const classifyMessage = useCallback((message: Message) => {
+    const role = (message.role ?? message.type ?? '').toLowerCase();
+    if (role === 'user') return 'user';
+    if (role === 'assistant' || role === 'tool-result') return 'assistant';
+    return 'other';
+  }, []);
+
+  const sanitizeMessageText = useCallback((raw: string) => {
+    if (!raw) return '';
+    let text = raw.trim();
+    if (!text) return '';
+
+    // Skip formatting multi-line content (e.g., markdown summaries)
+    if (text.includes('\n')) {
+      return text;
+    }
+
+    // Remove trailing colon if present
+    if (text.endsWith(':')) {
+      text = text.slice(0, -1).trimEnd();
+    }
+
+    // Ensure the sentence ends with terminal punctuation
+    if (text && !/[.!?]$/.test(text)) {
+      text = `${text}.`;
+    }
+
+    return text;
+  }, []);
+
+  const getMessageContent = useCallback((message: Message | null | undefined) => {
+    if (!message) return '';
+    if (message.content && message.content.trim().length > 0) {
+      return sanitizeMessageText(message.content);
+    }
+    if (message.parts && message.parts.length > 0) {
+      return sanitizeMessageText(
+        message.parts
+        .filter((part) => part.type === 'text' && part.text)
+        .map((part) => part.text)
+        .join(' ')
+      );
+    }
+    return '';
+  }, [sanitizeMessageText]);
+
+  const conversationMessages = useMemo(() => {
+    return messages.filter((message) => {
+      if (classifyMessage(message) === 'other') return false;
+      return getMessageContent(message).trim().length > 0;
+    });
+  }, [messages, classifyMessage, getMessageContent]);
+
+  const initialUserMessage = useMemo(() => {
+    if (conversationMessages.length === 0) {
+      return null;
+    }
+
+    const first = conversationMessages[0];
+    if (classifyMessage(first) === 'user') {
+      return first;
+    }
+
+    const firstUser = conversationMessages.find((message) => classifyMessage(message) === 'user');
+    return firstUser ?? first;
+  }, [conversationMessages, classifyMessage]);
+
+  const displayedInitialMessage = useMemo(() => {
+    if (initialUserMessage) {
+      return initialUserMessage;
+    }
+
+    if (currentProject?.originalPrompt) {
+      const fallbackDate =
+        (currentProject.createdAt instanceof Date
+          ? currentProject.createdAt
+          : currentProject.createdAt
+        ) ??
+        (currentProject.updatedAt instanceof Date
+          ? currentProject.updatedAt
+          : currentProject.updatedAt) ??
+        new Date();
+
+      return {
+        id: 'project-original-prompt',
+        projectId: currentProject.id,
+        role: 'user' as const,
+        type: 'user' as const,
+        content: currentProject.originalPrompt,
+        timestamp: new Date(fallbackDate).getTime(),
+      } satisfies Message;
+    }
+
+    return null;
+  }, [initialUserMessage, currentProject]);
+
+  const latestAgentMessage = useMemo(() => {
+    for (let i = conversationMessages.length - 1; i >= 0; i--) {
+      const message = conversationMessages[i];
+      if (classifyMessage(message) === 'assistant') {
+        return message;
+      }
+    }
+    return null;
+  }, [conversationMessages, classifyMessage]);
+
+  const fullConversationMessages = useMemo(() => {
+    const result: Message[] = [];
+    const seen = new Set<string>();
+
+    const push = (message: Message | null | undefined) => {
+      if (!message) return;
+      const key = message.id ?? `${message.role ?? 'unknown'}-${result.length}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(message);
+    };
+
+    push(displayedInitialMessage);
+    conversationMessages.forEach(push);
+
+    return result;
+  }, [displayedInitialMessage, conversationMessages]);
+
+  const formatMessageTimestamp = useCallback((message: Message): string | null => {
+    const raw = message.timestamp;
+    if (!raw) return null;
+    const date = raw instanceof Date ? raw : new Date(raw);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }, []);
+
+  const lastConversationMessage =
+    conversationMessages.length > 0 ? conversationMessages[conversationMessages.length - 1] : null;
+
+  const showAgentTyping =
+    (isGenerating || generationState?.isActive) &&
+    (!latestAgentMessage ||
+      (lastConversationMessage !== null && classifyMessage(lastConversationMessage) !== 'assistant'));
+
+  const TypingIndicator = () => (
+    <motion.div
+      className="flex justify-end"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="flex max-w-full items-end gap-3 flex-row-reverse">
+        <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+          <Sparkles className="h-4 w-4 text-purple-200" />
+        </div>
+        <div className="max-w-[80%] w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 shadow-lg shadow-black/20 text-left">
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <span className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300" />
+            <span
+              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+              style={{ animationDelay: '0.15s' }}
+            />
+            <span
+              className="flex h-2 w-2 animate-bounce rounded-full bg-purple-300"
+              style={{ animationDelay: '0.3s' }}
+            />
+            <span className="ml-2 text-xs text-zinc-400">Agent is thinking…</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+
   // WebSocket connection for real-time updates (primary source)
   // Enable if: project exists AND (actively generating OR has active session in state)
   const hasActiveSession = generationState?.isActive === true;
@@ -141,6 +310,40 @@ function HomeContent() {
     enabled: !!currentProject && (isGenerating || hasActiveSession),
   });
 
+  // SSE connection for real-time project status updates
+  useProjectStatusSSE(currentProject?.id, !!currentProject);
+
+  // Load messages from database when project changes
+  const { data: messagesFromDB } = useProjectMessages(currentProject?.id);
+
+  // Hydrate messages from database on project load
+  useEffect(() => {
+    if (messagesFromDB && messagesFromDB.length > 0 && !isGenerating) {
+      console.log('[page] Loading messages from DB:', messagesFromDB.length);
+
+      // Convert DB messages to display format
+      const formattedMessages = messagesFromDB.map(msg => {
+        // If content is array of parts (old format), extract text
+        if (Array.isArray(msg.content)) {
+          const textParts = msg.content
+            .filter((p: any) => p.type === 'text' && p.text)
+            .map((p: any) => p.text)
+            .join(' ');
+
+          return {
+            ...msg,
+            content: textParts || '',
+            parts: msg.content, // Keep original for compatibility
+          };
+        }
+
+        // Already in good format
+        return msg;
+      });
+
+      setMessages(formattedMessages as any);
+    }
+  }, [messagesFromDB, currentProject?.id, isGenerating]);
 
   const updateGenerationState = useCallback(
     (
@@ -250,7 +453,7 @@ function HomeContent() {
   useEffect(() => {
     generationStateRef.current = generationState;
   }, [generationState]);
-  
+
   // Sync WebSocket state to local state (both hydrated and live updates)
   // IMPORTANT: Merge WebSocket updates with existing state to preserve metadata
   useEffect(() => {
@@ -556,293 +759,6 @@ function HomeContent() {
   const lastLoadedProjectRef = useRef<string | null>(null);
   const lastLoadTimeRef = useRef<number>(0);
 
-  const loadMessages = useCallback(
-    async (projectId: string) => {
-      if (DEBUG_PAGE) console.log("📥 Loading messages for project:", projectId);
-      if (DEBUG_PAGE) console.log("   Generating ref?", isGeneratingRef.current);
-
-      // Only block if ACTIVELY generating right now
-      if (isGeneratingRef.current) {
-        if (DEBUG_PAGE) console.log("🛑 BLOCKED - currently generating");
-        return;
-      }
-
-      // Debounce: Skip if we just loaded messages for this project recently (within 2 seconds)
-      const now = Date.now();
-      if (
-        lastLoadedProjectRef.current === projectId &&
-        now - lastLoadTimeRef.current < 2000
-      ) {
-        if (DEBUG_PAGE) console.log("⏭️  SKIPPED - messages loaded recently");
-        return;
-      }
-
-      lastLoadedProjectRef.current = projectId;
-      lastLoadTimeRef.current = now;
-      setIsLoadingProject(true);
-
-      try {
-        const res = await fetch(`/api/projects/${projectId}/messages`);
-        const data = await res.json();
-
-        if (data.messages) {
-          if (DEBUG_PAGE) console.log(`   Found ${data.messages.length} messages in DB`);
-
-          if (data.messages.length === 0) {
-            if (DEBUG_PAGE) console.log("   ℹ️  No messages in DB, keeping current messages");
-            return; // Don't wipe existing messages if DB is empty
-          }
-
-          const regularMessages: Message[] = [];
-          const archivedElementChanges: ElementChange[] = [];
-
-          data.messages.forEach(
-            (msg: {
-              id: string;
-              role: "user" | "assistant";
-              content: MessagePart[];
-            }) => {
-              const parts = Array.isArray(msg.content) ? msg.content : [];
-
-              // Check if this is an element change message
-              const elementChangePart = parts.find(
-                (p) => p.type === "element-change"
-              );
-              if (
-                elementChangePart &&
-                (
-                  elementChangePart as unknown as {
-                    elementChange: ElementChange;
-                  }
-                ).elementChange
-              ) {
-                // Add to element change history instead of messages
-                archivedElementChanges.push(
-                  (
-                    elementChangePart as unknown as {
-                      elementChange: ElementChange;
-                    }
-                  ).elementChange
-                );
-              } else {
-                // Regular message
-                regularMessages.push({
-                  id: msg.id,
-                  role: msg.role,
-                  parts,
-                });
-              }
-            }
-          );
-
-          if (DEBUG_PAGE) console.log(
-            "   ✅ Loaded:",
-            regularMessages.length,
-            "messages,",
-            archivedElementChanges.length,
-            "element changes"
-          );
-          setMessages(regularMessages);
-
-          if (archivedElementChanges.length > 0) {
-            setElementChangeHistoryByProject((prev) => {
-              const newMap = new Map(prev);
-              newMap.set(projectId, archivedElementChanges);
-              return newMap;
-            });
-          }
-
-          if (Array.isArray(data.sessions)) {
-            const hydratedSessions: GenerationState[] = [];
-
-            data.sessions.forEach((entry: unknown) => {
-              const typedEntry = entry as {
-                session?: Record<string, unknown>;
-                hydratedState?: Record<string, unknown>;
-              };
-              const session = typedEntry.session;
-              const raw = typedEntry.hydratedState as
-                | Record<string, unknown>
-                | undefined;
-
-              const rebuild = (): GenerationState | null => {
-                if (!raw) return null;
-
-                try {
-                  const toolsByTodo: Record<number, ToolCall[]> = {};
-                  if (raw.toolsByTodo) {
-                    Object.entries(
-                      raw.toolsByTodo as Record<string, unknown[]>
-                    ).forEach(([key, tools]) => {
-                      const todoIndex = parseInt(key, 10);
-                      toolsByTodo[todoIndex] = (tools || []).map(
-                        (tool: unknown) => {
-                          const t = tool as Record<string, unknown>;
-                          return {
-                            ...t,
-                            startTime: t.startTime
-                              ? new Date(t.startTime as string | number)
-                              : new Date(),
-                            endTime: t.endTime
-                              ? new Date(t.endTime as string | number)
-                              : undefined,
-                          } as ToolCall;
-                        }
-                      );
-                    });
-                  }
-
-                  const textByTodo: Record<
-                    number,
-                    GenerationState["textByTodo"][number]
-                  > = {};
-                  if (raw.textByTodo) {
-                    Object.entries(
-                      raw.textByTodo as Record<string, unknown[]>
-                    ).forEach(([key, notes]) => {
-                      const todoIndex = parseInt(key, 10);
-                      textByTodo[todoIndex] = (notes || []).map(
-                        (note: unknown) => {
-                          const n = note as Record<string, unknown>;
-                          return {
-                            ...n,
-                            timestamp: n.timestamp
-                              ? new Date(n.timestamp as string | number)
-                              : new Date(),
-                          } as GenerationState["textByTodo"][number][number];
-                        }
-                      );
-                    });
-                  }
-
-                  const todos: TodoItem[] = Array.isArray(raw.todos)
-                    ? raw.todos.map((todo: unknown) => {
-                        const typedTodo = todo as {
-                          content?: string;
-                          status?: string;
-                          activeForm?: string;
-                        };
-                        return {
-                          content: typedTodo.content ?? "",
-                          status: typedTodo.status ?? "pending",
-                          activeForm:
-                            typedTodo.activeForm ?? typedTodo.content ?? "",
-                        } as TodoItem;
-                      })
-                    : [];
-
-                  return {
-                    id:
-                      (raw.id as string) ??
-                      (session?.buildId as string) ??
-                      `build-${(session?.id as number) ?? Date.now()}`,
-                    projectId:
-                      (raw.projectId as string) ??
-                      (session?.projectId as string) ??
-                      projectId,
-                    projectName:
-                      (raw.projectName as string) ??
-                      (session?.projectName as string) ??
-                      currentProject?.name ??
-                      "Untitled Project",
-                    operationType:
-                      (raw.operationType as BuildOperationType) ??
-                      (session?.operationType as BuildOperationType) ??
-                      "continuation",
-                    agentId: raw.agentId as GenerationState['agentId'] | undefined,
-                    claudeModelId: raw.claudeModelId as GenerationState['claudeModelId'] | undefined,
-                    todos,
-                    toolsByTodo,
-                    textByTodo,
-                    activeTodoIndex:
-                      typeof raw.activeTodoIndex === "number"
-                        ? raw.activeTodoIndex
-                        : -1,
-                    isActive:
-                      (raw.isActive as boolean) ?? session?.status === "active",
-                    startTime: raw.startTime
-                      ? new Date(raw.startTime as string | number)
-                      : session?.startedAt
-                      ? new Date(session.startedAt as string | number)
-                      : new Date(),
-                    endTime: raw.endTime
-                      ? new Date(raw.endTime as string | number)
-                      : session?.endedAt
-                      ? new Date(session.endedAt as string | number)
-                      : undefined,
-                    codex: raw.codex as GenerationState['codex'] | undefined,
-                  };
-                } catch (err) {
-                  if (DEBUG_PAGE) console.warn(
-                    "Failed to rebuild generation state from session",
-                    err
-                  );
-                  return null;
-                }
-              };
-
-              const parsed = rebuild();
-              if (parsed) {
-                hydratedSessions.push(parsed);
-              }
-            });
-
-            if (hydratedSessions.length > 0) {
-              setBuildHistoryByProject((prev) => {
-                const newMap = new Map(prev);
-                newMap.set(
-                  projectId,
-                  hydratedSessions
-                    .filter((state) => !state.isActive)
-                    .sort(
-                      (a, b) => b.startTime.getTime() - a.startTime.getTime()
-                    )
-                );
-                return newMap;
-              });
-
-              if (!isGeneratingRef.current) {
-                const activeSession = hydratedSessions.find(
-                  (state) => state.isActive
-                );
-                if (activeSession) {
-                  if (DEBUG_PAGE) console.log("   🔄 Restoring active session from DB");
-                  updateGenerationState(activeSession);
-                } else if (hydratedSessions.length > 0) {
-                  const latestCompleted = [...hydratedSessions]
-                    .filter((state) => !state.isActive)
-                    .sort(
-                      (a, b) => b.startTime.getTime() - a.startTime.getTime()
-                    )[0];
-                  if (latestCompleted) {
-                    // Check if this session just completed (within last 5 minutes)
-                    const timeSinceCompletion = Date.now() - latestCompleted.startTime.getTime();
-                    const recentlyCompleted = timeSinceCompletion < 5 * 60 * 1000;
-
-                    if (recentlyCompleted && DEBUG_PAGE) {
-                      console.log("   ✅ Build completed while disconnected - showing final state");
-                    } else if (DEBUG_PAGE) {
-                      console.log("   📚 Restoring most recent completed session for context");
-                    }
-
-                    updateGenerationState({
-                      ...latestCompleted,
-                      isActive: false,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load messages:", error);
-      } finally {
-        setIsLoadingProject(false);
-      }
-    },
-    [currentProject, updateGenerationState]
-  );
 
   // Initialize project when slug or project data changes (handles data arriving after navigation)
   useEffect(() => {
@@ -880,7 +796,6 @@ function HomeContent() {
 
         // Load messages
         if (DEBUG_PAGE) console.log("📥 Loading messages from DB...");
-        loadMessages(project.id);
       } else if (!project) {
         if (DEBUG_PAGE) console.log(
           "⚠️  No project found for slug yet:",
@@ -898,7 +813,13 @@ function HomeContent() {
 
       setCurrentProject(null);
       setActiveProjectId(null);
+
+      // The useLiveQuery automatically filters by currentProject.id
+      // When currentProject is null, query returns empty array
+      // // Removed TanStack DB keeps all messages (per-project history)
+
       setMessages([]);
+
       updateGenerationState(null);
       setActiveElementChanges([]);
       setTemplateProvisioningInfo(null);
@@ -911,7 +832,6 @@ function HomeContent() {
     projects,
     currentProject,
     setActiveProjectId,
-    loadMessages,
     updateGenerationState,
   ]);
 
@@ -1257,11 +1177,15 @@ function HomeContent() {
     // Only add user message to UI if this is a continuation (not auto-start)
     if (addUserMessage) {
       const userMessage: Message = {
-        id: `msg-${Date.now()}`,
-        role: "user",
-        parts: [{ type: "text", text: prompt }],
+        id: crypto.randomUUID(), // Use UUID to match database
+        projectId: projectId,
+        type: "user", // Simplified: just type and content
+        content: prompt,
+        timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, userMessage]);
+
+
+      setMessages((prev) => [...prev, userMessage as any]);
     }
 
     // Find project and detect operation type
@@ -1405,13 +1329,21 @@ function HomeContent() {
           if (DEBUG_PAGE) console.log(`\n🌊 [${eventTimestamp}] SSE Event: ${data.type}`, data.toolName ? `(${data.toolName})` : "");
 
           if (data.type === "start") {
-            // Don't create messages during generation - they're captured in generationState
+            // Track assistant message locally for UI updates
+            // Backend will save to DB (hybrid approach for reliability)
             currentMessage = {
-              id: data.messageId || `msg-${Date.now()}`,
-              role: "assistant",
-              parts: [],
+              id: crypto.randomUUID(),
+              projectId: projectId,
+              type: "assistant",
+              content: "",
+              timestamp: Date.now(),
             };
+
+            // Add to legacy state for immediate UI display (not to collection)
+            // Backend persists to DB, collection loads it later
+            setMessages((prev) => [...prev, currentMessage as any]);
           } else if (data.type === "text-start") {
+            // Track text blocks for accumulation
             textBlocksMap.set(data.id, { type: "text", text: "" });
           } else if (data.type === "text-delta") {
             const blockId = data.id;
@@ -1426,25 +1358,27 @@ function HomeContent() {
             // Accumulate text
             textBlock.text += data.delta;
 
-            // Add text to main conversation (chat area) - NOT to textByTodo
+            // Update message content (simplified - just update content string!)
             if (currentMessage?.id) {
-              const textParts = Array.from(textBlocksMap.values());
-              const filteredParts = currentMessage.parts.filter(
-                (p) => !p.type.startsWith("text")
-              );
+              // Combine all text blocks into content
+              const allText = Array.from(textBlocksMap.values())
+                .map(block => block.text)
+                .join('');
+
               const updatedMessage: Message = {
                 ...currentMessage,
-                parts: [...textParts, ...filteredParts],
+                content: allText, // Simple string update!
               };
 
               currentMessage = updatedMessage;
 
+              // Update legacy state for live UI (not collection - backend saves)
               setMessages((prev) =>
                 prev.some((m) => m.id === updatedMessage.id)
                   ? prev.map((m) =>
                       m.id === updatedMessage.id ? updatedMessage : m
                     )
-                  : [...prev, updatedMessage]
+                  : [...prev, updatedMessage as any]
               );
             }
           } else if (data.type === "text-end") {
@@ -1662,35 +1596,10 @@ function HomeContent() {
               return updated;
             });
 
-            // Also update in message for DB persistence
-            if (currentMessage?.id) {
-              const toolPartIndex = currentMessage.parts.findIndex(
-                (p) => p.toolCallId === data.toolCallId
-              );
-              if (toolPartIndex >= 0) {
-                const updatedParts = [...currentMessage.parts];
-                updatedParts[toolPartIndex] = {
-                  ...updatedParts[toolPartIndex],
-                  output: data.output,
-                  state: "output-available",
-                };
-
-                const updatedMessage: Message = {
-                  ...currentMessage,
-                  parts: updatedParts,
-                };
-
-                currentMessage = updatedMessage;
-
-                setMessages((prev) =>
-                  prev.some((m) => m.id === updatedMessage.id)
-                    ? prev.map((m) =>
-                        m.id === updatedMessage.id ? updatedMessage : m
-                      )
-                    : [...prev, updatedMessage]
-                );
-              }
-            }
+            // REMOVED: Tool output handling for messages
+            // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
+            // This code was trying to use old Message.parts structure which doesn't exist
+            // in simplified Message (type + content only)
           } else if (
             data.type === "data-reasoning" ||
             data.type === "reasoning"
@@ -1864,6 +1773,17 @@ function HomeContent() {
 
           break;
         }
+      }
+
+      // Save final message if it exists (arrives after backend closes)
+      if (currentMessage && currentMessage.content && currentMessage.content.trim().length > 0) {
+        saveMessageMutation.mutate({
+          id: currentMessage.id || crypto.randomUUID(),
+          projectId: projectId,
+          type: 'assistant',
+          content: currentMessage.content,
+          timestamp: Date.now(),
+        });
       }
 
       // Ensure final summary todo is marked completed before finishing
@@ -2059,13 +1979,17 @@ function HomeContent() {
         router.replace(`/?project=${project.slug}`, { scroll: false });
         if (DEBUG_PAGE) console.log("🔄 URL updated");
 
-        // Add user message
+        // Add user message (simplified structure)
         const userMessage: Message = {
-          id: `msg-${Date.now()}`,
-          role: "user",
-          parts: [{ type: "text", text: userPrompt }],
+          id: crypto.randomUUID(), // Use UUID to match database
+          projectId: project.id,
+          type: "user", // Simplified: type instead of role
+          content: userPrompt, // Simplified: content instead of parts
+          timestamp: Date.now(),
         };
-        setMessages([userMessage]);
+
+        // Save user message to state for immediate display
+        setMessages(prev => [...prev, userMessage as any]);
 
         // Start generation stream (don't add user message again)
         if (DEBUG_PAGE) console.log("🚀 Starting generation stream...");
@@ -2083,8 +2007,7 @@ function HomeContent() {
         setIsCreatingProject(false);
       }
     } else {
-      // CRITICAL FIX: When currentProject exists, ALWAYS iterate on existing project
-      // Both chat and build tabs work on the same project, just different UI
+      // Continue conversation on existing project
       await startGeneration(currentProject.id, userPrompt, {
         addUserMessage: true,
       });
@@ -2608,17 +2531,25 @@ function HomeContent() {
                                 </span>
                               )}
                             </div>
-                            {messages.length > 0 && (
-                              <span className="text-xs text-gray-500">
-                                {messages.length} messages
-                              </span>
-                            )}
+                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                              {messages.length > 0 && (
+                                <span>{messages.length} messages</span>
+                              )}
+                              <label className="flex items-center gap-2 text-gray-400">
+                                <Switch
+                                  checked={showFullHistory}
+                                  onCheckedChange={setShowFullHistory}
+                                  aria-label="Toggle chat history"
+                                />
+                                <span>Show chat history</span>
+                              </label>
+                            </div>
                           </div>
                         )}
 
                       <div
                         ref={scrollContainerRef}
-                        className="flex-1 overflow-y-auto p-6 min-h-0 space-y-4"
+                        className="flex-1 overflow-y-auto p-6 min-h-0"
                       >
                         {/* Beautiful loading */}
                         {isCreatingProject && (
@@ -2771,7 +2702,9 @@ function HomeContent() {
                             activeTab={activeTab}
                             onTabChange={setActiveTab}
                             chatContent={
-                              <div className="space-y-4 p-4">
+                              <>
+                                {/* Active Todo Indicator and Build Complete Card */}
+                                <div className="p-4 space-y-4">
                                 {/* Active Todo Indicator (Chat Tab Only - when build is active) */}
                                 {generationState && generationState.isActive && generationState.todos && generationState.activeTodoIndex >= 0 && (
                                   <ActiveTodoIndicator
@@ -2809,46 +2742,129 @@ function HomeContent() {
                                   })()
                                 )}
 
-                                {/* Chat Messages */}
-                                {messages.map((message) => {
-                              // Skip element changes
-                              if (message.elementChange) return null;
+                                <div className="space-y-6">
+                                  {showFullHistory ? (
+                                    <>
+                                      {fullConversationMessages.length > 0 ? (
+                                        fullConversationMessages.map((message, index) => {
+                                          const role = classifyMessage(message);
+                                          const align = role === 'assistant' ? 'right' : 'left';
+                                          const tone = role === 'assistant' ? 'agent' : 'user';
+                                          const timestamp = formatMessageTimestamp(message);
+                                          const icon =
+                                            role === 'assistant' ? (
+                                              <Sparkles className="h-4 w-4 text-purple-200" />
+                                            ) : (
+                                              <UserIcon className="h-4 w-4 text-white" />
+                                            );
 
-                              // Only show text content in conversation
-                              const textParts = message.parts.filter(
-                                (part) => part.type === "text" && part.text
-                              );
-                              if (textParts.length === 0) return null;
+                                          return (
+                                            <motion.div
+                                              key={message.id || index}
+                                              className={cn(
+                                                'flex',
+                                                align === 'right' ? 'justify-end' : 'justify-start'
+                                              )}
+                                              initial={{ opacity: 0, translateY: 12 }}
+                                              animate={{ opacity: 1, translateY: 0 }}
+                                              transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.2) }}
+                                            >
+                                              <div
+                                                className={cn(
+                                                  'flex max-w-full items-end gap-3',
+                                                  align === 'right' ? 'flex-row-reverse' : 'flex-row'
+                                                )}
+                                              >
+                                                <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                  {icon}
+                                                </div>
+                                                <ChatUpdate
+                                                  content={getMessageContent(message)}
+                                                  align={align}
+                                                  tone={tone}
+                                                  variant="live"
+                                                  timestamp={timestamp}
+                                                />
+                                              </div>
+                                            </motion.div>
+                                          );
+                                        })
+                                      ) : (
+                                        !showAgentTyping && (
+                                          <div className="text-center text-sm text-gray-500">
+                                            No messages yet—start the conversation below.
+                                          </div>
+                                        )
+                                      )}
 
-                              return (
-                                <div
-                                  key={message.id}
-                                  className={`flex ${
-                                    message.role === "user"
-                                      ? "justify-end"
-                                      : "justify-start"
-                                  }`}
-                                >
-                                  <div
-                                    className={`max-w-[85%] rounded-lg p-4 shadow-lg ${
-                                      message.role === "user"
-                                        ? "bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30"
-                                        : "bg-white/5 border border-white/10 text-white"
-                                    }`}
-                                  >
-                                    {textParts.map((part, i) => (
-                                      <div
-                                        key={i}
-                                        className="prose prose-invert max-w-none text-sm"
-                                      >
-                                        {part.text}
-                                      </div>
-                                    ))}
-                                  </div>
+                                      {showAgentTyping && <TypingIndicator />}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {displayedInitialMessage || latestAgentMessage ? (
+                                        <>
+                                          {displayedInitialMessage && (
+                                            <motion.div
+                                              key={displayedInitialMessage.id ?? 'initial-user'}
+                                              className="flex justify-start"
+                                              initial={{ opacity: 0, translateY: 16 }}
+                                              animate={{ opacity: 1, translateY: 0 }}
+                                              transition={{ duration: 0.25 }}
+                                            >
+                                              <div className="flex max-w-full items-end gap-3 flex-row">
+                                                <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                  <UserIcon className="h-4 w-4 text-white" />
+                                                </div>
+                                                <ChatUpdate
+                                                  content={getMessageContent(displayedInitialMessage)}
+                                                  align="left"
+                                                  tone="user"
+                                                  variant="live"
+                                                  timestamp={formatMessageTimestamp(displayedInitialMessage)}
+                                                />
+                                              </div>
+                                            </motion.div>
+                                          )}
+
+                                          {latestAgentMessage && (
+                                            <motion.div
+                                              key={latestAgentMessage.id ?? 'latest-agent'}
+                                              className="flex justify-end"
+                                              initial={{ opacity: 0, translateY: 16 }}
+                                              animate={{ opacity: 1, translateY: 0 }}
+                                              transition={{ duration: 0.25, delay: displayedInitialMessage ? 0.05 : 0 }}
+                                            >
+                                              <div className="flex max-w-full items-end gap-3 flex-row-reverse">
+                                                <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-sm md:flex">
+                                                  <Sparkles className="h-4 w-4 text-purple-200" />
+                                                </div>
+                                                <ChatUpdate
+                                                  content={getMessageContent(latestAgentMessage)}
+                                                  align="right"
+                                                  tone="agent"
+                                                  variant="live"
+                                                  timestamp={formatMessageTimestamp(latestAgentMessage)}
+                                                />
+                                              </div>
+                                            </motion.div>
+                                          )}
+
+                                          {showAgentTyping && <TypingIndicator />}
+                                        </>
+                                      ) : showAgentTyping ? (
+                                        <TypingIndicator />
+                                      ) : (
+                                        <div className="text-center text-sm text-gray-500">
+                                          No messages yet—start the conversation below.
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+
+                                  <div ref={messagesEndRef} />
                                 </div>
-                              );
-                            })}
-                              </div>
+                                </div>
+                                </>
                             }
                             buildContent={
                               <div className="space-y-4 p-4">
@@ -2984,224 +3000,47 @@ function HomeContent() {
                                 return null;
                               }
 
-                              // Skip messages with no visible content (only tools during active generation)
-                              const hasVisibleContent = message.parts.some(
-                                (part) => {
-                                  if (part.type === "text" && part.text)
-                                    return true;
-                                  if (
-                                    part.type.startsWith("tool-") &&
-                                    part.toolName !== "TodoWrite" &&
-                                    !generationStateRef.current?.isActive
-                                  )
-                                    return true;
-                                  return false;
-                                }
-                              );
-
-                              if (!hasVisibleContent) {
+                              // Skip tool calls and system messages
+                              if (message.type === 'tool-call' || message.type === 'system') {
                                 return null;
                               }
 
-                              // Regular message rendering
+                              // Skip empty messages
+                              if (!message.content || message.content.trim().length === 0) {
+                                return null;
+                              }
+
+                              // Regular message rendering (simplified)
                               return (
                                 <div
                                   key={message.id}
                                   className={`flex ${
-                                    message.role === "user"
+                                    message.type === "user"
                                       ? "justify-end"
                                       : "justify-start"
                                   } animate-in slide-in-from-bottom-4 duration-500`}
                                 >
                                   <div
                                     className={`max-w-[85%] rounded-lg p-4 shadow-lg break-words ${
-                                      message.role === "user"
+                                      message.type === "user"
                                         ? "bg-gradient-to-r from-[#FF45A8]/15 to-[#FF70BC]/15 text-white border-l-4 border-[#FF45A8] border-r border-t border-b border-[#FF45A8]/30"
                                         : "bg-white/5 border border-white/10 text-white"
                                     }`}
                                   >
-                                    {message.parts.map((part, i) => {
-                                      if (part.type === "text") {
-                                        // Check if this is a summary message
-                                        const isSummary =
-                                          part.text &&
-                                          message.role === "assistant" &&
-                                          ((part.text.includes("✅") &&
-                                            (part.text.includes("Created") ||
-                                              part.text.includes("Complete") ||
-                                              part.text.includes(
-                                                "successfully"
-                                              ))) ||
-                                            part.text.includes(
-                                              "Project Created"
-                                            ) ||
-                                            part.text.includes(
-                                              "successfully created"
-                                            ) ||
-                                            (part.text.includes("🎉") &&
-                                              part.text.includes("created")));
-
-                                        if (isSummary && part.text) {
-                                          return (
-                                            <SummaryCard
-                                              key={i}
-                                              content={part.text}
-                                              onViewFiles={() => {
-                                                window.dispatchEvent(
-                                                  new CustomEvent(
-                                                    "switch-to-editor"
-                                                  )
-                                                );
-                                              }}
-                                              onStartServer={
-                                                currentProject?.runCommand
-                                                  ? startDevServer
-                                                  : undefined
-                                              }
-                                              onStopServer={
-                                                currentProject?.runCommand
-                                                  ? stopDevServer
-                                                  : undefined
-                                              }
-                                              serverRunning={
-                                                currentProject?.devServerStatus ===
-                                                "running"
-                                              }
-                                              serverStarting={
-                                                currentProject?.devServerStatus ===
-                                                "starting"
-                                              }
-                                            />
-                                          );
-                                        }
-
-                                        // Regular text messages (not during active build)
-                                        return (
-                                          <div
-                                            key={i}
-                                            className="prose prose-invert max-w-none"
-                                          >
-                                            <ReactMarkdown
-                                              remarkPlugins={[remarkGfm]}
-                                              rehypePlugins={[rehypeHighlight]}
-                                              components={{
-                                                code: ({
-                                                  className,
-                                                  children,
-                                                  ...props
-                                                }) => {
-                                                  const match =
-                                                    /language-(\w+)/.exec(
-                                                      className || ""
-                                                    );
-                                                  const isInline = !match;
-                                                  return isInline ? (
-                                                    <code
-                                                      className="bg-[#181225] text-[#FF45A8] px-2 py-0.5 rounded text-sm font-mono border border-[#FF45A8]/30"
-                                                      {...props}
-                                                    >
-                                                      {children}
-                                                    </code>
-                                                  ) : (
-                                                    <code
-                                                      className={className}
-                                                      {...props}
-                                                    >
-                                                      {children}
-                                                    </code>
-                                                  );
-                                                },
-                                                pre: ({ children }) => (
-                                                  <CodeBlock>
-                                                    {children}
-                                                  </CodeBlock>
-                                                ),
-                                                p: ({ children }) => (
-                                                  <p className="mb-4 last:mb-0">
-                                                    {children}
-                                                  </p>
-                                                ),
-                                                ul: ({ children }) => (
-                                                  <ul className="list-disc list-inside mb-4 space-y-1">
-                                                    {children}
-                                                  </ul>
-                                                ),
-                                                ol: ({ children }) => (
-                                                  <ol className="list-decimal list-inside mb-4 space-y-1">
-                                                    {children}
-                                                  </ol>
-                                                ),
-                                                li: ({ children }) => (
-                                                  <li className="ml-2">
-                                                    {children}
-                                                  </li>
-                                                ),
-                                                h1: ({ children }) => (
-                                                  <h1 className="text-2xl font-bold mb-4 mt-6 first:mt-0 text-[#FF45A8]">
-                                                    {children}
-                                                  </h1>
-                                                ),
-                                                h2: ({ children }) => (
-                                                  <h2 className="text-xl font-semibold mb-3 mt-5 first:mt-0 text-[#FFD00E]">
-                                                    {children}
-                                                  </h2>
-                                                ),
-                                                h3: ({ children }) => (
-                                                  <h3 className="text-lg font-medium mb-2 mt-4 first:mt-0 text-[#7553FF]">
-                                                    {children}
-                                                  </h3>
-                                                ),
-                                                a: ({ children, href }) => (
-                                                  <a
-                                                    href={href}
-                                                    className="text-[#226DFC] underline hover:text-[#3EDCFF] break-all font-medium"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                  >
-                                                    {children}
-                                                  </a>
-                                                ),
-                                                blockquote: ({ children }) => (
-                                                  <blockquote className="border-l-4 border-[#FF45A8] bg-[#FF45A8]/5 pl-4 py-2 italic my-4 rounded-r">
-                                                    {children}
-                                                  </blockquote>
-                                                ),
-                                              }}
-                                            >
-                                              {part.text}
-                                            </ReactMarkdown>
-                                          </div>
-                                        );
-                                      }
-
-                                      // Skip TodoWrite - handled by GenerationProgress
-                                      if (
-                                        part.type === "tool-TodoWrite" ||
-                                        part.toolName === "TodoWrite"
-                                      ) {
-                                        return null;
-                                      }
-
-                                      // Skip other tools during active generation - shown in GenerationProgress
-                                      if (
-                                        generationStateRef.current?.isActive &&
-                                        part.type.startsWith("tool-")
-                                      ) {
-                                        return null;
-                                      }
-
-                                      // SKIP: Don't render tools in messages - they're in BuildProgress!
-                                      if (part.type.startsWith("tool-")) {
-                                        return null; // Tools are rendered in BuildProgress via toolsByTodo
-                                      }
-
-                                      return null;
-                                    })}
+                                    {/* Simplified: Just render content directly */}
+                                    <div className="prose prose-invert max-w-none text-sm">
+                                      {message.content}
+                                    </div>
                                   </div>
                                 </div>
                               );
                             })}
 
+                            {/* REMOVED: Complex legacy message.parts.map() rendering
+                                This was ~200 lines of code for old parts-based structure
+                                Now using simple message.content rendering above
+                                All orphaned legacy code deleted below
+                            */}
                             {/* Loading indicator for project messages */}
                             {isLoadingProject && (
                               <div className="flex justify-start animate-in fade-in duration-500">

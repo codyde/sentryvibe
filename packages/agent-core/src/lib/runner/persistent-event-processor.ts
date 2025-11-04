@@ -187,15 +187,7 @@ async function refreshRawState(context: ActiveBuildContext) {
       baggage: Sentry.getTraceData().baggage,
     } : undefined;
     
-    // DEBUG: Log trace context capture
-    if (traceContext?.trace) {
-      console.log('[persistent-processor] 🔗 Captured trace context for WebSocket:', {
-        trace: traceContext.trace.substring(0, 40) + '...',
-        hasBaggage: !!traceContext.baggage,
-      });
-    } else {
-      console.log('[persistent-processor] ⚠️ No active span to capture trace context');
-    }
+    // Quiet: Trace context captured (too noisy - happens for every tool call)
     
     // Broadcast state update via WebSocket with trace context
     buildWebSocketServer.broadcastStateUpdate(
@@ -320,10 +312,7 @@ async function persistToolCall(
 
   const toolName = eventData.toolName;
 
-  console.log(`[persistent-processor] 💾 Persisting tool call: ${toolName} (${toolCallId})`);
-  console.log(`[persistent-processor]    State: ${state}`);
-  console.log(`[persistent-processor]    Session: ${context.sessionId}`);
-  console.log(`[persistent-processor]    TodoIndex: ${todoIndex}`);
+  // Quiet: Tool persistence (too noisy - happens for every tool call)
 
   await retryOnTimeout(() =>
     db.insert(generationToolCalls).values({
@@ -350,7 +339,7 @@ async function persistToolCall(
     })
   );
 
-  console.log(`[persistent-processor] ✅ Tool persisted: ${toolName} (${toolCallId}) as ${state}`);
+  // Quiet: Success (too noisy)
 }
 
 async function appendNote(
@@ -443,14 +432,14 @@ async function persistEvent(
 
         // Update active todo index for subsequent events
         context.currentActiveTodoIndex = todos.findIndex((t) => t.status === 'in_progress');
-        console.log(`[persistent-processor] Updated activeTodoIndex to ${context.currentActiveTodoIndex}`);
+        // Quiet: Active todo index updated
 
         // Persist TodoWrite as a tool call
         await persistToolCall(context, eventData, 'input-available');
 
         // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
         await refreshRawState(context);
-        console.log(`[persistent-processor] ✅ Todos persisted and state refreshed, activeTodoIndex=${context.currentActiveTodoIndex}`);
+        // Quiet: Todos persisted successfully
         
         // Broadcast todo update via WebSocket (high priority - immediate flush)
         buildWebSocketServer.broadcastTodoUpdate(context.projectId, context.sessionId, todos);

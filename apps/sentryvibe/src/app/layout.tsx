@@ -4,6 +4,7 @@ import "./globals.css";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { RunnerProvider } from "@/contexts/RunnerContext";
 import { AgentProvider } from "@/contexts/AgentContext";
+import { QueryProvider } from "./providers";
 
 const rubik = Rubik({
   subsets: ["latin"],
@@ -26,13 +27,15 @@ export default function RootLayout({
       <body
         className={`${rubik.variable} font-sans antialiased`}
       >
-        <AgentProvider>
-          <RunnerProvider>
-            <ProjectProvider>
-              {children}
-            </ProjectProvider>
-          </RunnerProvider>
-        </AgentProvider>
+        <QueryProvider>
+          <AgentProvider>
+            <RunnerProvider>
+              <ProjectProvider>
+                {children}
+              </ProjectProvider>
+            </RunnerProvider>
+          </AgentProvider>
+        </QueryProvider>
       </body>
     </html>
   );

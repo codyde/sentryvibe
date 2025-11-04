@@ -1,11 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-interface RunnerConnection {
-  runnerId: string;
-  lastHeartbeat: number;
-}
+import { useRunnerStatus, type RunnerConnection } from '@/queries/runner';
 
 interface RunnerContextType {
   selectedRunnerId: string;
@@ -27,39 +23,22 @@ export function RunnerProvider({ children }: { children: ReactNode }) {
       return process.env.NEXT_PUBLIC_RUNNER_DEFAULT_ID ?? 'default';
     }
   );
-  const [availableRunners, setAvailableRunners] = useState<RunnerConnection[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchRunners = async () => {
-    try {
-      const res = await fetch('/api/runner/status');
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableRunners(data.connections || []);
+  // Use TanStack Query for runner status
+  const { data, isLoading, refetch } = useRunnerStatus();
+  const availableRunners = data?.connections || [];
 
-        // If selected runner is no longer available, fall back to first available or default
-        if (data.connections && data.connections.length > 0) {
-          const selectedExists = data.connections.some((r: RunnerConnection) => r.runnerId === selectedRunnerId);
-          if (!selectedExists) {
-            const fallback = data.connections[0].runnerId;
-            console.log(`⚠️ Selected runner ${selectedRunnerId} not found, falling back to ${fallback}`);
-            setSelectedRunnerId(fallback);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch runners:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch runners on mount and poll every 10 seconds
+  // If selected runner is no longer available, fall back to first available or default
   useEffect(() => {
-    fetchRunners();
-    const interval = setInterval(fetchRunners, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    if (availableRunners.length > 0) {
+      const selectedExists = availableRunners.some((r) => r.runnerId === selectedRunnerId);
+      if (!selectedExists) {
+        const fallback = availableRunners[0].runnerId;
+        console.log(`⚠️ Selected runner ${selectedRunnerId} not found, falling back to ${fallback}`);
+        setSelectedRunnerId(fallback);
+      }
+    }
+  }, [availableRunners, selectedRunnerId]);
 
   // Save selected runner to localStorage
   useEffect(() => {
@@ -75,7 +54,9 @@ export function RunnerProvider({ children }: { children: ReactNode }) {
         setSelectedRunnerId,
         availableRunners,
         isLoading,
-        refetchRunners: fetchRunners,
+        refetchRunners: async () => {
+          await refetch();
+        },
       }}
     >
       {children}

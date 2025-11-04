@@ -4,6 +4,14 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { projectEvents } from '@/lib/project-events';
 
+const isVerboseSSELogging = process.env.SENTRYVIBE_DEBUG_SSE === '1';
+const debugLog = (...args: unknown[]) => {
+  if (isVerboseSSELogging) {
+    console.log(...args);
+  }
+};
+const loggedMissingProjects = new Set<string>();
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +25,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  console.log(`📡 SSE status stream requested for project: ${id}`);
+  debugLog(`📡 SSE status stream requested for project: ${id}`);
 
   const encoder = new TextEncoder();
   let keepaliveInterval: NodeJS.Timeout | null = null;
@@ -40,9 +48,12 @@ export async function GET(
             project: initialProject[0],
           })}\n\n`;
           controller.enqueue(encoder.encode(data));
-          console.log(`✅ Sent initial status for ${id}`);
+          debugLog(`✅ Sent initial status for ${id}`);
         } else {
-          console.warn(`⚠️  Project ${id} not found`);
+          if (!loggedMissingProjects.has(id)) {
+            console.warn(`⚠️  Project ${id} not found`);
+            loggedMissingProjects.add(id);
+          }
           controller.close();
           return;
         }
@@ -52,7 +63,7 @@ export async function GET(
           try {
             controller.enqueue(encoder.encode(':keepalive\n\n'));
           } catch (err) {
-            console.log(`   Keepalive failed for ${id}, stream likely closed`);
+            debugLog(`   Keepalive failed for ${id}, stream likely closed`);
             if (keepaliveInterval) {
               clearInterval(keepaliveInterval);
               keepaliveInterval = null;
@@ -68,7 +79,7 @@ export async function GET(
               project,
             })}\n\n`;
             controller.enqueue(encoder.encode(data));
-            console.log(`📤 Event-driven update for ${id}:`, {
+            debugLog(`📤 Event-driven update for ${id}:`, {
               status: project.devServerStatus,
               port: project.devServerPort,
               tunnel: project.tunnelUrl,
@@ -103,7 +114,7 @@ export async function GET(
 
               // Only send if state actually changed
               if (currentState !== lastSentState) {
-                console.log(`🔄 Sending state update for ${id} (periodic check)`);
+                debugLog(`🔄 Sending state update for ${id} (periodic check)`);
                 lastSentState = currentState;
                 const data = `data: ${JSON.stringify({
                   type: 'status-update',
@@ -125,7 +136,7 @@ export async function GET(
 
         // Cleanup on connection close
         req.signal.addEventListener('abort', () => {
-          console.log(`🔌 Client disconnected from status stream for ${id}`);
+          debugLog(`🔌 Client disconnected from status stream for ${id}`);
           if (keepaliveInterval) {
             clearInterval(keepaliveInterval);
           }
@@ -142,7 +153,7 @@ export async function GET(
     },
 
     cancel() {
-      console.log(`🛑 Status stream cancelled for ${id}`);
+      debugLog(`🛑 Status stream cancelled for ${id}`);
       if (keepaliveInterval) {
         clearInterval(keepaliveInterval);
       }
