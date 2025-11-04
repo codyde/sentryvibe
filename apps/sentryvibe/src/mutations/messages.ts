@@ -9,6 +9,11 @@ interface SaveMessageParams {
 }
 
 async function saveMessage(message: SaveMessageParams): Promise<void> {
+  console.log('[useSaveMessage] Saving:', {
+    type: message.type,
+    contentPreview: message.content.substring(0, 80),
+  });
+
   const res = await fetch(`/api/projects/${message.projectId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -19,8 +24,11 @@ async function saveMessage(message: SaveMessageParams): Promise<void> {
   });
 
   if (!res.ok) {
+    console.error('[useSaveMessage] Failed:', res.status);
     throw new Error('Failed to save message');
   }
+
+  console.log('[useSaveMessage] ✅ Saved successfully');
 }
 
 /**
