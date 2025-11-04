@@ -318,28 +318,36 @@ function HomeContent() {
 
   // Hydrate messages from database on project load
   useEffect(() => {
-    if (messagesFromDB && messagesFromDB.length > 0 && !isGenerating) {
-      console.log('[page] Loading messages from DB:', messagesFromDB.length);
+    const dbMessages = messagesFromDB?.messages;
+    if (dbMessages && dbMessages.length > 0 && !isGenerating) {
+      console.log('[page] Loading messages from DB:', dbMessages.length);
 
       // Convert DB messages to display format
-      const formattedMessages = messagesFromDB.map(msg => {
-        // If content is array of parts (old format), extract text
-        if (Array.isArray(msg.content)) {
-          const textParts = msg.content
-            .filter((p: any) => p.type === 'text' && p.text)
-            .map((p: any) => p.text)
-            .join(' ');
+      const formattedMessages = dbMessages
+        .map(msg => {
+          // If content is array of parts (old format), extract text
+          if (Array.isArray(msg.content)) {
+            const textParts = msg.content
+              .filter((p: any) => p.type === 'text' && p.text)
+              .map((p: any) => p.text)
+              .join(' ');
 
-          return {
-            ...msg,
-            content: textParts || '',
-            parts: msg.content, // Keep original for compatibility
-          };
-        }
+            // Skip messages with ONLY tool parts (no text content)
+            if (!textParts || textParts.trim().length === 0) {
+              return null;
+            }
 
-        // Already in good format
-        return msg;
-      });
+            return {
+              ...msg,
+              content: textParts,
+              parts: msg.content,
+            };
+          }
+
+          // Already in good format
+          return msg;
+        })
+        .filter((msg): msg is NonNullable<typeof msg> => msg !== null);
 
       setMessages(formattedMessages as any);
     }
