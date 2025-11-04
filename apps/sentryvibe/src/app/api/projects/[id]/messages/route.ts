@@ -254,7 +254,7 @@ export async function POST(
     }
 
     const newMessage = await db.execute(sql`
-      INSERT INTO message (project_id, role, content, created_at)
+      INSERT INTO messages (project_id, role, content, created_at)
       VALUES (${id}, ${role}, ${serializeContent(content)}, NOW())
       RETURNING *;
     `);
