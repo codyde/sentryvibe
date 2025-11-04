@@ -29,6 +29,7 @@ import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
 import { useProjectMessages } from "@/queries/projects";
+import { useSaveMessage } from "@/mutations/messages";
 import type {
   GenerationState,
   ToolCall,
@@ -58,7 +59,6 @@ import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { Switch } from "@/components/ui/switch";
-// TanStack DB removed - using TanStack Query only
 // Simplified message structure kept
 interface MessagePart {
   type: string;
@@ -85,6 +85,9 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+
+  // Message mutation hook for saving
+  const saveMessageMutation = useSaveMessage();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'build'>('chat');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -756,301 +759,6 @@ function HomeContent() {
   const lastLoadedProjectRef = useRef<string | null>(null);
   const lastLoadTimeRef = useRef<number>(0);
 
-  const loadMessages = useCallback(
-    async (projectId: string) => {
-      if (DEBUG_PAGE) console.log("📥 Loading messages for project:", projectId);
-      if (DEBUG_PAGE) console.log("   Generating ref?", isGeneratingRef.current);
-
-      // Only block if ACTIVELY generating right now
-      if (isGeneratingRef.current) {
-        if (DEBUG_PAGE) console.log("🛑 BLOCKED - currently generating");
-        return;
-      }
-
-      // Debounce: Skip if we just loaded messages for this project recently (within 2 seconds)
-      const now = Date.now();
-      if (
-        lastLoadedProjectRef.current === projectId &&
-        now - lastLoadTimeRef.current < 2000
-      ) {
-        if (DEBUG_PAGE) console.log("⏭️  SKIPPED - messages loaded recently");
-        return;
-      }
-
-      lastLoadedProjectRef.current = projectId;
-      lastLoadTimeRef.current = now;
-      setIsLoadingProject(true);
-
-      try {
-        const res = await fetch(`/api/projects/${projectId}/messages`);
-        const data = await res.json();
-
-        if (data.messages) {
-          if (DEBUG_PAGE) console.log(`   Found ${data.messages.length} messages in DB`);
-
-          if (data.messages.length === 0) {
-            if (DEBUG_PAGE) console.log("   ℹ️  No messages in DB, keeping current messages");
-            return; // Don't wipe existing messages if DB is empty
-          }
-
-          const regularMessages: Message[] = [];
-          const archivedElementChanges: ElementChange[] = [];
-
-          data.messages.forEach(
-            (msg: {
-              id: string;
-              role: "user" | "assistant";
-              content: MessagePart[];
-            }) => {
-              const parts = Array.isArray(msg.content) ? msg.content : [];
-
-              // Check if this is an element change message
-              const elementChangePart = parts.find(
-                (p) => p.type === "element-change"
-              );
-              if (
-                elementChangePart &&
-                (
-                  elementChangePart as unknown as {
-                    elementChange: ElementChange;
-                  }
-                ).elementChange
-              ) {
-                // Add to element change history instead of messages
-                archivedElementChanges.push(
-                  (
-                    elementChangePart as unknown as {
-                      elementChange: ElementChange;
-                    }
-                  ).elementChange
-                );
-              } else {
-                // Regular message
-                regularMessages.push({
-                  id: msg.id,
-                  projectId: projectId, // Add for TanStack DB Message type
-                  role: msg.role,
-                  parts,
-                  timestamp: Date.now(), // Add for TanStack DB Message type
-                });
-              }
-            }
-          );
-
-          if (DEBUG_PAGE) console.log(
-            "   ✅ Loaded:",
-            regularMessages.length,
-            "messages,",
-            archivedElementChanges.length,
-            "element changes"
-          );
-
-          // MIGRATION: With TanStack DB, this manual loading is replaced by QueryCollection
-          // The // Removed TanStack DB automatically fetches from PostgreSQL via queryCollectionOptions
-          // This loadMessages function can be deleted after migration complete
-
-          // Legacy hydration (keeping during migration)
-          setMessages(regularMessages);
-
-          if (archivedElementChanges.length > 0) {
-            setElementChangeHistoryByProject((prev) => {
-              const newMap = new Map(prev);
-              newMap.set(projectId, archivedElementChanges);
-              return newMap;
-            });
-          }
-
-          if (Array.isArray(data.sessions)) {
-            const hydratedSessions: GenerationState[] = [];
-
-            data.sessions.forEach((entry: unknown) => {
-              const typedEntry = entry as {
-                session?: Record<string, unknown>;
-                hydratedState?: Record<string, unknown>;
-              };
-              const session = typedEntry.session;
-              const raw = typedEntry.hydratedState as
-                | Record<string, unknown>
-                | undefined;
-
-              const rebuild = (): GenerationState | null => {
-                if (!raw) return null;
-
-                try {
-                  const toolsByTodo: Record<number, ToolCall[]> = {};
-                  if (raw.toolsByTodo) {
-                    Object.entries(
-                      raw.toolsByTodo as Record<string, unknown[]>
-                    ).forEach(([key, tools]) => {
-                      const todoIndex = parseInt(key, 10);
-                      toolsByTodo[todoIndex] = (tools || []).map(
-                        (tool: unknown) => {
-                          const t = tool as Record<string, unknown>;
-                          return {
-                            ...t,
-                            startTime: t.startTime
-                              ? new Date(t.startTime as string | number)
-                              : new Date(),
-                            endTime: t.endTime
-                              ? new Date(t.endTime as string | number)
-                              : undefined,
-                          } as ToolCall;
-                        }
-                      );
-                    });
-                  }
-
-                  const textByTodo: Record<
-                    number,
-                    GenerationState["textByTodo"][number]
-                  > = {};
-                  if (raw.textByTodo) {
-                    Object.entries(
-                      raw.textByTodo as Record<string, unknown[]>
-                    ).forEach(([key, notes]) => {
-                      const todoIndex = parseInt(key, 10);
-                      textByTodo[todoIndex] = (notes || []).map(
-                        (note: unknown) => {
-                          const n = note as Record<string, unknown>;
-                          return {
-                            ...n,
-                            timestamp: n.timestamp
-                              ? new Date(n.timestamp as string | number)
-                              : new Date(),
-                          } as GenerationState["textByTodo"][number][number];
-                        }
-                      );
-                    });
-                  }
-
-                  const todos: TodoItem[] = Array.isArray(raw.todos)
-                    ? raw.todos.map((todo: unknown) => {
-                        const typedTodo = todo as {
-                          content?: string;
-                          status?: string;
-                          activeForm?: string;
-                        };
-                        return {
-                          content: typedTodo.content ?? "",
-                          status: typedTodo.status ?? "pending",
-                          activeForm:
-                            typedTodo.activeForm ?? typedTodo.content ?? "",
-                        } as TodoItem;
-                      })
-                    : [];
-
-                  return {
-                    id:
-                      (raw.id as string) ??
-                      (session?.buildId as string) ??
-                      `build-${(session?.id as number) ?? Date.now()}`,
-                    projectId:
-                      (raw.projectId as string) ??
-                      (session?.projectId as string) ??
-                      projectId,
-                    projectName:
-                      (raw.projectName as string) ??
-                      (session?.projectName as string) ??
-                      currentProject?.name ??
-                      "Untitled Project",
-                    operationType:
-                      (raw.operationType as BuildOperationType) ??
-                      (session?.operationType as BuildOperationType) ??
-                      "continuation",
-                    agentId: raw.agentId as GenerationState['agentId'] | undefined,
-                    claudeModelId: raw.claudeModelId as GenerationState['claudeModelId'] | undefined,
-                    todos,
-                    toolsByTodo,
-                    textByTodo,
-                    activeTodoIndex:
-                      typeof raw.activeTodoIndex === "number"
-                        ? raw.activeTodoIndex
-                        : -1,
-                    isActive:
-                      (raw.isActive as boolean) ?? session?.status === "active",
-                    startTime: raw.startTime
-                      ? new Date(raw.startTime as string | number)
-                      : session?.startedAt
-                      ? new Date(session.startedAt as string | number)
-                      : new Date(),
-                    endTime: raw.endTime
-                      ? new Date(raw.endTime as string | number)
-                      : session?.endedAt
-                      ? new Date(session.endedAt as string | number)
-                      : undefined,
-                    codex: raw.codex as GenerationState['codex'] | undefined,
-                  };
-                } catch (err) {
-                  if (DEBUG_PAGE) console.warn(
-                    "Failed to rebuild generation state from session",
-                    err
-                  );
-                  return null;
-                }
-              };
-
-              const parsed = rebuild();
-              if (parsed) {
-                hydratedSessions.push(parsed);
-              }
-            });
-
-            if (hydratedSessions.length > 0) {
-              setBuildHistoryByProject((prev) => {
-                const newMap = new Map(prev);
-                newMap.set(
-                  projectId,
-                  hydratedSessions
-                    .filter((state) => !state.isActive)
-                    .sort(
-                      (a, b) => b.startTime.getTime() - a.startTime.getTime()
-                    )
-                );
-                return newMap;
-              });
-
-              if (!isGeneratingRef.current) {
-                const activeSession = hydratedSessions.find(
-                  (state) => state.isActive
-                );
-                if (activeSession) {
-                  if (DEBUG_PAGE) console.log("   🔄 Restoring active session from DB");
-                  updateGenerationState(activeSession);
-                } else if (hydratedSessions.length > 0) {
-                  const latestCompleted = [...hydratedSessions]
-                    .filter((state) => !state.isActive)
-                    .sort(
-                      (a, b) => b.startTime.getTime() - a.startTime.getTime()
-                    )[0];
-                  if (latestCompleted) {
-                    // Check if this session just completed (within last 5 minutes)
-                    const timeSinceCompletion = Date.now() - latestCompleted.startTime.getTime();
-                    const recentlyCompleted = timeSinceCompletion < 5 * 60 * 1000;
-
-                    if (recentlyCompleted && DEBUG_PAGE) {
-                      console.log("   ✅ Build completed while disconnected - showing final state");
-                    } else if (DEBUG_PAGE) {
-                      console.log("   📚 Restoring most recent completed session for context");
-                    }
-
-                    updateGenerationState({
-                      ...latestCompleted,
-                      isActive: false,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load messages:", error);
-      } finally {
-        setIsLoadingProject(false);
-      }
-    },
-    [currentProject, updateGenerationState]
-  );
 
   // Initialize project when slug or project data changes (handles data arriving after navigation)
   useEffect(() => {
@@ -1088,7 +796,6 @@ function HomeContent() {
 
         // Load messages
         if (DEBUG_PAGE) console.log("📥 Loading messages from DB...");
-        loadMessages(project.id);
       } else if (!project) {
         if (DEBUG_PAGE) console.log(
           "⚠️  No project found for slug yet:",
@@ -1107,12 +814,10 @@ function HomeContent() {
       setCurrentProject(null);
       setActiveProjectId(null);
 
-      // MIGRATION: With TanStack DB, no need to clear messages manually!
       // The useLiveQuery automatically filters by currentProject.id
       // When currentProject is null, query returns empty array
       // // Removed TanStack DB keeps all messages (per-project history)
 
-      // Legacy (keeping during migration)
       setMessages([]);
 
       updateGenerationState(null);
@@ -1127,7 +832,6 @@ function HomeContent() {
     projects,
     currentProject,
     setActiveProjectId,
-    loadMessages,
     updateGenerationState,
   ]);
 
@@ -1481,7 +1185,6 @@ function HomeContent() {
       };
 
 
-      // Legacy (keeping during migration, will remove)
       setMessages((prev) => [...prev, userMessage as any]);
     }
 
@@ -2074,24 +1777,13 @@ function HomeContent() {
 
       // Save final message if it exists (arrives after backend closes)
       if (currentMessage && currentMessage.content && currentMessage.content.trim().length > 0) {
-        console.log('[page] Saving final message to DB:', currentMessage.content.substring(0, 100));
-
-        try {
-          await fetch('/api/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: currentMessage.id || crypto.randomUUID(),
-              projectId: projectId,
-              type: 'assistant',
-              content: currentMessage.content,
-              timestamp: Date.now(),
-            }),
-          });
-          console.log('[page] ✅ Final message saved');
-        } catch (error) {
-          console.error('[page] ❌ Failed to save final message:', error);
-        }
+        saveMessageMutation.mutate({
+          id: currentMessage.id || crypto.randomUUID(),
+          projectId: projectId,
+          type: 'assistant',
+          content: currentMessage.content,
+          timestamp: Date.now(),
+        });
       }
 
       // Ensure final summary todo is marked completed before finishing
@@ -3308,7 +3000,6 @@ function HomeContent() {
                                 return null;
                               }
 
-                              // MIGRATION: Simplified Message structure (type + content)
                               // Skip tool calls and system messages
                               if (message.type === 'tool-call' || message.type === 'system') {
                                 return null;
