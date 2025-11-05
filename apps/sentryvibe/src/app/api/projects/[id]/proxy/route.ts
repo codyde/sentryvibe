@@ -14,10 +14,79 @@ export async function OPTIONS() {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': '*',
     },
   });
+}
+
+// POST support for TanStack Start server functions
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const url = new URL(req.url);
+  const path = url.searchParams.get('path') || '/';
+  let proj: (typeof projects.$inferSelect) | undefined;
+
+  try {
+    // Get project
+    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    if (project.length === 0) {
+      return new NextResponse('Project not found', { status: 404 });
+    }
+
+    proj = project[0];
+
+    // Check if server running
+    if (proj.devServerStatus !== 'running' || !proj.devServerPort) {
+      return new NextResponse('Dev server not running', { status: 503 });
+    }
+
+    // Determine target URL
+    const requestHost = req.headers.get('host') || '';
+    const frontendIsLocal = requestHost.includes('localhost') || requestHost.includes('127.0.0.1');
+
+    let targetUrl: string;
+    if (frontendIsLocal) {
+      targetUrl = `http://localhost:${proj.devServerPort}${path}`;
+    } else if (proj.tunnelUrl) {
+      targetUrl = `${proj.tunnelUrl}${path}`;
+    } else {
+      return new NextResponse('Waiting for tunnel...', {
+        status: 202,
+        headers: { 'X-Tunnel-Status': 'pending' }
+      });
+    }
+
+    // Forward POST request with body
+    const body = await req.text();
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': req.headers.get('content-type') || 'application/json',
+      },
+      body: body,
+    });
+
+    // Return response as-is with CORS headers
+    const responseBody = await response.arrayBuffer();
+    return new NextResponse(responseBody, {
+      status: response.status,
+      headers: {
+        'Content-Type': response.headers.get('content-type') || 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ Proxy POST error:', error);
+    return new NextResponse(
+      `Proxy failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { status: 500 }
+    );
+  }
 }
 
 export async function GET(
@@ -29,7 +98,7 @@ export async function GET(
   const path = url.searchParams.get('path') || '/';
   let proj: (typeof projects.$inferSelect) | undefined;
 
-  try {
+  try:
     // Get project
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     if (project.length === 0) {
