@@ -24,18 +24,19 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const url = new URL(req.url);
-    const path = url.searchParams.get('path') || '/';
+  const { id } = await params;
+  const url = new URL(req.url);
+  const path = url.searchParams.get('path') || '/';
+  let proj: (typeof projects.$inferSelect) | undefined;
 
+  try {
     // Get project
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     if (project.length === 0) {
       return new NextResponse('Project not found', { status: 404 });
     }
 
-    const proj = project[0];
+    proj = project[0];
 
     // Check if server running
     if (proj.devServerStatus !== 'running' || !proj.devServerPort) {
@@ -54,7 +55,6 @@ export async function GET(
       // This means frontend and runner are on the SAME machine
       // Proxy can directly access runner's localhost
       targetUrl = `http://localhost:${proj.devServerPort}${path}`;
-      console.log(`[proxy] Frontend accessed via ${requestHost} - using localhost:${proj.devServerPort}`);
     } else if (proj.tunnelUrl) {
       // User accessing frontend via remote URL (e.g., sentryvibe.up.railway.app)
       // Frontend and runner are on DIFFERENT machines
@@ -78,8 +78,29 @@ export async function GET(
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // Inject base tag FIRST (before ANY content)
+      // Inject base tag and pathname fix FIRST (before ANY content)
+      // CRITICAL: Fix window.location.pathname for TanStack Router BEFORE it initializes
+      const pathFixScript = `<script>
+(function() {
+  try {
+    // Extract actual path from proxy URL
+    const url = new URL(window.location.href);
+    const actualPath = url.searchParams.get('path') || '/';
+
+    // Use history.replaceState to change pathname without reload
+    // This makes Router see the correct path
+    if (window.location.pathname !== actualPath) {
+      const newUrl = window.location.origin + actualPath + (url.hash || '');
+      history.replaceState(null, '', newUrl);
+    }
+  } catch (e) {
+    console.warn('[SentryVibe] Path normalization failed:', e);
+  }
+})();
+</script>`;
+
       const baseTag = `<head>
+    ${pathFixScript}
     <base href="/api/projects/${id}/proxy?path=/">`;
       if (/<head>/i.test(html)) {
         html = html.replace(/<head>/i, baseTag);
@@ -90,15 +111,23 @@ export async function GET(
         /(src|href)=(["'])(\/(?!\/)[^"']*)(["'])/gi,
         (match, attr, quote, assetPath) => {
           if (assetPath.startsWith('/api/projects/')) return match;
-          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(assetPath)}`;
+
+          // CRITICAL: Add ?direct for CSS files to get actual CSS from Vite
+          let pathWithParams = assetPath;
+          if (assetPath.match(/\.css$/i) && !assetPath.includes('?')) {
+            pathWithParams = `${assetPath}?direct`;
+          }
+
+          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(pathWithParams)}`;
           return `${attr}=${quote}${proxyUrl}${quote}`;
         }
       );
 
       // Rewrite inline module imports in <script type="module"> tags
+      // Must handle attributes like async, defer, etc.
       html = html.replace(
-        /<script\s+type=["']module["']>([\s\S]*?)<\/script>/gi,
-        (match, scriptContent) => {
+        /<script\s+([^>]*?type=["']module["'][^>]*?)>([\s\S]*?)<\/script>/gi,
+        (match, attrs, scriptContent) => {
           // Rewrite imports inside inline scripts
           const rewritten = scriptContent.replace(
             /(from\s+["']|import\s*\(["'])(\/[^"']+)(["'])/g,
@@ -107,7 +136,7 @@ export async function GET(
               return `${prefix}${proxyUrl}${suffix}`;
             }
           );
-          return `<script type="module">${rewritten}</script>`;
+          return `<script ${attrs}>${rewritten}</script>`;
         }
       );
 
@@ -128,6 +157,7 @@ export async function GET(
     }
 
     // JavaScript/TypeScript - Rewrite imports to go through proxy
+    // CRITICAL: Also rewrite CSS imports for TanStack Start
     if (
       contentType.includes('javascript') ||
       contentType.includes('typescript') ||
@@ -140,17 +170,64 @@ export async function GET(
     ) {
       let js = await response.text();
 
-      // Rewrite ALL absolute imports to go through our proxy
-      js = js.replace(
-        /(from\s+["']|import\s*\(\s*["']|import\s+["']|require\s*\(\s*["']|export\s+\*\s+from\s+["'])(\/[^"']+)(["'])/g,
-        (match, prefix, importPath, suffix) => {
-          // Skip if already proxied
-          if (importPath.includes('/api/projects/')) return match;
+      // CRITICAL: Handle Vite ?url responses specially
+      // They export URL strings like: export default "/src/styles.css"
+      const isViteUrlExport = path.includes('?url');
 
-          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(importPath)}`;
-          return `${prefix}${proxyUrl}${suffix}`;
-        }
-      );
+      if (isViteUrlExport) {
+        // For ?url exports, rewrite the exported path to include proxy and ?direct
+        // This prevents hydration mismatches
+        js = js.replace(
+          /export\s+default\s+"(\/[^"]+\.css)"/g,
+          (match, cssPath) => {
+            const pathWithDirect = `${cssPath}?direct`;
+            const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(pathWithDirect)}`;
+            return `export default "${proxyUrl}"`;
+          }
+        );
+      } else {
+        // TanStack Start Fix: Rewrite CSS imports with ?url parameter
+        // Pattern: import appCss from '../styles.css?url'
+        // This is the ROOT CAUSE fix - CSS URLs are embedded in JS constants
+        js = js.replace(
+          /(from\s+["'])([^"']+\.css)(\?url)?(["'])/g,
+          (match, prefix, cssPath, urlParam, suffix) => {
+            // Skip if already proxied
+            if (cssPath.includes('/api/projects/')) return match;
+
+            // Resolve relative paths to absolute
+            let absolutePath = cssPath;
+            if (cssPath.startsWith('./') || cssPath.startsWith('../')) {
+              // Get the directory of the current module
+              const moduleDir = path.substring(0, path.lastIndexOf('/'));
+              // Resolve relative to absolute
+              const resolved = new URL(cssPath, `http://dummy${moduleDir}/`).pathname;
+              absolutePath = resolved;
+            }
+
+            // Keep the ?url parameter when proxying
+            const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(absolutePath)}${urlParam || ''}`;
+            return `${prefix}${proxyUrl}${suffix}`;
+          }
+        );
+      }
+
+      // Rewrite ALL absolute imports to go through our proxy
+      // But NOT for Vite ?url responses (they just export URL strings)
+      if (!isViteUrlExport) {
+        js = js.replace(
+          /(from\s+["']|import\s*\(\s*["']|import\s+["']|require\s*\(\s*["']|export\s+\*\s+from\s+["'])(\/[^"']+)(["'])/g,
+          (match, prefix, importPath, suffix) => {
+            // Skip if already proxied
+            if (importPath.includes('/api/projects/')) return match;
+            // Skip CSS files (already handled above)
+            if (importPath.endsWith('.css')) return match;
+
+            const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(importPath)}`;
+            return `${prefix}${proxyUrl}${suffix}`;
+          }
+        );
+      }
 
       const cacheControl = isViteChunk
         ? 'public, max-age=600, immutable'
@@ -206,12 +283,9 @@ export async function GET(
     });
 
   } catch (error) {
-    const { id } = await params;
-    const url = new URL(req.url);
-
     console.error('❌ Proxy error:', error);
     console.error('   Project:', id);
-    console.error('   Path:', url.searchParams.get('path'));
+    console.error('   Path:', path);
     console.error('   Port:', proj?.devServerPort);
     console.error('   Tunnel URL:', proj?.tunnelUrl);
     console.error('   Dev server status:', proj?.devServerStatus);
