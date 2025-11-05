@@ -91,7 +91,14 @@ export async function GET(
         /(src|href)=(["'])(\/(?!\/)[^"']*)(["'])/gi,
         (match, attr, quote, assetPath) => {
           if (assetPath.startsWith('/api/projects/')) return match;
-          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(assetPath)}`;
+
+          // CRITICAL: Add ?direct for CSS files to get actual CSS from Vite
+          let pathWithParams = assetPath;
+          if (assetPath.match(/\.css$/i) && !assetPath.includes('?')) {
+            pathWithParams = `${assetPath}?direct`;
+          }
+
+          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(pathWithParams)}`;
           return `${attr}=${quote}${proxyUrl}${quote}`;
         }
       );
@@ -129,6 +136,7 @@ export async function GET(
     }
 
     // JavaScript/TypeScript - Rewrite imports to go through proxy
+    // CRITICAL: Also rewrite CSS imports for TanStack Start
     if (
       contentType.includes('javascript') ||
       contentType.includes('typescript') ||
@@ -141,12 +149,42 @@ export async function GET(
     ) {
       let js = await response.text();
 
+      // TanStack Start Fix: Rewrite CSS imports with ?url parameter
+      // Pattern: import appCss from '../styles.css?url'
+      // This is the ROOT CAUSE fix - CSS URLs are embedded in JS constants
+      js = js.replace(
+        /(from\s+["'])([^"']+\.css)(\?url)?(["'])/g,
+        (match, prefix, cssPath, urlParam, suffix) => {
+          // Skip if already proxied
+          if (cssPath.includes('/api/projects/')) return match;
+
+          // Resolve relative paths to absolute
+          let absolutePath = cssPath;
+          if (cssPath.startsWith('./') || cssPath.startsWith('../')) {
+            // Get the directory of the current module
+            const moduleDir = path.substring(0, path.lastIndexOf('/'));
+            // Resolve relative to absolute
+            const resolved = new URL(cssPath, `http://dummy${moduleDir}/`).pathname;
+            absolutePath = resolved;
+          }
+
+          // CRITICAL: Add ?direct to get actual CSS content from Vite dev server
+          // Without this, Vite returns HMR JavaScript wrapper instead of CSS
+          const absolutePathWithDirect = `${absolutePath}?direct`;
+          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(absolutePathWithDirect)}`;
+          console.log(`[proxy] Rewriting CSS import: ${cssPath} -> ${proxyUrl}`);
+          return `${prefix}${proxyUrl}${suffix}`;
+        }
+      );
+
       // Rewrite ALL absolute imports to go through our proxy
       js = js.replace(
         /(from\s+["']|import\s*\(\s*["']|import\s+["']|require\s*\(\s*["']|export\s+\*\s+from\s+["'])(\/[^"']+)(["'])/g,
         (match, prefix, importPath, suffix) => {
           // Skip if already proxied
           if (importPath.includes('/api/projects/')) return match;
+          // Skip CSS files (already handled above)
+          if (importPath.endsWith('.css')) return match;
 
           const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(importPath)}`;
           return `${prefix}${proxyUrl}${suffix}`;
