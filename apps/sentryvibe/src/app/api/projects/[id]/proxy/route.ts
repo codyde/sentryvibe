@@ -175,17 +175,25 @@ export async function GET(
         html = html.replace(/<head>/i, baseTag);
       }
 
-      // Inject fetch interceptor for TanStack Start server functions
+      // Inject fetch interceptor for TanStack Start server functions and Vite routes
       const fetchInterceptor = `<script>
 (function() {
   const originalFetch = window.fetch;
   const proxyPrefix = '/api/projects/${id}/proxy?path=';
 
   window.fetch = function(resource, options) {
-    // Intercept TanStack Start server function calls
-    if (typeof resource === 'string' && resource.startsWith('/_serverFn/')) {
-      const proxiedUrl = proxyPrefix + encodeURIComponent(resource);
-      return originalFetch(proxiedUrl, options);
+    // Intercept requests that need proxying
+    if (typeof resource === 'string') {
+      // TanStack Start server functions
+      if (resource.startsWith('/_serverFn/')) {
+        const proxiedUrl = proxyPrefix + encodeURIComponent(resource);
+        return originalFetch(proxiedUrl, options);
+      }
+      // Vite special routes (/@react-refresh, /@id/, etc.)
+      if (resource.startsWith('/@')) {
+        const proxiedUrl = proxyPrefix + encodeURIComponent(resource);
+        return originalFetch(proxiedUrl, options);
+      }
     }
     return originalFetch(resource, options);
   };
