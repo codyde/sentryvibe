@@ -55,7 +55,6 @@ export async function GET(
       // This means frontend and runner are on the SAME machine
       // Proxy can directly access runner's localhost
       targetUrl = `http://localhost:${proj.devServerPort}${path}`;
-      console.log(`[proxy] Frontend accessed via ${requestHost} - using localhost:${proj.devServerPort}`);
     } else if (proj.tunnelUrl) {
       // User accessing frontend via remote URL (e.g., sentryvibe.up.railway.app)
       // Frontend and runner are on DIFFERENT machines
@@ -79,8 +78,29 @@ export async function GET(
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // Inject base tag FIRST (before ANY content)
+      // Inject base tag and pathname fix FIRST (before ANY content)
+      // CRITICAL: Fix window.location.pathname for TanStack Router BEFORE it initializes
+      const pathFixScript = `<script>
+(function() {
+  try {
+    // Extract actual path from proxy URL
+    const url = new URL(window.location.href);
+    const actualPath = url.searchParams.get('path') || '/';
+
+    // Use history.replaceState to change pathname without reload
+    // This makes Router see the correct path
+    if (window.location.pathname !== actualPath) {
+      const newUrl = window.location.origin + actualPath + (url.hash || '');
+      history.replaceState(null, '', newUrl);
+    }
+  } catch (e) {
+    console.warn('[SentryVibe] Path normalization failed:', e);
+  }
+})();
+</script>`;
+
       const baseTag = `<head>
+    ${pathFixScript}
     <base href="/api/projects/${id}/proxy?path=/">`;
       if (/<head>/i.test(html)) {
         html = html.replace(/<head>/i, baseTag);
@@ -150,47 +170,53 @@ export async function GET(
     ) {
       let js = await response.text();
 
-      // TanStack Start Fix: Rewrite CSS imports with ?url parameter
-      // Pattern: import appCss from '../styles.css?url'
-      // This is the ROOT CAUSE fix - CSS URLs are embedded in JS constants
-      js = js.replace(
-        /(from\s+["'])([^"']+\.css)(\?url)?(["'])/g,
-        (match, prefix, cssPath, urlParam, suffix) => {
-          // Skip if already proxied
-          if (cssPath.includes('/api/projects/')) return match;
+      // CRITICAL: Skip rewriting for Vite ?url responses - they export URL strings
+      // If we rewrite these, we create an infinite loop
+      const isViteUrlExport = path.includes('?url');
 
-          // Resolve relative paths to absolute
-          let absolutePath = cssPath;
-          if (cssPath.startsWith('./') || cssPath.startsWith('../')) {
-            // Get the directory of the current module
-            const moduleDir = path.substring(0, path.lastIndexOf('/'));
-            // Resolve relative to absolute
-            const resolved = new URL(cssPath, `http://dummy${moduleDir}/`).pathname;
-            absolutePath = resolved;
+      if (!isViteUrlExport) {
+        // TanStack Start Fix: Rewrite CSS imports with ?url parameter
+        // Pattern: import appCss from '../styles.css?url'
+        // This is the ROOT CAUSE fix - CSS URLs are embedded in JS constants
+        js = js.replace(
+          /(from\s+["'])([^"']+\.css)(\?url)?(["'])/g,
+          (match, prefix, cssPath, urlParam, suffix) => {
+            // Skip if already proxied
+            if (cssPath.includes('/api/projects/')) return match;
+
+            // Resolve relative paths to absolute
+            let absolutePath = cssPath;
+            if (cssPath.startsWith('./') || cssPath.startsWith('../')) {
+              // Get the directory of the current module
+              const moduleDir = path.substring(0, path.lastIndexOf('/'));
+              // Resolve relative to absolute
+              const resolved = new URL(cssPath, `http://dummy${moduleDir}/`).pathname;
+              absolutePath = resolved;
+            }
+
+            // Keep the ?url parameter when proxying
+            const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(absolutePath)}${urlParam || ''}`;
+            return `${prefix}${proxyUrl}${suffix}`;
           }
-
-          // IMPORTANT: Do NOT add ?direct here for JavaScript imports!
-          // JS import needs Vite module that exports URL string, not raw CSS
-          // The ?direct is only added in HTML <link> tags (see line 98)
-          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(absolutePath)}${urlParam || ''}`;
-          console.log(`[proxy] Rewriting CSS import: ${cssPath} -> ${proxyUrl}`);
-          return `${prefix}${proxyUrl}${suffix}`;
-        }
-      );
+        );
+      }
 
       // Rewrite ALL absolute imports to go through our proxy
-      js = js.replace(
-        /(from\s+["']|import\s*\(\s*["']|import\s+["']|require\s*\(\s*["']|export\s+\*\s+from\s+["'])(\/[^"']+)(["'])/g,
-        (match, prefix, importPath, suffix) => {
-          // Skip if already proxied
-          if (importPath.includes('/api/projects/')) return match;
-          // Skip CSS files (already handled above)
-          if (importPath.endsWith('.css')) return match;
+      // But NOT for Vite ?url responses (they just export URL strings)
+      if (!isViteUrlExport) {
+        js = js.replace(
+          /(from\s+["']|import\s*\(\s*["']|import\s+["']|require\s*\(\s*["']|export\s+\*\s+from\s+["'])(\/[^"']+)(["'])/g,
+          (match, prefix, importPath, suffix) => {
+            // Skip if already proxied
+            if (importPath.includes('/api/projects/')) return match;
+            // Skip CSS files (already handled above)
+            if (importPath.endsWith('.css')) return match;
 
-          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(importPath)}`;
-          return `${prefix}${proxyUrl}${suffix}`;
-        }
-      );
+            const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(importPath)}`;
+            return `${prefix}${proxyUrl}${suffix}`;
+          }
+        );
+      }
 
       const cacheControl = isViteChunk
         ? 'public, max-age=600, immutable'
