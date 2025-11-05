@@ -293,13 +293,19 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     });
   }
 
+  // Determine preview URL based on frontend location
+  // - Local frontend: Use proxy (works with localhost runner)
+  // - Remote frontend + tunnel: Use tunnel directly (proxy can't reach tunnel)
   const previewUrl = canShowPreview
-    ? `/api/projects/${currentProject.id}/proxy?path=/`
+    ? (frontendIsRemote && verifiedTunnelUrl
+        ? verifiedTunnelUrl
+        : `/api/projects/${currentProject.id}/proxy?path=/`)
     : '';
 
-  // Note: Proxy intelligently routes based on Host header:
-  // - Local frontend: Fetches from localhost (fast, no tunnel needed)
-  // - Remote frontend: Fetches from tunnel (requires tunnel to exist)
+  // Note on URL strategy:
+  // - Local frontend: Always use proxy (fetches from localhost runner)
+  // - Remote frontend without tunnel: Use proxy (will wait for tunnel)
+  // - Remote frontend with tunnel: Use tunnel directly (different networks)
 
 
   const handleRefresh = useCallback(() => {
