@@ -403,6 +403,26 @@ export function withEnforcedPort(command: string, framework: FrameworkKey, port:
     return `${trimmed} -- ${cliArgs}`;
   }
 
+  // Default framework: Try common port patterns
+  if (framework === 'default') {
+    // Most dev servers accept --port flag
+    const cliArgs = `--port ${port} --host 0.0.0.0`;
+
+    if (/^npm\s+run\s+/i.test(trimmed)) {
+      return `${trimmed} -- ${cliArgs}`;
+    }
+
+    if (/^pnpm\s+/i.test(trimmed)) {
+      return `${trimmed} -- ${cliArgs}`;
+    }
+
+    if (/^yarn\s+/i.test(trimmed)) {
+      return `${trimmed} ${cliArgs}`;
+    }
+
+    return `${trimmed} -- ${cliArgs}`;
+  }
+
   // Next.js needs -p flag (passed after --)
   if (framework === 'next') {
     const cliArgs = `-p ${port}`;
