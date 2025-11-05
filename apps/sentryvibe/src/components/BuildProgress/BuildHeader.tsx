@@ -42,16 +42,7 @@ export function BuildHeader({
   onClose,
   templateInfo,
 }: BuildHeaderProps) {
-  // DEBUG: Log agent values
-  console.log('🔍 [BuildHeader] Agent values:', {
-    agentId,
-    claudeModelId,
-    projectName,
-    agentIdType: typeof agentId,
-    agentIdValue: agentId,
-    isCodex: agentId === 'openai-codex',
-    isClaude: agentId === 'claude-code',
-  });
+  // Agent values validated
 
   const agentLabel =
     agentId === 'openai-codex'
