@@ -122,7 +122,8 @@ function HomeContent() {
   const [generationRevision, setGenerationRevision] = useState(0);
   const [showFullHistory, setShowFullHistory] = useState(false);
 
-  const classifyMessage = useCallback((message: Message) => {
+  const classifyMessage = useCallback((message: Message | null | undefined) => {
+    if (!message) return 'other';
     const role = (message.role ?? message.type ?? '').toLowerCase();
     if (role === 'user') return 'user';
     if (role === 'assistant' || role === 'tool-result') return 'assistant';
@@ -170,6 +171,8 @@ function HomeContent() {
 
   const conversationMessages = useMemo(() => {
     return messages.filter((message) => {
+      // Filter out null/undefined messages
+      if (!message) return false;
       if (classifyMessage(message) === 'other') return false;
       return getMessageContent(message).trim().length > 0;
     });
