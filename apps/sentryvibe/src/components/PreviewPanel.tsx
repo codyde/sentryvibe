@@ -459,7 +459,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 <span className="text-xs font-mono text-gray-300 truncate">
                   {isLocalRunner
                     ? `http://localhost:${actualPort}`
-                    : (verifiedTunnelUrl || `http://localhost:${actualPort}`)}
+                    : (verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`)}
                 </span>
                 <button
                   onClick={handleCopyUrl}
