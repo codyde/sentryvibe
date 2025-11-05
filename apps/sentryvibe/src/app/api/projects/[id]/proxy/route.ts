@@ -98,7 +98,7 @@ export async function GET(
   const path = url.searchParams.get('path') || '/';
   let proj: (typeof projects.$inferSelect) | undefined;
 
-  try:
+  try {
     // Get project
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     if (project.length === 0) {
