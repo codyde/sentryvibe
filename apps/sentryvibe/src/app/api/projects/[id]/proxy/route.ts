@@ -369,17 +369,21 @@ export async function GET(
     }
 
     // Everything else - Just proxy with CORS headers
+    // Preserve ALL headers from upstream (important for TanStack Start server functions)
     const buffer = await response.arrayBuffer();
 
-    return new NextResponse(buffer, {
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': response.headers.get('cache-control') || 'public, max-age=31536000',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
-      },
+    const headers = new Headers();
+    // Copy all upstream headers
+    response.headers.forEach((value, key) => {
+      headers.set(key, value);
     });
+
+    // Add/override CORS headers
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', '*');
+
+    return new NextResponse(buffer, { headers });
 
   } catch (error) {
     console.error('❌ Proxy error:', error);
