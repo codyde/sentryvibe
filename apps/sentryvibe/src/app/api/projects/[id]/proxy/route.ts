@@ -170,11 +170,22 @@ export async function GET(
     ) {
       let js = await response.text();
 
-      // CRITICAL: Skip rewriting for Vite ?url responses - they export URL strings
-      // If we rewrite these, we create an infinite loop
+      // CRITICAL: Handle Vite ?url responses specially
+      // They export URL strings like: export default "/src/styles.css"
       const isViteUrlExport = path.includes('?url');
 
-      if (!isViteUrlExport) {
+      if (isViteUrlExport) {
+        // For ?url exports, rewrite the exported path to include proxy and ?direct
+        // This prevents hydration mismatches
+        js = js.replace(
+          /export\s+default\s+"(\/[^"]+\.css)"/g,
+          (match, cssPath) => {
+            const pathWithDirect = `${cssPath}?direct`;
+            const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(pathWithDirect)}`;
+            return `export default "${proxyUrl}"`;
+          }
+        );
+      } else {
         // TanStack Start Fix: Rewrite CSS imports with ?url parameter
         // Pattern: import appCss from '../styles.css?url'
         // This is the ROOT CAUSE fix - CSS URLs are embedded in JS constants
