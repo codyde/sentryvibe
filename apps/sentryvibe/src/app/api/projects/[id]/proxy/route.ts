@@ -376,6 +376,11 @@ export async function GET(
     headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     headers.set('Access-Control-Allow-Headers', '*');
 
+    // Override cache control for server functions and API routes to prevent stale data
+    if (path.startsWith('/_serverFn/') || path.startsWith('/api/')) {
+      headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+
     return new NextResponse(buffer, { headers });
 
   } catch (error) {
