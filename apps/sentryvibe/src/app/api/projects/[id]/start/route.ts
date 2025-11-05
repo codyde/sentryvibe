@@ -66,13 +66,15 @@ export async function POST(
       console.log(`🚀 Starting dev server for ${proj.name}`);
 
       // Step 1: Allocate port BEFORE spawning (proactive allocation)
+      // Skip local port availability checks for remote runners (they run on different machines)
+      const isRemoteRunner = runnerId !== 'local';
       const portInfo = await reserveOrReallocatePort({
         projectId: id,
         projectType: proj.projectType,
         runCommand: proj.runCommand,
         preferredPort: proj.devServerPort, // Try to reuse existing port if available
         detectedFramework: proj.detectedFramework, // Framework detected during build
-      });
+      }, isRemoteRunner); // Skip port check for remote runners
 
       console.log(`📍 Allocated port ${portInfo.port} for framework ${portInfo.framework}`);
 

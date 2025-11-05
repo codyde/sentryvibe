@@ -507,7 +507,7 @@ export async function getPortForProject(projectId: string): Promise<ReservedPort
  * Reserve a port for a project, with automatic reallocation if unavailable
  * This is the main function to use when starting dev servers
  */
-export async function reserveOrReallocatePort(params: ReservePortParams): Promise<ReservedPortInfo> {
+export async function reserveOrReallocatePort(params: ReservePortParams, skipPortCheck = false): Promise<ReservedPortInfo> {
   const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
 
@@ -523,6 +523,16 @@ export async function reserveOrReallocatePort(params: ReservePortParams): Promis
       );
       await releasePortForProject(params.projectId);
     } else {
+      // Skip port availability check for remote runners (different machines)
+      if (skipPortCheck) {
+        await db.update(portAllocations)
+          .set({ reservedAt: new Date() })
+          .where(eq(portAllocations.projectId, params.projectId))
+          .execute();
+
+        return existing;
+      }
+
       const isAvailable = await checkPortAvailability(existing.port);
 
       if (isAvailable) {
@@ -566,6 +576,11 @@ export async function reserveOrReallocatePort(params: ReservePortParams): Promis
       console.warn(`Allocated port ${allocation.port} is outside range ${range.start}-${range.end}, continuing...`);
       preferredPort = allocation.port + 1;
       continue;
+    }
+
+    // Skip port check for remote runners - trust the allocation
+    if (skipPortCheck) {
+      return allocation;
     }
 
     const isAvailable = await checkPortAvailability(allocation.port);
