@@ -24,18 +24,19 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const url = new URL(req.url);
-    const path = url.searchParams.get('path') || '/';
+  const { id } = await params;
+  const url = new URL(req.url);
+  const path = url.searchParams.get('path') || '/';
+  let proj: (typeof projects.$inferSelect) | undefined;
 
+  try {
     // Get project
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
     if (project.length === 0) {
       return new NextResponse('Project not found', { status: 404 });
     }
 
-    const proj = project[0];
+    proj = project[0];
 
     // Check if server running
     if (proj.devServerStatus !== 'running' || !proj.devServerPort) {
@@ -206,12 +207,9 @@ export async function GET(
     });
 
   } catch (error) {
-    const { id } = await params;
-    const url = new URL(req.url);
-
     console.error('❌ Proxy error:', error);
     console.error('   Project:', id);
-    console.error('   Path:', url.searchParams.get('path'));
+    console.error('   Path:', path);
     console.error('   Port:', proj?.devServerPort);
     console.error('   Tunnel URL:', proj?.tunnelUrl);
     console.error('   Dev server status:', proj?.devServerStatus);
