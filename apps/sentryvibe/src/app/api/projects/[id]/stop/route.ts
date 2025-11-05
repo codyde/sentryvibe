@@ -16,6 +16,8 @@ export async function POST(
   try {
     const { id } = await params;
 
+    console.log(`[stop-route] ⛔ Received stop request for project ${id}`);
+
     // Get project from DB
     const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
 
@@ -65,6 +67,7 @@ export async function POST(
       .where(eq(projects.id, id));
 
     console.log(`🛑 Released port allocation for project ${id}`);
+    console.log(`[stop-route] ✅ Completed stop request for project ${id}`);
 
     return NextResponse.json({
       message: 'Dev server stop requested',

@@ -19,11 +19,12 @@ interface ReservedPortInfo {
   framework: FrameworkKey;
 }
 
-type FrameworkKey = 'next' | 'astro' | 'vite' | 'node' | 'default';
+type FrameworkKey = 'next' | 'astro' | 'vite' | 'tanstack' | 'node' | 'default';
 
 const FRAMEWORK_RANGES: Record<FrameworkKey, { start: number; end: number }> = {
-  next: { start: 3000, end: 3100 },
-  node: { start: 3000, end: 3100 },
+  next: { start: 3101, end: 3200 },
+  node: { start: 3101, end: 3200 },
+  tanstack: { start: 3101, end: 3200 },
   astro: { start: 4321, end: 4421 },
   vite: { start: 5173, end: 5273 },
   default: { start: 6000, end: 6100 },
@@ -32,6 +33,7 @@ const FRAMEWORK_RANGES: Record<FrameworkKey, { start: number; end: number }> = {
 const FRAMEWORK_ENV_MAP: Record<FrameworkKey, string[]> = {
   next: ['PORT', 'NEXT_PUBLIC_PORT'],
   node: ['PORT'],
+  tanstack: ['PORT', 'VITE_PORT'],
   astro: ['PORT', 'ASTRO_PORT'],
   vite: ['PORT', 'VITE_PORT'],
   default: ['PORT'],
@@ -43,6 +45,36 @@ const FRAMEWORK_ENV_MAP: Record<FrameworkKey, string[]> = {
  */
 export async function detectFrameworkFromFilesystem(projectPath: string): Promise<FrameworkKey | null> {
   try {
+    let cachedPkg: { deps: Record<string, unknown>; devDeps: Record<string, unknown>; devScript: string } | null = null;
+
+    const loadPackageJson = async () => {
+      if (cachedPkg) return cachedPkg;
+
+      const pkgPath = join(projectPath, 'package.json');
+      if (!existsSync(pkgPath)) {
+        cachedPkg = null;
+        return cachedPkg;
+      }
+
+      const pkgContent = await readFile(pkgPath, 'utf-8');
+      const pkg = JSON.parse(pkgContent);
+      cachedPkg = {
+        deps: { ...(pkg.dependencies ?? {}), ...(pkg.peerDependencies ?? {}) },
+        devDeps: pkg.devDependencies ?? {},
+        devScript: pkg.scripts?.dev?.toLowerCase() ?? '',
+      };
+      return cachedPkg;
+    };
+
+    const hasTanStackDependency = async () => {
+      const pkg = await loadPackageJson();
+      if (!pkg) return false;
+      const combined = { ...pkg.deps, ...pkg.devDeps } as Record<string, unknown>;
+      if (combined['@tanstack/react-start']) return true;
+      if (pkg.devScript.includes('tanstack')) return true;
+      return false;
+    };
+
     // Check for config files first (most reliable)
     if (existsSync(join(projectPath, 'astro.config.mjs')) || 
         existsSync(join(projectPath, 'astro.config.ts')) ||
@@ -58,30 +90,28 @@ export async function detectFrameworkFromFilesystem(projectPath: string): Promis
     
     if (existsSync(join(projectPath, 'vite.config.ts')) || 
         existsSync(join(projectPath, 'vite.config.js'))) {
+      if (await hasTanStackDependency()) {
+        return 'tanstack';
+      }
       return 'vite';
     }
 
     // Check package.json dependencies
-    const pkgPath = join(projectPath, 'package.json');
-    if (existsSync(pkgPath)) {
-      const pkgContent = await readFile(pkgPath, 'utf-8');
-      const pkg = JSON.parse(pkgContent);
-      
-      const allDeps = { 
-        ...pkg.dependencies, 
-        ...pkg.devDependencies 
-      };
-      
+    const pkg = await loadPackageJson();
+    if (pkg) {
+      const allDeps = { ...pkg.deps, ...pkg.devDeps } as Record<string, unknown>;
+
       // Order matters: Astro uses Vite internally, so check Astro first
       if (allDeps['astro']) return 'astro';
+      if (allDeps['@tanstack/react-start']) return 'tanstack';
       if (allDeps['next']) return 'next';
       if (allDeps['vite']) return 'vite';
       
       // Check scripts for clues
-      const devScript = pkg.scripts?.dev?.toLowerCase() || '';
-      if (devScript.includes('astro')) return 'astro';
-      if (devScript.includes('next')) return 'next';
-      if (devScript.includes('vite')) return 'vite';
+      if (pkg.devScript.includes('tanstack')) return 'tanstack';
+      if (pkg.devScript.includes('astro')) return 'astro';
+      if (pkg.devScript.includes('next')) return 'next';
+      if (pkg.devScript.includes('vite')) return 'vite';
     }
   } catch (error) {
     console.error('[port-allocator] Failed to detect framework from filesystem:', error);
@@ -115,6 +145,10 @@ async function resolveFramework(
 
   // Strategy 2: Check projectType field
   const normalizedType = projectType?.toLowerCase() ?? '';
+  if (normalizedType.includes('tanstack')) {
+    console.log(`  ✅ Detected from projectType: tanstack`);
+    return 'tanstack';
+  }
   if (normalizedType.includes('vite')) {
     console.log(`  ✅ Detected from projectType: vite`);
     return 'vite';
@@ -142,6 +176,10 @@ async function resolveFramework(
     console.log(`  ✅ Detected from runCommand: astro`);
     return 'astro';
   }
+  if (normalizedCommand.includes('tanstack')) {
+    console.log(`  ✅ Detected from runCommand: tanstack`);
+    return 'tanstack';
+  }
   if (normalizedCommand.includes('next')) {
     console.log(`  ✅ Detected from runCommand: next`);
     return 'next';
@@ -156,6 +194,7 @@ function toFrameworkKey(value: string): FrameworkKey {
     case 'next':
     case 'astro':
     case 'vite':
+    case 'tanstack':
     case 'node':
       return value;
     default:
@@ -338,7 +377,7 @@ export function withEnforcedPort(command: string, framework: FrameworkKey, port:
   if (!trimmed) return command;
 
   // Vite and Astro need explicit --port flags with --strictPort
-  if (framework === 'vite' || framework === 'astro') {
+  if (framework === 'vite' || framework === 'astro' || framework === 'tanstack') {
     const cliArgs = `--port ${port} --host 0.0.0.0 --strictPort`;
 
     if (/^npm\s+run\s+/i.test(trimmed)) {
@@ -449,71 +488,81 @@ export async function getPortForProject(projectId: string): Promise<ReservedPort
  * This is the main function to use when starting dev servers
  */
 export async function reserveOrReallocatePort(params: ReservePortParams): Promise<ReservedPortInfo> {
-  // First, try to get existing allocation
-  const existing = await getPortForProject(params.projectId);
-  
-  if (existing) {
-    // Check if the allocated port is actually available
-    const isAvailable = await checkPortAvailability(existing.port);
-    
-    if (isAvailable) {
-      // Port is free, reuse it (update timestamp)
-      await db.update(portAllocations)
-        .set({ reservedAt: new Date() })
-        .where(eq(portAllocations.projectId, params.projectId))
-        .execute();
-      
-      return existing;
-    }
-    
-    // Port is in use by another process, need to reallocate
-    console.warn(`Port ${existing.port} allocated to project ${params.projectId} is in use. Reallocating...`);
-  }
-  
-  // No existing allocation or port unavailable - allocate new port
   const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
-  
-  // Keep track of tried ports to avoid infinite loops
+
+  const existing = await getPortForProject(params.projectId);
+
+  if (existing) {
+    const withinRange = existing.port >= range.start && existing.port <= range.end;
+    const sameFramework = existing.framework === framework;
+
+    if (!withinRange || !sameFramework) {
+      console.warn(
+        `Existing allocation ${existing.port} for project ${params.projectId} is invalid for framework ${framework}. Reallocating...`
+      );
+      await releasePortForProject(params.projectId);
+    } else {
+      const isAvailable = await checkPortAvailability(existing.port);
+
+      if (isAvailable) {
+        await db.update(portAllocations)
+          .set({ reservedAt: new Date() })
+          .where(eq(portAllocations.projectId, params.projectId))
+          .execute();
+
+        return existing;
+      }
+
+      console.warn(`Port ${existing.port} allocated to project ${params.projectId} is in use. Reallocating...`);
+    }
+  }
+
+  const allocationParams: ReservePortParams = {
+    ...params,
+    detectedFramework: params.detectedFramework ?? framework,
+  };
+
   const triedPorts = new Set<number>();
-  
-  // Try to find an available port in the range
-  for (let attempts = 0; attempts < 10; attempts++) {
-    const allocation = await reservePortForProject(params);
-    
-    // Check if we already tried this port (infinite loop detection)
+  let preferredPort = params.preferredPort ?? undefined;
+
+  for (let offset = 0; offset <= range.end - range.start; offset++) {
+    const attemptParams = {
+      ...allocationParams,
+      preferredPort,
+    } as ReservePortParams;
+
+    const allocation = await reservePortForProject(attemptParams);
+
     if (triedPorts.has(allocation.port)) {
       console.error(`[port-allocator] Infinite loop detected - already tried port ${allocation.port}`);
       await releasePortForProject(params.projectId);
-      
-      // Manually try next port
-      const nextPort = allocation.port + 1;
-      if (nextPort <= range.end) {
-        params.preferredPort = nextPort;
-        continue;
-      } else {
-        break;
-      }
+      break;
     }
-    
+
     triedPorts.add(allocation.port);
+
+    if (allocation.port < range.start || allocation.port > range.end) {
+      console.warn(`Allocated port ${allocation.port} is outside range ${range.start}-${range.end}, continuing...`);
+      preferredPort = allocation.port + 1;
+      continue;
+    }
+
     const isAvailable = await checkPortAvailability(allocation.port);
-    
     if (isAvailable) {
       return allocation;
     }
-    
-    // Port allocated but not available - mark it in DB as taken but try next port
+
     console.warn(`Allocated port ${allocation.port} is not available, trying another...`);
-    
-    // Don't release - leave it marked so next iteration picks a higher port
-    // Instead, set preferredPort to next in sequence
-    params.preferredPort = allocation.port + 1;
+    preferredPort = allocation.port + 1;
+
+    if (preferredPort && preferredPort > range.end) {
+      preferredPort = range.start;
+    }
   }
-  
-  // Clean up if we failed
+
   await releasePortForProject(params.projectId);
-  throw new Error(`Unable to find available port in range ${range.start}-${range.end} after 10 attempts`);
+  throw new Error(`Unable to find available port in range ${range.start}-${range.end}`);
 }
 
 /**

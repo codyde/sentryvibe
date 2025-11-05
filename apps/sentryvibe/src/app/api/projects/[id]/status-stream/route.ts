@@ -29,12 +29,51 @@ export async function GET(
 
   const encoder = new TextEncoder();
   let keepaliveInterval: NodeJS.Timeout | null = null;
+  let periodicCheck: NodeJS.Timeout | null = null;
+  let isClosed = false;
+  let activeProjectUpdateHandler: ((project: any) => void) | null = null;
+
+  const safeEnqueue = (controller: ReadableStreamDefaultController, data: string) => {
+    if (isClosed) return;
+    try {
+      controller.enqueue(encoder.encode(data));
+    } catch (err) {
+      if (process.env.SENTRYVIBE_DEBUG_SSE === '1') {
+        console.warn(`⚠️  Failed to enqueue SSE data for ${id}:`, err);
+      }
+      safeClose(controller);
+    }
+  };
+
+  const safeClose = (controller: ReadableStreamDefaultController) => {
+    if (isClosed) return;
+    isClosed = true;
+    try {
+      controller.close();
+    } catch (err) {
+      if (process.env.SENTRYVIBE_DEBUG_SSE === '1') {
+        console.warn(`⚠️  Failed to close SSE controller for ${id}:`, err);
+      }
+    }
+    if (keepaliveInterval) {
+      clearInterval(keepaliveInterval);
+      keepaliveInterval = null;
+    }
+    if (periodicCheck) {
+      clearInterval(periodicCheck);
+      periodicCheck = null;
+    }
+    if (activeProjectUpdateHandler) {
+      projectEvents.offProjectUpdate(id, activeProjectUpdateHandler);
+      activeProjectUpdateHandler = null;
+    }
+  };
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Send connected message first to establish stream
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`));
+        const enqueueConnected = `data: ${JSON.stringify({ type: 'connected' })}\n\n`;
+        safeEnqueue(controller, enqueueConnected);
 
         // Send initial project state immediately
         const initialProject = await db.select()
@@ -47,38 +86,30 @@ export async function GET(
             type: 'status-update',
             project: initialProject[0],
           })}\n\n`;
-          controller.enqueue(encoder.encode(data));
+          safeEnqueue(controller, data);
           debugLog(`✅ Sent initial status for ${id}`);
         } else {
           if (!loggedMissingProjects.has(id)) {
             console.warn(`⚠️  Project ${id} not found`);
             loggedMissingProjects.add(id);
           }
-          controller.close();
+          safeClose(controller);
           return;
         }
 
         // Start keepalive pings every 15 seconds
         keepaliveInterval = setInterval(() => {
-          try {
-            controller.enqueue(encoder.encode(':keepalive\n\n'));
-          } catch (err) {
-            debugLog(`   Keepalive failed for ${id}, stream likely closed`);
-            if (keepaliveInterval) {
-              clearInterval(keepaliveInterval);
-              keepaliveInterval = null;
-            }
-          }
+          safeEnqueue(controller, ':keepalive\n\n');
         }, 15000);
 
         // Event-driven updates: listen for project changes
-        const handleProjectUpdate = (project: any) => {
+        const projectUpdateHandler = (project: any) => {
           try {
             const data = `data: ${JSON.stringify({
               type: 'status-update',
               project,
             })}\n\n`;
-            controller.enqueue(encoder.encode(data));
+            safeEnqueue(controller, data);
             debugLog(`📤 Event-driven update for ${id}:`, {
               status: project.devServerStatus,
               port: project.devServerPort,
@@ -90,7 +121,8 @@ export async function GET(
         };
 
         // Subscribe to project events
-        projectEvents.onProjectUpdate(id, handleProjectUpdate);
+        projectEvents.onProjectUpdate(id, projectUpdateHandler);
+        activeProjectUpdateHandler = projectUpdateHandler;
 
         // Hybrid approach: Event-driven with periodic safety check
         // This handles race conditions and missed events
@@ -120,7 +152,7 @@ export async function GET(
                   type: 'status-update',
                   project: proj,
                 })}\n\n`;
-                controller.enqueue(encoder.encode(data));
+                safeEnqueue(controller, data);
               }
             }
           } catch (err) {
@@ -132,31 +164,32 @@ export async function GET(
         setTimeout(sendLatestState, 1000);
 
         // Periodic safety check every 5 seconds
-        const periodicCheck = setInterval(sendLatestState, 5000);
+        periodicCheck = setInterval(sendLatestState, 5000);
 
         // Cleanup on connection close
         req.signal.addEventListener('abort', () => {
           debugLog(`🔌 Client disconnected from status stream for ${id}`);
-          if (keepaliveInterval) {
-            clearInterval(keepaliveInterval);
-          }
-          if (periodicCheck) {
-            clearInterval(periodicCheck);
-          }
-          projectEvents.offProjectUpdate(id, handleProjectUpdate);
-          controller.close();
+          safeClose(controller);
         });
       } catch (error) {
         console.error(`❌ Error starting status stream for ${id}:`, error);
-        controller.error(error);
+        if (!isClosed) {
+          try {
+            controller.error(error);
+          } catch {
+            safeClose(controller);
+          }
+        }
       }
     },
 
     cancel() {
       debugLog(`🛑 Status stream cancelled for ${id}`);
-      if (keepaliveInterval) {
-        clearInterval(keepaliveInterval);
-      }
+      const dummyController = {
+        close: () => {},
+        enqueue: () => {},
+      } as unknown as ReadableStreamDefaultController;
+      safeClose(dummyController);
     },
   });
 

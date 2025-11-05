@@ -91,6 +91,14 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         branch: 'main'
       },
       {
+        value: 'tanstack',
+        label: 'TanStack Start',
+        description: 'Minimal TanStack Start foundation with React 19, Router, Query, and Tailwind',
+        logo: '/logos/tanstack.png',
+        repository: 'github:codyde/template-tanstackstart',
+        branch: 'main'
+      },
+      {
         value: 'vite',
         label: 'React + Vite',
         description: 'Fast React SPA with Vite - perfect for client-side apps',

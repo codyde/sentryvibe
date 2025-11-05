@@ -10,6 +10,7 @@ import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
 import { generateObject } from 'ai';
 import { TemplateAnalysisSchema, ProjectNamingSchema } from '../schemas/metadata';
+import { resolveClaudeModelForProvider } from '@/lib/claude-model';
 
 // Create Claude Code provider - inherits authentication from local CLI
 const claudeCode = createClaudeCode();
@@ -96,7 +97,7 @@ Requirements:
 
   try {
     const result = await generateObject({
-      model: claudeCode('claude-haiku-4-5'),
+      model: claudeCode(resolveClaudeModelForProvider('claude-haiku-4-5')),
       schema: ProjectNamingSchema,
       prompt: namePrompt,
     });
@@ -208,7 +209,7 @@ async function analyzeWithClaude(
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
   const result = await generateObject({
-    model: claudeCode(model),
+    model: claudeCode(resolveClaudeModelForProvider(model)),
     schema: TemplateAnalysisSchema,
     prompt: combinedPrompt,
   });
@@ -300,6 +301,7 @@ Dev command: ${t.setup.devCommand}
 Selection Guidelines:
 - **react-vite**: Simple SPAs, prototypes, basic UIs (default for unclear requests)
 - **nextjs-fullstack**: Full-stack apps needing auth, database, API routes, SSR
+- **template_tanstackstart**: TanStack Start foundation with Router/Query + Tailwind for customizable full-stack builds
 - **vite-react-node**: SPAs with separate backend, real-time apps, WebSocket
 - **astro-static**: Blogs, documentation, landing pages, marketing sites
 

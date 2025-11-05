@@ -22,6 +22,7 @@ export type RunnerEventType =
   | 'ack'
   | 'log-chunk'
   | 'port-detected'
+  | 'port-conflict'
   | 'tunnel-created'
   | 'tunnel-closed'
   | 'process-exited'
@@ -197,6 +198,12 @@ export interface TunnelCreatedEvent extends BaseEvent {
   tunnelUrl: string;
 }
 
+export interface PortConflictEvent extends BaseEvent {
+  type: 'port-conflict';
+  port: number;
+  message?: string;
+}
+
 export interface TunnelClosedEvent extends BaseEvent {
   type: 'tunnel-closed';
   port: number;
@@ -305,6 +312,7 @@ export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
   | PortDetectedEvent
+  | PortConflictEvent
   | TunnelCreatedEvent
   | TunnelClosedEvent
   | ProcessExitedEvent

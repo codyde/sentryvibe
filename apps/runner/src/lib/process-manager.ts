@@ -103,7 +103,7 @@ const activeProcesses = new Map<string, DevServerProcess>();
  * Check if a port is in use (listening)
  * Binds to 0.0.0.0 to match dev servers that bind to all interfaces
  */
-async function checkPortInUse(port: number): Promise<boolean> {
+export async function checkPortInUse(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
     

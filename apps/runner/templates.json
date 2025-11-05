@@ -155,6 +155,72 @@
     },
 
     {
+      "id": "template_tanstackstart",
+      "name": "TanStack Start (Blank)",
+      "description": "Minimal TanStack Start + React + Tailwind scaffold for full-stack applications. Provides TanStack Router/Query wiring without opinionated auth or database layers.",
+      "repository": "github:codyde/template-tanstackstart",
+      "branch": "main",
+
+      "selection": {
+        "keywords": [
+          "tanstack",
+          "tanstack start",
+          "start",
+          "router",
+          "tanstack router",
+          "tanstack query",
+          "full-stack",
+          "react 19",
+          "tailwind",
+          "ssr",
+          "server actions"
+        ],
+        "useCases": [
+          "Teams standardizing on TanStack Start for new full-stack builds",
+          "Projects that need file-based routing with TanStack Router and server-side loaders",
+          "React 19 applications targeting modern SSR/edge runtimes",
+          "Internal tools that will layer in auth, data, and APIs incrementally",
+          "Proof-of-concept apps exploring the TanStack Start workflow"
+        ],
+        "examples": [
+          "Kick off a TanStack Start full-stack project with custom backend",
+          "Prototype a dashboard using TanStack Router and Query",
+          "Create a React 19 + Tailwind admin shell with server-rendered routes",
+          "Start a multi-step workflow using TanStack Start loaders/actions",
+          "Experiment with TanStack Start SSR on a blank canvas"
+        ]
+      },
+
+      "tech": {
+        "framework": "tanstack",
+        "version": "start",
+        "language": "typescript",
+        "styling": "tailwind",
+        "packageManager": "pnpm",
+        "nodeVersion": ">=20.10.0"
+      },
+
+      "setup": {
+        "defaultPort": 3000,
+        "installCommand": "pnpm install",
+        "devCommand": "pnpm dev",
+        "buildCommand": "pnpm build"
+      },
+
+      "ai": {
+        "systemPromptAddition": "This is a TanStack Start project built on React 19 with TanStack Router, TanStack Query, and Tailwind CSS. It is intentionally minimal so you can layer in auth, database, and domain logic.\n\n**Key Patterns:**\n- Define routes, loaders, and actions in `app/routes/` using TanStack Start conventions\n- Use TanStack Query for client data fetching; prefer server loaders for initial data\n- Tailwind CSS is preconfigured for styling; bring your own component library if needed\n- The template ships without auth/database; you are expected to scaffold these as part of the build\n\n**Directory Structure:**\n- app/routes/ - File-based routes with loaders/actions\n- app/components/ - Shared UI components\n- app/lib/ - Utilities/helpers you create\n\n**When to use:**\n- You want a clean TanStack Start foundation without extra opinions\n- Building full-stack React apps that will add custom data/auth layers\n- Exploring TanStack Router/Query workflows end-to-end\n\n**When NOT to use:**\n- Prefer an opinionated Next.js App Router experience\n- Need a static-only marketing site (use Astro)\n- Want a minimal SPA without SSR (use React + Vite)",
+
+        "includedFeatures": [
+          "TanStack Router file-based routing scaffold",
+          "TanStack Query integration hooked into React 19 defaults",
+          "Tailwind CSS configured out of the box",
+          "pnpm workspace setup with Vite dev tooling",
+          "Ready-to-extend server actions and loaders"
+        ]
+      }
+    },
+
+    {
       "id": "vite-react-node",
       "name": "Vite + React + Node.js",
       "description": "Fast React SPA with separate Node.js/Express backend",

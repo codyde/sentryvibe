@@ -297,8 +297,17 @@ export async function* transformAISDKStream(
 
       case 'error':
         // Emit error
-        console.error('[ai-sdk-adapter] Stream error:', part.error);
-        break;
+        const errorPayload = part.error ?? { message: 'Unknown Claude stream error' };
+        const errorText =
+          typeof errorPayload === 'object' && errorPayload !== null
+            ? JSON.stringify(errorPayload)
+            : String(errorPayload);
+
+        const wrappedError = new Error(`Claude stream error: ${errorText}`);
+        Object.assign(wrappedError, { cause: errorPayload });
+
+        process.stderr.write(`[runner] [ai-sdk-adapter] ❌ Stream error: ${errorText}\n`);
+        throw wrappedError;
 
       // Ignore other event types
       case 'stream-start':

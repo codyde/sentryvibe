@@ -149,7 +149,10 @@ async function detectRuntimeMetadata(projectPath: string): Promise<RuntimeMetada
     const deps = packageJson.dependencies ?? {};
     const devDeps = packageJson.devDependencies ?? {};
 
-    if (deps.next || devDeps.next) {
+    if (deps['@tanstack/react-start'] || devDeps['@tanstack/react-start']) {
+      projectType = 'tanstack';
+      port = 3000;
+    } else if (deps.next || devDeps.next) {
       projectType = 'next';
       port = 3001;
     } else if (deps.astro || devDeps.astro) {
@@ -308,6 +311,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
           vite: 'react-vite',
           next: 'nextjs-fullstack',
           astro: 'astro-static',
+          tanstack: 'template_tanstackstart',
         };
         const templateId = templateIdMap[project[0].projectType] || 'react-vite';
         selectedTemplate = await getTemplateById(templateId);
@@ -410,7 +414,7 @@ async function extractProjectMetadata(
   if (process.env.DEBUG_BUILD === '1') console.log('🤖 Extracting project metadata...');
 
   const metadataStream = await query({
-    prompt: `Analyze this project request: "${prompt}"\n\nExtract metadata and select the best template.\n\nAvailable templates:\n- react-vite: React with Vite, TypeScript, Tailwind (fast SPA, client-side only)\n- nextjs-fullstack: Next.js with TypeScript, Tailwind (SSR, API routes, full-stack)\n- astro-static: Astro with TypeScript, Tailwind (static site generation, content-focused)\n\nOutput ONLY valid JSON (no markdown, no explanation):\n{\n  "slug": "short-kebab-case-name",\n  "friendlyName": "Friendly Display Name",\n  "description": "Brief description of what this builds",\n  "icon": "Package",\n  "template": "react-vite"\n}\n\nAvailable icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter\n\nRules:\n- slug must be lowercase, kebab-case, 2-4 words max\n- friendlyName should be concise (2-5 words)\n- description should explain what the app does\n- template must be one of: react-vite, nextjs-fullstack, astro-static\n\nTemplate Selection Logic (PRIORITY ORDER):\n1. If user explicitly mentions "vite" OR "react vite" → react-vite\n2. If user explicitly mentions "next" OR "nextjs" → nextjs-fullstack\n3. If user explicitly mentions "astro" → astro-static\n4. If user mentions backend needs (API, database, auth, server) → nextjs-fullstack\n5. If user mentions static content (blog, docs, markdown) → astro-static\n6. For simple landing pages with NO backend → react-vite (simpler/faster)\n7. For landing pages WITH backend/forms/API → nextjs-fullstack\n8. For interactive apps (todo, dashboard, calculator, game) → react-vite\n9. Default if unclear → react-vite (simplest option)\n\nCRITICAL: Pay attention to explicit technology mentions. If user says "vite landing page", use react-vite NOT nextjs!`,
+    prompt: `Analyze this project request: "${prompt}"\n\nExtract metadata and select the best template.\n\nAvailable templates:\n- react-vite: React with Vite, TypeScript, Tailwind (fast SPA, client-side only)\n- nextjs-fullstack: Next.js with TypeScript, Tailwind (SSR, API routes, full-stack)\n- vite-react-node: React SPA with separate Node/Express backend (API + frontend split)\n- astro-static: Astro with TypeScript, Tailwind (static site generation, content-focused)\n- template_tanstackstart: TanStack Start with React 19, TanStack Router/Query, Tailwind (minimal full-stack foundation)\n\nOutput ONLY valid JSON (no markdown, no explanation):\n{\n  "slug": "short-kebab-case-name",\n  "friendlyName": "Friendly Display Name",\n  "description": "Brief description of what this builds",\n  "icon": "Package",\n  "template": "react-vite"\n}\n\nAvailable icons: Package, Rocket, Code, Zap, Database, Globe, ShoppingCart, Calendar, MessageSquare, Mail, FileText, Image, Music, Video, Book, Heart, Star, Users, Settings, Layout, Grid, List, Edit, Search, Filter\n\nRules:\n- slug must be lowercase, kebab-case, 2-4 words max\n- friendlyName should be concise (2-5 words)\n- description should explain what the app does\n- template must be one of: react-vite, nextjs-fullstack, vite-react-node, astro-static, template_tanstackstart\n\nTemplate Selection Logic (PRIORITY ORDER):\n1. If user mentions "tanstack", "tanstack start", "tanstack router", or "react start" → template_tanstackstart\n2. If user explicitly mentions "vite" OR "react vite" → react-vite\n3. If user explicitly mentions "next" OR "nextjs" → nextjs-fullstack\n4. If user explicitly mentions "astro" → astro-static\n5. If user calls out TanStack Router/Query as the desired stack → template_tanstackstart\n6. If user mentions backend needs (API, database, auth, server) without TanStack cues → nextjs-fullstack\n7. If user mentions static content (blog, docs, markdown) → astro-static\n8. For simple landing pages with NO backend → react-vite (simpler/faster)\n9. For landing pages WITH backend/forms/API → nextjs-fullstack\n10. For interactive apps (todo, dashboard, calculator, game) → react-vite\n11. Default if unclear → react-vite (simplest option)\n\nCRITICAL: Pay attention to explicit technology mentions. If user says "vite landing page", use react-vite NOT nextjs!`,
     inputMessages: [],
     options: {
       ...(agentId === 'claude-code'

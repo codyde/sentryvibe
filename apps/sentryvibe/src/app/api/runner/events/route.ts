@@ -8,6 +8,7 @@ import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/r
 import { projectEvents } from '@/lib/project-events';
 import * as Sentry from '@sentry/nextjs';
 import { metrics } from '@sentry/core';
+import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -103,6 +104,35 @@ export async function POST(request: Request) {
           .where(eq(projects.id, event.projectId))
           .returning();
         if (updated) emitProjectUpdateFromData(event.projectId, updated);
+        break;
+      }
+      case 'port-conflict': {
+        if (event.projectId) {
+          const errorMessage = event.message || `Port ${event.port} is already in use on the runner host`;
+
+          await releasePortForProject(event.projectId);
+
+          const [updated] = await db.update(projects)
+            .set({
+              devServerStatus: 'failed',
+              devServerPort: null,
+              errorMessage,
+              lastActivityAt: new Date(),
+            })
+            .where(eq(projects.id, event.projectId))
+            .returning();
+
+          if (updated) {
+            emitProjectUpdateFromData(event.projectId, updated);
+          }
+
+          metrics.count('dev_server_port_conflict', 1, {
+            attributes: {
+              project_id: event.projectId,
+              port: (event.port ?? 'unknown').toString(),
+            },
+          });
+        }
         break;
       }
       case 'ack': {

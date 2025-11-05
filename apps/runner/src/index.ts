@@ -32,7 +32,7 @@ import {
 } from "@sentryvibe/agent-core";
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
-import { startDevServer, stopDevServer } from "./lib/process-manager.js";
+import { startDevServer, stopDevServer, checkPortInUse } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
 import {
   transformAgentMessageToSSE,
@@ -434,42 +434,42 @@ function createClaudeQuery(
     );
 
     // Build combined system prompt
-    const systemPromptSegments = [CLAUDE_SYSTEM_PROMPT.trim()];
+    const systemPromptSegments: string[] = [CLAUDE_SYSTEM_PROMPT.trim()];
     if (systemPrompt && systemPrompt.trim().length > 0) {
       systemPromptSegments.push(systemPrompt.trim());
     }
-    const combinedSystemPrompt = systemPromptSegments.join("\n\n");
+    const appendedSystemPrompt = systemPromptSegments.join("\n\n");
 
-    // Map ClaudeModelId to AI SDK model IDs
+    // Normalize model IDs to the Claude Code provider's canonical names
     const modelIdMap: Record<string, string> = {
-      "claude-haiku-4-5": "claude-haiku-4-5",
-      "claude-sonnet-4-5": "claude-haiku-4-5",
+      "claude-haiku-4-5": "haiku",
+      "claude-sonnet-4-5": "sonnet",
+      "claude-opus-4": "opus",
+      "claude-opus-4.1": "opus",
     };
-    const aiSdkModelId = modelIdMap[modelId] || "sonnet";
+    const aiSdkModelId = modelIdMap[modelId] || modelId || "haiku";
 
     const model = claudeCode(aiSdkModelId, {
       queryFunction: instrumentedQuery as typeof query,
-      systemPrompt: combinedSystemPrompt,
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        append: appendedSystemPrompt,
+      },
       cwd: workingDirectory,
       permissionMode: "bypassPermissions",
       maxTurns: 100,
       additionalDirectories: [workingDirectory],
+      env: {
+        // Claude Code CLI default output cap is 32k; bumping to 64k per
+        // https://docs.claude.com/en/docs/claude-code/settings#environment-variables
+        CLAUDE_CODE_MAX_OUTPUT_TOKENS:
+          process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ?? "64000",
+      },
       // Explicitly allow all tools to prevent "No tools are available" errors
-      allowedTools: [
-        "Read",
-        "Write",
-        "Edit",
-        "Bash",
-        "Glob",
-        "Grep",
-        "TodoWrite",
-        "NotebookEdit",
-        "Task",
-        "WebSearch",
-        "WebFetch",
-      ],
       canUseTool: createProjectScopedPermissionHandler(workingDirectory), // Still enforce project scoping
       streamingInput: "always", // REQUIRED when using canUseTool - enables tool callbacks
+      includePartialMessages: true,
       settingSources: ["project", "local"], // Load project-level settings
     });
 
@@ -803,39 +803,6 @@ async function cleanupOrphanedProcesses(
     console.error("❌ Error during cleanup:", error);
     throw error;
   }
-}
-
-/**
- * Check if a port is in use by trying to connect to it
- * This is more reliable than trying to bind
- */
-async function checkPortInUse(port: number): Promise<boolean> {
-  const net = await import("net");
-
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-
-    socket.setTimeout(2000);
-
-    socket.once("connect", () => {
-      // Successfully connected = server is running
-      socket.destroy();
-      resolve(true);
-    });
-
-    socket.once("error", () => {
-      // Connection failed = server not running
-      resolve(false);
-    });
-
-    socket.once("timeout", () => {
-      // Timeout = server not responding
-      socket.destroy();
-      resolve(false);
-    });
-
-    socket.connect(port, "localhost");
-  });
 }
 
 /**
@@ -1205,6 +1172,27 @@ export async function startRunner(options: RunnerOptions = {}) {
           
           if (allocatedPort) {
             log(`🔌 Using pre-allocated port ${allocatedPort} for project ${command.projectId}`);
+
+            const portInUse = await checkPortInUse(allocatedPort);
+            if (portInUse) {
+              const conflictMessage = `Port ${allocatedPort} is already in use on the runner host`;
+              log(`❌ ${conflictMessage}`);
+
+              sendEvent({
+                type: "port-conflict",
+                ...buildEventBase(command.projectId, command.id),
+                port: allocatedPort,
+                message: conflictMessage,
+              });
+
+              sendEvent({
+                type: "error",
+                ...buildEventBase(command.projectId, command.id),
+                error: conflictMessage,
+              });
+
+              return;
+            }
           }
 
           // Merge port enforcement environment variables

@@ -9,6 +9,7 @@ import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 import { createClaudeCode } from 'ai-sdk-provider-claude-code';
 import { generateObject } from 'ai';
 import { ProjectMetadataSchema } from '@/schemas/metadata';
+import { resolveClaudeModelForProvider } from '@/lib/claude-model';
 
 // Create Claude Code provider - inherits authentication from local CLI
 const claudeCode = createClaudeCode();
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
     if (agent === 'claude-code') {
       try {
         const result = await generateObject({
-          model: claudeCode('claude-haiku-4-5'),
+          model: claudeCode(resolveClaudeModelForProvider('claude-haiku-4-5')),
           schema: ProjectMetadataSchema,
           prompt: metadataPrompt,
         });
