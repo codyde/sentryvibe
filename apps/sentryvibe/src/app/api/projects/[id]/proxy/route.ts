@@ -104,9 +104,10 @@ export async function GET(
       );
 
       // Rewrite inline module imports in <script type="module"> tags
+      // Must handle attributes like async, defer, etc.
       html = html.replace(
-        /<script\s+type=["']module["']>([\s\S]*?)<\/script>/gi,
-        (match, scriptContent) => {
+        /<script\s+([^>]*?type=["']module["'][^>]*?)>([\s\S]*?)<\/script>/gi,
+        (match, attrs, scriptContent) => {
           // Rewrite imports inside inline scripts
           const rewritten = scriptContent.replace(
             /(from\s+["']|import\s*\(["'])(\/[^"']+)(["'])/g,
@@ -115,7 +116,7 @@ export async function GET(
               return `${prefix}${proxyUrl}${suffix}`;
             }
           );
-          return `<script type="module">${rewritten}</script>`;
+          return `<script ${attrs}>${rewritten}</script>`;
         }
       );
 
@@ -168,10 +169,10 @@ export async function GET(
             absolutePath = resolved;
           }
 
-          // CRITICAL: Add ?direct to get actual CSS content from Vite dev server
-          // Without this, Vite returns HMR JavaScript wrapper instead of CSS
-          const absolutePathWithDirect = `${absolutePath}?direct`;
-          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(absolutePathWithDirect)}`;
+          // IMPORTANT: Do NOT add ?direct here for JavaScript imports!
+          // JS import needs Vite module that exports URL string, not raw CSS
+          // The ?direct is only added in HTML <link> tags (see line 98)
+          const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(absolutePath)}${urlParam || ''}`;
           console.log(`[proxy] Rewriting CSS import: ${cssPath} -> ${proxyUrl}`);
           return `${prefix}${proxyUrl}${suffix}`;
         }
