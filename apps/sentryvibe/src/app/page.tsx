@@ -170,6 +170,8 @@ function HomeContent() {
 
   const conversationMessages = useMemo(() => {
     return messages.filter((message) => {
+      // Guard against null/undefined messages
+      if (!message) return false;
       if (classifyMessage(message) === 'other') return false;
       return getMessageContent(message).trim().length > 0;
     });
@@ -1199,8 +1201,23 @@ function HomeContent() {
         timestamp: Date.now(),
       };
 
-
-      setMessages((prev) => [...prev, userMessage as any]);
+      // Add to local state for immediate display
+      setMessages((prev) => [...prev, userMessage].filter(m => m !== null && m !== undefined));
+      
+      // Save to database so it's included in conversation history
+      try {
+        await saveMessageMutation.mutateAsync({
+          id: crypto.randomUUID(),
+          projectId: projectId,
+          type: 'user',
+          content: prompt,
+          timestamp: Date.now(),
+        });
+        if (DEBUG_PAGE) console.log("💾 User message saved to database");
+      } catch (error) {
+        console.error("Failed to save user message:", error);
+        // Continue anyway - message is in local state
+      }
     }
 
     // Find project and detect operation type
@@ -1368,7 +1385,7 @@ function HomeContent() {
 
             // Add to legacy state for immediate UI display (not to collection)
             // Backend persists to DB, collection loads it later
-            setMessages((prev) => [...prev, currentMessage as any]);
+            setMessages((prev) => [...prev, currentMessage].filter(m => m !== null && m !== undefined));
           } else if (data.type === "text-start") {
             // Track text blocks for accumulation
             textBlocksMap.set(data.id, { type: "text", text: "" });
@@ -2016,7 +2033,7 @@ function HomeContent() {
         };
 
         // Save user message to state for immediate display
-        setMessages(prev => [...prev, userMessage as any]);
+        setMessages(prev => [...prev, userMessage].filter(m => m !== null && m !== undefined));
 
         // Start generation stream (don't add user message again)
         if (DEBUG_PAGE) console.log("🚀 Starting generation stream...");
