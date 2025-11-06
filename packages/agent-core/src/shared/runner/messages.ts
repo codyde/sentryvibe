@@ -73,6 +73,11 @@ export interface StartBuildCommand extends BaseCommand {
     }; // NEW: Frontend-selected template metadata
     designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
     tags?: AppliedTag[]; // Tag-based configuration system
+    conversationHistory?: Array<{
+      role: string;
+      content: string;
+      timestamp: Date;
+    }>; // Recent conversation messages for context in enhancements
   };
 }
 

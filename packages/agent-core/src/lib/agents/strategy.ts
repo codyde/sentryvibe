@@ -24,6 +24,11 @@ export interface AgentStrategyContext {
   };
   designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
   tags?: AppliedTag[]; // Tag-based configuration system
+  conversationHistory?: Array<{
+    role: string;
+    content: string;
+    timestamp: Date;
+  }>; // Recent conversation messages for context in enhancements
 }
 
 export interface AgentStrategy {

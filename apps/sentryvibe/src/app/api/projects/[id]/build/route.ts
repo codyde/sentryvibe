@@ -361,6 +361,37 @@ export async function POST(
       },
     });
 
+    // Load recent conversation history for enhancements and element selections
+    // This gives the agent context about previous messages
+    let conversationHistory: Array<{ role: string; content: string; timestamp: Date }> = [];
+    if (body.operationType === 'enhancement' || body.operationType === 'focused-edit') {
+      try {
+        const recentMessages = await db
+          .select({
+            role: messages.role,
+            content: messages.content,
+            createdAt: messages.createdAt,
+          })
+          .from(messages)
+          .where(eq(messages.projectId, id))
+          .orderBy(sql`${messages.createdAt} DESC`)
+          .limit(10); // Last 10 messages for context
+
+        // Reverse to get chronological order (oldest first)
+        conversationHistory = recentMessages.reverse().map(m => ({
+          role: m.role,
+          content: m.content || '',
+          timestamp: m.createdAt || new Date(),
+        }));
+
+        const operationLabel = body.operationType === 'focused-edit' ? 'element selection' : 'enhancement';
+        console.log(`[build-route] 📜 Loaded ${conversationHistory.length} messages for ${operationLabel} context`);
+      } catch (error) {
+        console.error('[build-route] Failed to load conversation history (non-fatal):', error);
+        // Continue without history - not critical
+      }
+    }
+
     // Log template being sent to runner
     if (templateMetadata) {
       console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
@@ -390,7 +421,8 @@ export async function POST(
         agent: agentId,
         claudeModel: agentId === 'claude-code' ? claudeModel : undefined,
         template: templateMetadata,
-        codexThreadId: body.codexThreadId, 
+        codexThreadId: body.codexThreadId,
+        conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined,
       },
     });
 

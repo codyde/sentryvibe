@@ -745,8 +745,15 @@ function HomeContent() {
         newMap.set(currentProject.id, [generationState, ...projectHistory]);
         return newMap;
       });
+      
+      // Clear active generation state after archiving to prevent duplicate display
+      // The completed build now lives only in buildHistory
+      if (DEBUG_PAGE) console.log(
+        "🧹 Clearing active generationState after archiving"
+      );
+      updateGenerationState(null);
     }
-  }, [generationState, currentProject, buildHistoryByProject, selectedAgentId]);
+  }, [generationState, currentProject, buildHistoryByProject, selectedAgentId, updateGenerationState]);
 
   // Calculate badge values
   const buildProgress = generationState
@@ -1228,12 +1235,24 @@ function HomeContent() {
       projectName: project.name,
       projectId: project.id,
       projectStatus: project.status,
+      projectPath: project.path,
       hasRunCommand: !!project.runCommand,
       runCommand: project.runCommand,
       detectedOperationType: operationType,
       isElementChange,
       isRetry,
     });
+
+    // Log helpful info about iteration context
+    if (operationType === 'enhancement') {
+      console.log("✅ Enhancement mode - Agent will receive existing project context:");
+      console.log("   - Project location:", project.path);
+      console.log("   - Project type:", project.projectType);
+      console.log("   - Will modify existing code, not re-scaffold");
+    } else if (operationType === 'initial-build') {
+      console.warn("⚠️  Initial-build mode detected for existing project!");
+      console.warn("   This may cause re-scaffolding. Project status:", project.status);
+    }
     
     if (DEBUG_PAGE) console.log("🎬 Starting build:", {
       projectName: project.name,

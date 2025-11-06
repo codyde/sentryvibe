@@ -33,6 +33,11 @@ export interface BuildContext {
   }; // Frontend-provided template (NEW: from analysis endpoint)
   designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
   tags?: AppliedTag[]; // Tag-based configuration system
+  conversationHistory?: Array<{
+    role: string;
+    content: string;
+    timestamp: Date;
+  }>; // Recent conversation messages for context in enhancements
 }
 
 export interface OrchestrationResult {
@@ -55,8 +60,13 @@ export interface OrchestrationResult {
  * Orchestrate the build - handle templates, prompts, context
  */
 export async function orchestrateBuild(context: BuildContext): Promise<OrchestrationResult> {
-  const { projectId, projectName, prompt, workingDirectory, agent, operationType, template: providedTemplate, designPreferences, tags } = context;
+  const { projectId, projectName, prompt, workingDirectory, agent, operationType, template: providedTemplate, designPreferences, tags, conversationHistory } = context;
   const workspaceRoot = getWorkspaceRoot();
+
+  // Log conversation history if present
+  if (conversationHistory && conversationHistory.length > 0) {
+    buildLogger.log('info', 'orchestrator', `Conversation history available: ${conversationHistory.length} messages`);
+  }
 
   // Check if this is a NEW project or EXISTING project
   // Use operationType as the source of truth - 'initial-build' ALWAYS means new project
@@ -75,6 +85,7 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     workspaceRoot,
     designPreferences, // Pass through to strategy (deprecated - use tags)
     tags, // Tag-based configuration
+    conversationHistory, // Pass conversation context to strategies
   };
 
   // PRIORITY: Check if tags specify a framework - if so, enforce it (tags override everything)
@@ -312,7 +323,10 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     fileTree = '';
   } else {
     buildLogger.log('info', 'orchestrator', 'EXISTING PROJECT - Skipping template download');
+    buildLogger.log('info', 'orchestrator', `Project location: ${workingDirectory}`);
+    buildLogger.log('info', 'orchestrator', `Operation type: ${operationType}`);
     fileTree = await getProjectFileTree(workingDirectory);
+    buildLogger.log('info', 'orchestrator', `File tree loaded: ${fileTree.length} chars`);
   }
 
   strategyContext.fileTree = fileTree;

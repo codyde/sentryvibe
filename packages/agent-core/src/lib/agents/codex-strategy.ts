@@ -49,10 +49,37 @@ function buildCodexSections(context: AgentStrategyContext): string[] {
 - Follow the setup instructions exactly before implementing the request`);
     }
   } else {
-    sections.push(`## Existing Project Context
+    // EXISTING PROJECT - Include conversation history for context
+    let existingProjectSection = `## Existing Project Context
 
 - Project location: ${context.workingDirectory}
-- Modify the existing codebase to satisfy the request.`);
+- Modify the existing codebase to satisfy the request.`;
+
+    // Add conversation history if available
+    if (context.conversationHistory && context.conversationHistory.length > 0) {
+      existingProjectSection += `\n\n**Recent Conversation History:**\n`;
+      existingProjectSection += `You have access to recent conversation history. Use this to understand context:\n\n`;
+      
+      context.conversationHistory.forEach((msg, index) => {
+        const roleLabel = msg.role === 'user' ? 'User' : 'Assistant';
+        const timestamp = msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp;
+        // Truncate very long messages for readability
+        const content = msg.content.length > 500 
+          ? msg.content.substring(0, 500) + '...[truncated]'
+          : msg.content;
+        existingProjectSection += `${index + 1}. ${roleLabel} (${timestamp}):\n${content}\n\n`;
+      });
+      
+      existingProjectSection += `Use this history to understand:
+- What has been built or discussed
+- User preferences and requirements
+- References to "it", "the app", "the project"
+- Previous decisions or implementations
+
+Apply the current request in context of this conversation.`;
+    }
+
+    sections.push(existingProjectSection);
   }
 
   sections.push(`## Workspace Rules
