@@ -1207,8 +1207,9 @@ function HomeContent() {
       // Save to database so it's included in conversation history
       try {
         await saveMessageMutation.mutateAsync({
+          id: crypto.randomUUID(),
           projectId: projectId,
-          role: 'user',
+          type: 'user',
           content: prompt,
           timestamp: Date.now(),
         });
