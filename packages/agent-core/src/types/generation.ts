@@ -105,6 +105,7 @@ export interface GenerationState {
   startTime: Date;
   endTime?: Date;
   codex?: CodexSessionState;
+  stateVersion?: number; // Monotonic version counter for reconnect reconciliation
 }
 
 export type GenerationEvent =
