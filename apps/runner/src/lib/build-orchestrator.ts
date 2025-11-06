@@ -366,12 +366,21 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
     isNewProject,
     template: selectedTemplate?.name || 'none',
     fileTreeSize: fileTree.length,
+    hasConversationHistory: !!(conversationHistory && conversationHistory.length > 0),
+    conversationHistoryCount: conversationHistory?.length || 0,
   });
 
   const systemPromptSections = await strategy.buildSystemPromptSections(strategyContext);
   const systemPrompt = systemPromptSections.join('\n\n');
 
   buildLogger.orchestrator.systemPromptGenerated(systemPrompt.length);
+  
+  // Log snippet of system prompt for debugging
+  if (!isNewProject && systemPrompt.includes('Recent Conversation History')) {
+    buildLogger.log('info', 'orchestrator', '✅ System prompt includes conversation history');
+  } else if (!isNewProject) {
+    buildLogger.log('warn', 'orchestrator', '⚠️  No conversation history in system prompt for existing project');
+  }
 
   const fullPrompt = await strategy.buildFullPrompt(strategyContext, prompt);
 

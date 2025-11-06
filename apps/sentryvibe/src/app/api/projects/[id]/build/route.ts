@@ -377,15 +377,65 @@ export async function POST(
           .orderBy(sql`${messages.createdAt} DESC`)
           .limit(10); // Last 10 messages for context
 
+        // Helper function to extract text from content (handles both string and JSON formats)
+        const extractTextContent = (rawContent: unknown): string => {
+          if (!rawContent) return '';
+          
+          // If it's already a string, return it
+          if (typeof rawContent === 'string') {
+            const trimmed = rawContent.trim();
+            
+            // Check if it's JSON-serialized content
+            if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(trimmed);
+                // If it's an array of parts, extract text
+                if (Array.isArray(parsed)) {
+                  return parsed
+                    .filter((p: any) => p.type === 'text' && p.text)
+                    .map((p: any) => p.text)
+                    .join(' ');
+                }
+              } catch {
+                // Not JSON, return as-is
+                return trimmed;
+              }
+            }
+            return trimmed;
+          }
+          
+          // If it's already an array, extract text
+          if (Array.isArray(rawContent)) {
+            return rawContent
+              .filter((p: any) => p.type === 'text' && p.text)
+              .map((p: any) => p.text)
+              .join(' ');
+          }
+          
+          return String(rawContent);
+        };
+
         // Reverse to get chronological order (oldest first)
-        conversationHistory = recentMessages.reverse().map(m => ({
-          role: m.role,
-          content: m.content || '',
-          timestamp: m.createdAt || new Date(),
-        }));
+        // Parse content and filter out empty messages
+        conversationHistory = recentMessages
+          .reverse()
+          .map(m => ({
+            role: m.role,
+            content: extractTextContent(m.content),
+            timestamp: m.createdAt || new Date(),
+          }))
+          .filter(m => m.content.trim().length > 0);
 
         const operationLabel = body.operationType === 'focused-edit' ? 'element selection' : 'enhancement';
         console.log(`[build-route] 📜 Loaded ${conversationHistory.length} messages for ${operationLabel} context`);
+        
+        // Log first and last messages for debugging
+        if (conversationHistory.length > 0) {
+          const firstPreview = conversationHistory[0].content.substring(0, 80);
+          const lastPreview = conversationHistory[conversationHistory.length - 1].content.substring(0, 80);
+          console.log(`[build-route]    First: "${firstPreview}${conversationHistory[0].content.length > 80 ? '...' : ''}"`);
+          console.log(`[build-route]    Latest: "${lastPreview}${conversationHistory[conversationHistory.length - 1].content.length > 80 ? '...' : ''}"`);
+        }
       } catch (error) {
         console.error('[build-route] Failed to load conversation history (non-fatal):', error);
         // Continue without history - not critical
