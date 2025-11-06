@@ -190,11 +190,6 @@ export async function POST(
 
     const encoder = new TextEncoder();
 
-    // Track messages for DB persistence (legacy chat transcript)
-    let currentMessageParts: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}> = [];
-    let currentMessageId: string | null = null;
-    const completedMessages: Array<{role: 'assistant'; content: Array<{type: string; id?: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown; state?: string}>}> = [];
-
     // User message already saved by frontend via TanStack DB
     // Skip duplicate save here (hybrid approach - frontend saves user messages)
 
@@ -302,20 +297,6 @@ export async function POST(
           closed = true;
 
           // Save all completed messages to DB
-          console.log(`[build-route] Saving ${completedMessages.length} messages to DB`);
-          for (const msg of completedMessages) {
-            try {
-              await db.execute(
-                sql`INSERT INTO messages (project_id, role, content) VALUES (${id}, ${msg.role}, ${JSON.stringify(msg.content)})`
-              );
-              console.log(`[build-route] ✅ Saved message`);
-            } catch (error) {
-              console.error('[build-route] ❌ Failed to save message:', error);
-            }
-          }
-          console.log(`[build-route] Finished saving messages`);
-
-
           // Unsubscribe from SSE stream (persistent processor continues independently)
           unsubscribe();
           console.log('[build-route] 🔌 SSE stream closed, persistent processor continues');
@@ -335,61 +316,6 @@ export async function POST(
         const writeChunk = async (chunk: string) => {
           if (closed) return;
           if (!chunk) return;
-
-          // Parse events to track messages for legacy chat transcript
-          try {
-            const match = chunk.match(/data:\s*({.*})/);
-            if (match) {
-              const eventData = JSON.parse(match[1]);
-
-              // Track message lifecycle for legacy chat transcript only
-              if (eventData.type === 'start') {
-                if (currentMessageId && currentMessageParts.length > 0) {
-                  completedMessages.push({
-                    role: 'assistant',
-                    content: [...currentMessageParts],
-                  });
-                }
-                currentMessageId = eventData.messageId;
-                currentMessageParts = [];
-              } else if (eventData.type === 'text-delta' && currentMessageId) {
-                const existing = currentMessageParts.find(p => p.type === 'text' && !p.id);
-                if (existing && 'text' in existing) {
-                  existing.text = (existing.text || '') + (eventData.delta || '');
-                } else {
-                  currentMessageParts.push({ type: 'text', text: eventData.delta || '' });
-                }
-              } else if (eventData.type === 'tool-input-available' && eventData.toolName !== 'TodoWrite') {
-                currentMessageParts.push({
-                  type: `tool-${eventData.toolName}`,
-                  toolCallId: eventData.toolCallId,
-                  toolName: eventData.toolName,
-                  input: eventData.input,
-                  state: 'input-available',
-                });
-              } else if (eventData.type === 'tool-output-available') {
-                const toolPart = currentMessageParts.find(p => p.toolCallId === eventData.toolCallId);
-                if (toolPart) {
-                  toolPart.output = eventData.output;
-                  toolPart.state = 'output-available';
-                }
-              } else if (eventData.type === 'finish') {
-                if (currentMessageId && currentMessageParts.length > 0) {
-                  completedMessages.push({
-                    role: 'assistant',
-                    content: [...currentMessageParts],
-                  });
-                  currentMessageId = null;
-                  currentMessageParts = [];
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('[build-route] Failed to parse SSE event (non-fatal):', e);
-            // Continue processing even if one event fails to parse
-          }
-
-          if (closed) return;
 
           const normalized = normalizeSSEChunk(chunk);
           if (!normalized) return;

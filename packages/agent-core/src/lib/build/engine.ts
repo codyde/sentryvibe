@@ -381,7 +381,7 @@ async function runBuildPipeline(params: BuildPipelineParams) {
     options: queryOptions,
   })) as AsyncGenerator<AgentMessage>;
 
-  await writeAgentMessagesToStream(agentStream, writer, id);
+  await writeAgentMessagesToStream(agentStream, writer);
 
   const projectUpdates: Record<string, unknown> = {
     status: 'completed',
@@ -477,11 +477,9 @@ async function extractProjectMetadata(
 async function writeAgentMessagesToStream(
   agentStream: AsyncGenerator<AgentMessage>,
   writer: UIMessageStreamWriter,
-  projectId: string,
 ) {
   let currentMessageId: string | null = null;
   let messageStarted = false;
-  let currentMessageParts: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; input?: unknown; output?: unknown }> = [];
 
   for await (const message of agentStream) {
     if (message.type === 'system' && message.subtype === 'init') {
@@ -493,15 +491,6 @@ async function writeAgentMessagesToStream(
       const assistantMessageId = message.message?.id || message.uuid;
 
       if (assistantMessageId !== currentMessageId) {
-        if (messageStarted && currentMessageId && currentMessageParts.length > 0) {
-          await db.insert(messages).values({
-            projectId,
-            role: 'assistant',
-            content: serializeMessageContent(currentMessageParts),
-          });
-          currentMessageParts = [];
-        }
-
         if (messageStarted && currentMessageId) {
           writer.write({ type: 'finish' });
         }
@@ -518,7 +507,6 @@ async function writeAgentMessagesToStream(
             writer.write({ type: 'text-start', id: textBlockId });
             writer.write({ type: 'text-delta', id: textBlockId, delta: block.text });
             writer.write({ type: 'text-end', id: textBlockId });
-            currentMessageParts.push({ type: 'text', text: block.text });
           } else if (block.type === 'tool_use' && block.id && block.name) {
             const input = block.input as Record<string, unknown> | undefined;
             const pathToCheck = [
@@ -537,13 +525,6 @@ async function writeAgentMessagesToStream(
               toolName: block.name,
               input: block.input,
             });
-
-            currentMessageParts.push({
-              type: `tool-${block.name}`,
-              toolCallId: block.id,
-              toolName: block.name,
-              input: block.input,
-            });
           }
         }
       }
@@ -557,23 +538,10 @@ async function writeAgentMessagesToStream(
               toolCallId: block.tool_use_id,
               output: block.content,
             });
-
-            const toolPart = currentMessageParts.find(p => p.toolCallId === block.tool_use_id);
-            if (toolPart) {
-              toolPart.output = block.content;
-            }
           }
         }
       }
     } else if (message.type === 'result') {
-      if (messageStarted && currentMessageId && currentMessageParts.length > 0) {
-        await db.insert(messages).values({
-          projectId,
-          role: 'assistant',
-          content: serializeMessageContent(currentMessageParts),
-        });
-      }
-
       if (messageStarted && currentMessageId) {
         writer.write({ type: 'finish' });
         messageStarted = false;

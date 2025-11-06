@@ -8,6 +8,7 @@ import {
   generationToolCalls,
   generationNotes,
   projects,
+  messages,
 } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../../types/generation';
@@ -26,6 +27,23 @@ interface ActiveBuildContext {
   toolCallNameMap: Map<string, string>;
   currentActiveTodoIndex: number;
   startedAt: Date;
+  currentMessageId: string | null;
+  messageBuffers: Map<string, MessageBuffer>;
+}
+
+type MessagePart = {
+  type: string;
+  text?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+};
+
+interface MessageBuffer {
+  rowId: string;
+  parts: MessagePart[];
 }
 
 // Global registry of active builds
@@ -199,6 +217,54 @@ async function refreshRawState(context: ActiveBuildContext) {
   } catch (snapshotError) {
     console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
   }
+}
+
+function serializeMessageParts(parts: MessagePart[]): string {
+  if (parts.length === 0) {
+    return '[]';
+  }
+
+  try {
+    return JSON.stringify(parts);
+  } catch (error) {
+    console.error('[persistent-processor] Failed to serialize message parts, falling back to text block', error);
+    return JSON.stringify([{ type: 'text', text: '[serialization-error]' }]);
+  }
+}
+
+function getOrCreateMessageBuffer(context: ActiveBuildContext, messageId: string): MessageBuffer {
+  let buffer = context.messageBuffers.get(messageId);
+  if (!buffer) {
+    buffer = {
+      rowId: randomUUID(),
+      parts: [],
+    };
+    context.messageBuffers.set(messageId, buffer);
+  }
+  return buffer;
+}
+
+async function persistMessageBuffer(context: ActiveBuildContext, messageId: string) {
+  const buffer = context.messageBuffers.get(messageId);
+  if (!buffer) return;
+
+  const serialized = serializeMessageParts(buffer.parts);
+
+  await retryOnTimeout(() =>
+    db.insert(messages)
+      .values({
+        id: buffer.rowId,
+        projectId: context.projectId,
+        role: 'assistant',
+        content: serialized,
+      })
+      .onConflictDoUpdate({
+        target: messages.id,
+        set: {
+          content: serialized,
+        },
+      })
+  );
 }
 
 async function finalizeSession(context: ActiveBuildContext, status: 'completed' | 'failed', timestamp: Date) {
@@ -390,6 +456,7 @@ async function persistEvent(
   context: ActiveBuildContext,
   eventData: {
     type?: string;
+    messageId?: string;
     toolCallId?: string;
     toolName?: string;
     todoIndex?: number;
@@ -414,6 +481,16 @@ async function persistEvent(
           })
           .where(eq(generationSessions.id, context.sessionId))
       );
+      {
+        const messageId = typeof eventData.messageId === 'string'
+          ? eventData.messageId
+          : randomUUID();
+        context.currentMessageId = messageId;
+        const buffer = getOrCreateMessageBuffer(context, messageId);
+        buffer.rowId = randomUUID();
+        buffer.parts = [];
+        await persistMessageBuffer(context, messageId);
+      }
       await refreshRawState(context);
       break;
 
@@ -463,12 +540,12 @@ async function persistEvent(
           console.log(`[persistent-processor] Injected todoIndex ${context.currentActiveTodoIndex} into ${eventData.toolName} tool`);
         }
         await persistToolCall(context, eventData, 'input-available');
-        
+
         // Broadcast tool call via WebSocket with explicit todoIndex
         const todoIndex = typeof eventData.todoIndex === 'number'
           ? eventData.todoIndex
           : context.currentActiveTodoIndex;
-        
+
         buildWebSocketServer.broadcastToolCall(context.projectId, context.sessionId, {
           id: eventData.toolCallId || '',
           name: eventData.toolName,
@@ -476,6 +553,28 @@ async function persistEvent(
           input: eventData.input,
           state: 'input-available',
         });
+
+        const messageId = typeof eventData.messageId === 'string'
+          ? eventData.messageId
+          : context.currentMessageId;
+        if (messageId) {
+          const buffer = getOrCreateMessageBuffer(context, messageId);
+          let part = buffer.parts.find(p => p.toolCallId === eventData.toolCallId);
+          if (!part) {
+            part = {
+              type: `tool-${eventData.toolName}`,
+              toolCallId: eventData.toolCallId,
+              toolName: eventData.toolName,
+              input: eventData.input,
+              state: 'input-available',
+            };
+            buffer.parts.push(part);
+          } else {
+            part.input = eventData.input;
+            part.state = 'input-available';
+          }
+          await persistMessageBuffer(context, messageId);
+        }
       }
 
       // Only refresh if we didn't already refresh for TodoWrite
@@ -497,7 +596,7 @@ async function persistEvent(
       }
 
       await persistToolCall(context, eventData, 'output-available');
-      
+
       // Broadcast tool completion via WebSocket with explicit todoIndex
       if (eventData.toolName) {
         const todoIndex = typeof eventData.todoIndex === 'number'
@@ -523,8 +622,28 @@ async function persistEvent(
           },
           traceContext
         );
+
+        const messageId = typeof eventData.messageId === 'string'
+          ? eventData.messageId
+          : context.currentMessageId;
+        if (messageId) {
+          const buffer = getOrCreateMessageBuffer(context, messageId);
+          let part = buffer.parts.find(p => p.toolCallId === eventData.toolCallId);
+          if (!part) {
+            part = {
+              type: `tool-${eventData.toolName}`,
+              toolCallId: eventData.toolCallId,
+              toolName: eventData.toolName,
+              state: 'output-available',
+            };
+            buffer.parts.push(part);
+          }
+          part.output = eventData.output;
+          part.state = 'output-available';
+          await persistMessageBuffer(context, messageId);
+        }
       }
-      
+
       await refreshRawState(context);
       break;
 
@@ -539,6 +658,22 @@ async function persistEvent(
         kind: 'text',
         todoIndex: textTodoIndex,
       });
+
+      {
+        const messageId = typeof eventData.messageId === 'string'
+          ? eventData.messageId
+          : context.currentMessageId;
+        if (messageId && typeof eventData.delta === 'string') {
+          const buffer = getOrCreateMessageBuffer(context, messageId);
+          const lastPart = buffer.parts[buffer.parts.length - 1];
+          if (lastPart && lastPart.type === 'text') {
+            lastPart.text = (lastPart.text ?? '') + eventData.delta;
+          } else {
+            buffer.parts.push({ type: 'text', text: eventData.delta });
+          }
+          await persistMessageBuffer(context, messageId);
+        }
+      }
       await refreshRawState(context);
       break;
 
@@ -566,6 +701,11 @@ async function persistEvent(
       // For Codex with multi-turn workflows, each turn finishes multiple messages
       // but the build isn't done until all turns complete
       await refreshRawState(context);
+      if (context.currentMessageId) {
+        await persistMessageBuffer(context, context.currentMessageId);
+        context.messageBuffers.delete(context.currentMessageId);
+        context.currentMessageId = null;
+      }
       break;
 
     case 'error':
@@ -573,6 +713,9 @@ async function persistEvent(
       // Only 'build-failed' events should finalize the build
       console.warn('[persistent-processor] Message error occurred:', eventData);
       await refreshRawState(context);
+      if (context.currentMessageId) {
+        await persistMessageBuffer(context, context.currentMessageId);
+      }
       break;
 
     default:
@@ -629,6 +772,8 @@ export function registerBuild(
     toolCallNameMap: new Map(),
     currentActiveTodoIndex: -1,
     startedAt: new Date(),
+    currentMessageId: null,
+    messageBuffers: new Map(),
   };
 
   // Subscribe to runner events - this subscription persists across HTTP disconnections
