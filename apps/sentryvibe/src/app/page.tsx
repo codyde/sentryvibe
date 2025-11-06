@@ -391,8 +391,12 @@ function HomeContent() {
     useState<Map<string, ElementChange[]>>(new Map());
 
   // Current project's history (derived from maps)
+  // IMPORTANT: Filter out the ACTIVE generationState to prevent duplicates
+  // Only filter if the build is still active - completed builds should show in history
   const buildHistory = currentProject
-    ? buildHistoryByProject.get(currentProject.id) || []
+    ? (buildHistoryByProject.get(currentProject.id) || []).filter(
+        build => !generationState || !generationState.isActive || build.id !== generationState.id
+      )
     : [];
   const elementChangeHistory = currentProject
     ? elementChangeHistoryByProject.get(currentProject.id) || []
