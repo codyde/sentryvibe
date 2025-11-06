@@ -30,6 +30,7 @@ interface ActiveBuildContext {
   currentMessageId: string | null;
   messageBuffers: Map<string, MessageBuffer>;
   stateVersion: number;
+  refreshPromise: Promise<void> | null; // Mutex to serialize refreshRawState calls
 }
 
 type MessagePart = {
@@ -222,33 +223,48 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
 }
 
 async function refreshRawState(context: ActiveBuildContext) {
-  try {
-    context.stateVersion += 1;
-    const snapshot = await buildSnapshot(context);
-    const serialized = serializeGenerationState(snapshot);
-    await db.update(generationSessions)
-      .set({ rawState: serialized, updatedAt: new Date() })
-      .where(eq(generationSessions.id, context.sessionId));
-    
-    // Capture current trace context for distributed tracing
-    const activeSpan = Sentry.getActiveSpan();
-    const traceContext = activeSpan ? {
-      trace: Sentry.getTraceData()['sentry-trace'],
-      baggage: Sentry.getTraceData().baggage,
-    } : undefined;
-    
-    // Quiet: Trace context captured (too noisy - happens for every tool call)
-    
-    // Broadcast state update via WebSocket with trace context
-    buildWebSocketServer.broadcastStateUpdate(
-      context.projectId,
-      context.sessionId,
-      snapshot,
-      traceContext
-    );
-  } catch (snapshotError) {
-    console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
+  // CRITICAL FIX: Serialize refreshRawState calls to prevent out-of-order stateVersion broadcasts
+  // If a refresh is already in progress, wait for it to complete first
+  if (context.refreshPromise) {
+    await context.refreshPromise;
   }
+  
+  // Create a new promise for this refresh operation
+  context.refreshPromise = (async () => {
+    try {
+      context.stateVersion += 1;
+      const snapshot = await buildSnapshot(context);
+      const serialized = serializeGenerationState(snapshot);
+      await db.update(generationSessions)
+        .set({ rawState: serialized, updatedAt: new Date() })
+        .where(eq(generationSessions.id, context.sessionId));
+      
+      // Capture current trace context for distributed tracing
+      const activeSpan = Sentry.getActiveSpan();
+      const traceContext = activeSpan ? {
+        trace: Sentry.getTraceData()['sentry-trace'],
+        baggage: Sentry.getTraceData().baggage,
+      } : undefined;
+      
+      // Quiet: Trace context captured (too noisy - happens for every tool call)
+      
+      // Broadcast state update via WebSocket with trace context
+      buildWebSocketServer.broadcastStateUpdate(
+        context.projectId,
+        context.sessionId,
+        snapshot,
+        traceContext
+      );
+    } catch (snapshotError) {
+      console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
+    } finally {
+      // Clear the promise once this refresh completes
+      context.refreshPromise = null;
+    }
+  })();
+  
+  // Wait for this refresh to complete
+  await context.refreshPromise;
 }
 
 function serializeMessageParts(parts: MessagePart[]): string {
@@ -810,6 +826,7 @@ export function registerBuild(
     currentMessageId: null,
     messageBuffers: new Map(),
     stateVersion: 0,
+    refreshPromise: null, // Initialize mutex for serializing state refreshes
   };
 
   // Subscribe to runner events - this subscription persists across HTTP disconnections
