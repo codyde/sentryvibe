@@ -746,14 +746,12 @@ function HomeContent() {
         return newMap;
       });
       
-      // Clear active generation state after archiving to prevent duplicate display
-      // The completed build now lives only in buildHistory
-      if (DEBUG_PAGE) console.log(
-        "🧹 Clearing active generationState after archiving"
-      );
-      updateGenerationState(null);
+      // Note: We don't clear generationState here because:
+      // 1. It's needed for showing the completed build details
+      // 2. It will be replaced when a new build starts
+      // 3. The render logic already prevents duplicates by checking isActive flag
     }
-  }, [generationState, currentProject, buildHistoryByProject, selectedAgentId, updateGenerationState]);
+  }, [generationState, currentProject, buildHistoryByProject, selectedAgentId]);
 
   // Calculate badge values
   const buildProgress = generationState
