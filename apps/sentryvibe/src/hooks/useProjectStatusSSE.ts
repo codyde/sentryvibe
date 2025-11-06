@@ -47,14 +47,14 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
             tunnelUrl: data.project.tunnelUrl,
           });
 
-          // Update cache directly with new data (optimistic real-time update)
+          // Update per-project cache directly (optimistic real-time update)
           queryClient.setQueryData<Project>(['projects', projectId], (old) => {
-            if (!old) return data.project;
+            const base = old ?? ({} as Project);
             return {
-              ...old,
+              ...base,
               ...data.project,
-              // Ensure dates are preserved as Date objects
-              createdAt: old.createdAt,
+              // Ensure we preserve existing Date instances
+              createdAt: base.createdAt ?? new Date(data.project.createdAt),
               updatedAt: new Date(data.project.updatedAt),
               lastActivityAt: data.project.lastActivityAt
                 ? new Date(data.project.lastActivityAt)
@@ -62,17 +62,33 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
             };
           });
 
-          // Also invalidate projects list to ensure consistency
-          queryClient.invalidateQueries({
-            queryKey: ['projects'],
-            // Don't refetch immediately, just mark as stale
-            refetchType: 'none',
+          // Keep the projects list cache aligned (sidebar, preview, etc.)
+          queryClient.setQueryData<{ projects: Project[] }>(['projects'], (old) => {
+            if (!old) return old;
+            const nextProjects = old.projects.map((proj) =>
+              proj.id === data.project.id
+                ? {
+                    ...proj,
+                    ...data.project,
+                    createdAt: proj.createdAt,
+                    updatedAt: new Date(data.project.updatedAt),
+                    lastActivityAt: data.project.lastActivityAt
+                      ? new Date(data.project.lastActivityAt)
+                      : null,
+                  }
+                : proj
+            );
+            return { projects: nextProjects };
           });
 
-          // Invalidate the specific project query (will refetch if being actively watched)
+          // Mark queries as stale so active observers refetch if needed
+          queryClient.invalidateQueries({
+            queryKey: ['projects'],
+            refetchType: 'active',
+          });
           queryClient.invalidateQueries({
             queryKey: ['projects', projectId],
-            refetchType: 'none',
+            refetchType: 'active',
           });
         }
       } catch (error) {
@@ -89,6 +105,10 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
 
       // If the connection fails completely, we can fallback to polling
       // TanStack Query will continue to refetch based on refetchInterval
+
+      // Force a refetch so UI can reconcile once connection comes back
+      queryClient.invalidateQueries({ queryKey: ['projects'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId], refetchType: 'active' });
     });
 
     // Cleanup on unmount or when projectId changes

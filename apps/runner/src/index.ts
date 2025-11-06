@@ -1738,6 +1738,7 @@ export async function startRunner(options: RunnerOptions = {}) {
                 template: command.payload.template, // NEW: Pass template from frontend
                 designPreferences: command.payload.designPreferences, // User-specified design constraints (deprecated - use tags)
                 tags: command.payload.tags, // Tag-based configuration
+                conversationHistory: (command.payload as any).conversationHistory, // Pass conversation context (type will be updated after rebuild)
               });
 
               log("orchestration complete:", {

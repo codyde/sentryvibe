@@ -10,7 +10,7 @@ import {
   projects,
   messages,
 } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../../types/generation';
 import { serializeGenerationState } from '../generation-persistence';
 import { buildWebSocketServer } from '../../index';
@@ -29,6 +29,8 @@ interface ActiveBuildContext {
   startedAt: Date;
   currentMessageId: string | null;
   messageBuffers: Map<string, MessageBuffer>;
+  stateVersion: number;
+  refreshPromise: Promise<void> | null; // Mutex to serialize refreshRawState calls
 }
 
 type MessagePart = {
@@ -44,6 +46,35 @@ type MessagePart = {
 interface MessageBuffer {
   rowId: string;
   parts: MessagePart[];
+}
+
+async function pruneTodoTail(context: ActiveBuildContext, keepCount: number) {
+  // Remove tool calls tied to trimmed todos
+  await retryOnTimeout(() =>
+    db.delete(generationToolCalls)
+      .where(and(
+        eq(generationToolCalls.sessionId, context.sessionId),
+        sql`${generationToolCalls.todoIndex} >= ${keepCount}`,
+      ))
+  );
+
+  // Remove notes linked to trimmed todos
+  await retryOnTimeout(() =>
+    db.delete(generationNotes)
+      .where(and(
+        eq(generationNotes.sessionId, context.sessionId),
+        sql`${generationNotes.todoIndex} >= ${keepCount}`,
+      ))
+  );
+
+  // Remove the extra todos themselves
+  await retryOnTimeout(() =>
+    db.delete(generationTodos)
+      .where(and(
+        eq(generationTodos.sessionId, context.sessionId),
+        sql`${generationTodos.todoIndex} >= ${keepCount}`,
+      ))
+  );
 }
 
 // Global registry of active builds
@@ -185,38 +216,55 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
     startTime: sessionRow.startedAt ?? context.startedAt,
     endTime: sessionRow.endedAt ?? undefined,
     codex: persistedState?.codex as GenerationState['codex'],
+    stateVersion: context.stateVersion,
   };
 
   return snapshot;
 }
 
 async function refreshRawState(context: ActiveBuildContext) {
-  try {
-    const snapshot = await buildSnapshot(context);
-    const serialized = serializeGenerationState(snapshot);
-    await db.update(generationSessions)
-      .set({ rawState: serialized, updatedAt: new Date() })
-      .where(eq(generationSessions.id, context.sessionId));
-    
-    // Capture current trace context for distributed tracing
-    const activeSpan = Sentry.getActiveSpan();
-    const traceContext = activeSpan ? {
-      trace: Sentry.getTraceData()['sentry-trace'],
-      baggage: Sentry.getTraceData().baggage,
-    } : undefined;
-    
-    // Quiet: Trace context captured (too noisy - happens for every tool call)
-    
-    // Broadcast state update via WebSocket with trace context
-    buildWebSocketServer.broadcastStateUpdate(
-      context.projectId,
-      context.sessionId,
-      snapshot,
-      traceContext
-    );
-  } catch (snapshotError) {
-    console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
+  // CRITICAL FIX: Serialize refreshRawState calls to prevent out-of-order stateVersion broadcasts
+  // If a refresh is already in progress, wait for it to complete first
+  if (context.refreshPromise) {
+    await context.refreshPromise;
   }
+  
+  // Create a new promise for this refresh operation
+  context.refreshPromise = (async () => {
+    try {
+      context.stateVersion += 1;
+      const snapshot = await buildSnapshot(context);
+      const serialized = serializeGenerationState(snapshot);
+      await db.update(generationSessions)
+        .set({ rawState: serialized, updatedAt: new Date() })
+        .where(eq(generationSessions.id, context.sessionId));
+      
+      // Capture current trace context for distributed tracing
+      const activeSpan = Sentry.getActiveSpan();
+      const traceContext = activeSpan ? {
+        trace: Sentry.getTraceData()['sentry-trace'],
+        baggage: Sentry.getTraceData().baggage,
+      } : undefined;
+      
+      // Quiet: Trace context captured (too noisy - happens for every tool call)
+      
+      // Broadcast state update via WebSocket with trace context
+      buildWebSocketServer.broadcastStateUpdate(
+        context.projectId,
+        context.sessionId,
+        snapshot,
+        traceContext
+      );
+    } catch (snapshotError) {
+      console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
+    } finally {
+      // Clear the promise once this refresh completes
+      context.refreshPromise = null;
+    }
+  })();
+  
+  // Wait for this refresh to complete
+  await context.refreshPromise;
 }
 
 function serializeMessageParts(parts: MessagePart[]): string {
@@ -507,6 +555,9 @@ async function persistEvent(
         // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
         await Promise.all(todos.map((todo, index: number) => persistTodo(context, todo, index)));
 
+        // Trim any leftover todos/tool data beyond the current list length
+        await pruneTodoTail(context, todos.length);
+
         // Update active todo index for subsequent events
         context.currentActiveTodoIndex = todos.findIndex((t) => t.status === 'in_progress');
         // Quiet: Active todo index updated
@@ -774,6 +825,8 @@ export function registerBuild(
     startedAt: new Date(),
     currentMessageId: null,
     messageBuffers: new Map(),
+    stateVersion: 0,
+    refreshPromise: null, // Initialize mutex for serializing state refreshes
   };
 
   // Subscribe to runner events - this subscription persists across HTTP disconnections
