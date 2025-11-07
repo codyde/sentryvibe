@@ -367,14 +367,42 @@ setInterval(() => {
   });
 }, 60_000);
 
-// Retry failed events every 30 seconds
+// Retry failed events with exponential backoff
+// Check every 5 seconds but only retry events that are ready based on their backoff delay
 setInterval(async () => {
   if (failedEvents.length === 0) return;
 
-  console.log(`[broker] Retrying ${failedEvents.length} failed events...`);
+  const now = Date.now();
+  const readyToRetry: typeof failedEvents = [];
+  const notReady: typeof failedEvents = [];
+
+  // Separate events into ready and not-ready based on exponential backoff
+  for (const item of failedEvents) {
+    // Calculate exponential backoff: 5s, 10s, 20s, 40s, 80s... (max 5 minutes)
+    const backoffDelay = Math.min(5000 * Math.pow(2, item.attempts - 1), 300000);
+    const timeSinceLastAttempt = now - item.lastAttempt;
+
+    if (timeSinceLastAttempt >= backoffDelay) {
+      readyToRetry.push(item);
+    } else {
+      notReady.push(item);
+    }
+  }
+
+  if (readyToRetry.length === 0) {
+    return; // No events ready to retry yet
+  }
+
+  console.log(`[broker] Retrying ${readyToRetry.length} failed events (${notReady.length} not ready)...`);
+
+  // Clear the queue and re-add events that aren't ready
+  failedEvents.length = 0;
+  failedEvents.push(...notReady);
 
   // Process up to 10 events per retry cycle
-  const batch = failedEvents.splice(0, 10);
+  const batch = readyToRetry.slice(0, 10);
+  const remainingReady = readyToRetry.slice(10);
+  failedEvents.push(...remainingReady); // Re-queue events we didn't process yet
 
   for (const item of batch) {
     try {
@@ -394,7 +422,7 @@ setInterval(async () => {
       if (!response.ok) {
         // Re-queue if still failing, but limit attempts
         if (item.attempts < 5) {
-          failedEvents.push({ ...item, attempts: item.attempts + 1 });
+          failedEvents.push({ ...item, attempts: item.attempts + 1, lastAttempt: Date.now() });
         } else {
           console.error(`[broker] Dropping event after 5 attempts:`, item.event.type);
           Sentry.captureMessage('Event dropped after max retry attempts', {
@@ -405,13 +433,13 @@ setInterval(async () => {
         }
       }
     } catch (error) {
-      // Re-queue on error
+      // Re-queue on error with updated lastAttempt
       if (item.attempts < 5) {
-        failedEvents.push({ ...item, attempts: item.attempts + 1 });
+        failedEvents.push({ ...item, attempts: item.attempts + 1, lastAttempt: Date.now() });
       }
     }
   }
-}, 30_000);
+}, 5_000);
 
 server.listen(PORT, () => {
   console.log(`[broker] listening on http://localhost:${PORT}`);

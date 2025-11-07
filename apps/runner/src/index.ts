@@ -2189,13 +2189,16 @@ export async function startRunner(options: RunnerOptions = {}) {
               sendEvent({
                 type: "build-completed",
                 ...buildEventBase(command.projectId, command.id),
-                payload: { 
-                  todos: [], 
+                payload: {
+                  todos: [],
                   summary: "Build completed",
                   detectedFramework, // Send detected framework to API
                 },
               });
-              
+
+              // Clean up sequence tracking for this command to prevent memory leak
+              sequenceByCommand.delete(command.id);
+
               // Note: Span will automatically end when this async callback completes
               // DO NOT manually call span.end() here - it breaks trace propagation!
             } catch (error) {
@@ -2213,6 +2216,9 @@ export async function startRunner(options: RunnerOptions = {}) {
                     : "Failed to run build",
                 stack: error instanceof Error ? error.stack : undefined,
               });
+
+              // Clean up sequence tracking for this command to prevent memory leak
+              sequenceByCommand.delete(command.id);
             }
           }
         );
