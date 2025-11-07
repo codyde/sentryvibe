@@ -122,31 +122,39 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
     throw new Error('Generation session not found when building snapshot');
   }
   
-  // Fetch project name from database
-  const [projectRow] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, sessionRow.projectId))
-    .limit(1);
+  // Parallelize independent database queries to reduce latency and connection churn
+  // Fixes N+1 query issue: https://buildwithcode.sentry.io/issues/6977830586/
+  const [projectRow, todoRows, toolRows, noteRows] = await Promise.all([
+    // Fetch project name from database
+    db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, sessionRow.projectId))
+      .limit(1)
+      .then(rows => rows[0]),
+    
+    // Fetch todos
+    db
+      .select()
+      .from(generationTodos)
+      .where(eq(generationTodos.sessionId, context.sessionId))
+      .orderBy(generationTodos.todoIndex),
+    
+    // Fetch tool calls
+    db
+      .select()
+      .from(generationToolCalls)
+      .where(eq(generationToolCalls.sessionId, context.sessionId)),
+    
+    // Fetch notes
+    db
+      .select()
+      .from(generationNotes)
+      .where(eq(generationNotes.sessionId, context.sessionId))
+      .orderBy(generationNotes.createdAt),
+  ]);
   
   const projectName = projectRow?.name || context.projectId;
-
-  const todoRows = await db
-    .select()
-    .from(generationTodos)
-    .where(eq(generationTodos.sessionId, context.sessionId))
-    .orderBy(generationTodos.todoIndex);
-
-  const toolRows = await db
-    .select()
-    .from(generationToolCalls)
-    .where(eq(generationToolCalls.sessionId, context.sessionId));
-
-  const noteRows = await db
-    .select()
-    .from(generationNotes)
-    .where(eq(generationNotes.sessionId, context.sessionId))
-    .orderBy(generationNotes.createdAt);
 
   const todosSnapshot: TodoItem[] = todoRows.map(row => ({
     content: row.content,
