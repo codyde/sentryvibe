@@ -1,6 +1,6 @@
 {
   "name": "sentryvibe-broker",
-  "version": "0.14.2",
+  "version": "0.15.0",
   "description": "WebSocket broker service for routing commands between SentryVibe web app and local runners",
   "private": true,
   "main": "dist/index.js",
