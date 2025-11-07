@@ -1009,19 +1009,188 @@ export async function startRunner(options: RunnerOptions = {}) {
   const PONG_TIMEOUT = 45000; // 45 seconds (1.5x ping interval)
   const CONNECTION_HANDSHAKE_TIMEOUT = 10000; // 10 second connection timeout
   let lastPongReceived = Date.now();
+  
+  // Event buffering and sequencing
+  let eventSequence = 0; // Global sequence counter per command
+  const sequenceByCommand = new Map<string, number>(); // Per-command sequence tracking
 
   function assertNever(value: never): never {
     throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
   }
 
-  function sendEvent(event: RunnerEvent) {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      log(
-        `[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`
-      );
-      return;
+  /**
+   * Event Buffer: Buffers events when WebSocket is disconnected
+   * and retries them on reconnect with acknowledgment tracking
+   */
+  class EventBuffer {
+    private queue: Array<{ event: RunnerEvent; retries: number; sentAt: number }> = [];
+    private pendingAcks = new Map<string, { event: RunnerEvent; retries: number; timeout: NodeJS.Timeout }>();
+    private maxSize = 1000;
+    private maxRetries = 3;
+    private ackTimeout = 5000; // 5 seconds to wait for ACK
+    private isConnected = false;
+    private flushTimer: NodeJS.Timeout | null = null;
+    private readonly FLUSH_INTERVAL = 100; // Flush every 100ms when connected
+
+    enqueue(event: RunnerEvent) {
+      // Generate event ID if not present
+      if (!event.id) {
+        event.id = `${event.commandId || 'unknown'}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      }
+
+      // Add sequence number if commandId exists
+      if (event.commandId) {
+        const currentSeq = sequenceByCommand.get(event.commandId) || 0;
+        event.sequence = currentSeq + 1;
+        sequenceByCommand.set(event.commandId, event.sequence);
+      }
+
+      // If queue is full, drop oldest events (FIFO)
+      if (this.queue.length >= this.maxSize) {
+        const dropped = this.queue.shift();
+        log(`[event-buffer] Queue full, dropping oldest event: ${dropped?.event.type}`);
+      }
+
+      this.queue.push({
+        event,
+        retries: 0,
+        sentAt: 0, // Not sent yet
+      });
+
+      // Try to send immediately if connected
+      if (this.isConnected) {
+        this.flush();
+      }
     }
-    
+
+    setConnected(connected: boolean) {
+      const wasConnected = this.isConnected;
+      this.isConnected = connected;
+
+      if (connected && !wasConnected) {
+        log(`[event-buffer] Connection restored, flushing ${this.queue.length} buffered events`);
+        this.flush();
+        // Start periodic flush for new events
+        this.startPeriodicFlush();
+      } else if (!connected) {
+        this.stopPeriodicFlush();
+      }
+    }
+
+    private startPeriodicFlush() {
+      if (this.flushTimer) return;
+      this.flushTimer = setInterval(() => {
+        if (this.isConnected && this.queue.length > 0) {
+          this.flush();
+        }
+      }, this.FLUSH_INTERVAL);
+    }
+
+    private stopPeriodicFlush() {
+      if (this.flushTimer) {
+        clearInterval(this.flushTimer);
+        this.flushTimer = null;
+      }
+    }
+
+    private flush() {
+      if (!this.isConnected || this.queue.length === 0 || !socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      // Process up to 10 events at a time to avoid overwhelming the connection
+      const batch = this.queue.splice(0, 10);
+
+      for (const item of batch) {
+        try {
+          // Send event
+          const eventJson = JSON.stringify(item.event);
+          socket.send(eventJson);
+          item.sentAt = Date.now();
+
+          // Set up ACK timeout
+          const timeout = setTimeout(() => {
+            this.handleAckTimeout(item.event.id!);
+          }, this.ackTimeout);
+
+          // Track pending ACK
+          this.pendingAcks.set(item.event.id!, {
+            event: item.event,
+            retries: item.retries,
+            timeout,
+          });
+        } catch (error) {
+          log(`[event-buffer] Failed to send event ${item.event.id}:`, error);
+          // Re-queue on send failure
+          if (item.retries < this.maxRetries) {
+            item.retries++;
+            this.queue.unshift(item); // Put back at front
+          } else {
+            log(`[event-buffer] Dropping event ${item.event.id} after ${this.maxRetries} retries`);
+          }
+          break; // Stop processing batch on error
+        }
+      }
+    }
+
+    handleAck(eventId: string) {
+      const pending = this.pendingAcks.get(eventId);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        this.pendingAcks.delete(eventId);
+        // Event successfully delivered
+      }
+    }
+
+    private handleAckTimeout(eventId: string) {
+      const pending = this.pendingAcks.get(eventId);
+      if (!pending) return;
+
+      this.pendingAcks.delete(eventId);
+
+      if (pending.retries < this.maxRetries) {
+        // Retry sending
+        pending.retries++;
+        log(`[event-buffer] ACK timeout for ${eventId}, retrying (attempt ${pending.retries})`);
+        
+        // Re-queue for retry
+        this.queue.unshift({
+          event: pending.event,
+          retries: pending.retries,
+          sentAt: 0,
+        });
+
+        // Try to flush immediately
+        if (this.isConnected) {
+          this.flush();
+        }
+      } else {
+        log(`[event-buffer] Event ${eventId} failed after ${this.maxRetries} retries, dropping`);
+      }
+    }
+
+    getStats() {
+      return {
+        queued: this.queue.length,
+        pendingAcks: this.pendingAcks.size,
+        isConnected: this.isConnected,
+      };
+    }
+
+    shutdown() {
+      this.stopPeriodicFlush();
+      // Clear all timeouts
+      for (const pending of this.pendingAcks.values()) {
+        clearTimeout(pending.timeout);
+      }
+      this.pendingAcks.clear();
+      this.queue = [];
+    }
+  }
+
+  const eventBuffer = new EventBuffer();
+
+  function sendEvent(event: RunnerEvent) {
     // Wrap in span for critical events to trace through to database
     // Only trace final build outcome - NOT errors, streaming, or intermediate events
     const traceableEvents = [
@@ -1031,89 +1200,39 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     const shouldTrace = traceableEvents.includes(event.type);
     
-    const sendOperation = () => {
-      try {
-        // Capture trace context for traceable events
-        // DO NOT capture for: runner-status (heartbeats), ack, log-chunk (too frequent)
-        if (shouldTrace) {
-          const span = Sentry.getActiveSpan();
-          if (span) {
-            // Extract current trace context to propagate
-            const traceData = Sentry.getTraceData();
-
-            event._sentry = {
-              trace: traceData['sentry-trace'],
-              baggage: traceData.baggage,
-            };
-          }
-        }
-
-        const eventJson = JSON.stringify(event);
-
-        // Only log important events
-        if (event.type === "error") {
-          log(`❌ Error: ${event.error}`);
-          if (event.stack) {
-            log(`Stack: ${event.stack.substring(0, 500)}`);
-          }
-        } else if (event.type === "port-detected") {
-          log(`🔌 Port detected: ${event.port}`);
-        } else if (event.type === "tunnel-created") {
-          log(`🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`);
-        } else if (event.type === "build-completed") {
-          log(`✅ Build completed for project: ${event.projectId}`);
-        } else if (event.type === "build-failed") {
-          log(`❌ Build failed: ${event.error}`);
-        }
-        // Suppress: build-stream, runner-status, ack, etc.
-
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(eventJson);
-        }
-      } catch (error) {
-        log(`❌ Failed to send event ${event.type}:`, error);
-      }
-    };
-
-    // Wrap critical events in span for tracing
+    // Capture trace context for traceable events before enqueueing
     if (shouldTrace) {
-      Sentry.startSpan(
-        {
-          name: `runner.sendEvent.${event.type}`,
-          op: 'runner.event.send',
-          attributes: {
-            'event.type': event.type,
-            'event.projectId': event.projectId,
-            'event.commandId': event.commandId,
-            'event.size': JSON.stringify(event).length,
-          },
-          // Force span to be recorded even if very fast
-          forceTransaction: false,
-        },
-        () => {
-          const startTime = Date.now();
-          sendOperation();
-          const duration = Date.now() - startTime;
-          
-          // Add timing info for debugging
-          if (duration < 1) {
-            // WebSocket sends are typically < 1ms, add breadcrumb for visibility
-            Sentry.addBreadcrumb({
-              category: 'runner.event.send',
-              message: `Sent ${event.type} event (${duration}ms)`,
-              level: 'debug',
-              data: {
-                eventType: event.type,
-                projectId: event.projectId,
-                duration,
-              },
-            });
-          }
-        }
-      );
-    } else {
-      sendOperation();
+      const span = Sentry.getActiveSpan();
+      if (span) {
+        // Extract current trace context to propagate
+        const traceData = Sentry.getTraceData();
+
+        event._sentry = {
+          trace: traceData['sentry-trace'],
+          baggage: traceData.baggage,
+        };
+      }
     }
+
+    // Log important events
+    if (event.type === "error") {
+      log(`❌ Error: ${event.error}`);
+      if (event.stack) {
+        log(`Stack: ${event.stack.substring(0, 500)}`);
+      }
+    } else if (event.type === "port-detected") {
+      log(`🔌 Port detected: ${event.port}`);
+    } else if (event.type === "tunnel-created") {
+      log(`🔗 Tunnel created: ${event.tunnelUrl} -> localhost:${event.port}`);
+    } else if (event.type === "build-completed") {
+      log(`✅ Build completed for project: ${event.projectId}`);
+    } else if (event.type === "build-failed") {
+      log(`❌ Build failed: ${event.error}`);
+    }
+    // Suppress: build-stream, runner-status, ack, etc.
+
+    // Enqueue to buffer - it handles connection state, ACKs, and retries
+    eventBuffer.enqueue(event);
   }
 
   function buildEventBase(projectId?: string, commandId?: string) {
@@ -2070,13 +2189,16 @@ export async function startRunner(options: RunnerOptions = {}) {
               sendEvent({
                 type: "build-completed",
                 ...buildEventBase(command.projectId, command.id),
-                payload: { 
-                  todos: [], 
+                payload: {
+                  todos: [],
                   summary: "Build completed",
                   detectedFramework, // Send detected framework to API
                 },
               });
-              
+
+              // Clean up sequence tracking for this command to prevent memory leak
+              sequenceByCommand.delete(command.id);
+
               // Note: Span will automatically end when this async callback completes
               // DO NOT manually call span.end() here - it breaks trace propagation!
             } catch (error) {
@@ -2094,6 +2216,9 @@ export async function startRunner(options: RunnerOptions = {}) {
                     : "Failed to run build",
                 stack: error instanceof Error ? error.stack : undefined,
               });
+
+              // Clean up sequence tracking for this command to prevent memory leak
+              sequenceByCommand.delete(command.id);
             }
           }
         );
@@ -2162,6 +2287,10 @@ export async function startRunner(options: RunnerOptions = {}) {
       reconnectAttempts = 0; // Reset on successful connection
       lastPongReceived = Date.now(); // Reset pong timer on new connection
       log("connected to broker", url.toString());
+      
+      // Notify event buffer that connection is established
+      eventBuffer.setConnected(true);
+      
       publishStatus();
       scheduleHeartbeat();
 
@@ -2182,7 +2311,17 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     socket.on("message", (data: WebSocket.RawData) => {
       try {
-        const command = JSON.parse(String(data)) as RunnerCommand;
+        const message = JSON.parse(String(data)) as RunnerMessage;
+        
+        // Handle event acknowledgments
+        if (message.type === 'event-ack') {
+          const ack = message as { type: 'event-ack'; eventId: string };
+          eventBuffer.handleAck(ack.eventId);
+          return;
+        }
+        
+        // Handle commands (existing logic)
+        const command = message as RunnerCommand;
 
         // Continue trace if parent trace context exists, otherwise start new
         if (command._sentry?.trace) {
@@ -2227,6 +2366,9 @@ export async function startRunner(options: RunnerOptions = {}) {
     socket.on("close", (code: number, reason: Buffer) => {
       const reasonStr = reason.toString() || "no reason provided";
       log(`connection closed with code ${code}, reason: ${reasonStr}`);
+
+      // Notify event buffer that connection is lost
+      eventBuffer.setConnected(false);
 
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
@@ -2282,6 +2424,9 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     log("shutting down runner");
     isShuttingDown = true; // Prevent reconnection attempts
+
+    // Shutdown event buffer
+    eventBuffer.shutdown();
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (pingTimer) clearInterval(pingTimer);

@@ -20,6 +20,7 @@ export type RunnerCommandType =
 
 export type RunnerEventType =
   | 'ack'
+  | 'event-ack' // Acknowledgment for events (broker → runner)
   | 'log-chunk'
   | 'port-detected'
   | 'port-conflict'
@@ -172,6 +173,8 @@ export interface BaseEvent {
   commandId?: string;
   projectId?: string;
   timestamp: string;
+  id?: string; // Unique event ID for acknowledgment
+  sequence?: number; // Sequence number for ordering
   _sentry?: {
     trace?: string;
     baggage?: string;
@@ -181,6 +184,12 @@ export interface BaseEvent {
 export interface AckEvent extends BaseEvent {
   type: 'ack';
   message?: string;
+}
+
+export interface EventAckEvent extends BaseEvent {
+  type: 'event-ack';
+  eventId: string; // ID of the event being acknowledged
+  timestamp: string;
 }
 
 export interface LogChunkEvent extends BaseEvent {
@@ -315,6 +324,7 @@ export interface ErrorEvent extends BaseEvent {
 
 export type RunnerEvent =
   | AckEvent
+  | EventAckEvent
   | LogChunkEvent
   | PortDetectedEvent
   | PortConflictEvent
