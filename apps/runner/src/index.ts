@@ -26,6 +26,7 @@ import {
   DEFAULT_CLAUDE_MODEL_ID,
   type RunnerCommand,
   type RunnerEvent,
+  type RunnerMessage,
   type AgentId,
   type ClaudeModelId,
   setTemplatesPath,
