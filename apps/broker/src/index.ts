@@ -39,7 +39,97 @@ let totalCommands = 0;
 let totalErrors = 0;
 
 // Failed event queue for retry
-const failedEvents: Array<{ event: RunnerEvent; attempts: number }> = [];
+const failedEvents: Array<{ event: RunnerEvent; attempts: number; lastAttempt: number }> = [];
+
+// Event sequence tracking (per commandId) to detect out-of-order events
+const eventSequences = new Map<string, number>();
+
+// Asynchronous event forwarding queue
+class EventForwardingQueue {
+  private queue: Array<{ event: RunnerEvent; runnerId: string; ws: WebSocket }> = [];
+  private processing = false;
+  private workers = 5; // Parallel workers
+  private activeWorkers = 0;
+
+  async enqueue(event: RunnerEvent, runnerId: string, ws: WebSocket) {
+    this.queue.push({ event, runnerId, ws });
+    this.process();
+  }
+
+  private async process() {
+    if (this.processing || this.queue.length === 0) return;
+    this.processing = true;
+
+    // Process up to workers number of events in parallel
+    while (this.queue.length > 0 && this.activeWorkers < this.workers) {
+      const item = this.queue.shift();
+      if (!item) break;
+
+      this.activeWorkers++;
+      // Process asynchronously - don't await
+      this.forwardEvent(item.event, item.runnerId, item.ws).finally(() => {
+        this.activeWorkers--;
+        // Continue processing if queue has more items
+        if (this.queue.length > 0) {
+          setImmediate(() => this.process());
+        } else {
+          this.processing = false;
+        }
+      });
+    }
+
+    if (this.queue.length === 0) {
+      this.processing = false;
+    }
+  }
+
+  private async forwardEvent(event: RunnerEvent, runnerId: string, ws: WebSocket) {
+    try {
+      // Check event sequence for out-of-order detection
+      if (event.commandId && event.sequence !== undefined) {
+        const lastSeq = eventSequences.get(event.commandId) || -1;
+        if (event.sequence <= lastSeq) {
+          console.warn(
+            `[broker] Out-of-order event detected: commandId=${event.commandId}, ` +
+            `sequence=${event.sequence}, lastSeq=${lastSeq}, type=${event.type}`
+          );
+          // Still forward it - let Next.js handle ordering
+        } else {
+          eventSequences.set(event.commandId, event.sequence);
+        }
+      }
+
+      await forwardEventToNextJS(event);
+
+      // Send ACK back to runner if event has an ID (only on success)
+      if (event.id && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({
+            type: 'event-ack',
+            eventId: event.id,
+            timestamp: new Date().toISOString(),
+          }));
+        } catch (ackError) {
+          console.error('[broker] Failed to send ACK:', ackError);
+        }
+      }
+    } catch (error) {
+      console.error('[broker] Failed to forward event:', error);
+      // forwardEventToNextJS already adds to failedEvents queue on error
+      // Don't send ACK on error - runner will retry
+    }
+  }
+
+  getStats() {
+    return {
+      queued: this.queue.length,
+      activeWorkers: this.activeWorkers,
+      processing: this.processing,
+    };
+  }
+}
+
+const eventForwardingQueue = new EventForwardingQueue();
 
 function auth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const header = req.headers.authorization;
@@ -210,7 +300,8 @@ wss.on('connection', (ws, request) => {
         }
 
         totalEvents++;
-        await forwardEvent(event);
+        // Enqueue for asynchronous forwarding (non-blocking)
+        await eventForwardingQueue.enqueue(event, runnerId, ws);
       }
     } catch (error) {
       totalErrors++;
@@ -386,7 +477,7 @@ process.on('unhandledRejection', (reason, promise) => {
   Sentry.captureException(reason, { level: 'error' });
 });
 
-async function forwardEvent(event: RunnerEvent) {
+async function forwardEventToNextJS(event: RunnerEvent) {
   // Continue trace if event has trace context from runner
   const forwardOperation = async () => {
     try {
@@ -408,18 +499,22 @@ async function forwardEvent(event: RunnerEvent) {
         }
       }
 
-      const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(event),
-      }, 3);
+      const response = await fetchWithRetry(
+        `${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(event),
+        },
+        3
+      );
 
       if (!response.ok) {
         const text = await response.text();
         console.error('[broker] Failed to forward event', response.status, text);
 
         // Add to failed queue for retry
-        failedEvents.push({ event, attempts: 1 });
+        failedEvents.push({ event, attempts: 1, lastAttempt: Date.now() });
 
         Sentry.captureMessage('Failed to forward event', {
           level: 'warning',
@@ -432,7 +527,7 @@ async function forwardEvent(event: RunnerEvent) {
       console.error('[broker] Error forwarding event', error);
 
       // Add to failed queue for retry
-      failedEvents.push({ event, attempts: 1 });
+      failedEvents.push({ event, attempts: 1, lastAttempt: Date.now() });
 
       Sentry.captureException(error, {
         tags: { eventType: event.type, source: 'forward_event' },
