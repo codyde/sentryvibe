@@ -55,6 +55,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Track SSE connection health
   const [isSSEConnected, setIsSSEConnected] = useState(false);
   const sseFailureCountRef = useRef(0);
+  
+  // Track previous stopping states for refetch trigger
+  const prevStoppingTunnelRef = useRef(isStoppingTunnel);
+  const prevStoppingServerRef = useRef(isStoppingServer);
 
   // Real-time status updates via SSE
   useEffect(() => {
@@ -117,6 +121,21 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       clearInterval(interval);
     };
   }, [isSSEConnected, isStartingServer, isStartingTunnel, currentProject?.devServerStatus, currentProject?.tunnelUrl, refetch]);
+
+  // BUG FIX: Force refetch after stopping operations complete
+  // This ensures UI updates even if SSE doesn't receive the event
+  useEffect(() => {
+    // If we just finished stopping tunnel/server, force a refetch
+    if ((prevStoppingTunnelRef.current && !isStoppingTunnel) || 
+        (prevStoppingServerRef.current && !isStoppingServer)) {
+      console.log('[PreviewPanel] Stop operation completed, forcing refetch...');
+      refetch();
+    }
+    
+    // Update refs for next render
+    prevStoppingTunnelRef.current = isStoppingTunnel;
+    prevStoppingServerRef.current = isStoppingServer;
+  }, [isStoppingTunnel, isStoppingServer, refetch]);
 
   // Tunnel loading with client-side DNS verification
   useEffect(() => {

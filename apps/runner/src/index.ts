@@ -1008,7 +1008,9 @@ export async function startRunner(options: RunnerOptions = {}) {
   const PING_INTERVAL = 30000; // Ping every 30 seconds
   const PONG_TIMEOUT = 45000; // 45 seconds (1.5x ping interval)
   const CONNECTION_HANDSHAKE_TIMEOUT = 10000; // 10 second connection timeout
+  const COMMAND_RECEIVE_TIMEOUT = 300000; // 5 minutes - force reconnect if no commands received
   let lastPongReceived = Date.now();
+  let lastCommandReceived = Date.now(); // BUG FIX: Track when we last received a command
 
   function assertNever(value: never): never {
     throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
@@ -2161,19 +2163,42 @@ export async function startRunner(options: RunnerOptions = {}) {
     socket.on("open", () => {
       reconnectAttempts = 0; // Reset on successful connection
       lastPongReceived = Date.now(); // Reset pong timer on new connection
-      log("connected to broker", url.toString());
+      lastCommandReceived = Date.now(); // Reset command timer on new connection
+      log("✅ connected to broker", url.toString());
+      log("   Health check: ping/pong enabled, command timeout: 5 minutes");
       publishStatus();
       scheduleHeartbeat();
 
       // Start ping/pong to keep connection alive
       if (pingTimer) clearInterval(pingTimer);
+      let pingCount = 0; // Track ping count for periodic health logging
       pingTimer = setInterval(() => {
+        const now = Date.now();
+        pingCount++;
+        
+        // Periodic health check logging (every 10 pings = 5 minutes)
+        if (pingCount % 10 === 0) {
+          const secondsSinceCommand = Math.round((now - lastCommandReceived) / 1000);
+          const secondsSincePong = Math.round((now - lastPongReceived) / 1000);
+          log(`💚 Connection health check: last command ${secondsSinceCommand}s ago, last pong ${secondsSincePong}s ago`);
+        }
+        
         // Check if pong timeout exceeded - indicates zombie connection
-        if (Date.now() - lastPongReceived > PONG_TIMEOUT) {
-          log("No pong received, forcing reconnection");
+        if (now - lastPongReceived > PONG_TIMEOUT) {
+          log("⚠️  No pong received, forcing reconnection");
           socket?.close(1002, "Pong timeout");
           return;
         }
+        
+        // BUG FIX: Check if we've received any commands recently
+        // Even if ping/pong works, the connection might be stuck and not receiving commands
+        if (now - lastCommandReceived > COMMAND_RECEIVE_TIMEOUT) {
+          log("⚠️  No commands received for 5 minutes, forcing reconnection");
+          log(`   Last command: ${Math.round((now - lastCommandReceived) / 1000)}s ago`);
+          socket?.close(1003, "Command receive timeout");
+          return;
+        }
+        
         if (socket && socket.readyState === WebSocket.OPEN) {
           socket.ping();
         }
@@ -2183,6 +2208,9 @@ export async function startRunner(options: RunnerOptions = {}) {
     socket.on("message", (data: WebSocket.RawData) => {
       try {
         const command = JSON.parse(String(data)) as RunnerCommand;
+        
+        // BUG FIX: Update lastCommandReceived timestamp
+        lastCommandReceived = Date.now();
 
         // Continue trace if parent trace context exists, otherwise start new
         if (command._sentry?.trace) {

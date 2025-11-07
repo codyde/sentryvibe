@@ -31,6 +31,7 @@ interface ActiveBuildContext {
   messageBuffers: Map<string, MessageBuffer>;
   stateVersion: number;
   refreshPromise: Promise<void> | null; // Mutex to serialize refreshRawState calls
+  isFinalized: boolean; // Track if session has already been finalized to prevent duplicate broadcasts
 }
 
 type MessagePart = {
@@ -324,6 +325,15 @@ async function persistMessageBuffer(context: ActiveBuildContext, messageId: stri
 }
 
 async function finalizeSession(context: ActiveBuildContext, status: 'completed' | 'failed', timestamp: Date) {
+  // BUG FIX: Check if session is already finalized to prevent duplicate broadcasts
+  if (context.isFinalized) {
+    console.log(`[persistent-processor] ⚠️  Session ${context.sessionId} already finalized, skipping duplicate finalization`);
+    return;
+  }
+  
+  // Mark as finalized immediately to prevent race conditions
+  context.isFinalized = true;
+  
   await retryOnTimeout(() =>
     db.update(generationSessions)
       .set({ status, endedAt: timestamp, updatedAt: timestamp })
@@ -835,6 +845,7 @@ export function registerBuild(
     messageBuffers: new Map(),
     stateVersion: 0,
     refreshPromise: null, // Initialize mutex for serializing state refreshes
+    isFinalized: false, // Track finalization to prevent duplicate broadcasts
   };
 
   // Subscribe to runner events - this subscription persists across HTTP disconnections
