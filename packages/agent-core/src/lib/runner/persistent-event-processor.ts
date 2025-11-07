@@ -587,8 +587,9 @@ async function persistEvent(
         await refreshRawState(context);
         // Quiet: Todos persisted successfully
         
-        // Broadcast todo update via WebSocket (high priority - immediate flush)
-        buildWebSocketServer.broadcastTodoUpdate(context.projectId, context.sessionId, todos);
+        // BUG FIX: Don't broadcast todos separately - refreshRawState already broadcasts
+        // the full state including todos. Double broadcasting causes duplicate todos in UI.
+        // Removed: buildWebSocketServer.broadcastTodoUpdate(context.projectId, context.sessionId, todos);
 
         // AUTO-FINALIZE: If all todos are complete, finalize the build
         // This handles cases where build-completed event is delayed or missing
