@@ -408,6 +408,7 @@ function HomeContent() {
   const [activeView, setActiveView] = useState<"chat" | "build">("chat");
   const hasStartedGenerationRef = useRef<Set<string>>(new Set());
   const isGeneratingRef = useRef(false); // Sync flag for immediate checks
+  const defaultTagsInitializedRef = useRef(false); // Track if default tags have been set
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
@@ -439,8 +440,9 @@ function HomeContent() {
       // Load tags from existing project
       const loadedTags = deserializeTags(currentProject.tags as any);
       setAppliedTags(loadedTags);
-    } else if (!selectedProjectSlug && availableRunners.length > 0 && appliedTags.length === 0) {
-      // Set default tags ONLY if no tags are currently applied
+      defaultTagsInitializedRef.current = true; // Mark as initialized when loading from project
+    } else if (!selectedProjectSlug && availableRunners.length > 0 && !defaultTagsInitializedRef.current) {
+      // Set default tags ONLY if we haven't initialized them yet
       // This prevents overwriting user's tag selections when availableRunners updates
       const defaultRunnerId = availableRunners[0]?.runnerId || selectedRunnerId;
       const defaultTags: AppliedTag[] = [
@@ -456,9 +458,10 @@ function HomeContent() {
         }
       ];
       setAppliedTags(defaultTags);
+      defaultTagsInitializedRef.current = true; // Mark as initialized
       console.log('[page] ✓ Default tags set: runner=%s, model=claude-haiku-4-5', defaultRunnerId);
     }
-  }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId, appliedTags.length]);
+  }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId]);
 
   useEffect(() => {
     generationStateRef.current = generationState;
@@ -843,6 +846,7 @@ function HomeContent() {
       // Don't clear history - it's now per-project and preserved
       setTerminalDetectedPort(null);
       hasStartedGenerationRef.current.clear();
+      defaultTagsInitializedRef.current = false; // Reset to allow default tags on next landing page visit
     }
   }, [
     selectedProjectSlug,
