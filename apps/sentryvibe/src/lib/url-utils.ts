@@ -123,11 +123,42 @@ export function extractTrailingUrl(text: string): { url: string; remainingText: 
 
   if (!lastWord) return null;
 
-  // Check if last word is a URL
-  if (isValidUrl(lastWord) || isValidUrl(normalizeUrl(lastWord))) {
+  // First check: must contain a dot to be considered a URL
+  // This prevents single words like "check" from being detected
+  if (!lastWord.includes('.')) {
+    return null;
+  }
+
+  // Second check: if it starts with http/https, validate directly
+  if (lastWord.startsWith('http://') || lastWord.startsWith('https://')) {
+    if (isValidUrl(lastWord)) {
+      const remainingText = words.slice(0, -1).join(' ');
+      return {
+        url: lastWord,
+        remainingText: remainingText,
+      };
+    }
+    return null;
+  }
+
+  // Third check: for simple domains (like sentry.io), ensure valid structure
+  // Must have at least 2 parts separated by dot and valid TLD
+  const parts = lastWord.split('.');
+  if (parts.length < 2) return null;
+
+  // Check that each part has at least one character
+  if (parts.some(part => part.length === 0)) return null;
+
+  // Check that TLD is at least 2 characters
+  const tld = parts[parts.length - 1];
+  if (tld.length < 2) return null;
+
+  // Now validate as URL with https:// prefix
+  const normalized = normalizeUrl(lastWord);
+  if (isValidUrl(normalized)) {
     const remainingText = words.slice(0, -1).join(' ');
     return {
-      url: normalizeUrl(lastWord),
+      url: normalized,
       remainingText: remainingText,
     };
   }
