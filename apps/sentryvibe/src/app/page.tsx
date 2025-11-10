@@ -2380,7 +2380,7 @@ function HomeContent() {
                           Code{" "}
                           <span
                             className="inline-block hover:animate-swing origin-bottom-right"
-                            style={{ color: "#FD44B0" }}
+                            style={{ color: "#FD44B0", transform: "rotate(-7.5deg)" }}
                           >
                             breaks
                           </span>
