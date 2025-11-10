@@ -2423,18 +2423,32 @@ function HomeContent() {
                       onSubmit={handleSubmit}
                       className="relative max-w-4xl mx-auto"
                     >
-                      <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
-                        <textarea
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          onPaste={handlePaste}
-                          placeholder="What do you want to build?"
-                          rows={2}
-                          className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
-                          style={{ minHeight: "80px" }}
-                          disabled={isLoading}
-                        />
+                      <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-visible hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                        <div className="px-8 pt-6 pb-2">
+                          {/* URL Previews - Inline */}
+                          {pastedUrls.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {pastedUrls.map((url) => (
+                                <UrlPreview
+                                  key={url}
+                                  url={url}
+                                  onRemove={() => removeUrl(url)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <textarea
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onPaste={handlePaste}
+                            placeholder="What do you want to build?"
+                            rows={2}
+                            className="w-full pr-12 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
+                            style={{ minHeight: pastedUrls.length > 0 ? "60px" : "80px" }}
+                            disabled={isLoading}
+                          />
+                        </div>
                         <button
                           type="submit"
                           disabled={isLoading || (!input.trim() && pastedUrls.length === 0)}
@@ -2455,19 +2469,6 @@ function HomeContent() {
                           </svg>
                         </button>
                       </div>
-
-                      {/* URL Previews */}
-                      {pastedUrls.length > 0 && (
-                        <div className="mt-4 px-2 flex flex-wrap gap-2">
-                          {pastedUrls.map((url) => (
-                            <UrlPreview
-                              key={url}
-                              url={url}
-                              onRemove={() => removeUrl(url)}
-                            />
-                          ))}
-                        </div>
-                      )}
 
                       {/* Tag Input */}
                       <div className="mt-4 px-2">

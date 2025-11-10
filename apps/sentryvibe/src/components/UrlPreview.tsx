@@ -82,6 +82,11 @@ export function UrlPreview({ url, onRemove, className = '' }: UrlPreviewProps) {
     return null;
   }
 
+  // Truncate title to 15 characters
+  const displayTitle = metadata.title.length > 15
+    ? metadata.title.substring(0, 15) + '...'
+    : metadata.title;
+
   return (
     <div className="relative inline-block">
       <div
@@ -100,8 +105,8 @@ export function UrlPreview({ url, onRemove, className = '' }: UrlPreviewProps) {
             }}
           />
         )}
-        <span className="text-sm font-medium text-foreground max-w-[300px] truncate">
-          {metadata.title}
+        <span className="text-sm font-medium text-foreground truncate">
+          {displayTitle}
         </span>
         <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-primary transition-colors" />
         {onRemove && (
@@ -122,7 +127,7 @@ export function UrlPreview({ url, onRemove, className = '' }: UrlPreviewProps) {
       {showPreview && (
         <div
           ref={previewRef}
-          className="absolute z-50 mt-2 w-80 bg-popover border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95"
+          className="absolute z-[9999] mt-2 w-80 bg-popover border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95"
           style={{
             left: '50%',
             transform: 'translateX(-50%)',
