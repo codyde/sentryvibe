@@ -112,34 +112,72 @@
   --sidebar-ring: oklch(1 0 0);
 }
 
-@keyframes swing {
+@keyframes swing-up {
   0% {
     transform: rotate(-7.5deg);
   }
-  5% {
+  10% {
     transform: rotate(-7.4deg);
   }
-  10% {
+  20% {
     transform: rotate(-7.5deg);
   }
-  15% {
+  30% {
     transform: rotate(-7.2deg);
   }
-  20% {
+  40% {
     transform: rotate(-7.8deg);
   }
-  25% {
+  50% {
     transform: rotate(-7deg);
   }
-  30% {
+  60% {
     transform: rotate(-8deg);
   }
-  40% {
+  80% {
     transform: rotate(0deg);
   }
   100% {
     transform: rotate(0deg);
   }
+}
+
+@keyframes shake-and-fall {
+  0% {
+    transform: rotate(0deg);
+  }
+  /* Wait 500ms (represented as percentage of total animation) */
+  62.5% {
+    transform: rotate(0deg);
+  }
+  /* Shake sequence */
+  67.5% {
+    transform: rotate(1deg);
+  }
+  72.5% {
+    transform: rotate(-1deg);
+  }
+  77.5% {
+    transform: rotate(0.5deg);
+  }
+  82.5% {
+    transform: rotate(-0.5deg);
+  }
+  87.5% {
+    transform: rotate(0deg);
+  }
+  /* Fall down */
+  100% {
+    transform: rotate(-7.5deg);
+  }
+}
+
+.animate-swing-up {
+  animation: swing-up 0.75s ease forwards;
+}
+
+.animate-shake-fall {
+  animation: shake-and-fall 0.8s ease forwards;
 }
 
 @layer base {

@@ -112,6 +112,7 @@ function HomeContent() {
   const [terminalDetectedPort, setTerminalDetectedPort] = useState<
     number | null
   >(null);
+  const [breaksAnimationClass, setBreaksAnimationClass] = useState<string>("");
   const [generationState, setGenerationState] =
     useState<GenerationState | null>(null);
   const [isStartingServer, setIsStartingServer] = useState(false);
@@ -1923,6 +1924,14 @@ function HomeContent() {
     }
   };
 
+  const handleBreaksMouseEnter = () => {
+    setBreaksAnimationClass("animate-swing-up");
+  };
+
+  const handleBreaksMouseLeave = () => {
+    setBreaksAnimationClass("animate-shake-fall");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -2379,8 +2388,10 @@ function HomeContent() {
                         <div>
                           Code{" "}
                           <span
-                            className="inline-block hover:animate-swing origin-bottom-right"
+                            className={`inline-block origin-bottom-right ${breaksAnimationClass}`}
                             style={{ color: "#FD44B0", transform: "rotate(-7.5deg)" }}
+                            onMouseEnter={handleBreaksMouseEnter}
+                            onMouseLeave={handleBreaksMouseLeave}
                           >
                             breaks
                           </span>
