@@ -152,7 +152,7 @@
 }
 
 .animate-swing-up {
-  animation: swing-up 0.75s ease forwards;
+  animation: swing-up 0.375s ease forwards;
 }
 
 .animate-shake-fall {
