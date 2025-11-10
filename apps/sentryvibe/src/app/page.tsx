@@ -59,6 +59,7 @@ import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { Switch } from "@/components/ui/switch";
+import { InlineUrlInput } from "@/components/InlineUrlInput";
 // Simplified message structure kept
 interface MessagePart {
   type: string;
@@ -85,6 +86,7 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [pastedUrls, setPastedUrls] = useState<string[]>([]);
 
   // Message mutation hook for saving
   const saveMessageMutation = useSaveMessage();
@@ -1934,10 +1936,17 @@ function HomeContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && pastedUrls.length === 0) || isLoading) return;
 
-    const userPrompt = input;
+    // Build prompt with URL context if URLs are attached
+    let userPrompt = input.trim();
+    if (pastedUrls.length > 0) {
+      const urlContext = pastedUrls.map(url => `Reference URL: ${url}`).join('\n');
+      userPrompt = userPrompt ? `${userPrompt}\n\n${urlContext}` : urlContext;
+    }
+
     setInput("");
+    setPastedUrls([]);
 
     // If no project selected, create new project
     if (!currentProject) {
@@ -2067,11 +2076,8 @@ function HomeContent() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e as unknown as React.FormEvent);
-    }
+  const handleInputSubmit = () => {
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
   };
 
   const startDevServer = async () => {
@@ -2406,20 +2412,22 @@ function HomeContent() {
                       onSubmit={handleSubmit}
                       className="relative max-w-4xl mx-auto"
                     >
-                      <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
-                        <textarea
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          placeholder="What do you want to build?"
-                          rows={2}
-                          className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
-                          style={{ minHeight: "80px" }}
-                          disabled={isLoading}
-                        />
+                      <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-visible hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                        <div className="px-8 pt-6 pb-4">
+                          <InlineUrlInput
+                            value={input}
+                            urls={pastedUrls}
+                            onChange={setInput}
+                            onUrlsChange={setPastedUrls}
+                            onSubmit={handleInputSubmit}
+                            placeholder="What do you want to build?"
+                            disabled={isLoading}
+                            className="pr-12"
+                          />
+                        </div>
                         <button
                           type="submit"
-                          disabled={isLoading || !input.trim()}
+                          disabled={isLoading || (!input.trim() && pastedUrls.length === 0)}
                           className="absolute right-4 bottom-4 p-3 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
                         >
                           <svg
