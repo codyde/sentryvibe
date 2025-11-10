@@ -9,6 +9,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config');
     
+    // Run startup cleanup tasks
+    try {
+      const { cleanupOrphanedProcesses } = await import('./src/lib/startup-cleanup');
+      await cleanupOrphanedProcesses();
+    } catch (error) {
+      console.error('[instrumentation] Failed to cleanup orphaned processes:', error);
+    }
+    
     // Clean up abandoned port allocations on server startup
     try {
       const { cleanupAbandonedPorts } = await import('@sentryvibe/agent-core/lib/port-allocator');
