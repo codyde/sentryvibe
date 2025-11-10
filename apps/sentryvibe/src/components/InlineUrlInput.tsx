@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, KeyboardEvent } from 'react';
+import { useRef, KeyboardEvent, useMemo } from 'react';
 import { UrlPreview } from './UrlPreview';
-import { isPureUrl, isValidUrl, extractTrailingUrl, normalizeUrl } from '@/lib/url-utils';
+import { detectUrls, isPureUrl, isValidUrl, normalizeUrl } from '@/lib/url-utils';
 
 interface InlineUrlInputProps {
   value: string;
@@ -14,6 +14,11 @@ interface InlineUrlInputProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+}
+
+interface TextSegment {
+  type: 'text' | 'url';
+  content: string;
 }
 
 export function InlineUrlInput({
@@ -29,97 +34,102 @@ export function InlineUrlInput({
 }: InlineUrlInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Parse text into segments for rendering
+  const segments = useMemo(() => {
+    if (!value) return [];
+
+    const detectedUrls = detectUrls(value);
+    if (detectedUrls.length === 0) return [];
+
+    const segments: TextSegment[] = [];
+    let remaining = value;
+    let position = 0;
+
+    detectedUrls.forEach((url) => {
+      const index = remaining.indexOf(url);
+      if (index === -1) return;
+
+      // Add text before URL
+      if (index > 0) {
+        segments.push({
+          type: 'text',
+          content: remaining.substring(0, index),
+        });
+      }
+
+      // Add URL
+      segments.push({
+        type: 'url',
+        content: normalizeUrl(url),
+      });
+
+      // Continue with text after URL
+      remaining = remaining.substring(index + url.length);
+    });
+
+    // Add any remaining text
+    if (remaining) {
+      segments.push({
+        type: 'text',
+        content: remaining,
+      });
+    }
+
+    return segments;
+  }, [value]);
+
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = e.clipboardData.getData('text');
 
-    // Normalize the URL if it's a pure URL
-    if (isPureUrl(pastedText)) {
-      const normalizedUrl = normalizeUrl(pastedText);
-      if (isValidUrl(normalizedUrl)) {
-        e.preventDefault();
-
-        // Add URL to the list if not already there
-        if (!urls.includes(normalizedUrl)) {
-          onUrlsChange([...urls, normalizedUrl]);
-        }
-
-        // Focus back on textarea
-        setTimeout(() => {
-          textareaRef.current?.focus();
-        }, 0);
-      }
-    }
-  };
-
-  const checkForUrlInText = (text: string) => {
-    const result = extractTrailingUrl(text);
-    if (result) {
-      const { url, remainingText } = result;
-
-      // Add URL to the list if not already there
-      if (!urls.includes(url)) {
-        onUrlsChange([...urls, url]);
-        onChange(remainingText);
-      }
-    }
+    // Just let it paste normally - we'll detect URLs on render
+    // No special handling needed
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // If space is pressed, check for URL at the end
-    if (e.key === ' ' && value.trim()) {
-      // Check if what's currently in the input ends with a URL
-      checkForUrlInText(value + ' ');
-    }
-
-    // If backspace and textarea is empty, remove last URL
+    // Backspace with empty value - remove last URL from urls array if needed
     if (e.key === 'Backspace' && !value && urls.length > 0) {
       e.preventDefault();
-      const newUrls = urls.slice(0, -1);
-      onUrlsChange(newUrls);
+      onUrlsChange(urls.slice(0, -1));
       return;
     }
 
-    // If Enter without Shift, submit
+    // Enter without Shift - submit
     if (e.key === 'Enter' && !e.shiftKey && onSubmit) {
       e.preventDefault();
       onSubmit();
       return;
     }
 
-    // Pass through to parent handler
+    // Pass through
     if (onKeyDown) {
       onKeyDown(e);
     }
   };
 
   const removeUrl = (urlToRemove: string) => {
+    // Remove URL from the text value
+    const newValue = value.replace(urlToRemove, '').trim();
+    onChange(newValue);
+
+    // Also remove from URLs array
     onUrlsChange(urls.filter(url => url !== urlToRemove));
-    // Focus back on textarea
+
+    // Focus textarea
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
   };
 
-  return (
-    <div className="flex flex-wrap items-start gap-2 w-full">
-      {/* URL Chips - Inline */}
-      {urls.map((url) => (
-        <div key={url} className="flex-shrink-0">
-          <UrlPreview
-            url={url}
-            onRemove={() => removeUrl(url)}
-          />
-        </div>
-      ))}
-
-      {/* Text Input - Inline */}
+  // If no URLs detected, show regular textarea
+  if (segments.length === 0) {
+    return (
       <textarea
         ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
-        placeholder={urls.length === 0 ? placeholder : ''}
+        placeholder={placeholder}
         disabled={disabled}
         className={`flex-1 min-w-[200px] bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none ${className}`}
         style={{
@@ -128,6 +138,60 @@ export function InlineUrlInput({
         }}
         rows={1}
       />
+    );
+  }
+
+  // Render segments with URL chips
+  return (
+    <div className="flex flex-wrap items-center gap-2 w-full relative">
+      {/* Hidden textarea for actual editing */}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        className="absolute inset-0 opacity-0 pointer-events-auto cursor-text"
+        style={{
+          minHeight: '60px',
+          lineHeight: '1.5',
+        }}
+        rows={1}
+      />
+
+      {/* Visual representation with chips */}
+      <div className="flex flex-wrap items-center gap-2 w-full pointer-events-none">
+        {segments.map((segment, index) => {
+          if (segment.type === 'url') {
+            return (
+              <div key={`url-${index}`} className="pointer-events-auto">
+                <UrlPreview
+                  url={segment.content}
+                  onRemove={() => removeUrl(segment.content)}
+                />
+              </div>
+            );
+          }
+
+          // Text segment
+          return (
+            <span
+              key={`text-${index}`}
+              className="text-xl font-light text-white whitespace-pre-wrap"
+            >
+              {segment.content}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Placeholder when empty */}
+      {!value && (
+        <div className="absolute inset-0 pointer-events-none text-xl font-light text-gray-500">
+          {placeholder}
+        </div>
+      )}
     </div>
   );
 }
