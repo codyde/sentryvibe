@@ -2,7 +2,7 @@
 
 import { useRef, KeyboardEvent } from 'react';
 import { UrlPreview } from './UrlPreview';
-import { isPureUrl, isValidUrl } from '@/lib/url-utils';
+import { isPureUrl, isValidUrl, extractTrailingUrl, normalizeUrl } from '@/lib/url-utils';
 
 interface InlineUrlInputProps {
   value: string;
@@ -32,22 +32,45 @@ export function InlineUrlInput({
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = e.clipboardData.getData('text');
 
-    if (isPureUrl(pastedText) && isValidUrl(pastedText)) {
-      e.preventDefault();
+    // Normalize the URL if it's a pure URL
+    if (isPureUrl(pastedText)) {
+      const normalizedUrl = normalizeUrl(pastedText);
+      if (isValidUrl(normalizedUrl)) {
+        e.preventDefault();
+
+        // Add URL to the list if not already there
+        if (!urls.includes(normalizedUrl)) {
+          onUrlsChange([...urls, normalizedUrl]);
+        }
+
+        // Focus back on textarea
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 0);
+      }
+    }
+  };
+
+  const checkForUrlInText = (text: string) => {
+    const result = extractTrailingUrl(text);
+    if (result) {
+      const { url, remainingText } = result;
 
       // Add URL to the list if not already there
-      if (!urls.includes(pastedText)) {
-        onUrlsChange([...urls, pastedText]);
+      if (!urls.includes(url)) {
+        onUrlsChange([...urls, url]);
+        onChange(remainingText);
       }
-
-      // Focus back on textarea
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 0);
     }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // If space is pressed, check for URL at the end
+    if (e.key === ' ' && value.trim()) {
+      // Check if what's currently in the input ends with a URL
+      checkForUrlInText(value + ' ');
+    }
+
     // If backspace and textarea is empty, remove last URL
     if (e.key === 'Backspace' && !value && urls.length > 0) {
       e.preventDefault();

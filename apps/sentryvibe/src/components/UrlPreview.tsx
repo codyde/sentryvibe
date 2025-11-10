@@ -39,8 +39,13 @@ export function UrlPreview({ url, onRemove, className = '' }: UrlPreviewProps) {
   useEffect(() => {
     if (showPreview && cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
+
+      // Position preview above the chip instead of below
+      // Preview height is approximately 280px (40px image + 240px content max)
+      const previewHeight = 320; // Estimated max height
+
       setPreviewPosition({
-        top: rect.bottom + window.scrollY + 8,
+        top: rect.top + window.scrollY - previewHeight - 8,
         left: rect.left + window.scrollX + rect.width / 2,
       });
     }
