@@ -19,6 +19,7 @@ import CodeBlock from "@/components/CodeBlock";
 import BuildProgress from "@/components/BuildProgress";
 import ChatUpdate from "@/components/ChatUpdate";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
+import ImageAttachment from "@/components/ImageAttachment";
 import { BuildChatTabs } from "@/components/BuildChatTabs";
 import { ActiveTodoIndicator } from "@/components/ActiveTodoIndicator";
 import { BuildCompleteCard } from "@/components/BuildCompleteCard";
@@ -62,7 +63,16 @@ import { Switch } from "@/components/ui/switch";
 // Simplified message structure kept
 interface MessagePart {
   type: string;
+
+  // Text content
   text?: string;
+
+  // Image content
+  image?: string;              // base64 data URL
+  mimeType?: string;           // e.g., "image/png"
+  fileName?: string;           // e.g., "screenshot.png"
+
+  // Tool content
   toolCallId?: string;
   toolName?: string;
   input?: unknown;
@@ -85,6 +95,7 @@ const DEBUG_PAGE = false; // Set to true to enable verbose page logging
 function HomeContent() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [imageAttachments, setImageAttachments] = useState<MessagePart[]>([]);
 
   // Message mutation hook for saving
   const saveMessageMutation = useSaveMessage();
@@ -1180,12 +1191,14 @@ function HomeContent() {
       addUserMessage?: boolean;
       isElementChange?: boolean;
       isRetry?: boolean;
+      messageParts?: MessagePart[];
     } = {}
   ) => {
     const {
       addUserMessage = false,
       isElementChange = false,
       isRetry = false,
+      messageParts,
     } = options;
 
     // Lock FIRST
@@ -1199,12 +1212,13 @@ function HomeContent() {
         projectId: projectId,
         type: "user", // Simplified: just type and content
         content: prompt,
+        parts: messageParts,
         timestamp: Date.now(),
       };
 
       // Add to local state for immediate display
       setMessages((prev) => [...prev, userMessage].filter(m => m !== null && m !== undefined));
-      
+
       // Save to database so it's included in conversation history
       try {
         await saveMessageMutation.mutateAsync({
@@ -1212,6 +1226,7 @@ function HomeContent() {
           projectId: projectId,
           type: 'user',
           content: prompt,
+          parts: messageParts,
           timestamp: Date.now(),
         });
         if (DEBUG_PAGE) console.log("💾 User message saved to database");
@@ -1934,10 +1949,13 @@ function HomeContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    // Allow submission if there's either text input or image attachments
+    if ((!input.trim() && imageAttachments.length === 0) || isLoading) return;
 
     const userPrompt = input;
+    const userImages = imageAttachments;
     setInput("");
+    setImageAttachments([]);
 
     // If no project selected, create new project
     if (!currentProject) {
@@ -2032,12 +2050,28 @@ function HomeContent() {
         router.replace(`/?project=${project.slug}`, { scroll: false });
         if (DEBUG_PAGE) console.log("🔄 URL updated");
 
-        // Add user message (simplified structure)
+        // Add user message (with image support)
+        const messageParts: MessagePart[] = [];
+
+        // Add images first (Claude best practice)
+        if (userImages.length > 0) {
+          messageParts.push(...userImages);
+        }
+
+        // Add text content
+        if (userPrompt.trim()) {
+          messageParts.push({
+            type: 'text',
+            text: userPrompt.trim(),
+          });
+        }
+
         const userMessage: Message = {
           id: crypto.randomUUID(), // Use UUID to match database
           projectId: project.id,
           type: "user", // Simplified: type instead of role
-          content: userPrompt, // Simplified: content instead of parts
+          content: userPrompt, // Keep for backward compatibility
+          parts: messageParts.length > 0 ? messageParts : undefined,
           timestamp: Date.now(),
         };
 
@@ -2061,8 +2095,25 @@ function HomeContent() {
       }
     } else {
       // Continue conversation on existing project
+      // Build message parts array
+      const messageParts: MessagePart[] = [];
+
+      // Add images first (Claude best practice)
+      if (userImages.length > 0) {
+        messageParts.push(...userImages);
+      }
+
+      // Add text content
+      if (userPrompt.trim()) {
+        messageParts.push({
+          type: 'text',
+          text: userPrompt.trim(),
+        });
+      }
+
       await startGeneration(currentProject.id, userPrompt, {
         addUserMessage: true,
+        messageParts: messageParts.length > 0 ? messageParts : undefined,
       });
     }
   };
@@ -2071,6 +2122,58 @@ function HomeContent() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault(); // Prevent default paste behavior for images
+
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        // Check size limit (5MB for Claude API)
+        if (file.size > 5 * 1024 * 1024) {
+          console.error('Image too large. Maximum size is 5MB.');
+          continue;
+        }
+
+        // Check max images (20 per Claude API)
+        if (imageAttachments.length >= 20) {
+          console.error('Maximum 20 images per message.');
+          continue;
+        }
+
+        // Verify supported format
+        if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+          console.error('Unsupported format. Use JPEG, PNG, GIF, or WebP.');
+          continue;
+        }
+
+        // Convert to base64
+        try {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64Data = event.target?.result as string;
+
+            setImageAttachments(prev => [...prev, {
+              type: 'image',
+              image: base64Data,
+              mimeType: file.type,
+              fileName: file.name || `pasted-image-${Date.now()}.${file.type.split('/')[1]}`,
+            }]);
+          };
+          reader.onerror = () => {
+            console.error('Failed to process image. Please try again.');
+          };
+          reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('Failed to process image:', error);
+        }
+      }
     }
   };
 
@@ -2406,11 +2509,28 @@ function HomeContent() {
                       onSubmit={handleSubmit}
                       className="relative max-w-4xl mx-auto"
                     >
+                      {/* Image attachments preview */}
+                      {imageAttachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {imageAttachments.map((attachment, idx) => (
+                            <ImageAttachment
+                              key={idx}
+                              fileName={attachment.fileName || 'image.png'}
+                              imageSrc={attachment.image || ''}
+                              showRemove
+                              onRemove={() => {
+                                setImageAttachments(prev => prev.filter((_, i) => i !== idx));
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
                       <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
                         <textarea
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={handleKeyDown}
+                          onPaste={handlePaste}
                           placeholder="What do you want to build?"
                           rows={2}
                           className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
@@ -2419,7 +2539,7 @@ function HomeContent() {
                         />
                         <button
                           type="submit"
-                          disabled={isLoading || !input.trim()}
+                          disabled={isLoading || (!input.trim() && imageAttachments.length === 0)}
                           className="absolute right-4 bottom-4 p-3 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
                         >
                           <svg
@@ -2835,6 +2955,7 @@ function HomeContent() {
                                                 </div>
                                                 <ChatUpdate
                                                   content={getMessageContent(message)}
+                                                  parts={message.parts}
                                                   align={align}
                                                   tone={tone}
                                                   variant="live"
@@ -2872,6 +2993,7 @@ function HomeContent() {
                                                 </div>
                                                 <ChatUpdate
                                                   content={getMessageContent(displayedInitialMessage)}
+                                                  parts={displayedInitialMessage?.parts}
                                                   align="left"
                                                   tone="user"
                                                   variant="live"
@@ -2895,6 +3017,7 @@ function HomeContent() {
                                                 </div>
                                                 <ChatUpdate
                                                   content={getMessageContent(latestAgentMessage)}
+                                                  parts={latestAgentMessage?.parts}
                                                   align="right"
                                                   tone="agent"
                                                   variant="live"
@@ -3151,11 +3274,28 @@ function HomeContent() {
                       {/* Fixed Bottom Input */}
                       <div className="border-t border-white/10 bg-background/50 backdrop-blur-sm p-4 flex-shrink-0">
                         <form onSubmit={handleSubmit}>
+                          {/* Image attachments preview */}
+                          {imageAttachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {imageAttachments.map((attachment, idx) => (
+                                <ImageAttachment
+                                  key={idx}
+                                  fileName={attachment.fileName || 'image.png'}
+                                  imageSrc={attachment.image || ''}
+                                  showRemove
+                                  onRemove={() => {
+                                    setImageAttachments(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
                           <div className="relative bg-gray-900 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
                             <textarea
                               value={input}
                               onChange={(e) => setInput(e.target.value)}
                               onKeyDown={handleKeyDown}
+                              onPaste={handlePaste}
                               placeholder="Continue the conversation..."
                               rows={2}
                               className="w-full px-6 py-4 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none font-light resize-none"
@@ -3163,7 +3303,7 @@ function HomeContent() {
                             />
                             <button
                               type="submit"
-                              disabled={isLoading || !input.trim()}
+                              disabled={isLoading || (!input.trim() && imageAttachments.length === 0)}
                               className="absolute right-3 bottom-3 p-2 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
                             >
                               <svg

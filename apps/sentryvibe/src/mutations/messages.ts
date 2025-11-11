@@ -1,10 +1,24 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+interface MessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  mimeType?: string;
+  fileName?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
 interface SaveMessageParams {
   id: string;
   projectId: string;
   type: 'user' | 'assistant';
   content: string;
+  parts?: MessagePart[];
   timestamp: number;
 }
 
@@ -12,6 +26,8 @@ async function saveMessage(message: SaveMessageParams): Promise<void> {
   console.log('[useSaveMessage] Saving:', {
     type: message.type,
     contentPreview: message.content.substring(0, 80),
+    hasParts: !!message.parts,
+    partsCount: message.parts?.length || 0,
   });
 
   const res = await fetch(`/api/projects/${message.projectId}/messages`, {
@@ -20,6 +36,7 @@ async function saveMessage(message: SaveMessageParams): Promise<void> {
     body: JSON.stringify({
       role: message.type,
       content: message.content,
+      parts: message.parts,
     }),
   });
 

@@ -243,14 +243,29 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { role, content } = await req.json();
+    const { role, content, parts } = await req.json();
 
-    if (!role || content === undefined) {
-      return NextResponse.json({ error: 'Role and content are required' }, { status: 400 });
+    if (!role) {
+      return NextResponse.json({ error: 'Role is required' }, { status: 400 });
+    }
+
+    if (!content && (!parts || parts.length === 0)) {
+      return NextResponse.json(
+        { error: 'Content or parts are required' },
+        { status: 400 }
+      );
     }
 
     if (role !== 'user' && role !== 'assistant') {
       return NextResponse.json({ error: 'Role must be "user" or "assistant"' }, { status: 400 });
+    }
+
+    // Serialize content (may be string or parts array)
+    let serializedContent: string;
+    if (parts && parts.length > 0) {
+      serializedContent = JSON.stringify(parts);
+    } else {
+      serializedContent = serializeContent(content);
     }
 
     const [newMessage] = await db
@@ -258,7 +273,7 @@ export async function POST(
       .values({
         projectId: id,
         role: role,
-        content: serializeContent(content),
+        content: serializedContent,
       })
       .returning();
 
