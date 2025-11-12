@@ -1326,7 +1326,8 @@ function HomeContent() {
     projectId: string,
     prompt: string,
     operationType: BuildOperationType,
-    isElementChange: boolean = false
+    isElementChange: boolean = false,
+    messageParts?: MessagePart[]
   ) => {
     const existingBuildId = generationStateRef.current?.id;
     try {
@@ -1351,6 +1352,7 @@ function HomeContent() {
         body: JSON.stringify({
           operationType,
           prompt,
+          messageParts,
           buildId: existingBuildId,
           runnerId: effectiveRunnerId,
           agent: effectiveAgent,
@@ -2084,7 +2086,8 @@ function HomeContent() {
           project.id,
           userPrompt,
           "initial-build",
-          false
+          false,
+          messageParts.length > 0 ? messageParts : undefined
         );
 
         // Refresh project list to pick up final state

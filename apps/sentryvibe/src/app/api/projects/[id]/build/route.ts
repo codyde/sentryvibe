@@ -463,6 +463,7 @@ export async function POST(
       payload: {
         operationType: body.operationType,
         prompt: body.prompt,
+        messageParts: body.messageParts,
         projectSlug: generatedSlug || project[0].slug,
         projectName: generatedFriendlyName || generatedSlug || project[0].name,
         context: body.context,
