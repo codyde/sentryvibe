@@ -143,8 +143,8 @@ export function SmartProjectGroups({
                           isCurrentProject={project.slug === currentProjectSlug}
                           onStartServer={() => onStartServer(project.id)}
                           onStopServer={() => onStopServer(project.id)}
-                          onRename={() => onRename({ id: project.id, name: project.name })}
-                          onDelete={() => onDelete({ id: project.id, name: project.name, slug: project.slug })}
+                          onRename={() => onRename({ id: project.id, name: project.name || project.slug || 'Unnamed Project' })}
+                          onDelete={() => onDelete({ id: project.id, name: project.name || project.slug || 'Unnamed Project', slug: project.slug })}
                         />
                       ))}
                     </div>
