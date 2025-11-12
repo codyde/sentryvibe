@@ -73,7 +73,9 @@ async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3
 }
 
 const app = express();
-app.use(express.json());
+// Increase body size limit to handle base64-encoded images (up to 10MB)
+// Images can be up to 5MB, base64 encoding adds ~33% overhead
+app.use(express.json({ limit: '10mb' }));
 
 // Health check endpoint (no auth - for monitoring/Docker health checks)
 app.get('/health', (req, res) => {
