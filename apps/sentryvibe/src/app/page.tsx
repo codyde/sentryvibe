@@ -119,7 +119,7 @@ function HomeContent() {
   const [isStoppingServer, setIsStoppingServer] = useState(false);
   const [isStartingTunnel, setIsStartingTunnel] = useState(false);
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
-  const generationStateRef = useRef<GenerationState | null>(generationState);
+  const generationStateRef = useRef<GenerationState | null>(null);
   const [generationRevision, setGenerationRevision] = useState(0);
   const [showFullHistory, setShowFullHistory] = useState(false);
 
@@ -460,10 +460,6 @@ function HomeContent() {
       console.log('[page] ✓ Default tags set: runner=%s, model=claude-haiku-4-5', defaultRunnerId);
     }
   }, [currentProject, selectedProjectSlug, availableRunners, selectedRunnerId, appliedTags.length]);
-
-  useEffect(() => {
-    generationStateRef.current = generationState;
-  }, [generationState]);
 
   // Sync WebSocket state to local state (both hydrated and live updates)
   // IMPORTANT: Merge WebSocket updates with existing state to preserve metadata
