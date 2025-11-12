@@ -124,6 +124,8 @@ function HomeContent() {
   const [showFullHistory, setShowFullHistory] = useState(false);
 
   const classifyMessage = useCallback((message: Message) => {
+    // Guard against null/undefined messages
+    if (!message || typeof message !== 'object') return 'other';
     const role = (message.role ?? message.type ?? '').toLowerCase();
     if (role === 'user') return 'user';
     if (role === 'assistant' || role === 'tool-result') return 'assistant';
@@ -172,7 +174,9 @@ function HomeContent() {
   const conversationMessages = useMemo(() => {
     return messages.filter((message) => {
       // Guard against null/undefined messages
-      if (!message) return false;
+      if (!message || typeof message !== 'object') return false;
+      // Ensure message has required properties
+      if (!message.role && !message.type) return false;
       if (classifyMessage(message) === 'other') return false;
       return getMessageContent(message).trim().length > 0;
     });
@@ -184,11 +188,18 @@ function HomeContent() {
     }
 
     const first = conversationMessages[0];
+    // Guard against null/undefined first message
+    if (!first || typeof first !== 'object') {
+      return null;
+    }
     if (classifyMessage(first) === 'user') {
       return first;
     }
 
-    const firstUser = conversationMessages.find((message) => classifyMessage(message) === 'user');
+    const firstUser = conversationMessages.find((message) => {
+      if (!message || typeof message !== 'object') return false;
+      return classifyMessage(message) === 'user';
+    });
     return firstUser ?? first;
   }, [conversationMessages, classifyMessage]);
 
@@ -224,6 +235,8 @@ function HomeContent() {
   const latestAgentMessage = useMemo(() => {
     for (let i = conversationMessages.length - 1; i >= 0; i--) {
       const message = conversationMessages[i];
+      // Guard against null/undefined messages
+      if (!message || typeof message !== 'object') continue;
       if (classifyMessage(message) === 'assistant') {
         return message;
       }
@@ -236,15 +249,20 @@ function HomeContent() {
     const seen = new Set<string>();
 
     const push = (message: Message | null | undefined) => {
-      if (!message) return;
-      const key = message.id ?? `${message.role ?? 'unknown'}-${result.length}`;
+      // Enhanced null/undefined guard
+      if (!message || typeof message !== 'object') return;
+      // Ensure message has required properties before accessing them
+      if (!message.role && !message.type) return;
+      
+      const key = message.id ?? `${message.role ?? message.type ?? 'unknown'}-${result.length}`;
       if (seen.has(key)) return;
       seen.add(key);
       result.push(message);
     };
 
     push(displayedInitialMessage);
-    conversationMessages.forEach(push);
+    // Filter out any potential nulls before forEach
+    conversationMessages.filter(m => m && typeof m === 'object').forEach(push);
 
     return result;
   }, [displayedInitialMessage, conversationMessages]);
@@ -2801,7 +2819,7 @@ function HomeContent() {
                                   {showFullHistory ? (
                                     <>
                                       {fullConversationMessages.length > 0 ? (
-                                        fullConversationMessages.map((message, index) => {
+                                        fullConversationMessages.filter(m => m && typeof m === 'object').map((message, index) => {
                                           const role = classifyMessage(message);
                                           const align = role === 'assistant' ? 'right' : 'left';
                                           const tone = role === 'assistant' ? 'agent' : 'user';
@@ -3049,7 +3067,7 @@ function HomeContent() {
                         {/* OLD DUPLICATE CHAT VIEW - DISABLED */}
                         {false && activeView === "chat" && (
                           <div className="space-y-6">
-                            {messages.map((message) => {
+                            {messages.filter(m => m && typeof m === 'object').map((message) => {
                               // Skip element change messages (they're in Build tab now)
                               if (message.elementChange) {
                                 return null;
