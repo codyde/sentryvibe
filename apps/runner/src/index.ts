@@ -12,7 +12,7 @@ import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { streamText } from "ai";
+import { streamText, type TextPart, type ImagePart } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 
 import { createInstrumentedCodex } from "@sentry/node";
@@ -498,26 +498,24 @@ function createClaudeQuery(
     });
 
     // Build user message - either simple text or multi-part with images
-    let userMessage: string | Array<{ type: string; [key: string]: unknown }>;
+    let userMessage: string | Array<TextPart | ImagePart>;
 
     if (messageParts && messageParts.length > 0) {
       // Multi-part message with images
-      const contentParts: Array<{ type: string; [key: string]: unknown }> = [];
+      const contentParts: Array<TextPart | ImagePart> = [];
 
       // Add image parts first (Claude best practice)
       for (const part of messageParts) {
         if (part.type === 'image' && part.image) {
-          // Extract base64 data from data URL
-          const match = part.image.match(/^data:(.+);base64,(.+)$/);
+          // AI SDK expects images as data URLs, which we already have
+          contentParts.push({
+            type: 'image',
+            image: part.image, // Already a base64 data URL
+          });
+
+          // Extract media type for logging
+          const match = part.image.match(/^data:(.+);base64,/);
           if (match) {
-            contentParts.push({
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: match[1],
-                data: match[2],
-              }
-            });
             process.stderr.write(
               `[runner] [createClaudeQuery] ✅ Added image part (${match[1]})\n`
             );
@@ -548,10 +546,16 @@ function createClaudeQuery(
     }
 
     // Stream with telemetry enabled for Sentry
-    const result = streamText({
-      model,
-      prompt: userMessage,
-    });
+    // Use 'messages' param for multi-part content, 'prompt' for simple text
+    const result = Array.isArray(userMessage)
+      ? streamText({
+          model,
+          messages: [{ role: 'user', content: userMessage }],
+        })
+      : streamText({
+          model,
+          prompt: userMessage,
+        });
 
     // Transform AI SDK stream format to our message format
     if (process.env.DEBUG_BUILD === "1") {
