@@ -91,11 +91,26 @@ type CodexEvent = {
   error?: unknown;
 };
 
+interface MessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  mimeType?: string;
+  fileName?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
 type BuildQueryFn = (
   prompt: string,
   workingDirectory: string,
   systemPrompt: string,
-  agent?: AgentId
+  agent?: AgentId,
+  codexThreadId?: string,
+  messageParts?: MessagePart[]
 ) => AsyncGenerator<unknown, void, unknown>;
 
 function resolveCodexItemType(
@@ -417,7 +432,7 @@ async function* convertCodexEventsToAgentMessages(
 function createClaudeQuery(
   modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
 ): BuildQueryFn {
-  return async function* (prompt, workingDirectory, systemPrompt) {
+  return async function* (prompt, workingDirectory, systemPrompt, agent, codexThreadId, messageParts) {
     const instrumentedQuery = createInstrumentedQueryForProvider(
       query as (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>
     );
@@ -432,6 +447,15 @@ function createClaudeQuery(
     process.stderr.write(
       `[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`
     );
+
+    // Check if we have image parts
+    const hasImages = messageParts?.some(p => p.type === 'image');
+    if (hasImages) {
+      const imageCount = messageParts?.filter(p => p.type === 'image').length || 0;
+      process.stderr.write(
+        `[runner] [createClaudeQuery] 🖼️  Multi-modal message with ${imageCount} image(s)\n`
+      );
+    }
 
     // Build combined system prompt
     const systemPromptSegments: string[] = [CLAUDE_SYSTEM_PROMPT.trim()];
@@ -473,10 +497,60 @@ function createClaudeQuery(
       settingSources: ["project", "local"], // Load project-level settings
     });
 
+    // Build user message - either simple text or multi-part with images
+    let userMessage: string | Array<{ type: string; [key: string]: unknown }>;
+
+    if (messageParts && messageParts.length > 0) {
+      // Multi-part message with images
+      const contentParts: Array<{ type: string; [key: string]: unknown }> = [];
+
+      // Add image parts first (Claude best practice)
+      for (const part of messageParts) {
+        if (part.type === 'image' && part.image) {
+          // Extract base64 data from data URL
+          const match = part.image.match(/^data:(.+);base64,(.+)$/);
+          if (match) {
+            contentParts.push({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: match[1],
+                data: match[2],
+              }
+            });
+            process.stderr.write(
+              `[runner] [createClaudeQuery] ✅ Added image part (${match[1]})\n`
+            );
+          }
+        } else if (part.type === 'text' && part.text) {
+          contentParts.push({
+            type: 'text',
+            text: part.text
+          });
+        }
+      }
+
+      // Add prompt text if not already in parts
+      if (!contentParts.some(p => p.type === 'text')) {
+        contentParts.push({
+          type: 'text',
+          text: prompt
+        });
+      }
+
+      userMessage = contentParts;
+      process.stderr.write(
+        `[runner] [createClaudeQuery] 📦 Built multi-part message with ${contentParts.length} part(s)\n`
+      );
+    } else {
+      // Simple text message (existing behavior)
+      userMessage = prompt;
+    }
+
     // Stream with telemetry enabled for Sentry
     const result = streamText({
       model,
-      prompt,
+      prompt: userMessage,
     });
 
     // Transform AI SDK stream format to our message format
@@ -514,7 +588,8 @@ function createCodexQuery(): BuildQueryFn {
     workingDirectory: string,
     systemPrompt: string,
     agent?: AgentId,
-    codexThreadId?: string
+    codexThreadId?: string,
+    messageParts?: MessagePart[]
   ) {
     buildLogger.codexQuery.promptBuilding(
       workingDirectory,
@@ -1734,6 +1809,7 @@ export async function startRunner(options: RunnerOptions = {}) {
                 projectId: command.projectId,
                 projectName: projectSlug,
                 prompt: command.payload.prompt,
+                messageParts: (command.payload as any).messageParts, // Multi-modal content (images, etc.)
                 operationType: command.payload.operationType,
                 workingDirectory: projectDirectory,
                 agent,
@@ -1784,6 +1860,7 @@ export async function startRunner(options: RunnerOptions = {}) {
                 projectId: command.projectId,
                 projectName,
                 prompt: orchestration.fullPrompt,
+                messageParts: (command.payload as any).messageParts,
                 operationType: command.payload.operationType,
                 context: command.payload.context,
                 query: agentQuery,
