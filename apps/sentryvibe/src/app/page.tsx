@@ -2754,7 +2754,7 @@ function HomeContent() {
                         {/* TABBED VIEW - Separate Chat and Build tabs */}
                         {!isCreatingProject && (
                           <BuildChatTabs
-                            activeTab={activeTab}
+                            activeTab={activeTab ?? 'chat'}
                             onTabChange={setActiveTab}
                             chatContent={
                               <>
