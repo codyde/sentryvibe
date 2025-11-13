@@ -11,6 +11,7 @@ Sentry.init({
   integrations: [
     Sentry.spotlightIntegration(),
     Sentry.consoleLoggingIntegration(),
+    Sentry.postgresIntegration(), // Automatic tracing for PostgreSQL queries
     Sentry.claudeCodeIntegration({
       recordInputs: true,
       recordOutputs: true,

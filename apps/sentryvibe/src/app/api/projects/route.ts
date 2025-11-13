@@ -18,7 +18,16 @@ const CODEX_MODEL = 'gpt-5-codex';
 
 export async function GET() {
   try {
-    const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
+    const allProjects = await Sentry.startSpan(
+      {
+        name: 'db.query.projects.list',
+        op: 'db.query',
+        attributes: { 'db.table': 'projects', 'db.operation': 'select' },
+      },
+      async () => {
+        return await db.select().from(projects).orderBy(projects.createdAt);
+      }
+    );
     return NextResponse.json({ projects: allProjects });
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -174,7 +183,16 @@ export async function POST(request: Request) {
 
     // Check for slug collision
     let finalSlug = metadata.slug;
-    const existing = await db.select().from(projects).where(eq(projects.slug, finalSlug));
+    const existing = await Sentry.startSpan(
+      {
+        name: 'db.query.projects.checkSlug',
+        op: 'db.query',
+        attributes: { 'db.table': 'projects', 'slug': finalSlug },
+      },
+      async () => {
+        return await db.select().from(projects).where(eq(projects.slug, finalSlug));
+      }
+    );
 
     if (existing.length > 0) {
       // Append timestamp to ensure uniqueness
@@ -183,25 +201,43 @@ export async function POST(request: Request) {
     }
 
     // Create the project
-    const [project] = await db.insert(projects).values({
-      name: metadata.friendlyName,
-      slug: finalSlug,
-      description: metadata.description,
-      icon: metadata.icon,
-      status: 'pending',
-      originalPrompt: prompt,
-      tags: tags || null, // Store tags if provided
-    }).returning();
+    const [project] = await Sentry.startSpan(
+      {
+        name: 'db.insert.projects',
+        op: 'db.insert',
+        attributes: { 'db.table': 'projects', 'slug': finalSlug },
+      },
+      async () => {
+        return await db.insert(projects).values({
+          name: metadata.friendlyName,
+          slug: finalSlug,
+          description: metadata.description,
+          icon: metadata.icon,
+          status: 'pending',
+          originalPrompt: prompt,
+          tags: tags || null, // Store tags if provided
+        }).returning();
+      }
+    );
 
     console.log(`✅ Project created: ${project.id}`);
 
     // Persist initial user prompt as first chat message
     try {
-      await db.insert(messages).values({
-        projectId: project.id,
-        role: 'user',
-        content: prompt,
-      });
+      await Sentry.startSpan(
+        {
+          name: 'db.insert.messages',
+          op: 'db.insert',
+          attributes: { 'db.table': 'messages', 'project.id': project.id },
+        },
+        async () => {
+          return await db.insert(messages).values({
+            projectId: project.id,
+            role: 'user',
+            content: prompt,
+          });
+        }
+      );
     } catch (messageError) {
       console.error(`[projects POST] Failed to persist initial prompt for project ${project.id}:`, messageError);
     }

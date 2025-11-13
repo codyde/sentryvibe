@@ -15,7 +15,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    const project = await Sentry.startSpan(
+      {
+        name: 'db.query.projects.byId',
+        op: 'db.query',
+        attributes: { 'db.table': 'projects', 'project.id': id },
+      },
+      async () => {
+        return await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+      }
+    );
 
     if (project.length === 0) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });

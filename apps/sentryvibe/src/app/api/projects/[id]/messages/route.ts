@@ -11,6 +11,7 @@ import { eq, desc, inArray, sql } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
 import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
+import * as Sentry from '@sentry/nextjs';
 
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') {
@@ -75,47 +76,95 @@ export async function GET(
       console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);
     }
 
-    const projectMessages = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.projectId, id))
-      .orderBy(messages.createdAt);
+    // Fetch messages with performance tracking
+    const projectMessages = await Sentry.startSpan(
+      {
+        name: 'db.query.messages',
+        op: 'db.query',
+        attributes: { 'project.id': id, 'db.table': 'messages' },
+      },
+      async () => {
+        return await db
+          .select()
+          .from(messages)
+          .where(eq(messages.projectId, id))
+          .orderBy(messages.createdAt);
+      }
+    );
 
     const formattedMessages = projectMessages.map(msg => ({
       ...msg,
       content: parseMessageContent(msg.content),
     }));
 
-    const sessions = await db
-      .select()
-      .from(generationSessions)
-      .where(eq(generationSessions.projectId, id))
-      .orderBy(desc(generationSessions.startedAt));
+    // Fetch generation sessions with performance tracking
+    const sessions = await Sentry.startSpan(
+      {
+        name: 'db.query.generationSessions',
+        op: 'db.query',
+        attributes: { 'project.id': id, 'db.table': 'generation_sessions' },
+      },
+      async () => {
+        return await db
+          .select()
+          .from(generationSessions)
+          .where(eq(generationSessions.projectId, id))
+          .orderBy(desc(generationSessions.startedAt));
+      }
+    );
 
     const sessionIds = sessions.map(session => session.id);
 
-    const todos = sessionIds.length > 0
-      ? await db
-        .select()
-        .from(generationTodos)
-        .where(inArray(generationTodos.sessionId, sessionIds))
-        .orderBy(generationTodos.todoIndex)
-      : [];
-
-    const toolCalls = sessionIds.length > 0
-      ? await db
-        .select()
-        .from(generationToolCalls)
-        .where(inArray(generationToolCalls.sessionId, sessionIds))
-      : [];
-
-    const notes = sessionIds.length > 0
-      ? await db
-        .select()
-        .from(generationNotes)
-        .where(inArray(generationNotes.sessionId, sessionIds))
-        .orderBy(generationNotes.createdAt)
-      : [];
+    // Fetch todos, tool calls, and notes in parallel with performance tracking
+    const [todos, toolCalls, notes] = await Promise.all([
+      sessionIds.length > 0
+        ? Sentry.startSpan(
+            {
+              name: 'db.query.generationTodos',
+              op: 'db.query',
+              attributes: { 'db.table': 'generation_todos', 'session.count': sessionIds.length },
+            },
+            async () => {
+              return await db
+                .select()
+                .from(generationTodos)
+                .where(inArray(generationTodos.sessionId, sessionIds))
+                .orderBy(generationTodos.todoIndex);
+            }
+          )
+        : Promise.resolve([]),
+      sessionIds.length > 0
+        ? Sentry.startSpan(
+            {
+              name: 'db.query.generationToolCalls',
+              op: 'db.query',
+              attributes: { 'db.table': 'generation_tool_calls', 'session.count': sessionIds.length },
+            },
+            async () => {
+              return await db
+                .select()
+                .from(generationToolCalls)
+                .where(inArray(generationToolCalls.sessionId, sessionIds));
+            }
+          )
+        : Promise.resolve([]),
+      sessionIds.length > 0
+        ? Sentry.startSpan(
+            {
+              name: 'db.query.generationNotes',
+              op: 'db.query',
+              attributes: { 'db.table': 'generation_notes', 'session.count': sessionIds.length },
+            },
+            async () => {
+              return await db
+                .select()
+                .from(generationNotes)
+                .where(inArray(generationNotes.sessionId, sessionIds))
+                .orderBy(generationNotes.createdAt);
+            }
+          )
+        : Promise.resolve([]),
+    ]);
 
     const sessionsWithRelations = sessions.map(session => {
       const sessionTodos = todos.filter(todo => todo.sessionId === session.id);
