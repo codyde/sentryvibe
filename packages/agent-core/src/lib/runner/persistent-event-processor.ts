@@ -63,6 +63,7 @@ async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T |
 }
 
 async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationState> {
+  // First, fetch session data (needed for projectId)
   const [sessionRow] = await db
     .select()
     .from(generationSessions)
@@ -73,31 +74,30 @@ async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationSta
     throw new Error('Generation session not found when building snapshot');
   }
   
-  // Fetch project name from database
-  const [projectRow] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, sessionRow.projectId))
-    .limit(1);
+  // Fetch all related data in parallel to reduce query time
+  const [projectRows, todoRows, toolRows, noteRows] = await Promise.all([
+    db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, sessionRow.projectId))
+      .limit(1),
+    db
+      .select()
+      .from(generationTodos)
+      .where(eq(generationTodos.sessionId, context.sessionId))
+      .orderBy(generationTodos.todoIndex),
+    db
+      .select()
+      .from(generationToolCalls)
+      .where(eq(generationToolCalls.sessionId, context.sessionId)),
+    db
+      .select()
+      .from(generationNotes)
+      .where(eq(generationNotes.sessionId, context.sessionId))
+      .orderBy(generationNotes.createdAt),
+  ]);
   
-  const projectName = projectRow?.name || context.projectId;
-
-  const todoRows = await db
-    .select()
-    .from(generationTodos)
-    .where(eq(generationTodos.sessionId, context.sessionId))
-    .orderBy(generationTodos.todoIndex);
-
-  const toolRows = await db
-    .select()
-    .from(generationToolCalls)
-    .where(eq(generationToolCalls.sessionId, context.sessionId));
-
-  const noteRows = await db
-    .select()
-    .from(generationNotes)
-    .where(eq(generationNotes.sessionId, context.sessionId))
-    .orderBy(generationNotes.createdAt);
+  const projectName = projectRows[0]?.name || context.projectId;
 
   const todosSnapshot: TodoItem[] = todoRows.map(row => ({
     content: row.content,
