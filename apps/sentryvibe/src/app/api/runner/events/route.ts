@@ -65,9 +65,6 @@ export async function POST(request: Request) {
       },
       async () => {
         publishRunnerEvent(event);
-      }
-    )
-
 
     if (event.type === 'log-chunk' && typeof event.data === 'string') {
       appendRunnerLog(event.projectId, {
@@ -254,6 +251,8 @@ export async function POST(request: Request) {
       default:
         break;
     }
+      }
+    );
 
     return NextResponse.json({ ok: true });
   } catch (error) {
