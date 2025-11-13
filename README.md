@@ -402,7 +402,7 @@ sentryvibe/
 | **CLI** | Commander.js, Ink (TUI), Clack Prompts, Inquirer |
 | **TUI** | Ink, React 19, Picocolors |
 | **Tunneling** | Cloudflare tunnel (with silent operation) |
-| **Observability** | Sentry (experimental PR #17844) |
+| **Observability** | Sentry (experimental PR #17844) with PostgreSQL performance monitoring |
 | **Build System** | Turborepo, pnpm monorepo, TypeScript |
 
 ## Development Setup
@@ -727,6 +727,26 @@ The monorepo uses pnpm overrides to force all packages to use local Sentry SDK b
 ```
 
 Place built tarballs in `apps/sentryvibe/vendor/` and `apps/runner/vendor/` directories.
+
+### Database Performance Monitoring
+
+SentryVibe includes comprehensive database performance monitoring through Sentry's PostgreSQL integration. This helps identify and fix database performance issues.
+
+**Features:**
+- Automatic PostgreSQL query tracing via `postgresIntegration()`
+- Manual performance spans on critical database operations
+- Query duration tracking and analysis
+- Database bottleneck identification
+
+**Documentation:**
+- [Database Performance Monitoring Guide](docs/DATABASE_PERFORMANCE_MONITORING.md) - Learn how to investigate performance issues
+- [Adding Database Instrumentation](docs/ADDING_DATABASE_INSTRUMENTATION.md) - Guide for adding instrumentation to new queries
+
+**Quick Start:**
+1. Run your app: `sentryvibe run`
+2. Access Sentry Performance dashboard
+3. Navigate to **Database** to see query metrics
+4. Identify slow queries (> 200ms) for optimization
 
 ## Contributing
 
