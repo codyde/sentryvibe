@@ -385,6 +385,41 @@ async function persistTodo(
   );
 }
 
+/**
+ * Batch persist multiple todos in a single database operation
+ * Fixes N+1 query issue: https://buildwithcode.sentry.io/issues/6977830586/
+ */
+async function persistTodoBatch(
+  context: ActiveBuildContext,
+  todos: Array<{ content?: string; activeForm?: string; status?: string }>
+) {
+  if (todos.length === 0) return;
+
+  const timestamp = new Date();
+  const values = todos.map((todo, index) => ({
+    sessionId: context.sessionId,
+    todoIndex: index,
+    content: todo?.content ?? todo?.activeForm ?? 'Untitled task',
+    activeForm: todo?.activeForm ?? null,
+    status: todo?.status ?? 'pending',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }));
+
+  // Insert all todos in a single query
+  await retryOnTimeout(() =>
+    db.insert(generationTodos).values(values).onConflictDoUpdate({
+      target: [generationTodos.sessionId, generationTodos.todoIndex],
+      set: {
+        content: sql`excluded.content`,
+        activeForm: sql`excluded.active_form`,
+        status: sql`excluded.status`,
+        updatedAt: timestamp,
+      },
+    })
+  );
+}
+
 async function persistToolCall(
   context: ActiveBuildContext,
   eventData: {
@@ -570,8 +605,9 @@ async function persistEvent(
       if (eventData.toolName === 'TodoWrite') {
         const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
 
-        // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
-        await Promise.all(todos.map((todo, index: number) => persistTodo(context, todo, index)));
+        // CRITICAL: Batch persist ALL todos in a single query to fix N+1 issue
+        // https://buildwithcode.sentry.io/issues/6977830586/
+        await persistTodoBatch(context, todos);
 
         // Trim any leftover todos/tool data beyond the current list length
         await pruneTodoTail(context, todos.length);
