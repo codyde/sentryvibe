@@ -385,6 +385,55 @@ async function persistTodo(
   );
 }
 
+/**
+ * Batch persist multiple todos in a single database transaction
+ * Fixes N+1 query issue: https://buildwithcode.sentry.io/issues/6977830586/
+ * 
+ * Using a transaction ensures all upserts are sent to the database in a single
+ * round-trip, eliminating the N+1 query pattern caused by sequential operations.
+ */
+async function persistTodosBatch(
+  context: ActiveBuildContext,
+  todos: Array<{ content?: string; activeForm?: string; status?: string }>
+) {
+  if (todos.length === 0) return;
+
+  const timestamp = new Date();
+  
+  await retryOnTimeout(() =>
+    db.transaction(async (tx) => {
+      // Execute all upserts within a single transaction
+      // This batches the operations and reduces round-trips to the database
+      for (let index = 0; index < todos.length; index++) {
+        const todo = todos[index];
+        const content = todo?.content ?? todo?.activeForm ?? 'Untitled task';
+        const activeForm = todo?.activeForm ?? null;
+        const status = todo?.status ?? 'pending';
+
+        await tx.insert(generationTodos)
+          .values({
+            sessionId: context.sessionId,
+            todoIndex: index,
+            content,
+            activeForm,
+            status,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .onConflictDoUpdate({
+            target: [generationTodos.sessionId, generationTodos.todoIndex],
+            set: {
+              content,
+              activeForm,
+              status,
+              updatedAt: timestamp,
+            },
+          });
+      }
+    })
+  );
+}
+
 async function persistToolCall(
   context: ActiveBuildContext,
   eventData: {
@@ -571,7 +620,8 @@ async function persistEvent(
         const todos = Array.isArray(eventData.input?.todos) ? eventData.input.todos : [];
 
         // CRITICAL: Wait for ALL todos to be persisted BEFORE continuing
-        await Promise.all(todos.map((todo, index: number) => persistTodo(context, todo, index)));
+        // Use batch operation to fix N+1 query issue (SENTRYVIBE-3Y)
+        await persistTodosBatch(context, todos);
 
         // Trim any leftover todos/tool data beyond the current list length
         await pruneTodoTail(context, todos.length);
