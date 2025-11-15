@@ -7,6 +7,15 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('../sentry.server.config');
     
+    // Run database migrations on server startup
+    try {
+      const { runMigrations } = await import('@sentryvibe/agent-core/lib/db/migrate');
+      await runMigrations();
+      console.log('[instrumentation] ✅ Database migrations completed');
+    } catch (error) {
+      console.error('[instrumentation] Failed to run database migrations:', error);
+    }
+    
     // Clean up abandoned port allocations on server startup
     try {
       const { cleanupAbandonedPorts } = await import('@sentryvibe/agent-core/lib/port-allocator');
