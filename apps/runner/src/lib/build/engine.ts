@@ -3,18 +3,33 @@ import path from 'path';
 import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
 
+interface MessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  mimeType?: string;
+  fileName?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
 type BuildQueryFn = (
   prompt: string,
   workingDirectory: string,
   systemPrompt: string,
   agent?: AgentId,
   codexThreadId?: string, // For resuming Codex threads
+  messageParts?: MessagePart[] // Multi-modal content
 ) => AsyncGenerator<unknown, void, unknown>;
 
 interface BuildStreamOptions {
   projectId: string;
   projectName: string;
   prompt: string;
+  messageParts?: MessagePart[]; // Multi-modal content (text, images, etc.)
   operationType: string;
   context?: Record<string, unknown>;
   query: BuildQueryFn;
@@ -30,7 +45,7 @@ interface BuildStreamOptions {
  * Create a build stream that executes the Claude query and returns a stream
  */
 export async function createBuildStream(options: BuildStreamOptions): Promise<ReadableStream> {
-  const { prompt, query, context, workingDirectory, systemPrompt, agent, isNewProject } = options;
+  const { prompt, messageParts, query, context, workingDirectory, systemPrompt, agent, isNewProject } = options;
 
   // For Codex on NEW projects, use parent directory as CWD (Codex will create the project dir)
   // For everything else, use the project directory
@@ -76,7 +91,7 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   // Use actualWorkingDir so the query function gets the correct CWD
 
   process.stderr.write('[runner] [build-engine] 🚀 Creating generator with query function...\n');
-  const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent, options.codexThreadId);
+  const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent, options.codexThreadId, messageParts);
 
   process.stderr.write('[runner] [build-engine] 📦 Creating ReadableStream from generator...\n');
   // Create a ReadableStream from the AsyncGenerator

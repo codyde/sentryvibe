@@ -27,11 +27,28 @@ export interface TemplateMetadata {
 }
 
 /**
+ * Message part for multi-modal content
+ */
+export interface MessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  mimeType?: string;
+  fileName?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
+/**
  * Build request payload
  */
 export interface BuildRequest {
   operationType: BuildOperationType;
   prompt: string;
+  messageParts?: MessagePart[]; // Multi-modal content (text, images, etc.)
   runnerId?: string; // Optional runner ID - falls back to RUNNER_DEFAULT_ID
   buildId?: string;
   agent?: AgentId; // Selected coding agent provider (Claude Code, OpenAI Codex, etc.)

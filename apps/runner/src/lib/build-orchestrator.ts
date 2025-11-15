@@ -15,10 +15,24 @@ import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
 import type { DesignPreferences } from '@sentryvibe/agent-core/types/design';
 import type { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 
+export interface MessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  mimeType?: string;
+  fileName?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
 export interface BuildContext {
   projectId: string;
   projectName: string;
   prompt: string;
+  messageParts?: MessagePart[]; // Multi-modal content (text, images, etc.)
   operationType: string;
   workingDirectory: string;
   agent: AgentId;

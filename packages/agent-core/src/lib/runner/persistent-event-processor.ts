@@ -36,7 +36,16 @@ interface ActiveBuildContext {
 
 type MessagePart = {
   type: string;
+
+  // Text content
   text?: string;
+
+  // Image content
+  image?: string;              // base64 data URL
+  mimeType?: string;           // e.g., "image/png"
+  fileName?: string;           // e.g., "screenshot.png"
+
+  // Tool content
   toolCallId?: string;
   toolName?: string;
   input?: unknown;
