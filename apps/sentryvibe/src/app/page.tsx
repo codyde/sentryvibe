@@ -2716,7 +2716,7 @@ function HomeContent() {
                               <label className="flex items-center gap-2 text-gray-400">
                                 <Switch
                                   checked={showFullHistory}
-                                  onCheckedChange={setShowFullHistory}
+                                  onCheckedChange={(checked) => setShowFullHistory(checked)}
                                   aria-label="Toggle chat history"
                                 />
                                 <span>Show chat history</span>
