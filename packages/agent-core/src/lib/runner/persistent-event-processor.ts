@@ -891,8 +891,20 @@ export function getActiveBuilds(): string[] {
  * Clean up stuck builds (builds that haven't received events in a while)
  * This should be called periodically by a cron job or similar mechanism
  */
+
+// Debounce to prevent spam (only run once per minute)
+let lastCleanupTime = 0;
+const CLEANUP_DEBOUNCE_MS = 60000; // 1 minute
+
 export async function cleanupStuckBuilds(maxAgeMinutes = 30) {
   const now = Date.now();
+
+  // Debounce check
+  if (now - lastCleanupTime < CLEANUP_DEBOUNCE_MS) {
+    return; // Skip - cleanup ran recently
+  }
+  lastCleanupTime = now;
+
   const maxAge = maxAgeMinutes * 60 * 1000;
 
   console.log(`[persistent-processor] 🔍 Checking for stuck builds (older than ${maxAgeMinutes} minutes)`);
