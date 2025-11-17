@@ -16,6 +16,7 @@ import ProcessManagerModal from "@/components/ProcessManagerModal";
 import RenameProjectModal from "@/components/RenameProjectModal";
 import DeleteProjectModal from "@/components/DeleteProjectModal";
 import BuildProgress from "@/components/BuildProgress";
+import { TodoList } from "@/components/BuildProgress/TodoList";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -3255,11 +3256,15 @@ function HomeContent() {
                                       className="h-full bg-gradient-to-r from-emerald-400 to-sky-400"
                                     />
                                   </div>
-                                  <BuildProgress
-                                    state={generationState}
-                                    templateInfo={selectedTemplate}
-                                    defaultCollapsed={false}
-                                    onClose={() => updateGenerationState(null)}
+                                  {/* Minimalist todo list - no card wrapper */}
+                                  <TodoList
+                                    todos={generationState.todos}
+                                    toolsByTodo={generationState.toolsByTodo}
+                                    textByTodo={generationState.textByTodo}
+                                    activeTodoIndex={generationState.activeTodoIndex}
+                                    expandedTodos={new Set([generationState.activeTodoIndex])}
+                                    onToggleTodo={() => {}}
+                                    allTodosCompleted={generationState.todos.every(t => t.status === 'completed')}
                                     onViewFiles={() => {
                                       window.dispatchEvent(
                                         new CustomEvent("switch-to-editor")
