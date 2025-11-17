@@ -20,6 +20,7 @@ import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { parseModelTag } from '@sentryvibe/agent-core/lib/tags/model-parser';
 import { TAG_DEFINITIONS } from '@sentryvibe/agent-core/config/tags';
+import { projectEvents } from '@/lib/project-events';
 
 export const maxDuration = 30;
 
@@ -467,6 +468,25 @@ export async function POST(
       if (generatedSlug) {
         console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
         console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
+      }
+
+      // EMIT FRAMEWORK EARLY: Update project with detected framework immediately
+      // This makes the framework tag appear at the START of the build
+      try {
+        const [updated] = await db.update(projects)
+          .set({
+            detectedFramework: templateMetadata.framework,
+            lastActivityAt: new Date(),
+          })
+          .where(eq(projects.id, id))
+          .returning();
+
+        if (updated) {
+          console.log(`[build-route] ✅ Early framework emit: ${templateMetadata.framework}`);
+          projectEvents.emitProjectUpdate(id, updated);
+        }
+      } catch (error) {
+        console.error('[build-route] Failed to emit early framework:', error);
       }
     } else {
       console.log('[build-route] 📤 No template metadata - runner will auto-select');
