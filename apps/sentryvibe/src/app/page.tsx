@@ -3300,7 +3300,7 @@ function HomeContent() {
                                     return (
                                       <div
                                         key={build.id}
-                                        className="border border-emerald-500/30 rounded-lg bg-gradient-to-br from-emerald-950/30 via-sky-950/20 to-gray-900/50 overflow-hidden shadow-lg shadow-emerald-500/10"
+                                        className="border border-sky-500/30 rounded-lg bg-gradient-to-br from-sky-950/30 via-blue-950/20 to-gray-900/50 overflow-hidden shadow-lg shadow-sky-500/10"
                                       >
                                         {/* Card header - clickable to expand */}
                                         <button
@@ -3315,14 +3315,14 @@ function HomeContent() {
                                               return next;
                                             });
                                           }}
-                                          className="w-full px-4 py-3 hover:bg-emerald-500/5 transition-colors text-left"
+                                          className="w-full px-4 py-3 hover:bg-sky-500/5 transition-colors text-left"
                                         >
                                           <div className="flex items-center gap-3">
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400/20 to-sky-400/20">
-                                              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400/20 to-blue-400/20">
+                                              <CheckCircle2 className="h-5 w-5 text-sky-400" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-semibold text-emerald-400">
+                                              <p className="text-sm font-semibold text-sky-400">
                                                 ✓ Build Complete
                                               </p>
                                               <p className="text-xs text-gray-400 mt-0.5">
