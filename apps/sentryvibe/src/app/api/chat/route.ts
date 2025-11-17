@@ -1,6 +1,7 @@
 import { streamText, UIMessage, convertToModelMessages } from "ai";
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import { DEFAULT_CLAUDE_MODEL_ID } from "@sentryvibe/agent-core/types/agent";
+import { CLAUDE_CLI_TOOL_REGISTRY } from "@sentryvibe/agent-core/lib/claude/tools";
 import { resolveClaudeModelForProvider } from "@/lib/claude-model";
 import type { ClaudeModelId } from "@sentryvibe/agent-core/types/agent";
 import * as Sentry from "@sentry/nextjs";
@@ -117,6 +118,7 @@ Remember: This is an iterative chat about an existing project, not a full build 
   const result = streamText({
     model: claudeCode(resolveClaudeModelForProvider(selectedClaudeModel)),
     system: systemPrompt,
+    tools: CLAUDE_CLI_TOOL_REGISTRY as any,
     experimental_telemetry: {
       isEnabled: true,
       functionId: "Code",

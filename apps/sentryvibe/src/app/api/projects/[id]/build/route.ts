@@ -287,14 +287,22 @@ export async function POST(
     console.log('[build-route] ✅ Registered build with persistent processor');
     console.log(`[build-route]    Agent: ${agentId}${agentId === 'claude-code' ? ` (${claudeModel})` : ''}`);
 
+    const KEEP_ALIVE_INTERVAL_MS = 15000;
+
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false;
         let unsubscribe: () => void = () => {};
+        let keepAliveTimer: NodeJS.Timeout | null = null;
 
         const finish = async () => {
           if (closed) return;
           closed = true;
+
+          if (keepAliveTimer) {
+            clearInterval(keepAliveTimer);
+            keepAliveTimer = null;
+          }
 
           // Save all completed messages to DB
           // Unsubscribe from SSE stream (persistent processor continues independently)
@@ -321,6 +329,12 @@ export async function POST(
           if (!normalized) return;
 
           controller.enqueue(encoder.encode(normalized));
+        };
+
+        const safeEnqueue = (chunk: string) => {
+          writeChunk(chunk).catch((err) => {
+            console.warn('[build-route] Failed to enqueue chunk', err);
+          });
         };
 
         unsubscribe = addRunnerEventSubscriber(commandId!, async (event: RunnerEvent) => {
@@ -354,7 +368,10 @@ export async function POST(
 
         cleanup = finish;
 
-        writeChunk(': runner-connected\n\n');
+        safeEnqueue(': runner-connected\n\n');
+        keepAliveTimer = setInterval(() => {
+          safeEnqueue(': keep-alive\n\n');
+        }, KEEP_ALIVE_INTERVAL_MS);
       },
       cancel() {
         cleanup?.();

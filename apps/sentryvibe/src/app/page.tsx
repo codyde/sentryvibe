@@ -132,7 +132,7 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const [generationRevision, setGenerationRevision] = useState(0);
-  const [showFullHistory, setShowFullHistory] = useState(false);
+  const [showFullHistory, setShowFullHistory] = useState(true);
 
   const classifyMessage = useCallback((message: Message) => {
     const role = (message.role ?? message.type ?? '').toLowerCase();
@@ -142,27 +142,23 @@ function HomeContent() {
   }, []);
 
   const sanitizeMessageText = useCallback((raw: string) => {
-    if (!raw) return '';
-    let text = raw.trim();
-    if (!text) return '';
-
-    // Skip formatting multi-line content (e.g., markdown summaries)
-    if (text.includes('\n')) {
-      return text;
+    if (raw === null || raw === undefined) return '';
+    if (typeof raw === 'string') return raw;
+    try {
+      return JSON.stringify(raw);
+    } catch {
+      return String(raw);
     }
-
-    // Remove trailing colon if present
-    if (text.endsWith(':')) {
-      text = text.slice(0, -1).trimEnd();
-    }
-
-    // Ensure the sentence ends with terminal punctuation
-    if (text && !/[.!?]$/.test(text)) {
-      text = `${text}.`;
-    }
-
-    return text;
   }, []);
+
+  const isToolAssistantMessage = useCallback(
+    (message: Message | null | undefined) => {
+      if (!message) return false;
+      if (classifyMessage(message) !== 'assistant') return false;
+      return !!message.parts?.some((part) => !!part.toolName);
+    },
+    [classifyMessage]
+  );
 
   const getMessageContent = useCallback((message: Message | null | undefined) => {
     if (!message) return '';
@@ -170,24 +166,38 @@ function HomeContent() {
       return sanitizeMessageText(message.content);
     }
     if (message.parts && message.parts.length > 0) {
-      return sanitizeMessageText(
-        message.parts
+      const textContent = message.parts
         .filter((part) => part.type === 'text' && part.text)
         .map((part) => part.text)
-        .join(' ')
-      );
+        .join(' ');
+
+      if (textContent.trim().length > 0) {
+        return sanitizeMessageText(textContent);
+      }
+
+      const toolSummaries = message.parts
+        .filter((part) => part.toolName)
+        .map((part) => {
+          if (!part.toolName) return 'Tool update';
+          if (part.state === 'output-available') {
+            return `${part.toolName} completed`;
+          }
+          if (part.state === 'input-available') {
+            return `${part.toolName} started`;
+          }
+          return `${part.toolName} updated`;
+        });
+
+      if (toolSummaries.length > 0) {
+        return toolSummaries.join('\n');
+      }
     }
     return '';
   }, [sanitizeMessageText]);
 
   const conversationMessages = useMemo(() => {
-    return messages.filter((message) => {
-      // Guard against null/undefined messages
-      if (!message) return false;
-      if (classifyMessage(message) === 'other') return false;
-      return getMessageContent(message).trim().length > 0;
-    });
-  }, [messages, classifyMessage, getMessageContent]);
+    return messages.filter((message): message is Message => !!message);
+  }, [messages]);
 
   const initialUserMessage = useMemo(() => {
     if (conversationMessages.length === 0) {
@@ -235,12 +245,12 @@ function HomeContent() {
   const latestAgentMessage = useMemo(() => {
     for (let i = conversationMessages.length - 1; i >= 0; i--) {
       const message = conversationMessages[i];
-      if (classifyMessage(message) === 'assistant') {
+      if (classifyMessage(message) === 'assistant' && !isToolAssistantMessage(message)) {
         return message;
       }
     }
     return null;
-  }, [conversationMessages, classifyMessage]);
+  }, [conversationMessages, classifyMessage, isToolAssistantMessage]);
 
   const fullConversationMessages = useMemo(() => {
     const result: Message[] = [];
@@ -277,7 +287,9 @@ function HomeContent() {
   const showAgentTyping =
     (isGenerating || generationState?.isActive) &&
     (!latestAgentMessage ||
-      (lastConversationMessage !== null && classifyMessage(lastConversationMessage) !== 'assistant'));
+      (lastConversationMessage !== null &&
+        (classifyMessage(lastConversationMessage) !== 'assistant' ||
+          isToolAssistantMessage(lastConversationMessage))));
 
   const TypingIndicator = () => (
     <motion.div
@@ -317,7 +329,6 @@ function HomeContent() {
     isReconnecting: wsReconnecting,
     error: wsError,
     reconnect: wsReconnect,
-    sentryTrace: wsSentryTrace,
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
     sessionId: undefined, // Subscribe to all sessions for this project
@@ -336,32 +347,23 @@ function HomeContent() {
     if (dbMessages && dbMessages.length > 0 && !isGenerating) {
       console.log('[page] Loading messages from DB:', dbMessages.length);
 
-      // Convert DB messages to display format
-      const formattedMessages = dbMessages
-        .map(msg => {
-          // If content is array of parts (old format), extract text
-          if (Array.isArray(msg.content)) {
-            const textParts = msg.content
-              .filter((p: any) => p.type === 'text' && p.text)
-              .map((p: any) => p.text)
-              .join(' ');
+      const formattedMessages = dbMessages.map(msg => {
+        if (Array.isArray(msg.content)) {
+          const textParts = msg.content
+            .filter((p: any) => p.type === 'text' && p.text)
+            .map((p: any) => p.text)
+            .join(' ')
+            .trim();
 
-            // Skip messages with ONLY tool parts (no text content)
-            if (!textParts || textParts.trim().length === 0) {
-              return null;
-            }
+          return {
+            ...msg,
+            content: textParts,
+            parts: msg.content,
+          };
+        }
 
-            return {
-              ...msg,
-              content: textParts,
-              parts: msg.content,
-            };
-          }
-
-          // Already in good format
-          return msg;
-        })
-        .filter((msg): msg is NonNullable<typeof msg> => msg !== null);
+        return msg;
+      });
 
       setMessages(formattedMessages as any);
     }
@@ -1379,9 +1381,63 @@ function HomeContent() {
       let currentMessage: Message | null = null;
       const textBlocksMap = new Map<string, { type: string; text: string }>(); // Track text blocks by ID
       let pendingDataLines: string[] = [];
+      let streamCompleted = false;
+
+      const formatToolData = (value: unknown): string | null => {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'string') return value;
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch {
+          return String(value);
+        }
+      };
+
+      const appendToolMessage = (
+        phase: 'input' | 'output',
+        toolPayload: { toolName?: string; toolCallId?: string; input?: unknown; output?: unknown },
+        summaryOverride?: string
+      ) => {
+        const timestamp = Date.now();
+        const defaultSummary =
+          phase === 'output'
+            ? `${toolPayload.toolName || 'Tool'} completed`
+            : `${toolPayload.toolName || 'Tool'} started`;
+        const detailedContent =
+          summaryOverride ||
+          formatToolData(phase === 'output' ? toolPayload.output : toolPayload.input) ||
+          defaultSummary;
+        const toolMessage: Message = {
+          id: `${toolPayload.toolCallId || crypto.randomUUID()}-${phase}-${timestamp}`,
+          projectId,
+          type: 'assistant',
+          role: 'assistant',
+          content: detailedContent,
+          parts: [
+            {
+              type: 'tool',
+              toolName: toolPayload.toolName,
+              toolCallId: toolPayload.toolCallId,
+              input: toolPayload.input,
+              output: phase === 'output' ? toolPayload.output : undefined,
+              state: phase === 'output' ? 'output-available' : 'input-available',
+            },
+          ],
+          timestamp,
+        };
+        setMessages((prev) => [...prev, toolMessage]);
+      };
 
       const processEventPayload = (payload: string) => {
-        if (!payload || payload === "[DONE]") {
+        if (!payload) {
+          return;
+        }
+        if (payload === "[DONE]") {
+          streamCompleted = true;
+          return;
+        }
+        if (payload.startsWith(':')) {
+          // Heartbeat/comment frame — ignore
           return;
         }
 
@@ -1534,6 +1590,12 @@ function HomeContent() {
 
                 return updated;
               });
+
+              const todoSummary =
+                todos.length > 0
+                  ? `TodoWrite updated ${todos.length} task${todos.length === 1 ? '' : 's'}`
+                  : 'TodoWrite emitted an update';
+              appendToolMessage('input', data, todoSummary);
             } else {
               // Route other tools to generation state (nested under active todo)
               const timestamp = new Date().toISOString();
@@ -1604,6 +1666,8 @@ function HomeContent() {
 
                 return updated;
               });
+
+              appendToolMessage('input', data);
             }
 
             // SKIP: Don't add tools to messages - they belong ONLY in BuildProgress!
@@ -1657,6 +1721,8 @@ function HomeContent() {
 
               return updated;
             });
+
+            appendToolMessage('output', data);
 
             // REMOVED: Tool output handling for messages
             // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
@@ -1835,6 +1901,10 @@ function HomeContent() {
 
           break;
         }
+      }
+
+      if (!streamCompleted) {
+        console.warn('⚠️ Generation stream ended without explicit completion signal');
       }
 
       // Save final message if it exists (arrives after backend closes)

@@ -43,10 +43,6 @@ export interface BaseCommand {
   type: RunnerCommandType;
   projectId: string;
   timestamp: string;
-  _sentry?: {
-    trace?: string;
-    baggage?: string;
-  };
 }
 
 export interface StartBuildCommand extends BaseCommand {
@@ -172,10 +168,6 @@ export interface BaseEvent {
   commandId?: string;
   projectId?: string;
   timestamp: string;
-  _sentry?: {
-    trace?: string;
-    baggage?: string;
-  };
 }
 
 export interface AckEvent extends BaseEvent {

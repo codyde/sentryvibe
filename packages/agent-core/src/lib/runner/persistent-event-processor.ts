@@ -14,8 +14,6 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { TodoItem, ToolCall, GenerationState, TextMessage } from '../../types/generation';
 import { serializeGenerationState } from '../generation-persistence';
 import { buildWebSocketServer } from '../../index';
-import * as Sentry from '@sentry/node';
-
 interface ActiveBuildContext {
   commandId: string;
   sessionId: string;
@@ -257,21 +255,11 @@ async function refreshRawState(context: ActiveBuildContext) {
         .set({ rawState: serialized, updatedAt: new Date() })
         .where(eq(generationSessions.id, context.sessionId));
       
-      // Capture current trace context for distributed tracing
-      const activeSpan = Sentry.getActiveSpan();
-      const traceContext = activeSpan ? {
-        trace: Sentry.getTraceData()['sentry-trace'],
-        baggage: Sentry.getTraceData().baggage,
-      } : undefined;
-      
-      // Quiet: Trace context captured (too noisy - happens for every tool call)
-      
-      // Broadcast state update via WebSocket with trace context
+      // Broadcast latest state update via WebSocket
       buildWebSocketServer.broadcastStateUpdate(
         context.projectId,
         context.sessionId,
-        snapshot,
-        traceContext
+        snapshot
       );
     } catch (snapshotError) {
       console.warn('[persistent-processor] Failed to refresh raw generation state:', snapshotError);
@@ -682,13 +670,6 @@ async function persistEvent(
           ? eventData.todoIndex
           : context.currentActiveTodoIndex;
         
-        // Capture current trace context for distributed tracing
-        const activeSpan = Sentry.getActiveSpan();
-        const traceContext = activeSpan ? {
-          trace: Sentry.getTraceData()['sentry-trace'],
-          baggage: Sentry.getTraceData().baggage,
-        } : undefined;
-        
         buildWebSocketServer.broadcastToolCall(
           context.projectId, 
           context.sessionId, 
@@ -698,8 +679,7 @@ async function persistEvent(
             todoIndex: todoIndex,
             input: undefined,
             state: 'output-available',
-          },
-          traceContext
+          }
         );
 
         const messageId = typeof eventData.messageId === 'string'
@@ -867,63 +847,17 @@ export function registerBuild(
         const match = event.data.match(/data:\s*({.*})/);
         if (match) {
           const eventData = JSON.parse(match[1]);
-          
-          // Wrap persistEvent in span for database tracing
-          await Sentry.startSpan(
-            {
-              name: `persistent-processor.persistEvent.${eventData.type}`,
-              op: 'db.persist.event',
-              attributes: {
-                'event.type': eventData.type,
-                'event.projectId': context.projectId,
-                'event.sessionId': context.sessionId,
-                'event.commandId': commandId,
-              },
-            },
-            async () => {
-              await persistEvent(context, eventData);
-            }
-          );
+          await persistEvent(context, eventData);
         }
       } else if (event.type === 'build-completed') {
         console.log(`[persistent-processor] 🎉 Received build-completed event for ${commandId}`);
-        
-        // Wrap finalize in span
-        await Sentry.startSpan(
-          {
-            name: 'persistent-processor.finalizeSession.completed',
-            op: 'db.persist.finalize',
-            attributes: {
-              'event.projectId': context.projectId,
-              'event.sessionId': context.sessionId,
-              'event.commandId': commandId,
-              'session.status': 'completed',
-            },
-          },
-          async () => {
-            await finalizeSession(context, 'completed', new Date());
-          }
-        );
+
+        await finalizeSession(context, 'completed', new Date());
         cleanupBuild(commandId);
       } else if (event.type === 'build-failed' || event.type === 'error') {
         console.log(`[persistent-processor] ❌ Received build-failed/error event for ${commandId}`);
-        
-        // Wrap finalize in span
-        await Sentry.startSpan(
-          {
-            name: 'persistent-processor.finalizeSession.failed',
-            op: 'db.persist.finalize',
-            attributes: {
-              'event.projectId': context.projectId,
-              'event.sessionId': context.sessionId,
-              'event.commandId': commandId,
-              'session.status': 'failed',
-            },
-          },
-          async () => {
-            await finalizeSession(context, 'failed', new Date());
-          }
-        );
+
+        await finalizeSession(context, 'failed', new Date());
         cleanupBuild(commandId);
       }
     } catch (error) {

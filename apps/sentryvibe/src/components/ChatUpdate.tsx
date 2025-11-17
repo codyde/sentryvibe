@@ -62,7 +62,17 @@ export default function ChatUpdate({
   // Extract images and text from parts
   const imageParts = parts?.filter(p => p.type === 'image') || [];
   const textParts = parts?.filter(p => p.type === 'text') || [];
+  const toolParts = parts?.filter(p => p.toolName) || [];
   const textContent = content || textParts.map(p => p.text).join('\n') || '';
+  const renderData = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
 
   return (
     <div className={containerClasses}>
@@ -115,6 +125,34 @@ export default function ChatUpdate({
           >
             {textContent}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {toolParts.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {toolParts.map((part, idx) => (
+            <div
+              key={`${part.toolCallId || part.toolName || idx}-${idx}`}
+              className="rounded-xl border border-white/15 bg-black/30 p-3 text-sm text-gray-200"
+            >
+              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-400">
+                <span>{part.toolName || 'Tool call'}</span>
+                <span>
+                  {part.state === 'output-available' ? 'Result' : 'Input'}
+                </span>
+              </div>
+              {part.state !== 'output-available' && part.input && (
+                <pre className="mt-2 max-h-60 overflow-auto rounded-md bg-black/40 p-2 text-[11px] text-gray-100 whitespace-pre-wrap">
+                  {renderData(part.input)}
+                </pre>
+              )}
+              {part.state === 'output-available' && part.output && (
+                <pre className="mt-2 max-h-60 overflow-auto rounded-md bg-black/40 p-2 text-[11px] text-gray-100 whitespace-pre-wrap">
+                  {renderData(part.output)}
+                </pre>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

@@ -6,7 +6,6 @@ import { eq } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { projectEvents } from '@/lib/project-events';
-import * as Sentry from '@sentry/nextjs';
 import { metrics } from '@sentry/core';
 import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
 
@@ -48,25 +47,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // Note: Sentry's automatic HTTP instrumentation already handles
-    // trace continuation from the sentry-trace and baggage headers.
-    // We just need to create our span within the existing HTTP request context.
-    // DO NOT use continueTrace() here - it creates a sibling instead of a child!
-    
-    await Sentry.startSpan(
-      {
-        name: `api.runner.events.${event.type}`,
-        op: 'api.runner.event.process',
-        attributes: {
-          'event.type': event.type,
-          'event.projectId': event.projectId,
-          'event.commandId': event.commandId,
-        },
-      },
-      async () => {
-        publishRunnerEvent(event);
-      }
-    )
+    publishRunnerEvent(event);
 
 
     if (event.type === 'log-chunk' && typeof event.data === 'string') {

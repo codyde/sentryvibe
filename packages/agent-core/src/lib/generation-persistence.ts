@@ -142,35 +142,17 @@ export function deserializeGenerationState(json: string | null): GenerationState
  * 
  * @param projectId - Project ID to update
  * @param state - Generation state to save
- * @param sentryTrace - Optional trace context for distributed tracing (links frontend PATCH to backend AI spans)
  */
 export async function saveGenerationState(
   projectId: string, 
-  state: GenerationState,
-  sentryTrace?: { trace?: string; baggage?: string }
+  state: GenerationState
 ): Promise<boolean> {
   try {
     const serialized = serializeGenerationState(state);
 
-    // Build headers with optional trace context for distributed tracing
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    
-    // Include Sentry trace headers if available
-    // This links the frontend PATCH request to the backend AI operation that triggered it
-    if (sentryTrace?.trace) {
-      headers['sentry-trace'] = sentryTrace.trace;
-      console.log('[saveGenerationState] 🔗 Sending trace context with PATCH:', {
-        trace: sentryTrace.trace.substring(0, 40) + '...',
-        hasBaggage: !!sentryTrace.baggage,
-      });
-    } else {
-      console.log('[saveGenerationState] ⚠️ No trace context to send with PATCH');
-    }
-    if (sentryTrace?.baggage) {
-      headers['baggage'] = sentryTrace.baggage;
-    }
 
     const res = await fetch(`/api/projects/${projectId}`, {
       method: 'PATCH',

@@ -30,6 +30,7 @@ import {
   type ClaudeModelId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
+import { CLAUDE_CLI_TOOL_REGISTRY } from "@sentryvibe/agent-core/lib/claude/tools";
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
 import { startDevServer, stopDevServer, checkPortInUse } from "./lib/process-manager.js";
@@ -547,13 +548,18 @@ function createClaudeQuery(
 
     // Stream with telemetry enabled for Sentry
     // Use 'messages' param for multi-part content, 'prompt' for simple text
+    const streamOptions = {
+      model,
+      tools: CLAUDE_CLI_TOOL_REGISTRY as any,
+    } as const;
+
     const result = Array.isArray(userMessage)
       ? streamText({
-          model,
+          ...streamOptions,
           messages: [{ role: 'user', content: userMessage }],
         })
       : streamText({
-          model,
+          ...streamOptions,
           prompt: userMessage,
         });
 
@@ -1103,32 +1109,11 @@ export async function startRunner(options: RunnerOptions = {}) {
       return;
     }
     
-    // Wrap in span for critical events to trace through to database
-    // Only trace final build outcome - NOT errors, streaming, or intermediate events
-    const traceableEvents = [
-      'build-completed',
-      'build-failed',
-    ];
-
+    const traceableEvents = ['build-completed', 'build-failed'];
     const shouldTrace = traceableEvents.includes(event.type);
     
     const sendOperation = () => {
       try {
-        // Capture trace context for traceable events
-        // DO NOT capture for: runner-status (heartbeats), ack, log-chunk (too frequent)
-        if (shouldTrace) {
-          const span = Sentry.getActiveSpan();
-          if (span) {
-            // Extract current trace context to propagate
-            const traceData = Sentry.getTraceData();
-
-            event._sentry = {
-              trace: traceData['sentry-trace'],
-              baggage: traceData.baggage,
-            };
-          }
-        }
-
         const eventJson = JSON.stringify(event);
 
         // Only log important events
@@ -1156,44 +1141,21 @@ export async function startRunner(options: RunnerOptions = {}) {
       }
     };
 
-    // Wrap critical events in span for tracing
-    if (shouldTrace) {
-      Sentry.startSpan(
-        {
-          name: `runner.sendEvent.${event.type}`,
-          op: 'runner.event.send',
-          attributes: {
-            'event.type': event.type,
-            'event.projectId': event.projectId,
-            'event.commandId': event.commandId,
-            'event.size': JSON.stringify(event).length,
-          },
-          // Force span to be recorded even if very fast
-          forceTransaction: false,
+    const startTime = Date.now();
+    sendOperation();
+    const duration = Date.now() - startTime;
+
+    if (shouldTrace && duration < 1) {
+      Sentry.addBreadcrumb({
+        category: 'runner.event.send',
+        message: `Sent ${event.type} event (${duration}ms)`,
+        level: 'debug',
+        data: {
+          eventType: event.type,
+          projectId: event.projectId,
+          duration,
         },
-        () => {
-          const startTime = Date.now();
-          sendOperation();
-          const duration = Date.now() - startTime;
-          
-          // Add timing info for debugging
-          if (duration < 1) {
-            // WebSocket sends are typically < 1ms, add breadcrumb for visibility
-            Sentry.addBreadcrumb({
-              category: 'runner.event.send',
-              message: `Sent ${event.type} event (${duration}ms)`,
-              level: 'debug',
-              data: {
-                eventType: event.type,
-                projectId: event.projectId,
-                duration,
-              },
-            });
-          }
-        }
-      );
-    } else {
-      sendOperation();
+      });
     }
   }
 
@@ -1748,19 +1710,7 @@ export async function startRunner(options: RunnerOptions = {}) {
         fileLog.info("Agent:", command.payload?.agent);
         fileLog.info("Template:", command.payload?.template);
 
-        await Sentry.startSpan(
-          {
-            name: "runner.build",
-            op: "build",
-            attributes: {
-              "build.project_id": command.projectId,
-              "build.operation": command.payload?.operationType,
-              "build.agent": command.payload?.agent,
-              "build.template": command.payload?.template?.name,
-            },
-          },
-          async () => {
-            try {
+        try {
               loggedFirstChunk = false;
               if (!command.payload?.prompt || !command.payload?.operationType) {
                 throw new Error("Invalid build payload");
@@ -2147,9 +2097,6 @@ export async function startRunner(options: RunnerOptions = {}) {
                 log(`[build] Failed to detect framework:`, error);
               }
 
-              // Send build completion event while span is still active
-              // This ensures the event processing spans (broker → nextjs → db)
-              // are properly linked to this build span and its AI spans
               sendEvent({
                 type: "build-completed",
                 ...buildEventBase(command.projectId, command.id),
@@ -2159,15 +2106,8 @@ export async function startRunner(options: RunnerOptions = {}) {
                   detectedFramework, // Send detected framework to API
                 },
               });
-              
-              // Note: Span will automatically end when this async callback completes
-              // DO NOT manually call span.end() here - it breaks trace propagation!
             } catch (error) {
               console.error("Failed to run build", error);
-              Sentry.getActiveSpan()?.setStatus({
-                code: 2,
-                message: "Build failed",
-              });
               sendEvent({
                 type: "build-failed",
                 ...buildEventBase(command.projectId, command.id),
@@ -2178,8 +2118,6 @@ export async function startRunner(options: RunnerOptions = {}) {
                 stack: error instanceof Error ? error.stack : undefined,
               });
             }
-          }
-        );
         break;
       }
       default:
@@ -2293,34 +2231,10 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Continue trace if parent trace context exists, otherwise start new
-        if (command._sentry?.trace) {
-          console.log("continuing trace", command._sentry.trace);
-          Sentry.continueTrace(
-            {
-              sentryTrace: command._sentry.trace,
-              baggage: command._sentry.baggage,
-            },
-            async () => {
-              // Add metadata to trace
-              Sentry.setTag("command_type", command.type);
-              Sentry.setTag("project_id", command.projectId);
-              Sentry.setTag("command_id", command.id);
-
-              await handleCommand(command);
-            }
-          );
-        } else {
-          console.log("starting new trace");
-          // No parent trace - start new one
-          Sentry.startNewTrace(async () => {
-            Sentry.setTag("command_type", command.type);
-            Sentry.setTag("project_id", command.projectId);
-            Sentry.setTag("command_id", command.id);
-
-            await handleCommand(command);
-          });
-        }
+        handleCommand(command).catch((error) => {
+          console.error("Failed to process command", error);
+          Sentry.captureException(error);
+        });
       } catch (error) {
         console.error("Failed to parse command", error);
         Sentry.captureException(error);

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import * as Sentry from '@sentry/nextjs';
 import { metrics } from '@sentry/core';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
@@ -33,20 +32,6 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Check for trace context from frontend (sent via WebSocket from AI operations)
-  const sentryTrace = req.headers.get('sentry-trace');
-  const baggage = req.headers.get('baggage');
-  
-  // DEBUG: Log trace context reception
-  if (sentryTrace) {
-    console.log('[PATCH /api/projects/[id]] 🔗 Received trace context:', {
-      trace: sentryTrace.substring(0, 40) + '...',
-      hasBaggage: !!baggage,
-    });
-  } else {
-    console.log('[PATCH /api/projects/[id]] ⚠️ No trace context in headers');
-  }
-  
   const executeUpdate = async () => {
     const { id } = await params;
     const updates = await req.json();
@@ -69,24 +54,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    // Wrap database update in span for tracing
-    const updated = await Sentry.startSpan(
-      {
-        name: `api.projects.update${filteredUpdates.generationState ? '.generationState' : ''}`,
-        op: 'db.update',
-        attributes: {
-          'project.id': id,
-          'update.fields': Object.keys(filteredUpdates).join(','),
-          'update.hasGenerationState': !!filteredUpdates.generationState,
-        },
-      },
-      async () => {
-        return await db.update(projects)
-          .set(filteredUpdates)
-          .where(eq(projects.id, id))
-          .returning();
-      }
-    );
+    const updated = await db.update(projects)
+      .set(filteredUpdates)
+      .where(eq(projects.id, id))
+      .returning();
 
     if (updated.length === 0) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
@@ -95,23 +66,6 @@ export async function PATCH(
     return NextResponse.json({ project: updated[0] });
   };
   
-  // If trace context from AI operation exists, continue that trace
-  // This links frontend PATCH requests to the backend AI operations
-  if (sentryTrace && baggage) {
-    return await Sentry.continueTrace(
-      { sentryTrace, baggage },
-      async () => {
-        try {
-          return await executeUpdate();
-        } catch (error) {
-          console.error('❌ Error updating project:', error);
-          return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
-        }
-      }
-    );
-  }
-  
-  // No trace context, execute normally
   try {
     return await executeUpdate();
   } catch (error) {

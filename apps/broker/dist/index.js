@@ -105,17 +105,7 @@ app.post('/commands', auth, (req, res) => {
         return res.status(503).json({ error: 'Runner not connected' });
     }
     try {
-        // Extract current trace context to pass through WebSocket
-        const traceData = instrument_1.Sentry.getTraceData();
-        // Add trace context to command payload
-        const commandWithTrace = {
-            ...command,
-            _sentry: {
-                trace: traceData['sentry-trace'],
-                baggage: traceData.baggage,
-            },
-        };
-        connection.socket.send(JSON.stringify(commandWithTrace));
+        connection.socket.send(JSON.stringify(command));
         totalCommands++;
         return res.json({ ok: true });
     }
@@ -339,18 +329,6 @@ async function forwardEvent(event) {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${SHARED_SECRET}`,
             };
-            // Manually set trace headers as a fallback in case automatic instrumentation fails
-            // This MUST be called inside the broker.forwardEvent span for correct context
-            const activeSpan = instrument_1.Sentry.getActiveSpan();
-            if (activeSpan) {
-                const traceData = instrument_1.Sentry.getTraceData();
-                if (traceData['sentry-trace']) {
-                    headers['sentry-trace'] = traceData['sentry-trace'];
-                }
-                if (traceData.baggage) {
-                    headers['baggage'] = traceData.baggage;
-                }
-            }
             const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
                 method: 'POST',
                 headers,
@@ -379,27 +357,5 @@ async function forwardEvent(event) {
             });
         }
     };
-    // If event has trace context, continue the trace
-    if (event._sentry?.trace && event._sentry?.baggage) {
-        await instrument_1.Sentry.continueTrace({
-            sentryTrace: event._sentry.trace,
-            baggage: event._sentry.baggage,
-        }, async () => {
-            await instrument_1.Sentry.startSpan({
-                name: `broker.forwardEvent.${event.type}`,
-                op: 'broker.event.forward',
-                attributes: {
-                    'event.type': event.type,
-                    'event.projectId': event.projectId,
-                    'event.commandId': event.commandId,
-                },
-            }, async () => {
-                await forwardOperation();
-            });
-        });
-    }
-    else {
-        // No trace context, just forward
-        await forwardOperation();
-    }
+    await forwardOperation();
 }

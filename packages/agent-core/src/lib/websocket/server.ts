@@ -35,7 +35,6 @@ interface BatchedUpdate {
     type: string;
     data: unknown;
     timestamp: number;
-    _sentry?: { trace?: string; baggage?: string }; // Trace context for distributed tracing
   }>;
 }
 
@@ -163,8 +162,7 @@ class BuildWebSocketServer {
   broadcastStateUpdate(
     projectId: string, 
     sessionId: string, 
-    state: Partial<GenerationState>,
-    sentryTrace?: { trace?: string; baggage?: string }
+    state: Partial<GenerationState>
   ) {
     const key = `${projectId}-${sessionId}`;
     
@@ -182,7 +180,6 @@ class BuildWebSocketServer {
       type: 'state-update',
       data: state,
       timestamp: Date.now(),
-      _sentry: sentryTrace, // Include trace context for distributed tracing
     });
 
     // If batch is getting large, flush immediately
@@ -203,8 +200,7 @@ class BuildWebSocketServer {
       todoIndex: number; // Explicit todo index for proper nesting
       input?: unknown;
       state: 'input-available' | 'output-available';
-    },
-    sentryTrace?: { trace?: string; baggage?: string }
+    }
   ) {
     const key = `${projectId}-${sessionId}`;
     
@@ -221,7 +217,6 @@ class BuildWebSocketServer {
       type: 'tool-call',
       data: toolCall,
       timestamp: Date.now(),
-      _sentry: sentryTrace, // Include trace context for distributed tracing
     });
   }
 

@@ -20,11 +20,9 @@ interface WebSocketMessage {
     type: string;
     data: unknown;
     timestamp: number;
-    _sentry?: { trace?: string; baggage?: string }; // Trace context for distributed tracing
   }>;
   timestamp?: number;
   clientId?: string;
-  _sentry?: { trace?: string; baggage?: string }; // Trace context for distributed tracing
 }
 
 interface UseBuildWebSocketOptions {
@@ -39,7 +37,6 @@ interface UseBuildWebSocketReturn {
   isReconnecting: boolean;
   error: Error | null;
   reconnect: () => void;
-  sentryTrace: { trace?: string; baggage?: string } | null; // Current trace context from last WebSocket message
 }
 
 const DEBUG = false; // Set to true for verbose logging
@@ -53,8 +50,6 @@ export function useBuildWebSocket({
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [sentryTrace, setSentryTrace] = useState<{ trace?: string; baggage?: string } | null>(null);
-  
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -156,15 +151,6 @@ export function useBuildWebSocket({
   const processBatchUpdate = useCallback((message: WebSocketMessage) => {
     const updates = message.updates;
     if (!updates || !Array.isArray(updates) || updates.length === 0) return;
-    
-    // Extract trace context from the most recent update that has it
-    // This allows linking frontend PATCH requests to backend AI operations
-    const latestTraceContext = updates
-      .reverse()
-      .find(u => u._sentry)?._sentry || null;
-    if (latestTraceContext) {
-      setSentryTrace(latestTraceContext);
-    }
     
     setState((prevState) => {
       // BUG FIX: If prevState is null (before hydration), queue the updates for later
@@ -482,7 +468,6 @@ export function useBuildWebSocket({
     isReconnecting,
     error,
     reconnect,
-    sentryTrace,
   };
 }
 
