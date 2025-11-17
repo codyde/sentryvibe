@@ -213,6 +213,7 @@ function HomeContent() {
   const [generationRevision, setGenerationRevision] = useState(0);
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [expandedCompletedBuilds, setExpandedCompletedBuilds] = useState<Set<string>>(new Set());
+  const [expandedCompletedBuildTodos, setExpandedCompletedBuildTodos] = useState<Map<string, Set<number>>>(new Map());
   const isThinking =
     generationState?.isActive &&
     (!generationState.todos || generationState.todos.length === 0);
@@ -3299,7 +3300,7 @@ function HomeContent() {
                                     return (
                                       <div
                                         key={build.id}
-                                        className="border border-gray-700/50 rounded-lg bg-gray-900/30 overflow-hidden"
+                                        className="border border-green-500/20 rounded-lg bg-gradient-to-br from-green-950/20 to-gray-900/40 overflow-hidden"
                                       >
                                         {/* Card header - clickable to expand */}
                                         <button
@@ -3314,7 +3315,7 @@ function HomeContent() {
                                               return next;
                                             });
                                           }}
-                                          className="w-full px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                                          className="w-full px-4 py-3 hover:bg-green-500/5 transition-colors text-left"
                                         >
                                           <div className="flex items-center gap-2">
                                             <CheckCircle2 className="h-4 w-4 text-green-400 flex-shrink-0" />
@@ -3337,8 +3338,21 @@ function HomeContent() {
                                               toolsByTodo={build.toolsByTodo}
                                               textByTodo={build.textByTodo}
                                               activeTodoIndex={-1}
-                                              expandedTodos={new Set()}
-                                              onToggleTodo={() => {}}
+                                              expandedTodos={expandedCompletedBuildTodos.get(build.id) || new Set()}
+                                              onToggleTodo={(todoIndex) => {
+                                                setExpandedCompletedBuildTodos(prev => {
+                                                  const newMap = new Map(prev);
+                                                  const buildTodos = newMap.get(build.id) || new Set();
+                                                  const next = new Set(buildTodos);
+                                                  if (next.has(todoIndex)) {
+                                                    next.delete(todoIndex);
+                                                  } else {
+                                                    next.add(todoIndex);
+                                                  }
+                                                  newMap.set(build.id, next);
+                                                  return newMap;
+                                                });
+                                              }}
                                               allTodosCompleted={true}
                                               onViewFiles={() => {
                                                 window.dispatchEvent(new CustomEvent("switch-to-editor"));
