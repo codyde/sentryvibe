@@ -158,12 +158,20 @@ export async function POST(request: Request) {
         // Update project metadata (path, runCommand, projectType, port) from template download
         const metadata = (event as any).payload;
         if (metadata && event.projectId) {
+          // Extract detected framework early if available
+          const detectedFramework = metadata.detectedFramework || null;
+
+          if (detectedFramework) {
+            console.log(`[events] 🔍 Early framework detection for project ${event.projectId}: ${detectedFramework}`);
+          }
+
           const [updated] = await db.update(projects)
             .set({
               path: metadata.path,
               projectType: metadata.projectType,
               runCommand: metadata.runCommand,
               port: metadata.port,
+              detectedFramework, // Save detected framework early
               lastActivityAt: new Date(),
             })
             .where(eq(projects.id, event.projectId))
