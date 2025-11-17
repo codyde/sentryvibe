@@ -117,16 +117,10 @@ export function TodoList({
               transition={{ delay: index * 0.05 }}
               className="mb-2 last:mb-0"
             >
-              {/* Todo Item */}
+              {/* Todo Item - Minimal tree-view style */}
               <button
                 onClick={() => onToggleTodo(index)}
-                className={`w-full flex items-center gap-2 rounded-lg border px-3 py-2 transition-all text-left ${
-                  todo.status === 'completed'
-                    ? 'border-green-500/30 bg-green-950/20'
-                    : todo.status === 'in_progress'
-                      ? 'border-purple-500/30 bg-purple-950/20 shadow-lg shadow-purple-500/10'
-                      : 'border-gray-700/50 bg-gray-800/30'
-                }`}
+                className="w-full flex items-center gap-2 px-2 py-1.5 transition-all text-left hover:bg-white/5 rounded"
               >
                 {/* Status icon */}
                 <div className="flex-shrink-0">
@@ -184,19 +178,28 @@ export function TodoList({
                 )}
               </button>
 
-              {/* Nested content (text messages + tools) */}
+              {/* Nested content - Tree-view style with connecting lines */}
               <AnimatePresence>
                 {isExpanded && hasContent && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="mt-2 space-y-2"
+                    className="mt-2 space-y-2 relative"
                   >
-                    {/* Tool Calls - Text messages now shown in Chat tab */}
-                    {tools.map((tool) => (
-                      <ToolCallMiniCard key={tool.id} tool={tool} />
-                    ))}
+                    <div className="ml-6 space-y-1.5 relative">
+                      {/* Vertical connecting line */}
+                      <div className="absolute left-0 top-0 bottom-2 w-px bg-gray-700/50" />
+
+                      {/* Tool Calls with horizontal branch lines */}
+                      {tools.map((tool, toolIdx) => (
+                        <div key={tool.id} className="relative pl-4">
+                          {/* Horizontal branch line */}
+                          <div className="absolute left-0 top-3 w-3 h-px bg-gray-700/50" />
+                          <ToolCallMiniCard tool={tool} />
+                        </div>
+                      ))}
+                    </div>
 
                     {/* Final Summary Actions */}
                     {isFinalSummary && todo.status === 'completed' && (

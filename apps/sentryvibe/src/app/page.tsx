@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, CheckCircle2 } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
 import TerminalOutput from "@/components/TerminalOutput";
 import { getModelLogo } from "@/lib/model-logos";
@@ -3275,26 +3275,28 @@ function HomeContent() {
                                 </div>
                               )}
 
-                            {/* Builds Section - Collapsed cards for all completed builds */}
+                            {/* Builds Section - Minimal collapsed view for completed builds */}
                             {buildHistory.length > 0 && (
                               <div className="px-1">
                                 <h3 className="text-sm font-semibold text-gray-400 mb-3">
                                   Builds ({buildHistory.length})
                                 </h3>
-                                <div className="space-y-4">
+                                <div className="space-y-2">
                                   {buildHistory.map((build) => (
-                                    <BuildProgress
+                                    <div
                                       key={build.id}
-                                      state={build}
-                                      templateInfo={null}
-                                      defaultCollapsed={true}
-                                      onViewFiles={() => {
-                                        window.dispatchEvent(
-                                          new CustomEvent("switch-to-editor")
-                                        );
-                                      }}
-                                      onStartServer={startDevServer}
-                                    />
+                                      className="px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
+                                        <span className="text-sm text-gray-300 truncate">
+                                          {build.buildSummary || build.projectName || 'Build completed'}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {build.todos?.length || 0} tasks
+                                        </span>
+                                      </div>
+                                    </div>
                                   ))}
                                 </div>
                               </div>
