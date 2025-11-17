@@ -313,8 +313,9 @@ function HomeContent() {
           projectFromQuery.devServerStatus !== currentProject.devServerStatus ||
           projectFromQuery.devServerPort !== currentProject.devServerPort ||
           projectFromQuery.tunnelUrl !== currentProject.tunnelUrl) {
-        if (DEBUG_PAGE) console.log('[page] Syncing project from SSE query update:', {
+        console.log('[page] 🔄 Syncing project from SSE query update:', {
           detectedFramework: projectFromQuery.detectedFramework,
+          devServerStatus: projectFromQuery.devServerStatus,
         });
         setCurrentProject(projectFromQuery);
       }
@@ -492,13 +493,18 @@ function HomeContent() {
       .filter((state): state is GenerationState => !!state);
   }, [messagesFromDB]);
 
-  const serverBuilds = useMemo(
-    () =>
-      sessionStates.filter(
-        (state) => state.todos && state.todos.length > 0 && !state.isActive
-      ),
-    [sessionStates]
-  );
+  const serverBuilds = useMemo(() => {
+    const builds = sessionStates.filter(
+      (state) => state.todos && state.todos.length > 0 && !state.isActive
+    );
+
+    console.log('[serverBuilds] Loaded from database:', {
+      count: builds.length,
+      buildIds: builds.map(b => ({ id: b.id, source: b.source, todos: b.todos?.length })),
+    });
+
+    return builds;
+  }, [sessionStates]);
 
   // Build history: Completed builds from server + current completed build (if not already in server data)
   // BUG FIX: Prevent same build from appearing in BOTH active section AND history
