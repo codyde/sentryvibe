@@ -1544,8 +1544,11 @@ function HomeContent() {
     isElementChange: boolean = false,
     messageParts?: MessagePart[]
   ) => {
-    // Generate a NEW buildId for each build (don't reuse existing)
-    const existingBuildId = undefined;
+    // CRITICAL: Use the buildId from generationState that was created in startGeneration()
+    // This ensures client and server use the SAME build ID for proper deduplication
+    const existingBuildId = generationStateRef.current?.id;
+
+    console.log('🆔 [Build ID Sync] Using build ID from local state:', existingBuildId);
     try {
       // Derive agent and model from tags if present, otherwise use context
       const modelTag = appliedTags.find(t => t.key === 'model');

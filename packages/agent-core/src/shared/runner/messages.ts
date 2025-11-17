@@ -266,6 +266,7 @@ export interface ProjectMetadataEvent extends BaseEvent {
     projectType: string;
     runCommand: string;
     port: number;
+    detectedFramework?: string;
   };
 }
 
