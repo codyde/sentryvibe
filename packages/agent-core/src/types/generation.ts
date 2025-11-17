@@ -106,6 +106,8 @@ export interface GenerationState {
   endTime?: Date;
   codex?: CodexSessionState;
   stateVersion?: number; // Monotonic version counter for reconnect reconciliation
+  buildSummary?: string; // Final build summary text
+  source?: 'local' | 'database'; // Track where this state came from to prevent duplicates
 }
 
 export type GenerationEvent =

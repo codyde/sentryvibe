@@ -752,19 +752,23 @@ function HomeContent() {
     );
 
     if (!alreadyArchived) {
-      if (DEBUG_PAGE) console.log(
-        "📚 Archiving completed build to history:",
+      console.log(
+        "📚 [LOCAL] Archiving completed build to history (source: local):",
         generationState.id
       );
+
+      // Mark this build as coming from local state
+      const localBuild = { ...generationState, source: 'local' as const };
+
       setBuildHistoryByProject((prev) => {
         const newMap = new Map(prev);
-        newMap.set(currentProject.id, [generationState, ...projectHistory]);
+        newMap.set(currentProject.id, [localBuild, ...projectHistory]);
         return newMap;
       });
-      
+
       // Clear active generation state after archiving to prevent duplicate display
       // The completed build now lives only in buildHistory
-      if (DEBUG_PAGE) console.log(
+      console.log(
         "🧹 Clearing active generationState after archiving"
       );
       updateGenerationState(null);
@@ -814,14 +818,16 @@ function HomeContent() {
 
         // Load persisted generationState if it exists
         if (project.generationState) {
-          if (DEBUG_PAGE) console.log("🎨 Restoring generationState from DB...");
+          console.log("🎨 [DATABASE] Restoring generationState from DB...");
           const restored = deserializeGenerationState(
             project.generationState as string
           );
 
           if (restored && validateGenerationState(restored)) {
-            if (DEBUG_PAGE) console.log("   ✅ Valid state, todos:", restored.todos.length);
-            updateGenerationState(restored);
+            console.log("   ✅ [DATABASE] Valid state, todos:", restored.todos.length);
+            // Mark as coming from database
+            const dbBuild = { ...restored, source: 'database' as const };
+            updateGenerationState(dbBuild);
           }
         }
 
@@ -2974,6 +2980,13 @@ function HomeContent() {
 
                                     // Show when we hit 100% (finishing up) or when fully complete
                                     if (progress >= 100) {
+                                      console.log('🎯 [BUILD COMPLETE CARD] Rendering:', {
+                                        buildId: generationState.id,
+                                        source: generationState.source || 'unknown',
+                                        isActive: generationState.isActive,
+                                        todosCompleted: `${completed}/${total}`,
+                                      });
+
                                       return (
                                         <BuildCompleteCard
                                           projectName={currentProject.name}
