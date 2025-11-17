@@ -3295,8 +3295,13 @@ function HomeContent() {
                                   Builds ({buildHistory.length})
                                 </h3>
                                 <div className="space-y-3">
-                                  {buildHistory.map((build) => {
+                                  {buildHistory.map((build, buildIndex) => {
                                     const isExpanded = expandedCompletedBuilds.has(build.id);
+
+                                    // Add build number for differentiation
+                                    const buildLabel = buildIndex === buildHistory.length - 1
+                                      ? 'Initial'
+                                      : `Follow-up ${buildHistory.length - buildIndex - 1}`;
 
                                     // Get a meaningful title for the build
                                     let buildTitle = build.projectName || 'Build';
@@ -3333,7 +3338,7 @@ function HomeContent() {
                                                 {buildTitle} - Complete
                                               </p>
                                               <p className="text-xs text-gray-400 mt-0.5">
-                                                {build.todos?.length || 0} tasks completed • {build.buildSummary ? 'Summary available' : build.projectName}
+                                                {buildLabel} • {build.todos?.length || 0} tasks • {build.buildSummary ? 'Summary available' : build.projectName}
                                               </p>
                                             </div>
                                             <div className="text-xs text-gray-500">
