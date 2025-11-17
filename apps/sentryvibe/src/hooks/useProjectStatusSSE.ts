@@ -45,6 +45,7 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
             devServerStatus: data.project.devServerStatus,
             devServerPort: data.project.devServerPort,
             tunnelUrl: data.project.tunnelUrl,
+            detectedFramework: data.project.detectedFramework,
           });
 
           // Update per-project cache directly (optimistic real-time update)

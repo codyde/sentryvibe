@@ -3239,21 +3239,7 @@ function HomeContent() {
                               );
                             })()}
 
-                            {buildPlanMarkdown && !generationState?.todos?.length && (
-                              <div className="space-y-2 px-1">
-                                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                                  Build plan
-                                </p>
-                                <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-purple-300 [&_code]:bg-purple-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
-                                  <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    rehypePlugins={[rehypeHighlight]}
-                                  >
-                                    {buildPlanMarkdown}
-                                  </ReactMarkdown>
-                                </div>
-                              </div>
-                            )}
+                            {/* Removed standalone buildPlanMarkdown - now shown per user message above */}
 
                             {isThinking && currentProject && (
                               <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-4">
