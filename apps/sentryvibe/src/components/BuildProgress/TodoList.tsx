@@ -201,23 +201,7 @@ export function TodoList({
                       ))}
                     </div>
 
-                    {/* Final Summary Actions */}
-                    {isFinalSummary && todo.status === 'completed' && (
-                      <div className="ml-8 mt-3 flex gap-3">
-                        <button
-                          onClick={onViewFiles}
-                          className="flex-1 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 rounded-lg transition-colors font-medium"
-                        >
-                          📁 View Files
-                        </button>
-                        <button
-                          onClick={onStartServer}
-                          className="flex-1 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 rounded-lg transition-colors font-medium"
-                        >
-                          ▶️ Start Server
-                        </button>
-                      </div>
-                    )}
+                    {/* Removed action buttons from completed builds */}
                   </motion.div>
                 )}
               </AnimatePresence>

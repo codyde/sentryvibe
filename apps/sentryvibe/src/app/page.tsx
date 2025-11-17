@@ -3300,7 +3300,7 @@ function HomeContent() {
                                     return (
                                       <div
                                         key={build.id}
-                                        className="border border-green-500/20 rounded-lg bg-gradient-to-br from-green-950/20 to-gray-900/40 overflow-hidden"
+                                        className="border border-green-500/30 rounded-lg bg-gradient-to-br from-green-950/30 via-emerald-950/20 to-gray-900/50 overflow-hidden shadow-lg shadow-green-500/10"
                                       >
                                         {/* Card header - clickable to expand */}
                                         <button
@@ -3317,15 +3317,20 @@ function HomeContent() {
                                           }}
                                           className="w-full px-4 py-3 hover:bg-green-500/5 transition-colors text-left"
                                         >
-                                          <div className="flex items-center gap-2">
-                                            <CheckCircle2 className="h-4 w-4 text-green-400 flex-shrink-0" />
+                                          <div className="flex items-center gap-3">
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/20">
+                                              <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                            </div>
                                             <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-medium text-gray-200 truncate">
-                                                Build completed
+                                              <p className="text-sm font-semibold text-green-400">
+                                                ✓ Build Complete
                                               </p>
-                                              <p className="text-xs text-gray-400">
-                                                {build.todos?.length || 0} tasks completed
+                                              <p className="text-xs text-gray-400 mt-0.5">
+                                                {build.todos?.length || 0} tasks completed • {build.buildSummary ? 'Summary available' : build.projectName}
                                               </p>
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                              {isExpanded ? '▼' : '▶'}
                                             </div>
                                           </div>
                                         </button>
