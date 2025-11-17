@@ -211,6 +211,8 @@ function HomeContent() {
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const lastRefetchedBuildIdRef = useRef<string | null>(null);
   const [generationRevision, setGenerationRevision] = useState(0);
+  const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
+  const [expandedCompletedBuilds, setExpandedCompletedBuilds] = useState<Set<string>>(new Set());
   const isThinking =
     generationState?.isActive &&
     (!generationState.todos || generationState.todos.length === 0);
@@ -3262,8 +3264,18 @@ function HomeContent() {
                                     toolsByTodo={generationState.toolsByTodo}
                                     textByTodo={generationState.textByTodo}
                                     activeTodoIndex={generationState.activeTodoIndex}
-                                    expandedTodos={new Set([generationState.activeTodoIndex])}
-                                    onToggleTodo={() => {}}
+                                    expandedTodos={expandedTodos}
+                                    onToggleTodo={(index) => {
+                                      setExpandedTodos(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(index)) {
+                                          next.delete(index);
+                                        } else {
+                                          next.add(index);
+                                        }
+                                        return next;
+                                      });
+                                    }}
                                     allTodosCompleted={generationState.todos.every(t => t.status === 'completed')}
                                     onViewFiles={() => {
                                       window.dispatchEvent(
@@ -3275,29 +3287,69 @@ function HomeContent() {
                                 </div>
                               )}
 
-                            {/* Builds Section - Minimal collapsed view for completed builds */}
+                            {/* Builds Section - Minimal card view for completed builds */}
                             {buildHistory.length > 0 && (
                               <div className="px-1">
                                 <h3 className="text-sm font-semibold text-gray-400 mb-3">
                                   Builds ({buildHistory.length})
                                 </h3>
-                                <div className="space-y-2">
-                                  {buildHistory.map((build) => (
-                                    <div
-                                      key={build.id}
-                                      className="px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer transition-colors"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
-                                        <span className="text-sm text-gray-300 truncate">
-                                          {build.buildSummary || build.projectName || 'Build completed'}
-                                        </span>
-                                        <span className="text-xs text-gray-500">
-                                          {build.todos?.length || 0} tasks
-                                        </span>
+                                <div className="space-y-3">
+                                  {buildHistory.map((build) => {
+                                    const isExpanded = expandedCompletedBuilds.has(build.id);
+                                    return (
+                                      <div
+                                        key={build.id}
+                                        className="border border-gray-700/50 rounded-lg bg-gray-900/30 overflow-hidden"
+                                      >
+                                        {/* Card header - clickable to expand */}
+                                        <button
+                                          onClick={() => {
+                                            setExpandedCompletedBuilds(prev => {
+                                              const next = new Set(prev);
+                                              if (next.has(build.id)) {
+                                                next.delete(build.id);
+                                              } else {
+                                                next.add(build.id);
+                                              }
+                                              return next;
+                                            });
+                                          }}
+                                          className="w-full px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <CheckCircle2 className="h-4 w-4 text-green-400 flex-shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium text-gray-200 truncate">
+                                                Build completed
+                                              </p>
+                                              <p className="text-xs text-gray-400">
+                                                {build.todos?.length || 0} tasks completed
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </button>
+
+                                        {/* Expanded todo list */}
+                                        {isExpanded && (
+                                          <div className="border-t border-gray-700/50 px-3 py-2">
+                                            <TodoList
+                                              todos={build.todos}
+                                              toolsByTodo={build.toolsByTodo}
+                                              textByTodo={build.textByTodo}
+                                              activeTodoIndex={-1}
+                                              expandedTodos={new Set()}
+                                              onToggleTodo={() => {}}
+                                              allTodosCompleted={true}
+                                              onViewFiles={() => {
+                                                window.dispatchEvent(new CustomEvent("switch-to-editor"));
+                                              }}
+                                              onStartServer={startDevServer}
+                                            />
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
