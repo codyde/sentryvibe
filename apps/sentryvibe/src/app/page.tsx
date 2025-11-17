@@ -3297,6 +3297,13 @@ function HomeContent() {
                                 <div className="space-y-3">
                                   {buildHistory.map((build) => {
                                     const isExpanded = expandedCompletedBuilds.has(build.id);
+
+                                    // Get a meaningful title for the build
+                                    let buildTitle = build.projectName || 'Build';
+                                    if (build.buildSummary) {
+                                      const firstSentence = build.buildSummary.split(/[.!?]\s/)[0];
+                                      buildTitle = firstSentence.substring(0, 60);
+                                    }
                                     return (
                                       <div
                                         key={build.id}
@@ -3323,7 +3330,7 @@ function HomeContent() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                               <p className="text-sm font-semibold text-sky-400">
-                                                ✓ Build Complete
+                                                {buildTitle} - Complete
                                               </p>
                                               <p className="text-xs text-gray-400 mt-0.5">
                                                 {build.todos?.length || 0} tasks completed • {build.buildSummary ? 'Summary available' : build.projectName}
