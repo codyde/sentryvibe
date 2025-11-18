@@ -2996,6 +2996,8 @@ function HomeContent() {
                                             src={frameworkLogo}
                                             alt="framework logo"
                                             className="w-3.5 h-3.5 object-contain"
+                                            onLoad={() => console.log(`✅ [Framework Logo] Image loaded: ${frameworkLogo}`)}
+                                            onError={(e) => console.error(`❌ [Framework Logo] Image failed to load: ${frameworkLogo}`, e)}
                                           />
                                         )}
                                         <span className="text-gray-300">framework:</span>
