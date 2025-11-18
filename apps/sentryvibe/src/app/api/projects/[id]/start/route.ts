@@ -121,16 +121,47 @@ export async function POST(
       }, { status: 202 });
 
     } catch (error) {
-      // Update status to failed
+      // Extract and enhance error message for better user feedback
+      let errorMessage = 'Failed to start dev server';
+      let userFriendlyMessage = errorMessage;
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Provide user-friendly messages for common port allocation errors
+        if (errorMessage.includes('All ports in range')) {
+          const match = errorMessage.match(/(\d+)-(\d+)/);
+          if (match) {
+            const [, start, end] = match;
+            userFriendlyMessage = 
+              `All ports (${start}-${end}) are currently in use. ` +
+              `Please stop other dev servers to free up ports.`;
+          } else {
+            userFriendlyMessage = 'All available ports are in use. Please stop other dev servers.';
+          }
+        } else if (errorMessage.includes('No available ports')) {
+          userFriendlyMessage = 'No available ports found. Please stop other dev servers or check your system.';
+        } else if (errorMessage.includes('Unable to allocate port')) {
+          userFriendlyMessage = 'Could not allocate a port. Please ensure ports are available.';
+        } else {
+          // Use the original error message if it's already clear
+          userFriendlyMessage = errorMessage;
+        }
+      }
+
+      // Update project status with user-friendly error message
       await db.update(projects)
         .set({
           devServerStatus: 'failed',
           devServerPort: null,
-          errorMessage: error instanceof Error ? error.message : 'Failed to start dev server',
+          errorMessage: userFriendlyMessage,
         })
         .where(eq(projects.id, id));
 
-      throw error;
+      // Re-throw with enhanced message
+      const enhancedError = new Error(userFriendlyMessage);
+      enhancedError.stack = error instanceof Error ? error.stack : undefined;
+      throw enhancedError;
     }
 
   } catch (error) {

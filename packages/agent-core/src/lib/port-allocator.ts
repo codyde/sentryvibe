@@ -482,6 +482,48 @@ export async function checkPortAvailability(port: number): Promise<boolean> {
 }
 
 /**
+ * Intelligently scan for an available port in a range by checking actual OS availability
+ * Starts from a preferred port (or range start) and scans upward, then wraps around if needed
+ * Returns the first available port, or null if all ports in range are in use
+ */
+async function findAvailablePortInRange(
+  range: { start: number; end: number },
+  preferredStart?: number
+): Promise<number | null> {
+  const scanStart = preferredStart && preferredStart >= range.start && preferredStart <= range.end
+    ? preferredStart
+    : range.start;
+  
+  console.log(`[port-allocator] 🔍 Scanning for available port in range ${range.start}-${range.end}, starting from ${scanStart}`);
+  
+  // First pass: scan from scanStart to end of range
+  for (let port = scanStart; port <= range.end; port++) {
+    const isAvailable = await checkPortAvailability(port);
+    if (isAvailable) {
+      console.log(`[port-allocator] ✅ Found available port: ${port}`);
+      return port;
+    }
+    console.log(`[port-allocator] ❌ Port ${port} in use`);
+  }
+  
+  // Second pass: wrap around from range.start to scanStart (if we didn't start there)
+  if (scanStart > range.start) {
+    console.log(`[port-allocator] 🔄 Wrapping around to scan ${range.start}-${scanStart - 1}`);
+    for (let port = range.start; port < scanStart; port++) {
+      const isAvailable = await checkPortAvailability(port);
+      if (isAvailable) {
+        console.log(`[port-allocator] ✅ Found available port: ${port}`);
+        return port;
+      }
+      console.log(`[port-allocator] ❌ Port ${port} in use`);
+    }
+  }
+  
+  console.warn(`[port-allocator] ⚠️  No available ports found in range ${range.start}-${range.end}`);
+  return null;
+}
+
+/**
  * Get existing port allocation for a project
  * Returns null if no allocation exists
  */
@@ -506,98 +548,131 @@ export async function getPortForProject(projectId: string): Promise<ReservedPort
 /**
  * Reserve a port for a project, with automatic reallocation if unavailable
  * This is the main function to use when starting dev servers
+ * 
+ * Algorithm:
+ * 1. Check if project has existing valid allocation (reuse if available)
+ * 2. Scan OS for available port in framework's range
+ * 3. Reserve the port atomically in the database
+ * 
+ * For remote runners: skipPortCheck=true skips OS availability checks (trusts DB allocation)
  */
 export async function reserveOrReallocatePort(params: ReservePortParams, skipPortCheck = false): Promise<ReservedPortInfo> {
   const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
 
+  console.log(`[port-allocator] 🎯 Allocating port for project ${params.projectId}`);
+  console.log(`[port-allocator]    Framework: ${framework}, Range: ${range.start}-${range.end}`);
+  console.log(`[port-allocator]    Skip port check: ${skipPortCheck}`);
+
+  // Step 1: Check existing allocation - reuse if still valid and available
   const existing = await getPortForProject(params.projectId);
 
   if (existing) {
     const withinRange = existing.port >= range.start && existing.port <= range.end;
     const sameFramework = existing.framework === framework;
 
-    if (!withinRange || !sameFramework) {
-      console.warn(
-        `Existing allocation ${existing.port} for project ${params.projectId} is invalid for framework ${framework}. Reallocating...`
-      );
+    console.log(`[port-allocator] 📋 Found existing allocation: port ${existing.port} (framework: ${existing.framework})`);
+
+    if (!withinRange) {
+      console.warn(`[port-allocator] ⚠️  Port ${existing.port} outside valid range ${range.start}-${range.end}, will reallocate`);
+      await releasePortForProject(params.projectId);
+    } else if (!sameFramework) {
+      console.warn(`[port-allocator] ⚠️  Framework mismatch (${existing.framework} → ${framework}), will reallocate`);
       await releasePortForProject(params.projectId);
     } else {
-      // Skip port availability check for remote runners (different machines)
+      // Valid allocation - reuse if available or skipPortCheck
       if (skipPortCheck) {
+        console.log(`[port-allocator] ✅ Reusing port ${existing.port} (skipPortCheck=true)`);
         await db.update(portAllocations)
           .set({ reservedAt: new Date() })
           .where(eq(portAllocations.projectId, params.projectId))
           .execute();
-
         return existing;
       }
 
       const isAvailable = await checkPortAvailability(existing.port);
-
       if (isAvailable) {
+        console.log(`[port-allocator] ✅ Reusing port ${existing.port} (still available)`);
         await db.update(portAllocations)
           .set({ reservedAt: new Date() })
           .where(eq(portAllocations.projectId, params.projectId))
           .execute();
-
         return existing;
       }
 
-      console.warn(`Port ${existing.port} allocated to project ${params.projectId} is in use. Reallocating...`);
-    }
-  }
-
-  const allocationParams: ReservePortParams = {
-    ...params,
-    detectedFramework: params.detectedFramework ?? framework,
-  };
-
-  const triedPorts = new Set<number>();
-  let preferredPort = params.preferredPort ?? undefined;
-
-  for (let offset = 0; offset <= range.end - range.start; offset++) {
-    const attemptParams = {
-      ...allocationParams,
-      preferredPort,
-    } as ReservePortParams;
-
-    const allocation = await reservePortForProject(attemptParams);
-
-    if (triedPorts.has(allocation.port)) {
-      console.error(`[port-allocator] Infinite loop detected - already tried port ${allocation.port}`);
+      console.warn(`[port-allocator] ❌ Port ${existing.port} no longer available, will reallocate`);
       await releasePortForProject(params.projectId);
-      break;
-    }
-
-    triedPorts.add(allocation.port);
-
-    if (allocation.port < range.start || allocation.port > range.end) {
-      console.warn(`Allocated port ${allocation.port} is outside range ${range.start}-${range.end}, continuing...`);
-      preferredPort = allocation.port + 1;
-      continue;
-    }
-
-    // Skip port check for remote runners - trust the allocation
-    if (skipPortCheck) {
-      return allocation;
-    }
-
-    const isAvailable = await checkPortAvailability(allocation.port);
-    if (isAvailable) {
-      return allocation;
-    }
-
-    console.warn(`Allocated port ${allocation.port} is not available, trying another...`);
-    preferredPort = allocation.port + 1;
-
-    if (preferredPort && preferredPort > range.end) {
-      preferredPort = range.start;
     }
   }
 
-  await releasePortForProject(params.projectId);
-  throw new Error(`Unable to find available port in range ${range.start}-${range.end}`);
+  // Step 2: Find an available port
+  let availablePort: number | null = null;
+
+  if (skipPortCheck) {
+    // Remote runner: use DB-only allocation (trust that remote machine has ports available)
+    console.log(`[port-allocator] 🌐 Remote runner mode: using DB allocation without OS check`);
+    try {
+      const allocation = await reservePortForProject({
+        ...params,
+        detectedFramework: params.detectedFramework ?? framework,
+      });
+      availablePort = allocation.port;
+      console.log(`[port-allocator] ✅ Allocated port ${availablePort} from DB`);
+    } catch (error) {
+      throw new Error(`Unable to allocate port for remote runner: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  } else {
+    // Local runner: scan OS for actually available port
+    console.log(`[port-allocator] 💻 Local runner mode: scanning OS for available port`);
+    availablePort = await findAvailablePortInRange(range, params.preferredPort ?? undefined);
+
+    if (!availablePort) {
+      throw new Error(
+        `All ports in range ${range.start}-${range.end} are in use. ` +
+        `Please stop other dev servers or free up ports.`
+      );
+    }
+  }
+
+  // Step 3: Reserve the port atomically in the database
+  console.log(`[port-allocator] 💾 Reserving port ${availablePort} in database`);
+  
+  await db.transaction(async (tx) => {
+    // Clear any existing allocation for this project
+    await tx.update(portAllocations)
+      .set({ projectId: null, reservedAt: null })
+      .where(eq(portAllocations.projectId, params.projectId))
+      .execute();
+
+    // Check if this port already exists in DB
+    const existingPort = await tx.select()
+      .from(portAllocations)
+      .where(eq(portAllocations.port, availablePort!))
+      .limit(1)
+      .execute();
+
+    const now = new Date();
+
+    if (existingPort.length === 0) {
+      // Insert new port allocation
+      await tx.insert(portAllocations).values({
+        port: availablePort!,
+        framework,
+        projectId: params.projectId,
+        reservedAt: now,
+      }).execute();
+    } else {
+      // Update existing port allocation
+      await tx.update(portAllocations)
+        .set({ projectId: params.projectId, framework, reservedAt: now })
+        .where(eq(portAllocations.port, availablePort!))
+        .execute();
+    }
+  });
+
+  console.log(`[port-allocator] ✅ Successfully reserved port ${availablePort} for project ${params.projectId}\n`);
+  
+  return { port: availablePort, framework };
 }
 
 /**
