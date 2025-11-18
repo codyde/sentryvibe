@@ -182,6 +182,23 @@ export async function POST(
           console.log(`[build-route]    Reasoning: ${analysis.reasoning}`);
           console.log(`[build-route]    Confidence: ${analysis.confidence}`);
           console.log(`[build-route]    Analyzed by: ${analysis.analyzedBy}`);
+
+          // IMMEDIATE FRAMEWORK UPDATE: Save framework to DB right after template analysis
+          // This happens BEFORE runner starts, making it available immediately
+          if (templateMetadata?.framework) {
+            const [updated] = await db.update(projects)
+              .set({
+                detectedFramework: templateMetadata.framework,
+                lastActivityAt: new Date(),
+              })
+              .where(eq(projects.id, id))
+              .returning();
+
+            if (updated) {
+              console.log(`[build-route] 🚀 Framework saved immediately after analysis: ${templateMetadata.framework}`);
+              projectEvents.emitProjectUpdate(id, updated);
+            }
+          }
         } catch (analysisError) {
           console.error('[build-route] ⚠️ Template analysis failed, will fall back to runner auto-selection:', analysisError);
           // Don't fail the build - let the runner handle template selection as fallback
