@@ -9,5 +9,9 @@ export function getFrameworkLogo(frameworkValue: string): string | null {
     'astro': '/astro.png',
     'tanstack': '/logos/tanstack.png'
   };
-  return logoMap[frameworkValue] || null;
+
+  const result = logoMap[frameworkValue] || null;
+  console.log(`[getFrameworkLogo] Input: "${frameworkValue}", Output: ${result}`);
+
+  return result;
 }
