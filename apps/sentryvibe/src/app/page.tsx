@@ -510,6 +510,15 @@ function HomeContent() {
   // BUG FIX: Prevent same build from appearing in BOTH active section AND history
   const buildHistory = useMemo(() => {
     const builds = [...serverBuilds];
+
+    console.log('🔍 [buildHistory] Building history from:', {
+      serverBuildsCount: serverBuilds.length,
+      serverBuildIds: serverBuilds.map(b => b.id),
+      hasLocalGenerationState: !!generationState,
+      localBuildId: generationState?.id,
+      localIsActive: generationState?.isActive,
+    });
+
     if (
       generationState &&
       !generationState.isActive &&
@@ -517,8 +526,21 @@ function HomeContent() {
       generationState.todos.length > 0 &&
       !builds.some((build) => build.id === generationState.id)
     ) {
-      builds.unshift(generationState);
+      console.log('➕ [buildHistory] Adding LOCAL completed build to history:', {
+        buildId: generationState.id,
+        source: generationState.source || 'unknown',
+        todos: generationState.todos.length,
+      });
+      builds.unshift({ ...generationState, source: generationState.source || 'local' });
+    } else if (generationState && !generationState.isActive) {
+      console.log('⏭️ [buildHistory] Skipping local build (already in server builds):', generationState.id);
     }
+
+    console.log('✅ [buildHistory] Final history:', {
+      totalBuilds: builds.length,
+      buildIds: builds.map(b => ({ id: b.id, source: b.source })),
+    });
+
     return builds;
   }, [serverBuilds, generationState]);
 
