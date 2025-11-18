@@ -2924,20 +2924,16 @@ function HomeContent() {
                                   {currentProject.description}
                                 </p>
                               )}
-                              {/* Framework/Model tags - key on detectedFramework to force re-render */}
-                              {(() => {
-                                const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
-                                const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
-                                const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
-                                const modelLogo = modelValue ? getModelLogo(modelValue) : null;
-                                const frameworkLogo = currentProject.detectedFramework ? getFrameworkLogo(currentProject.detectedFramework) : null;
+                              {/* Framework/Model tags - Direct render for immediate updates */}
+                              {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
+                                    const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
+                                    const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
+                                    const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
+                                    const modelLogo = modelValue ? getModelLogo(modelValue) : null;
 
-                                // Show tags if we have either agent OR framework info
-                                if (!activeAgent && !currentProject.detectedFramework) return null;
-
-                                return (
-                                  <div key={currentProject.detectedFramework || 'no-framework'} className="flex flex-wrap gap-2 mt-2">
-                                    {activeAgent && (
+                                    return (
                                       <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
                                         {modelLogo && (
                                           <img
@@ -2951,8 +2947,11 @@ function HomeContent() {
                                           {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
                                         </span>
                                       </div>
-                                    )}
-                                    {currentProject.detectedFramework && (
+                                    );
+                                  })()}
+                                  {currentProject.detectedFramework && (() => {
+                                    const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
+                                    return (
                                       <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
                                         {frameworkLogo && (
                                           <img
@@ -2964,10 +2963,10 @@ function HomeContent() {
                                         <span className="text-gray-300">framework:</span>
                                         <span className="text-gray-200">{currentProject.detectedFramework}</span>
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                                    );
+                                  })()}
+                                </div>
+                              )}
                             </div>
                           </div>
 
