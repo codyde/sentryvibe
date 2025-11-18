@@ -2930,7 +2930,8 @@ function HomeContent() {
                                 const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
                                 const modelLogo = modelValue ? getModelLogo(modelValue) : null;
                                 const frameworkLogo = currentProject.detectedFramework ? getFrameworkLogo(currentProject.detectedFramework) : null;
-                                
+
+                                // Show tags if we have either agent OR framework info
                                 if (!activeAgent && !currentProject.detectedFramework) return null;
                                 
                                 return (
