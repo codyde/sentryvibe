@@ -315,9 +315,17 @@ function HomeContent() {
           projectFromQuery.tunnelUrl !== currentProject.tunnelUrl) {
         console.log('[page] 🔄 Syncing project from SSE query update:', {
           detectedFramework: projectFromQuery.detectedFramework,
+          existingFramework: currentProject.detectedFramework,
           devServerStatus: projectFromQuery.devServerStatus,
         });
-        setCurrentProject(projectFromQuery);
+
+        // STICKY FRAMEWORK: Preserve existing framework if new value is null
+        const preservedFramework = projectFromQuery.detectedFramework || currentProject.detectedFramework;
+
+        setCurrentProject({
+          ...projectFromQuery,
+          detectedFramework: preservedFramework,
+        });
       }
     }
   }, [projectFromQuery, currentProject]);
