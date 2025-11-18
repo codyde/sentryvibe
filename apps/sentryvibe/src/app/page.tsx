@@ -322,6 +322,13 @@ function HomeContent() {
         // STICKY FRAMEWORK: Preserve existing framework if new value is null
         const preservedFramework = projectFromQuery.detectedFramework || currentProject.detectedFramework;
 
+        console.log('[page] 🏷️ Framework update logic:', {
+          incomingFramework: projectFromQuery.detectedFramework,
+          existingFramework: currentProject.detectedFramework,
+          preservedFramework,
+          willUpdate: preservedFramework !== currentProject.detectedFramework,
+        });
+
         setCurrentProject({
           ...projectFromQuery,
           detectedFramework: preservedFramework,
@@ -2985,6 +2992,7 @@ function HomeContent() {
                                       <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
                                         {frameworkLogo && (
                                           <img
+                                            key={`framework-${currentProject.detectedFramework}`}
                                             src={frameworkLogo}
                                             alt="framework logo"
                                             className="w-3.5 h-3.5 object-contain"
