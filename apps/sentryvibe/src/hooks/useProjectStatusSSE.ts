@@ -60,6 +60,8 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
               lastActivityAt: data.project.lastActivityAt
                 ? new Date(data.project.lastActivityAt)
                 : null,
+              // STICKY FRAMEWORK: Don't overwrite existing framework with null
+              detectedFramework: data.project.detectedFramework || base.detectedFramework || null,
             };
           });
 
