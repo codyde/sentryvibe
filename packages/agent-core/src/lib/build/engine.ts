@@ -57,6 +57,7 @@ interface RuntimeMetadata {
   runCommand: string;
   projectType: string;
   port: number;
+  detectedFramework: string | null; // Framework detected from filesystem (next, vite, astro, etc.)
 }
 
 interface PackageJson {
@@ -166,10 +167,18 @@ async function detectRuntimeMetadata(projectPath: string): Promise<RuntimeMetada
       port = 5173;
     }
 
+    // CRITICAL FIX: Detect framework using filesystem analysis for port allocation
+    // Import needed at top of file
+    const { detectFrameworkFromFilesystem } = await import('../port-allocator');
+    const detectedFramework = await detectFrameworkFromFilesystem(projectPath);
+    
+    console.log(`[build-engine] 🔍 Detected framework: ${detectedFramework || 'unknown'}`);
+
     return {
       runCommand,
       projectType,
       port,
+      detectedFramework: detectedFramework || projectType, // Use filesystem detection or fall back to projectType
     };
   } catch (error) {
     if (process.env.DEBUG_BUILD === '1') console.warn('⚠️  Could not detect runtime metadata:', error);
