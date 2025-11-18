@@ -23,7 +23,7 @@ export default function DeleteProjectModal({
   onDeleteComplete,
 }: DeleteProjectModalProps) {
   const [confirmText, setConfirmText] = useState('');
-  const [deleteFiles, setDeleteFiles] = useState(false);
+  const [deleteFiles, setDeleteFiles] = useState(true); // Default to true - users expect files to be deleted
   const [copiedName, setCopiedName] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
 
