@@ -10,8 +10,5 @@ export function getFrameworkLogo(frameworkValue: string): string | null {
     'tanstack': '/logos/tanstack.png'
   };
 
-  const result = logoMap[frameworkValue] || null;
-  console.log(`[getFrameworkLogo] Input: "${frameworkValue}", Output: ${result}`);
-
-  return result;
+  return logoMap[frameworkValue] || null;
 }

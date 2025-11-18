@@ -41,12 +41,6 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
         }
 
         if (data.type === 'status-update' && data.project) {
-          console.log(`📥 [SSE] Received status update for ${projectId}:`, {
-            devServerStatus: data.project.devServerStatus,
-            devServerPort: data.project.devServerPort,
-            tunnelUrl: data.project.tunnelUrl,
-            detectedFramework: data.project.detectedFramework,
-          });
 
           // Update per-project cache directly (optimistic real-time update)
           queryClient.setQueryData<Project>(['projects', projectId], (old) => {
