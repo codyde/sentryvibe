@@ -1533,7 +1533,9 @@ function HomeContent() {
       projectId,
       prompt,
       operationType,
-      isElementChange
+      isElementChange,
+      undefined, // messageParts
+      freshState.id // Pass buildId directly
     );
   };
 
@@ -1542,13 +1544,14 @@ function HomeContent() {
     prompt: string,
     operationType: BuildOperationType,
     isElementChange: boolean = false,
-    messageParts?: MessagePart[]
+    messageParts?: MessagePart[],
+    buildId?: string
   ) => {
-    // CRITICAL: Use the buildId from generationState that was created in startGeneration()
+    // CRITICAL: Use the buildId passed from startGeneration() or fall back to ref
     // This ensures client and server use the SAME build ID for proper deduplication
-    const existingBuildId = generationStateRef.current?.id;
+    const existingBuildId = buildId || generationStateRef.current?.id;
 
-    console.log('🆔 [Build ID Sync] Using build ID from local state:', existingBuildId);
+    console.log('🆔 [Build ID Sync] Using build ID:', existingBuildId, buildId ? '(passed)' : '(from ref)');
     try {
       // Derive agent and model from tags if present, otherwise use context
       const modelTag = appliedTags.find(t => t.key === 'model');
@@ -2367,7 +2370,8 @@ function HomeContent() {
           userPrompt,
           "initial-build",
           false,
-          messageParts.length > 0 ? messageParts : undefined
+          messageParts.length > 0 ? messageParts : undefined,
+          freshState.id // Pass buildId for initial builds too
         );
 
         // Refresh project list to pick up final state
