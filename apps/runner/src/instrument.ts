@@ -33,13 +33,8 @@ const sentryOptions: RunnerSentryOptions = {
   ],
   tracesSampleRate: 1.0,
   enableLogs: true,
-  debug: false,
+  debug: true,
   sendDefaultPii: true,
-  
-  _experiments: {
-    enableMetrics: true,
-  },
-
   // Configure trace propagation (Runner → Broker communication)
   tracePropagationTargets: [
     // Local development

@@ -385,6 +385,15 @@ async function forwardEvent(event: RunnerEvent) {
         Authorization: `Bearer ${SHARED_SECRET}`,
       };
 
+      // If event has trace context from runner, add it as HTTP headers
+      // This bridges WebSocket → HTTP and enables trace continuation in Next.js
+      if (event._sentry?.trace) {
+        headers['sentry-trace'] = event._sentry.trace;
+        if (event._sentry.baggage) {
+          headers['baggage'] = event._sentry.baggage;
+        }
+      }
+
       const response = await fetchWithRetry(`${EVENT_TARGET.replace(/\/$/, '')}/api/runner/events`, {
         method: 'POST',
         headers,
@@ -418,5 +427,32 @@ async function forwardEvent(event: RunnerEvent) {
     }
   };
 
-  await forwardOperation();
+  // If event has trace context, continue the trace with a span
+  if (event._sentry?.trace && event._sentry?.baggage) {
+    await Sentry.continueTrace(
+      {
+        sentryTrace: event._sentry.trace,
+        baggage: event._sentry.baggage,
+      },
+      async () => {
+        await Sentry.startSpan(
+          {
+            name: `broker.forwardEvent.${event.type}`,
+            op: 'broker.event.forward',
+            attributes: {
+              'event.type': event.type,
+              'event.projectId': event.projectId,
+              'event.commandId': event.commandId,
+            },
+          },
+          async () => {
+            await forwardOperation();
+          }
+        );
+      }
+    );
+  } else {
+    // No trace context, just forward
+    await forwardOperation();
+  }
 }

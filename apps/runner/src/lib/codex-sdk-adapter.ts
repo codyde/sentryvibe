@@ -327,6 +327,58 @@ function extractAndConvertTodoWrite(text: string): string {
     }
   }
 
+  // ALSO extract standalone JSON objects: {"todos":[...]}
+  // Codex often outputs these directly without TodoWrite() wrapper or code blocks
+  // Look for objects that start with {"todos" (more specific than just any brace)
+  const standaloneJsonPattern = /\{\s*["']?todos["']?\s*:/g;
+  let jsonMatch: RegExpExecArray | null;
+  const standaloneReplacements: Array<{ original: string; replacement: string }> = [];
+
+  while ((jsonMatch = standaloneJsonPattern.exec(result)) !== null) {
+    // Start position is the opening brace (first character of the match)
+    const startPos = jsonMatch.index;
+    
+    // Try to extract balanced JSON starting from the brace
+    const extracted = extractBalancedJson(result, startPos);
+    
+    if (!extracted) {
+      continue;
+    }
+
+    try {
+      // Convert JS object notation to strict JSON
+      const strictJSON = convertJSObjectToJSON(extracted.json);
+      const parsed = JSON.parse(strictJSON);
+
+      // Check if it's a todos structure
+      if (parsed.todos && Array.isArray(parsed.todos)) {
+        const validTodos = parsed.todos.filter((t: any) =>
+          t && typeof t === 'object' && (t.content || t.activeForm)
+        );
+
+        if (validTodos.length > 0) {
+          // Convert to TODO_WRITE marker
+          const todoWriteMarker = `TODO_WRITE : ${JSON.stringify({ todos: validTodos })}`;
+          standaloneReplacements.push({
+            original: extracted.json,
+            replacement: todoWriteMarker
+          });
+
+          streamLog.info(`[Codex Adapter] Extracted ${validTodos.length} todos from standalone JSON`);
+          streamLog.info(`[Codex Adapter] First todo: ${JSON.stringify(validTodos[0])}`);
+        }
+      }
+    } catch (error) {
+      // Not valid JSON or not a todos structure, continue searching
+      continue;
+    }
+  }
+
+  // Apply standalone replacements
+  for (const { original, replacement } of standaloneReplacements) {
+    result = result.replace(original, replacement);
+  }
+
   return result;
 }
 

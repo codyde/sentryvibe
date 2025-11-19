@@ -12,6 +12,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import type { GenerationState } from '../../types/generation';
+import * as Sentry from '@sentry/node';
 
 interface ClientSubscription {
   ws: WebSocket;
@@ -35,6 +36,7 @@ interface BatchedUpdate {
     type: string;
     data: unknown;
     timestamp: number;
+    _sentry?: { trace?: string; baggage?: string }; // Optional trace context for distributed tracing
   }>;
 }
 
@@ -175,11 +177,19 @@ class BuildWebSocketServer {
       });
     }
 
+    // OPTIONAL: Capture current trace context if available
+    const activeSpan = Sentry.getActiveSpan();
+    const traceContext = activeSpan ? {
+      trace: Sentry.getTraceData()['sentry-trace'],
+      baggage: Sentry.getTraceData().baggage,
+    } : undefined;
+
     const batch = this.pendingUpdates.get(key)!;
     batch.updates.push({
       type: 'state-update',
       data: state,
       timestamp: Date.now(),
+      _sentry: traceContext, // Optional - won't break if missing
     });
 
     // If batch is getting large, flush immediately
@@ -212,11 +222,19 @@ class BuildWebSocketServer {
       });
     }
 
+    // OPTIONAL: Capture current trace context if available
+    const activeSpan = Sentry.getActiveSpan();
+    const traceContext = activeSpan ? {
+      trace: Sentry.getTraceData()['sentry-trace'],
+      baggage: Sentry.getTraceData().baggage,
+    } : undefined;
+
     const batch = this.pendingUpdates.get(key)!;
     batch.updates.push({
       type: 'tool-call',
       data: toolCall,
       timestamp: Date.now(),
+      _sentry: traceContext, // Optional - won't break if missing
     });
   }
 

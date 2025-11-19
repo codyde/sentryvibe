@@ -230,8 +230,6 @@ function extractCodexToolOutput(item: Record<string, unknown> | undefined) {
   return null;
 }
 
-metrics.count('codex.event.count', 1);
-
 async function* convertCodexEventsToAgentMessages(
   events: AsyncIterable<unknown>
 ): AsyncGenerator<Record<string, unknown>, void, unknown> {
@@ -1114,6 +1112,18 @@ export async function startRunner(options: RunnerOptions = {}) {
     
     const sendOperation = () => {
       try {
+        // Capture trace context for traceable events (build-completed, build-failed)
+        if (shouldTrace) {
+          const span = Sentry.getActiveSpan();
+          if (span) {
+            const traceData = Sentry.getTraceData();
+            event._sentry = {
+              trace: traceData['sentry-trace'],
+              baggage: traceData.baggage,
+            };
+          }
+        }
+
         const eventJson = JSON.stringify(event);
 
         // Only log important events
@@ -1141,21 +1151,25 @@ export async function startRunner(options: RunnerOptions = {}) {
       }
     };
 
-    const startTime = Date.now();
-    sendOperation();
-    const duration = Date.now() - startTime;
-
-    if (shouldTrace && duration < 1) {
-      Sentry.addBreadcrumb({
-        category: 'runner.event.send',
-        message: `Sent ${event.type} event (${duration}ms)`,
-        level: 'debug',
-        data: {
-          eventType: event.type,
-          projectId: event.projectId,
-          duration,
+    // Wrap critical events in span for tracing
+    if (shouldTrace) {
+      Sentry.startSpan(
+        {
+          name: `runner.sendEvent.${event.type}`,
+          op: 'runner.event.send',
+          attributes: {
+            'event.type': event.type,
+            'event.projectId': event.projectId,
+            'event.commandId': event.commandId,
+            'event.size': JSON.stringify(event).length,
+          },
         },
-      });
+        () => {
+          sendOperation();
+        }
+      );
+    } else {
+      sendOperation();
     }
   }
 
@@ -1710,7 +1724,19 @@ export async function startRunner(options: RunnerOptions = {}) {
         fileLog.info("Agent:", command.payload?.agent);
         fileLog.info("Template:", command.payload?.template);
 
-        try {
+        await Sentry.startSpan(
+          {
+            name: "runner.build",
+            op: "ai.build",
+            attributes: {
+              "build.project_id": command.projectId,
+              "build.operation": command.payload?.operationType,
+              "build.agent": command.payload?.agent,
+              "build.template": command.payload?.template?.name,
+            },
+          },
+          async () => {
+            try {
               loggedFirstChunk = false;
               if (!command.payload?.prompt || !command.payload?.operationType) {
                 throw new Error("Invalid build payload");
@@ -2108,6 +2134,10 @@ export async function startRunner(options: RunnerOptions = {}) {
               });
             } catch (error) {
               console.error("Failed to run build", error);
+              Sentry.getActiveSpan()?.setStatus({
+                code: 2, // SPAN_STATUS_ERROR
+                message: "Build failed",
+              });
               sendEvent({
                 type: "build-failed",
                 ...buildEventBase(command.projectId, command.id),
@@ -2117,7 +2147,10 @@ export async function startRunner(options: RunnerOptions = {}) {
                     : "Failed to run build",
                 stack: error instanceof Error ? error.stack : undefined,
               });
+              throw error; // Re-throw to mark span as failed
             }
+          }
+        );
         break;
       }
       default:
@@ -2231,10 +2264,34 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        handleCommand(command).catch((error) => {
-          console.error("Failed to process command", error);
-          Sentry.captureException(error);
-        });
+        // Continue trace if parent trace context exists, otherwise start new
+        if (command._sentry?.trace) {
+          console.log("continuing trace", command._sentry.trace);
+          Sentry.continueTrace(
+            {
+              sentryTrace: command._sentry.trace,
+              baggage: command._sentry.baggage,
+            },
+            async () => {
+              // Add metadata to trace
+              Sentry.setTag("command_type", command.type);
+              Sentry.setTag("project_id", command.projectId);
+              Sentry.setTag("command_id", command.id);
+
+              await handleCommand(command);
+            }
+          );
+        } else {
+          console.log("starting new trace");
+          // No parent trace - start new one
+          Sentry.startNewTrace(async () => {
+            Sentry.setTag("command_type", command.type);
+            Sentry.setTag("project_id", command.projectId);
+            Sentry.setTag("command_id", command.id);
+
+            await handleCommand(command);
+          });
+        }
       } catch (error) {
         console.error("Failed to parse command", error);
         Sentry.captureException(error);
