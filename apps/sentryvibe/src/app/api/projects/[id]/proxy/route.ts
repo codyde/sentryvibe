@@ -4,6 +4,8 @@ import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { SELECTION_SCRIPT } from '@sentryvibe/agent-core/lib/selection/injector';
 
+type ProjectRecord = typeof projects.$inferSelect;
+
 /**
  * Simple, robust proxy for dev servers
  * Routes ALL requests through this endpoint to avoid CORS issues
@@ -28,7 +30,7 @@ export async function POST(
   const { id } = await params;
   const url = new URL(req.url);
   const path = url.searchParams.get('path') || '/';
-  let proj: (typeof projects.$inferSelect) | undefined;
+  let proj: ProjectRecord | undefined;
 
   try {
     // Get project
@@ -96,7 +98,8 @@ export async function GET(
   const { id } = await params;
   const url = new URL(req.url);
   const path = url.searchParams.get('path') || '/';
-  let proj: (typeof projects.$inferSelect) | undefined;
+  let proj: ProjectRecord | undefined;
+  const projectDebugInfo: Partial<Pick<ProjectRecord, 'devServerPort' | 'tunnelUrl' | 'devServerStatus'>> = {};
 
   try {
     // Get project
@@ -106,6 +109,9 @@ export async function GET(
     }
 
     proj = project[0];
+    projectDebugInfo.devServerPort = proj.devServerPort;
+    projectDebugInfo.tunnelUrl = proj.tunnelUrl;
+    projectDebugInfo.devServerStatus = proj.devServerStatus;
 
     // Check if server running
     if (proj.devServerStatus !== 'running' || !proj.devServerPort) {
@@ -387,9 +393,9 @@ export async function GET(
     console.error('❌ Proxy error:', error);
     console.error('   Project:', id);
     console.error('   Path:', path);
-    console.error('   Port:', proj?.devServerPort);
-    console.error('   Tunnel URL:', proj?.tunnelUrl);
-    console.error('   Dev server status:', proj?.devServerStatus);
+    console.error('   Port:', projectDebugInfo.devServerPort);
+    console.error('   Tunnel URL:', projectDebugInfo.tunnelUrl);
+    console.error('   Dev server status:', projectDebugInfo.devServerStatus);
     return new NextResponse(
       `Proxy failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { status: 500 }
