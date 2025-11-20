@@ -25,7 +25,7 @@ export async function GET() {
 
       return {
         projectId: project.id,
-        projectName: project.name,
+        projectName: project.name || project.slug || 'Unnamed Project',
         projectSlug: project.slug,
         pid: project.devServerPid || null,
         port: project.devServerPort || null,

@@ -60,7 +60,7 @@ export function ActivityFeed({ projects }: ActivityFeedProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-white truncate">
-                  {project.name}
+                  {project.name || project.slug || 'Unnamed Project'}
                 </span>
               </div>
               <p className="text-xs text-yellow-300/80 mt-0.5">
@@ -94,7 +94,7 @@ export function ActivityFeed({ projects }: ActivityFeedProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-white truncate">
-                  {project.name}
+                  {project.name || project.slug || 'Unnamed Project'}
                 </span>
               </div>
               <p className="text-xs text-green-300/80 mt-0.5">
@@ -121,7 +121,7 @@ export function ActivityFeed({ projects }: ActivityFeedProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-white truncate">
-                  {project.name}
+                  {project.name || project.slug || 'Unnamed Project'}
                 </span>
               </div>
               <p className="text-xs text-red-300/80 mt-0.5 truncate">

@@ -18,7 +18,14 @@ const CODEX_MODEL = 'gpt-5-codex';
 export async function GET() {
   try {
     const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
-    return NextResponse.json({ projects: allProjects });
+    
+    // Validate and sanitize project data - ensure all projects have a valid name
+    const validatedProjects = allProjects.map(project => ({
+      ...project,
+      name: project.name || project.slug || 'Unnamed Project',
+    }));
+    
+    return NextResponse.json({ projects: validatedProjects });
   } catch (error) {
     console.error('Error fetching projects:', error);
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });

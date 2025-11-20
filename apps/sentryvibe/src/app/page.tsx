@@ -1475,7 +1475,7 @@ function HomeContent() {
     
     // CRITICAL DEBUG: Log project state and detected operation type
     console.log("🎬 Starting build for existing project:", {
-      projectName: project.name,
+      projectName: project.name || project.slug || 'Unnamed Project',
       projectId: project.id,
       projectStatus: project.status,
       projectPath: project.path,
@@ -1498,7 +1498,7 @@ function HomeContent() {
     }
     
     if (DEBUG_PAGE) console.log("🎬 Starting build:", {
-      projectName: project.name,
+      projectName: project.name || project.slug || 'Unnamed Project',
       operationType,
     });
 
@@ -1516,7 +1516,7 @@ function HomeContent() {
     // Create FRESH generation state for this build with tag-derived values
     const freshState = createFreshGenerationState({
       projectId: project.id,
-      projectName: project.name,
+      projectName: project.name || project.slug || 'Unnamed Project',
       operationType,
       agentId: effectiveAgent,
       claudeModelId: effectiveClaudeModel,
@@ -2289,7 +2289,7 @@ function HomeContent() {
         // Create FRESH generationState BEFORE URL changes
         if (DEBUG_PAGE) console.log(
           "🎬 Creating generation state for initial build:",
-          project.name
+          project.name || project.slug || 'Unnamed Project'
         );
         console.log("🔍 [page.tsx] Creating fresh state with agent:", {
           effectiveAgent,
@@ -2300,7 +2300,7 @@ function HomeContent() {
         });
         const freshState = createFreshGenerationState({
           projectId: project.id,
-          projectName: project.name,
+          projectName: project.name || project.slug || 'Unnamed Project',
           operationType: "initial-build",
           agentId: effectiveAgent,
           claudeModelId: effectiveAgent === "claude-code" ? effectiveClaudeModel : undefined,
