@@ -2267,8 +2267,46 @@ export async function startRunner(options: RunnerOptions = {}) {
               sentryTrace: command._sentry.trace,
               baggage: command._sentry.baggage,
             },
+            () => {
+              // Force transaction creation with explicit sampling
+              // This ensures runner operations are always traced, even if parent decided not to sample
+              Sentry.startSpan(
+                {
+                  name: `runner.command.${command.type}`,
+                  op: 'runner.command',
+                  forceTransaction: true, // Create new transaction with independent sampling
+                  attributes: {
+                    'command.type': command.type,
+                    'command.id': command.id,
+                    'project.id': command.projectId,
+                  },
+                },
+                async () => {
+                  // Add metadata to trace
+                  Sentry.setTag("command_type", command.type);
+                  Sentry.setTag("project_id", command.projectId);
+                  Sentry.setTag("command_id", command.id);
+
+                  await handleCommand(command);
+                }
+              );
+            }
+          );
+        } else {
+          console.log("starting new trace");
+          // No parent trace - start new one with independent sampling
+          Sentry.startSpan(
+            {
+              name: `runner.command.${command.type}`,
+              op: 'runner.command',
+              forceTransaction: true,
+              attributes: {
+                'command.type': command.type,
+                'command.id': command.id,
+                'project.id': command.projectId,
+              },
+            },
             async () => {
-              // Add metadata to trace
               Sentry.setTag("command_type", command.type);
               Sentry.setTag("project_id", command.projectId);
               Sentry.setTag("command_id", command.id);
@@ -2276,16 +2314,6 @@ export async function startRunner(options: RunnerOptions = {}) {
               await handleCommand(command);
             }
           );
-        } else {
-          console.log("starting new trace");
-          // No parent trace - start new one
-          Sentry.startNewTrace(async () => {
-            Sentry.setTag("command_type", command.type);
-            Sentry.setTag("project_id", command.projectId);
-            Sentry.setTag("command_id", command.id);
-
-            await handleCommand(command);
-          });
         }
       } catch (error) {
         console.error("Failed to parse command", error);
