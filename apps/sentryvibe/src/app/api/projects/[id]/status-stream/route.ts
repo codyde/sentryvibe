@@ -69,6 +69,25 @@ export async function GET(
     }
   };
 
+  const sendStreamError = (
+    controller: ReadableStreamDefaultController,
+    error: unknown,
+    fallbackMessage = 'Failed to start status stream'
+  ) => {
+    const detail = error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : fallbackMessage;
+    const payload = `data: ${JSON.stringify({
+      type: 'error',
+      message: fallbackMessage,
+      detail,
+    })}\n\n`;
+    safeEnqueue(controller, payload);
+    safeClose(controller);
+  };
+
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -174,11 +193,7 @@ export async function GET(
       } catch (error) {
         console.error(`❌ Error starting status stream for ${id}:`, error);
         if (!isClosed) {
-          try {
-            controller.error(error);
-          } catch {
-            safeClose(controller);
-          }
+          sendStreamError(controller, error);
         }
       }
     },
