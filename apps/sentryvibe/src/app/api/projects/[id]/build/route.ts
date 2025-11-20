@@ -21,6 +21,7 @@ import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { parseModelTag } from '@sentryvibe/agent-core/lib/tags/model-parser';
 import { TAG_DEFINITIONS } from '@sentryvibe/agent-core/config/tags';
 import { projectEvents } from '@/lib/project-events';
+import * as Sentry from '@sentry/nextjs';
 
 export const maxDuration = 30;
 
@@ -40,10 +41,28 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  let commandId: string | undefined;
-  let cleanup: (() => void) | undefined;
-  try {
-    const { id } = await params;
+  // Create isolated trace for this build request
+  // This ensures each build gets its own unique trace ID while maintaining
+  // distributed tracing chain visibility (this trace → broker → runner → AI)
+  return await Sentry.withIsolationScope(async (scope) => {
+    return await Sentry.startSpan(
+      {
+        name: 'POST /api/projects/[id]/build',
+        op: 'http.server',
+        forceTransaction: true, // Each build request = new trace
+        attributes: {
+          'http.method': 'POST',
+          'http.route': '/api/projects/[id]/build',
+        },
+      },
+      async () => {
+        let commandId: string | undefined;
+        let cleanup: (() => void) | undefined;
+        try {
+          const { id } = await params;
+          
+          // Set project ID on scope for this isolated trace
+          scope.setTag('project.id', id);
     const body = (await req.json()) as BuildRequest;
 
     if (!body?.operationType || !body?.prompt) {
@@ -539,23 +558,26 @@ export async function POST(
         'Transfer-Encoding': 'chunked',
       },
     });
-  } catch (error) {
-    console.error('❌ Build request failed:', error);
+        } catch (error) {
+          console.error('❌ Build request failed:', error);
 
-    cleanup?.();
+          cleanup?.();
 
-    if (error instanceof Error && /not connected/i.test(error.message)) {
-      return new Response(JSON.stringify({ error: 'Runner is not connected' }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+          if (error instanceof Error && /not connected/i.test(error.message)) {
+            return new Response(JSON.stringify({ error: 'Runner is not connected' }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
 
-    return new Response(JSON.stringify({ error: 'Build failed' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+          return new Response(JSON.stringify({ error: 'Build failed' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    ); // close startSpan
+  }); // close withIsolationScope
 }
 
 function normalizeSSEChunk(chunk: string): string | null {

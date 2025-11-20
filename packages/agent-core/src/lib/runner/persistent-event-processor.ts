@@ -839,6 +839,16 @@ export function registerBuild(
     isFinalized: false, // Track finalization to prevent duplicate broadcasts
   };
 
+  // High-value events that should create spans (excludes high-volume low-signal events)
+  const SPAN_WORTHY_EVENT_TYPES = [
+    'start',
+    'finish',
+    'tool-input-available',
+    'tool-output-available',
+    // NOT text-delta (500+ per build)
+    // NOT reasoning (100+ per build)
+  ];
+
   // Subscribe to runner events - this subscription persists across HTTP disconnections
   const unsubscribe = addRunnerEventSubscriber(commandId, async (event: RunnerEvent) => {
     try {
@@ -849,62 +859,115 @@ export function registerBuild(
         if (match) {
           const eventData = JSON.parse(match[1]);
           
-          // Wrap persistEvent in span for database tracing
-          await Sentry.startSpan(
-            {
-              name: `persistent-processor.persistEvent.${eventData.type}`,
-              op: 'db.persist.event',
-              attributes: {
-                'event.type': eventData.type,
-                'event.projectId': context.projectId,
-                'event.sessionId': context.sessionId,
-                'event.commandId': commandId,
-              },
-            },
-            async () => {
+          // Only create spans for high-value events (not text-delta/reasoning)
+          const shouldCreateSpan = SPAN_WORTHY_EVENT_TYPES.includes(eventData.type);
+          
+          // Continue trace from runner if available
+          const continueTraceAndPersist = async () => {
+            if (shouldCreateSpan) {
+              await Sentry.startSpan(
+                {
+                  name: `persistent-processor.persistEvent.${eventData.type}`,
+                  op: 'db.persist.event',
+                  attributes: {
+                    'event.type': eventData.type,
+                    'event.projectId': context.projectId,
+                    'event.sessionId': context.sessionId,
+                    'event.commandId': commandId,
+                  },
+                },
+                async () => {
+                  await persistEvent(context, eventData);
+                }
+              );
+            } else {
+              // Just persist without creating a span (reduces volume by 90%)
               await persistEvent(context, eventData);
             }
-          );
+          };
+          
+          // Continue trace from runner's event context
+          if (event._sentry?.trace) {
+            await Sentry.continueTrace(
+              {
+                sentryTrace: event._sentry.trace,
+                baggage: event._sentry.baggage,
+              },
+              continueTraceAndPersist
+            );
+          } else {
+            await continueTraceAndPersist();
+          }
         }
       } else if (event.type === 'build-completed') {
         console.log(`[persistent-processor] 🎉 Received build-completed event for ${commandId}`);
 
-        // Wrap finalize in span
-        await Sentry.startSpan(
-          {
-            name: 'persistent-processor.finalizeSession.completed',
-            op: 'db.persist.finalize',
-            attributes: {
-              'event.projectId': context.projectId,
-              'event.sessionId': context.sessionId,
-              'event.commandId': commandId,
-              'session.status': 'completed',
+        // Continue trace from runner and wrap finalize in span
+        const finalizeOperation = async () => {
+          await Sentry.startSpan(
+            {
+              name: 'persistent-processor.finalizeSession.completed',
+              op: 'db.persist.finalize',
+              attributes: {
+                'event.projectId': context.projectId,
+                'event.sessionId': context.sessionId,
+                'event.commandId': commandId,
+                'session.status': 'completed',
+              },
             },
-          },
-          async () => {
-            await finalizeSession(context, 'completed', new Date());
-          }
-        );
+            async () => {
+              await finalizeSession(context, 'completed', new Date());
+            }
+          );
+        };
+        
+        if (event._sentry?.trace) {
+          await Sentry.continueTrace(
+            {
+              sentryTrace: event._sentry.trace,
+              baggage: event._sentry.baggage,
+            },
+            finalizeOperation
+          );
+        } else {
+          await finalizeOperation();
+        }
+        
         cleanupBuild(commandId);
       } else if (event.type === 'build-failed' || event.type === 'error') {
         console.log(`[persistent-processor] ❌ Received build-failed/error event for ${commandId}`);
 
-        // Wrap finalize in span
-        await Sentry.startSpan(
-          {
-            name: 'persistent-processor.finalizeSession.failed',
-            op: 'db.persist.finalize',
-            attributes: {
-              'event.projectId': context.projectId,
-              'event.sessionId': context.sessionId,
-              'event.commandId': commandId,
-              'session.status': 'failed',
+        // Continue trace from runner and wrap finalize in span
+        const finalizeOperation = async () => {
+          await Sentry.startSpan(
+            {
+              name: 'persistent-processor.finalizeSession.failed',
+              op: 'db.persist.finalize',
+              attributes: {
+                'event.projectId': context.projectId,
+                'event.sessionId': context.sessionId,
+                'event.commandId': commandId,
+                'session.status': 'failed',
+              },
             },
-          },
-          async () => {
-            await finalizeSession(context, 'failed', new Date());
-          }
-        );
+            async () => {
+              await finalizeSession(context, 'failed', new Date());
+            }
+          );
+        };
+        
+        if (event._sentry?.trace) {
+          await Sentry.continueTrace(
+            {
+              sentryTrace: event._sentry.trace,
+              baggage: event._sentry.baggage,
+            },
+            finalizeOperation
+          );
+        } else {
+          await finalizeOperation();
+        }
+        
         cleanupBuild(commandId);
       }
     } catch (error) {
