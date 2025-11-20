@@ -2259,62 +2259,54 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Continue trace if parent trace context exists, otherwise start new
-        if (command._sentry?.trace) {
-          console.log("continuing trace", command._sentry.trace);
-          Sentry.continueTrace(
-            {
-              sentryTrace: command._sentry.trace,
-              baggage: command._sentry.baggage,
-            },
-            () => {
-              // Force transaction creation with explicit sampling
-              // This ensures runner operations are always traced, even if parent decided not to sample
-              Sentry.startSpan(
-                {
-                  name: `runner.command.${command.type}`,
-                  op: 'runner.command',
-                  forceTransaction: true, // Create new transaction with independent sampling
-                  attributes: {
-                    'command.type': command.type,
-                    'command.id': command.id,
-                    'project.id': command.projectId,
-                  },
-                },
-                async () => {
-                  // Add metadata to trace
-                  Sentry.setTag("command_type", command.type);
-                  Sentry.setTag("project_id", command.projectId);
-                  Sentry.setTag("command_id", command.id);
-
-                  await handleCommand(command);
-                }
-              );
+        // Each command gets its own isolated trace to prevent multiple builds
+        // from being grouped together. We link to parent via attributes for correlation.
+        Sentry.withIsolationScope((scope) => {
+          // Extract parent trace info for linking (but don't continue it)
+          let parentTraceId: string | undefined;
+          if (command._sentry?.trace) {
+            console.log("linking to parent trace", command._sentry.trace);
+            // Parse sentry-trace header: {trace_id}-{span_id}-{sampled}
+            const parts = command._sentry.trace.split('-');
+            if (parts.length >= 2) {
+              parentTraceId = parts[0];
+              scope.setContext('parent_trace', {
+                trace_id: parentTraceId,
+                span_id: parts[1],
+                sampled: parts[2] === '1',
+              });
             }
-          );
-        } else {
-          console.log("starting new trace");
-          // No parent trace - start new one with independent sampling
+          }
+          
+          // Create a new trace for this command with its own transaction
+          // This ensures each build is a separate trace in Sentry
           Sentry.startSpan(
             {
               name: `runner.command.${command.type}`,
               op: 'runner.command',
-              forceTransaction: true,
+              forceTransaction: true, // Each command is its own transaction
               attributes: {
                 'command.type': command.type,
                 'command.id': command.id,
                 'project.id': command.projectId,
+                // Link to parent trace for correlation without grouping
+                ...(parentTraceId && { 'parent.trace_id': parentTraceId }),
               },
             },
             async () => {
-              Sentry.setTag("command_type", command.type);
-              Sentry.setTag("project_id", command.projectId);
-              Sentry.setTag("command_id", command.id);
+              // Add metadata to this isolated trace
+              scope.setTag("command_type", command.type);
+              scope.setTag("project_id", command.projectId);
+              scope.setTag("command_id", command.id);
+              
+              if (parentTraceId) {
+                scope.setTag("parent_trace_id", parentTraceId);
+              }
 
               await handleCommand(command);
             }
           );
-        }
+        });
       } catch (error) {
         console.error("Failed to parse command", error);
         Sentry.captureException(error);
