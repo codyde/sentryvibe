@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { metrics } from '@sentry/core';
+import * as Sentry from '@sentry/nextjs';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
@@ -54,10 +54,24 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    const updated = await db.update(projects)
-      .set(filteredUpdates)
-      .where(eq(projects.id, id))
-      .returning();
+    // Wrap database update in span for tracing
+    const updated = await Sentry.startSpan(
+      {
+        name: `api.projects.update${filteredUpdates.generationState ? '.generationState' : ''}`,
+        op: 'db.update',
+        attributes: {
+          'project.id': id,
+          'update.fields': Object.keys(filteredUpdates).join(','),
+          'update.hasGenerationState': !!filteredUpdates.generationState,
+        },
+      },
+      async () => {
+        return await db.update(projects)
+          .set(filteredUpdates)
+          .where(eq(projects.id, id))
+          .returning();
+      }
+    );
 
     if (updated.length === 0) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
@@ -104,7 +118,7 @@ export async function DELETE(
     await db.delete(projects).where(eq(projects.id, id));
 
     // Instrument project deletion metric
-    metrics.count('project_delete', 1, {
+    Sentry.metrics.count('project_delete', 1, {
       attributes: {
         project_id: id,
         delete_files: deleteFiles.toString(),

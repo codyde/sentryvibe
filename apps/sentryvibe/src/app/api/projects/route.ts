@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import * as Sentry from '@sentry/node';
-import { createInstrumentedCodex } from '@sentry/node';
-import { metrics } from '@sentry/core';
+import * as Sentry from '@sentry/nextjs';
+import { createInstrumentedCodex } from '@sentry/nextjs';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, messages } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -70,6 +69,22 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
+    // Extract User-Agent for browser tracking
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    
+    // Simple browser detection from User-Agent
+    const getBrowserType = (ua: string): string => {
+      const uaLower = ua.toLowerCase();
+      if (uaLower.includes('edg/')) return 'edge';
+      if (uaLower.includes('chrome/') && !uaLower.includes('edg/')) return 'chrome';
+      if (uaLower.includes('firefox/')) return 'firefox';
+      if (uaLower.includes('safari/') && !uaLower.includes('chrome/')) return 'safari';
+      if (uaLower.includes('opera/') || uaLower.includes('opr/')) return 'opera';
+      return 'other';
+    };
+    
+    const browserType = getBrowserType(userAgent);
+
     const { prompt, agent = 'claude-code', tags } = (await request.json()) as { prompt: string; agent?: AgentId; tags?: { key: string; value: string }[] };
 
     if (!prompt) {
@@ -209,6 +224,7 @@ export async function POST(request: Request) {
     // Track project submission with key tags
     const submissionAttributes: Record<string, string> = {
       project_id: project.id,
+      browser: browserType,
     };
     
     // Extract the 4 key tags we care about
@@ -221,10 +237,12 @@ export async function POST(request: Request) {
     }
     
     // Track project submission
-    metrics.count('project.submitted', 1, {
+    console.log('[DEBUG] About to send project.submitted metric with attributes:', submissionAttributes);
+    Sentry.metrics.count('project.submitted', 1, {
       attributes: submissionAttributes
-      // e.g., { project_id: '123', model: 'claude-sonnet-4-5', framework: 'next', brand: 'sentry', runner: 'abc-123' }
+      // e.g., { project_id: '123', browser: 'chrome', model: 'claude-sonnet-4-5', framework: 'next', brand: 'sentry', runner: 'abc-123' }
     });
+    console.log('[DEBUG] Metric call completed');
 
     return NextResponse.json({
       project,

@@ -9,6 +9,7 @@ export interface Project {
   icon: string | null;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   projectType: string | null;
+  detectedFramework: string | null;
   path: string;
   runCommand: string | null;
   port: number | null;
@@ -155,15 +156,35 @@ export function useProjectLogs(projectId: string | undefined | null, page: numbe
 /**
  * Hook to fetch build/generation messages for a project (infinite scroll)
  */
-interface Message {
+export interface MessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  mimeType?: string;
+  fileName?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+}
+
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  parts?: MessagePart[];
   timestamp: Date;
 }
 
-interface MessagesResponse {
+export interface Session {
+  id: string;
+  hydratedState?: unknown;
+}
+
+export interface MessagesResponse {
   messages: Message[];
+  sessions: Session[];
   nextCursor?: number;
 }
 

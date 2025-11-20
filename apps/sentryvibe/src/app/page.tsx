@@ -15,7 +15,6 @@ import { getFrameworkLogo } from "@/lib/framework-logos";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
 import RenameProjectModal from "@/components/RenameProjectModal";
 import DeleteProjectModal from "@/components/DeleteProjectModal";
-import BuildProgress from "@/components/BuildProgress";
 import { TodoList } from "@/components/BuildProgress/TodoList";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
@@ -28,6 +27,7 @@ import { useAgent } from "@/contexts/AgentContext";
 import { useProjectMessages, useProject } from "@/queries/projects";
 import { useSaveMessage } from "@/mutations/messages";
 import { useQueryClient } from "@tanstack/react-query";
+import { useBrowserMetrics } from "@/hooks/useBrowserMetrics";
 import type {
   GenerationState,
   ToolCall,
@@ -172,6 +172,9 @@ function normalizeHydratedState(state: unknown): GenerationState {
 }
 
 function HomeContent() {
+  // Track browser metrics on page load
+  useBrowserMetrics();
+  
   const [input, setInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<MessagePart[]>([]);
   const queryClient = useQueryClient();
@@ -198,9 +201,6 @@ function HomeContent() {
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
-  const [terminalDetectedPort, setTerminalDetectedPort] = useState<
-    number | null
-  >(null);
   const [breaksAnimationClass, setBreaksAnimationClass] = useState<string>("");
   const [generationState, setGenerationState] =
     useState<GenerationState | null>(null);
@@ -293,6 +293,7 @@ function HomeContent() {
     isReconnecting: wsReconnecting,
     error: wsError,
     reconnect: wsReconnect,
+    sentryTrace: wsSentryTrace,
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
     sessionId: undefined, // Subscribe to all sessions for this project
@@ -364,7 +365,8 @@ function HomeContent() {
           contentStr = msg.content;
         } else if (Array.isArray(msg.content)) {
           // Extract text from parts array
-          contentStr = msg.content
+          const contentArray = msg.content as unknown[];
+          contentStr = contentArray
             .filter((p: unknown) => {
               const part = p as { type?: string; text?: string };
               return part.type === 'text' && part.text;
@@ -396,30 +398,6 @@ function HomeContent() {
       })
       .filter((msg): msg is Message => msg !== null);
   }, [messagesFromDB]);
-
-  const firstAssistantMessage = useMemo(() => {
-    // Find first REAL assistant message (has content, not a tool call, has proper role)
-    const candidate = conversationMessages.find(
-      (message) => {
-        const isAssistant = classifyMessage(message) === 'assistant';
-        const notToolMessage = !isToolAssistantMessage(message);
-        const hasContent = message.content && message.content.trim().length > 20; // Minimum meaningful content
-        const noError = !message.content.includes('{"error"');
-        return isAssistant && notToolMessage && hasContent && noError;
-      }
-    );
-    
-    if (DEBUG_PAGE && candidate) {
-      console.log('[firstAssistantMessage] Found plan message:', candidate.content.substring(0, 100));
-    }
-    
-    return candidate ?? null;
-  }, [conversationMessages, classifyMessage, isToolAssistantMessage]);
-
-  const buildPlanMarkdown = useMemo(() => {
-    const markdown = extractMarkdownFromMessage(firstAssistantMessage);
-    return markdown || null;
-  }, [firstAssistantMessage]);
 
   // Get build plan for a specific user message index
   const getBuildPlanForUserMessage = useCallback((userMessageIndex: number): string | null => {
@@ -649,7 +627,6 @@ function HomeContent() {
 
   // Track if component has mounted to avoid hydration errors
   const [isMounted, setIsMounted] = useState(false);
-  const isLoadingProject = false;
 
   // Don't read sessionStorage during SSR - prevents hydration mismatch
   const [activeView, setActiveView] = useState<"chat" | "build">("chat");
@@ -1075,7 +1052,6 @@ function HomeContent() {
       setActiveElementChanges([]);
       setTemplateProvisioningInfo(null);
       // Don't clear history - it's now per-project and preserved
-      setTerminalDetectedPort(null);
       hasStartedGenerationRef.current.clear();
     }
   }, [
@@ -1133,6 +1109,7 @@ function HomeContent() {
         clearTimeout(syncTimeoutRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, selectedProjectSlug]);
 
   // Auto-start dev server when project status changes to completed
@@ -1829,10 +1806,6 @@ function HomeContent() {
                 return updated;
               });
 
-              const todoSummary =
-                todos.length > 0
-                  ? `TodoWrite updated ${todos.length} task${todos.length === 1 ? '' : 's'}`
-                  : 'TodoWrite emitted an update';
               // Tool messages handled by backend
             } else {
               // Route other tools to generation state (nested under active todo)
@@ -2506,7 +2479,6 @@ function HomeContent() {
 
     setIsStartingServer(true);
     try {
-      setTerminalDetectedPort(null);
       const res = await fetch(`/api/projects/${currentProject.id}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2619,7 +2591,6 @@ function HomeContent() {
               }
             : null
         );
-        setTerminalDetectedPort(null);
 
         // Refresh project list so UI reflects stopped status
         refetch();
@@ -3626,7 +3597,6 @@ function HomeContent() {
                             "🔍 Terminal detected port update:",
                             port
                           );
-                          setTerminalDetectedPort(port);
                           // Port is detected and stored in process-manager on server-side
                           // No need to update DB from client - creates infinite loops
                         }}

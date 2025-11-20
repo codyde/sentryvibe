@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { projectEvents } from '@/lib/project-events';
-import { metrics } from '@sentry/core';
+import * as Sentry from '@sentry/nextjs';
+// import { metrics } from '@sentry/core';
 import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
 
 function ensureAuthorized(request: Request) {
@@ -27,7 +28,7 @@ function ensureAuthorized(request: Request) {
  * Emit project update event to SSE streams
  * Provides instant updates without polling
  */
-function emitProjectUpdateFromData(projectId: string, projectData: any) {
+function emitProjectUpdateFromData(projectId: string, projectData: typeof projects.$inferSelect) {
   try {
     projectEvents.emitProjectUpdate(projectId, projectData);
   } catch (error) {
@@ -47,7 +48,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    publishRunnerEvent(event);
+    // Note: Sentry's automatic HTTP instrumentation already created a span for this request
+    // and automatically continued the trace from the sentry-trace/baggage headers
+    // We just add a child span for the event processing
+    await Sentry.startSpan(
+      {
+        name: `api.runner.events.process.${event.type}`,
+        op: 'event.process',
+        attributes: {
+          'event.type': event.type,
+          'event.projectId': event.projectId,
+          'event.commandId': event.commandId,
+        },
+      },
+      async () => {
+        publishRunnerEvent(event);
+      }
+    );
 
 
     if (event.type === 'log-chunk' && typeof event.data === 'string') {
@@ -107,7 +124,7 @@ export async function POST(request: Request) {
             emitProjectUpdateFromData(event.projectId, updated);
           }
 
-          metrics.count('dev_server_port_conflict', 1, {
+          Sentry.metrics.count('dev_server_port_conflict', 1, {
             attributes: {
               project_id: event.projectId,
               port: (event.port ?? 'unknown').toString(),
@@ -118,7 +135,7 @@ export async function POST(request: Request) {
       }
       case 'ack': {
         // Check if this is a health check success (server is healthy)
-        const message = (event as any).message || '';
+        const message = (event as { message?: string }).message || '';
         if (message.includes('healthy') || message.includes('running')) {
           const [updated] = await db.update(projects)
             .set({
@@ -156,7 +173,7 @@ export async function POST(request: Request) {
       }
       case 'project-metadata': {
         // Update project metadata (path, runCommand, projectType, port) from template download
-        const metadata = (event as any).payload;
+        const metadata = 'payload' in event ? event.payload : null;
         if (metadata && event.projectId) {
           // Extract detected framework early if available
           const detectedFramework = metadata.detectedFramework || null;
@@ -185,7 +202,7 @@ export async function POST(request: Request) {
         // Note: runCommand should already be set by project-metadata event
         
         // Extract detected framework from payload if available
-        const detectedFramework = (event.payload as any)?.detectedFramework || null;
+        const detectedFramework = ('payload' in event && event.payload && typeof event.payload === 'object' && 'detectedFramework' in event.payload) ? (event.payload as { detectedFramework?: string }).detectedFramework || null : null;
         
         if (detectedFramework) {
           console.log(`[events] 🔍 Saving detected framework for project ${event.projectId}: ${detectedFramework}`);
@@ -210,23 +227,25 @@ export async function POST(request: Request) {
           
           // Extract the 4 key tags from the project
           if (updated.tags && Array.isArray(updated.tags)) {
-            updated.tags.forEach((tag: any) => {
-              if (tag.key === 'model' || tag.key === 'framework' || tag.key === 'runner' || tag.key === 'brand') {
-                completionAttributes[tag.key] = tag.value;
+            updated.tags.forEach((tag: unknown) => {
+              if (tag && typeof tag === 'object' && 'key' in tag && 'value' in tag) {
+                const tagKey = tag.key as string;
+                const tagValue = tag.value as string;
+                if (tagKey === 'model' || tagKey === 'framework' || tagKey === 'runner' || tagKey === 'brand') {
+                  completionAttributes[tagKey] = tagValue;
+                }
               }
             });
           }
-          
-          metrics.count('project.completed', 1, {
-            attributes: completionAttributes
-            // e.g., { project_id: '123', model: 'claude-sonnet-4-5', framework: 'next', brand: 'sentry' }
+          // completionAttributes: { project_id: '123', model: 'claude-sonnet-4-5', framework: 'next', brand: 'sentry' }
+          Sentry.metrics.count('project.completed', 1, {
+            attributes: completionAttributes  
           });
         }
         break;
       }
       case 'build-failed':
       case 'build-stream':
-        // UI stream events handled via event bus; DB already updated within build pipeline.
         break;
       case 'error': {
         const [updated] = await db.update(projects)

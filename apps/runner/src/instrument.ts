@@ -34,12 +34,7 @@ const sentryOptions: RunnerSentryOptions = {
   tracesSampleRate: 1.0,
   enableLogs: true,
   debug: false,
-  sendDefaultPii: true,
-  
-  _experiments: {
-    enableMetrics: true,
-  },
-
+  sendDefaultPii: false,
   // Configure trace propagation (Runner → Broker communication)
   tracePropagationTargets: [
     // Local development
@@ -47,13 +42,13 @@ const sentryOptions: RunnerSentryOptions = {
     'localhost:3000',
     'localhost:4000',
     /^https?:\/\/localhost:\d+$/,
-    
+
     // Production domains
     'sentryvibe.app',
     'sentryvibe.up.railway.app',
     'broker.sentryvibe.app',
     'broker.up.railway.app',
-    
+
     // Wildcard patterns for Railway
     /^https?:\/\/.*\.railway\.app/,      // Railway deployments
     /^https?:\/\/.*\.up\.railway\.app/,  // Railway preview deployments
