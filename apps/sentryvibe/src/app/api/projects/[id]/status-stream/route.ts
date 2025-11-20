@@ -11,6 +11,77 @@ const debugLog = (...args: unknown[]) => {
   }
 };
 const loggedMissingProjects = new Set<string>();
+const RETRYABLE_DB_ERROR_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE']);
+const RETRYABLE_DB_ERROR_MESSAGES = [
+  'terminating connection due to idle-in-transaction timeout',
+  'terminating connection due to administrator command',
+  'Connection terminated unexpectedly',
+  'read ECONNRESET',
+];
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const formatErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'Unknown error';
+};
+
+const isRetryableDbError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const anyError = error as { code?: string; message?: string; cause?: unknown };
+  if (anyError.code && RETRYABLE_DB_ERROR_CODES.has(anyError.code)) {
+    return true;
+  }
+
+  if (anyError.message) {
+    if (RETRYABLE_DB_ERROR_CODES.has(anyError.message)) {
+      return true;
+    }
+    if (RETRYABLE_DB_ERROR_MESSAGES.some((msg) => anyError.message?.includes(msg))) {
+      return true;
+    }
+  }
+
+  if (anyError.cause) {
+    return isRetryableDbError(anyError.cause);
+  }
+
+  return false;
+};
+
+const withDbRetry = async <T>(
+  operation: () => Promise<T>,
+  retries = 1,
+  baseDelayMs = 50
+): Promise<T> => {
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt <= retries) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableDbError(error) || attempt === retries) {
+        throw error;
+      }
+      const sleepMs = baseDelayMs * Math.max(attempt + 1, 1);
+      debugLog(`♻️  Retrying DB operation after recoverable error (attempt ${attempt + 1})`);
+      await delay(sleepMs);
+    }
+    attempt += 1;
+  }
+
+  throw lastError;
+};
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,59 +98,75 @@ export async function GET(
 
   debugLog(`📡 SSE status stream requested for project: ${id}`);
 
-  const encoder = new TextEncoder();
-  let keepaliveInterval: NodeJS.Timeout | null = null;
-  let periodicCheck: NodeJS.Timeout | null = null;
-  let isClosed = false;
-  let activeProjectUpdateHandler: ((project: any) => void) | null = null;
+    const encoder = new TextEncoder();
+    let keepaliveInterval: NodeJS.Timeout | null = null;
+    let periodicCheck: NodeJS.Timeout | null = null;
+    let isClosed = false;
+    let activeProjectUpdateHandler: ((project: any) => void) | null = null;
 
-  const safeEnqueue = (controller: ReadableStreamDefaultController, data: string) => {
-    if (isClosed) return;
-    try {
-      controller.enqueue(encoder.encode(data));
-    } catch (err) {
-      if (process.env.SENTRYVIBE_DEBUG_SSE === '1') {
-        console.warn(`⚠️  Failed to enqueue SSE data for ${id}:`, err);
+    const safeEnqueue = (controller: ReadableStreamDefaultController, data: string) => {
+      if (isClosed) return;
+      try {
+        controller.enqueue(encoder.encode(data));
+      } catch (err) {
+        if (process.env.SENTRYVIBE_DEBUG_SSE === '1') {
+          console.warn(`⚠️  Failed to enqueue SSE data for ${id}:`, err);
+        }
+        safeClose(controller);
       }
-      safeClose(controller);
-    }
-  };
+    };
 
-  const safeClose = (controller: ReadableStreamDefaultController) => {
-    if (isClosed) return;
-    isClosed = true;
-    try {
-      controller.close();
-    } catch (err) {
-      if (process.env.SENTRYVIBE_DEBUG_SSE === '1') {
-        console.warn(`⚠️  Failed to close SSE controller for ${id}:`, err);
+    const safeClose = (controller: ReadableStreamDefaultController) => {
+      if (isClosed) return;
+      isClosed = true;
+      try {
+        controller.close();
+      } catch (err) {
+        if (process.env.SENTRYVIBE_DEBUG_SSE === '1') {
+          console.warn(`⚠️  Failed to close SSE controller for ${id}:`, err);
+        }
       }
-    }
-    if (keepaliveInterval) {
-      clearInterval(keepaliveInterval);
-      keepaliveInterval = null;
-    }
-    if (periodicCheck) {
-      clearInterval(periodicCheck);
-      periodicCheck = null;
-    }
-    if (activeProjectUpdateHandler) {
-      projectEvents.offProjectUpdate(id, activeProjectUpdateHandler);
-      activeProjectUpdateHandler = null;
-    }
-  };
+      if (keepaliveInterval) {
+        clearInterval(keepaliveInterval);
+        keepaliveInterval = null;
+      }
+      if (periodicCheck) {
+        clearInterval(periodicCheck);
+        periodicCheck = null;
+      }
+      if (activeProjectUpdateHandler) {
+        projectEvents.offProjectUpdate(id, activeProjectUpdateHandler);
+        activeProjectUpdateHandler = null;
+      }
+    };
 
-  const stream = new ReadableStream({
+    const sendErrorEvent = (
+      controller: ReadableStreamDefaultController,
+      error: unknown
+    ) => {
+      const payload = `event: error\ndata: ${JSON.stringify({
+        message: formatErrorMessage(error),
+      })}\n\n`;
+      safeEnqueue(controller, payload);
+    };
+
+    const stream = new ReadableStream({
     async start(controller) {
       try {
         const enqueueConnected = `data: ${JSON.stringify({ type: 'connected' })}\n\n`;
         safeEnqueue(controller, enqueueConnected);
 
+          const fetchProject = (retryCount = 1) =>
+            withDbRetry(
+              () => db.select()
+                .from(projects)
+                .where(eq(projects.id, id))
+                .limit(1),
+              retryCount
+            );
+
         // Send initial project state immediately
-        const initialProject = await db.select()
-          .from(projects)
-          .where(eq(projects.id, id))
-          .limit(1);
+          const initialProject = await fetchProject(2);
 
         if (initialProject.length > 0) {
           const data = `data: ${JSON.stringify({
@@ -128,12 +215,9 @@ export async function GET(
         // This handles race conditions and missed events
         let lastSentState: string | null = null;
 
-        const sendLatestState = async () => {
+          const sendLatestState = async () => {
           try {
-            const latestProject = await db.select()
-              .from(projects)
-              .where(eq(projects.id, id))
-              .limit(1);
+              const latestProject = await fetchProject();
 
             if (latestProject.length > 0) {
               const proj = latestProject[0];
@@ -155,8 +239,8 @@ export async function GET(
                 safeEnqueue(controller, data);
               }
             }
-          } catch (err) {
-            console.error(`   Failed to send state update for ${id}:`, err);
+            } catch (err) {
+              console.error(`   Failed to send state update for ${id}:`, err);
           }
         };
 
@@ -171,15 +255,12 @@ export async function GET(
           debugLog(`🔌 Client disconnected from status stream for ${id}`);
           safeClose(controller);
         });
-      } catch (error) {
-        console.error(`❌ Error starting status stream for ${id}:`, error);
-        if (!isClosed) {
-          try {
-            controller.error(error);
-          } catch {
+        } catch (error) {
+          console.error(`❌ Error starting status stream for ${id}:`, error);
+          if (!isClosed) {
+            sendErrorEvent(controller, error);
             safeClose(controller);
           }
-        }
       }
     },
 
