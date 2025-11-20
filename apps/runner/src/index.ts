@@ -2259,27 +2259,11 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Each command gets its own isolated trace to prevent multiple builds
-        // from being grouped together. We link to parent via attributes for correlation.
+        // Each command gets its own completely independent trace
+        // No parent trace propagation to avoid grouping issues
+        // Correlation via command_id, project_id tags instead
         Sentry.withIsolationScope((scope) => {
-          // Extract parent trace info for linking (but don't continue it)
-          let parentTraceId: string | undefined;
-          if (command._sentry?.trace) {
-            console.log("linking to parent trace", command._sentry.trace);
-            // Parse sentry-trace header: {trace_id}-{span_id}-{sampled}
-            const parts = command._sentry.trace.split('-');
-            if (parts.length >= 2) {
-              parentTraceId = parts[0];
-              scope.setContext('parent_trace', {
-                trace_id: parentTraceId,
-                span_id: parts[1],
-                sampled: parts[2] === '1',
-              });
-            }
-          }
-          
-          // Create a new trace for this command with its own transaction
-          // This ensures each build is a separate trace in Sentry
+          // Create a new isolated trace for this command
           Sentry.startSpan(
             {
               name: `runner.command.${command.type}`,
@@ -2289,19 +2273,13 @@ export async function startRunner(options: RunnerOptions = {}) {
                 'command.type': command.type,
                 'command.id': command.id,
                 'project.id': command.projectId,
-                // Link to parent trace for correlation without grouping
-                ...(parentTraceId && { 'parent.trace_id': parentTraceId }),
               },
             },
             async () => {
-              // Add metadata to this isolated trace
+              // Add metadata tags for filtering/correlation
               scope.setTag("command_type", command.type);
               scope.setTag("project_id", command.projectId);
               scope.setTag("command_id", command.id);
-              
-              if (parentTraceId) {
-                scope.setTag("parent_trace_id", parentTraceId);
-              }
 
               await handleCommand(command);
             }
