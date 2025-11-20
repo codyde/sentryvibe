@@ -2259,42 +2259,36 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Continue trace from parent for distributed tracing visibility
-        // BUT use forceTransaction to create a NEW transaction (not grouped with siblings)
+        // Create COMPLETELY NEW trace for each command (no continueTrace)
+        // Parse parent trace ID for correlation but don't link the traces
+        // This prevents multiple builds from being grouped in the same trace
+        
+        let parentTraceId: string | undefined;
+        let parentSpanId: string | undefined;
+        
         if (command._sentry?.trace) {
-          console.log("continuing trace with new transaction", command._sentry.trace);
-          Sentry.continueTrace(
-            {
-              sentryTrace: command._sentry.trace,
-              baggage: command._sentry.baggage,
-            },
-            () => {
-              // Create NEW transaction within parent trace
-              // This maintains parent-child link (distributed tracing) but prevents grouping
-              Sentry.startSpan(
-                {
-                  name: `runner.command.${command.type}`,
-                  op: 'runner.command',
-                  forceTransaction: true, // NEW transaction (not grouped with other builds)
-                  attributes: {
-                    'command.type': command.type,
-                    'command.id': command.id,
-                    'project.id': command.projectId,
-                  },
-                },
-                async () => {
-                  Sentry.setTag("command_type", command.type);
-                  Sentry.setTag("project_id", command.projectId);
-                  Sentry.setTag("command_id", command.id);
-
-                  await handleCommand(command);
-                }
-              );
-            }
-          );
+          console.log("creating new trace, storing parent for correlation", command._sentry.trace);
+          // Parse sentry-trace header: {trace_id}-{span_id}-{sampled}
+          const parts = command._sentry.trace.split('-');
+          if (parts.length >= 2) {
+            parentTraceId = parts[0];
+            parentSpanId = parts[1];
+          }
         } else {
-          console.log("starting new trace");
-          // No parent - create independent trace
+          console.log("creating new trace (no parent)");
+        }
+        
+        // Start completely new trace (NOT continueTrace)
+        Sentry.withIsolationScope((scope) => {
+          // Store parent trace info as context for manual correlation
+          if (parentTraceId) {
+            scope.setContext('parent_trace', {
+              trace_id: parentTraceId,
+              span_id: parentSpanId,
+            });
+            scope.setTag("parent_trace_id", parentTraceId);
+          }
+          
           Sentry.startSpan(
             {
               name: `runner.command.${command.type}`,
@@ -2304,17 +2298,18 @@ export async function startRunner(options: RunnerOptions = {}) {
                 'command.type': command.type,
                 'command.id': command.id,
                 'project.id': command.projectId,
+                ...(parentTraceId && { 'parent.trace_id': parentTraceId }),
               },
             },
             async () => {
-              Sentry.setTag("command_type", command.type);
-              Sentry.setTag("project_id", command.projectId);
-              Sentry.setTag("command_id", command.id);
+              scope.setTag("command_type", command.type);
+              scope.setTag("project_id", command.projectId);
+              scope.setTag("command_id", command.id);
 
               await handleCommand(command);
             }
           );
-        }
+        });
       } catch (error) {
         console.error("Failed to parse command", error);
         Sentry.captureException(error);
