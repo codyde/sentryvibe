@@ -105,11 +105,16 @@ app.post('/commands', auth, (req, res) => {
         return res.status(503).json({ error: 'Runner not connected' });
     }
     try {
-        // REMOVED: Trace context extraction from headers
-        // Problem: Frontend's getTraceData() captured wrong trace in concurrent scenarios
-        // (e.g., stop-dev-server stealing build route's trace context)
-        // Solution: Let each runner command create its own independent trace
-        // Correlation via project_id, command_id, session_id tags
+        // Extract trace context from HTTP headers and attach to command
+        // This enables distributed tracing: frontend → broker → runner → AI
+        const sentryTrace = req.headers['sentry-trace'];
+        const baggage = req.headers['baggage'];
+        if (sentryTrace) {
+            command._sentry = {
+                trace: Array.isArray(sentryTrace) ? sentryTrace[0] : sentryTrace,
+                baggage: Array.isArray(baggage) ? baggage[0] : baggage,
+            };
+        }
         connection.socket.send(JSON.stringify(command));
         totalCommands++;
         return res.json({ ok: true });

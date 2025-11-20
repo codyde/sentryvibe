@@ -1,4 +1,5 @@
 import type { RunnerCommand } from '../../shared/runner/messages';
+import * as Sentry from '@sentry/node';
 
 const BROKER_HTTP_URL = process.env.RUNNER_BROKER_HTTP_URL ?? 'http://localhost:4000';
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
@@ -13,13 +14,19 @@ function getHeaders() {
     Authorization: `Bearer ${SHARED_SECRET}`,
   };
   
-  // REMOVED: Trace propagation via getTraceData() 
-  // Problem: In Next.js concurrent requests, getTraceData() can capture trace context
-  // from OTHER concurrent API routes (e.g., stop-dev-server stealing build route's trace).
-  // This caused multiple builds to share the same parent trace and wrong trace roots.
+  // Propagate trace context for distributed tracing (frontend → broker → runner)
+  // This allows seeing the full chain: API request → Runner → AI calls
   // 
-  // Solution: Let each runner command create its own independent trace.
-  // Correlation is still possible via project_id, command_id tags/attributes.
+  // Note: This may capture trace from concurrent Next.js routes, but runner's
+  // forceTransaction:true creates a NEW transaction, preventing grouping while
+  // maintaining the parent-child link for distributed tracing views.
+  const traceData = Sentry.getTraceData();
+  if (traceData['sentry-trace']) {
+    headers['sentry-trace'] = traceData['sentry-trace'];
+    if (traceData.baggage) {
+      headers['baggage'] = traceData.baggage;
+    }
+  }
   
   return headers;
 }

@@ -2259,16 +2259,47 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Each command gets its own completely independent trace
-        // No parent trace propagation to avoid grouping issues
-        // Correlation via command_id, project_id tags instead
-        Sentry.withIsolationScope((scope) => {
-          // Create a new isolated trace for this command
+        // Continue trace from parent for distributed tracing visibility
+        // BUT use forceTransaction to create a NEW transaction (not grouped with siblings)
+        if (command._sentry?.trace) {
+          console.log("continuing trace with new transaction", command._sentry.trace);
+          Sentry.continueTrace(
+            {
+              sentryTrace: command._sentry.trace,
+              baggage: command._sentry.baggage,
+            },
+            () => {
+              // Create NEW transaction within parent trace
+              // This maintains parent-child link (distributed tracing) but prevents grouping
+              Sentry.startSpan(
+                {
+                  name: `runner.command.${command.type}`,
+                  op: 'runner.command',
+                  forceTransaction: true, // NEW transaction (not grouped with other builds)
+                  attributes: {
+                    'command.type': command.type,
+                    'command.id': command.id,
+                    'project.id': command.projectId,
+                  },
+                },
+                async () => {
+                  Sentry.setTag("command_type", command.type);
+                  Sentry.setTag("project_id", command.projectId);
+                  Sentry.setTag("command_id", command.id);
+
+                  await handleCommand(command);
+                }
+              );
+            }
+          );
+        } else {
+          console.log("starting new trace");
+          // No parent - create independent trace
           Sentry.startSpan(
             {
               name: `runner.command.${command.type}`,
               op: 'runner.command',
-              forceTransaction: true, // Each command is its own transaction
+              forceTransaction: true,
               attributes: {
                 'command.type': command.type,
                 'command.id': command.id,
@@ -2276,15 +2307,14 @@ export async function startRunner(options: RunnerOptions = {}) {
               },
             },
             async () => {
-              // Add metadata tags for filtering/correlation
-              scope.setTag("command_type", command.type);
-              scope.setTag("project_id", command.projectId);
-              scope.setTag("command_id", command.id);
+              Sentry.setTag("command_type", command.type);
+              Sentry.setTag("project_id", command.projectId);
+              Sentry.setTag("command_id", command.id);
 
               await handleCommand(command);
             }
           );
-        });
+        }
       } catch (error) {
         console.error("Failed to parse command", error);
         Sentry.captureException(error);
