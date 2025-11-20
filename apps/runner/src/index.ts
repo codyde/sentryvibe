@@ -2259,36 +2259,43 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Create COMPLETELY NEW trace for each command (no continueTrace)
-        // Parse parent trace ID for correlation but don't link the traces
-        // This prevents multiple builds from being grouped in the same trace
-        
-        let parentTraceId: string | undefined;
-        let parentSpanId: string | undefined;
-        
+        // Continue trace from frontend (each build has unique trace ID now)
+        // Use forceTransaction to create a NEW transaction within the trace
+        // This maintains distributed tracing chain while keeping transactions separate
         if (command._sentry?.trace) {
-          console.log("creating new trace, storing parent for correlation", command._sentry.trace);
-          // Parse sentry-trace header: {trace_id}-{span_id}-{sampled}
-          const parts = command._sentry.trace.split('-');
-          if (parts.length >= 2) {
-            parentTraceId = parts[0];
-            parentSpanId = parts[1];
-          }
+          console.log("continuing trace from frontend", command._sentry.trace);
+          Sentry.continueTrace(
+            {
+              sentryTrace: command._sentry.trace,
+              baggage: command._sentry.baggage,
+            },
+            () => {
+              // Create NEW transaction within the continued trace
+              // This allows distributed tracing view while keeping runner ops separate
+              Sentry.startSpan(
+                {
+                  name: `runner.command.${command.type}`,
+                  op: 'runner.command',
+                  forceTransaction: true, // New transaction (runner operations)
+                  attributes: {
+                    'command.type': command.type,
+                    'command.id': command.id,
+                    'project.id': command.projectId,
+                  },
+                },
+                async () => {
+                  Sentry.setTag("command_type", command.type);
+                  Sentry.setTag("project_id", command.projectId);
+                  Sentry.setTag("command_id", command.id);
+
+                  await handleCommand(command);
+                }
+              );
+            }
+          );
         } else {
-          console.log("creating new trace (no parent)");
-        }
-        
-        // Start completely new trace (NOT continueTrace)
-        Sentry.withIsolationScope((scope) => {
-          // Store parent trace info as context for manual correlation
-          if (parentTraceId) {
-            scope.setContext('parent_trace', {
-              trace_id: parentTraceId,
-              span_id: parentSpanId,
-            });
-            scope.setTag("parent_trace_id", parentTraceId);
-          }
-          
+          console.log("starting new trace (no parent)");
+          // No parent trace - create independent trace
           Sentry.startSpan(
             {
               name: `runner.command.${command.type}`,
@@ -2298,18 +2305,17 @@ export async function startRunner(options: RunnerOptions = {}) {
                 'command.type': command.type,
                 'command.id': command.id,
                 'project.id': command.projectId,
-                ...(parentTraceId && { 'parent.trace_id': parentTraceId }),
               },
             },
             async () => {
-              scope.setTag("command_type", command.type);
-              scope.setTag("project_id", command.projectId);
-              scope.setTag("command_id", command.id);
+              Sentry.setTag("command_type", command.type);
+              Sentry.setTag("project_id", command.projectId);
+              Sentry.setTag("command_id", command.id);
 
               await handleCommand(command);
             }
           );
-        });
+        }
       } catch (error) {
         console.error("Failed to parse command", error);
         Sentry.captureException(error);
