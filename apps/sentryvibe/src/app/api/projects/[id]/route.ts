@@ -3,7 +3,6 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
-import { metrics } from '@sentry/core';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
@@ -119,7 +118,7 @@ export async function DELETE(
     await db.delete(projects).where(eq(projects.id, id));
 
     // Instrument project deletion metric
-    metrics.count('project_delete', 1, {
+    Sentry.metrics.count('project_delete', 1, {
       attributes: {
         project_id: id,
         delete_files: deleteFiles.toString(),

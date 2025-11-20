@@ -7,7 +7,7 @@ import {
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/nextjs';
 
 export const maxDuration = 30;
 

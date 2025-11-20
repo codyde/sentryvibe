@@ -27,6 +27,7 @@ import { useAgent } from "@/contexts/AgentContext";
 import { useProjectMessages, useProject } from "@/queries/projects";
 import { useSaveMessage } from "@/mutations/messages";
 import { useQueryClient } from "@tanstack/react-query";
+import { useBrowserMetrics } from "@/hooks/useBrowserMetrics";
 import type {
   GenerationState,
   ToolCall,
@@ -171,6 +172,9 @@ function normalizeHydratedState(state: unknown): GenerationState {
 }
 
 function HomeContent() {
+  // Track browser metrics on page load
+  useBrowserMetrics();
+  
   const [input, setInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<MessagePart[]>([]);
   const queryClient = useQueryClient();

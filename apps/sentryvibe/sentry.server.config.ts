@@ -7,9 +7,12 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: "https://b2d14d69bd0b4eb23548c0e522ef99b5@o4508130833793024.ingest.us.sentry.io/4510105426853888",
 
-  spotlight: true,
+  // Sample all traces for metrics and performance monitoring
+  tracesSampleRate: 1.0,
+
   integrations: [
-    Sentry.spotlightIntegration(),
+    // Only enable Spotlight in development (it can cause issues in production)
+    ...(process.env.NODE_ENV === 'development' ? [Sentry.spotlightIntegration()] : []),
     Sentry.consoleLoggingIntegration(),
     Sentry.claudeCodeIntegration({
       recordInputs: true,
@@ -57,7 +60,7 @@ Sentry.init({
 
   enableLogs: true,
 
-  debug: false,
+  debug: false,  // Temporarily enabled for metrics debugging
 
-  sendDefaultPii: true,
+  sendDefaultPii: false,
 });

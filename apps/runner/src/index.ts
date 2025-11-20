@@ -1,11 +1,6 @@
-// Note: Vendor packages are initialized by cli/index.ts before this module loads
-// This ensures agent-core is available for imports
-
-// CRITICAL: Import Sentry FIRST before any other modules
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { createInstrumentedQueryForProvider } from "@sentry/node";
-import { metrics } from "@sentry/core"; // Import metrics directly from @sentry/core (TypeScript workaround)
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { fileLog } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
@@ -1408,7 +1403,8 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Instrument tunnel startup timing
           const tunnelDuration = Date.now() - tunnelStartTime;
-          metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+
+          Sentry.metrics.distribution('tunnel_startup_duration', tunnelDuration, {
             unit: 'millisecond',
             attributes: {
               port: port.toString(),
@@ -1427,7 +1423,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Instrument failed tunnel startup timing
           const tunnelDuration = Date.now() - tunnelStartTime;
-          metrics.distribution('tunnel_startup_duration', tunnelDuration, {
+          Sentry.metrics.distribution('tunnel_startup_duration', tunnelDuration, {
             unit: 'millisecond',
             attributes: {
               port: command.payload.port.toString(),
