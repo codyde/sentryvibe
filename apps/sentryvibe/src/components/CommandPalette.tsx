@@ -175,7 +175,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
           action: {
             type: 'action',
             fn: () => {
-              onRenameProject({ id: project.id, name: project.name });
+              onRenameProject({ id: project.id, name: project.name || 'Untitled Project' });
               onOpenChange(false);
             },
           },
@@ -192,7 +192,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
           action: {
             type: 'action',
             fn: () => {
-              onDeleteProject({ id: project.id, name: project.name, slug: project.slug });
+              onDeleteProject({ id: project.id, name: project.name || 'Untitled Project', slug: project.slug });
               onOpenChange(false);
             },
           },
@@ -251,7 +251,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
         const isSelected = selectedItems.has(project.id);
         items.push({
           id: `select-${project.id}`,
-          label: `${isSelected ? '✓ ' : ''}${project.name}`,
+          label: `${isSelected ? '✓ ' : ''}${project.name || 'Untitled Project'}`,
           description: isSelected ? 'Click to deselect' : 'Click to select',
           icon: getIconComponent(project.icon),
           action: { type: 'bulk-select', projectId: project.id },
@@ -271,7 +271,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
 
       items.push({
         id: `project-${project.id}`,
-        label: project.name,
+        label: project.name || 'Untitled Project',
         description: enhancedDescription,
         icon: projectIcon,
         action: {
@@ -381,7 +381,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
             </button>
             <ChevronRight className="h-3 w-3 text-gray-600" />
             <span className="text-sm text-white font-medium">
-              {projects.find(p => p.id === selectedProject)?.name}
+              {projects.find(p => p.id === selectedProject)?.name || 'Untitled Project'}
             </span>
           </div>
         )}
