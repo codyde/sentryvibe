@@ -1102,21 +1102,20 @@ export async function startRunner(options: RunnerOptions = {}) {
       return;
     }
     
-    const traceableEvents = ['build-completed', 'build-failed'];
-    const shouldTrace = traceableEvents.includes(event.type);
+    // Only create spans for high-value events (lifecycle, not every text-delta)
+    const shouldCreateSpan = ['build-completed', 'build-failed'].includes(event.type);
     
     const sendOperation = () => {
       try {
-        // Capture trace context for traceable events (build-completed, build-failed)
-        if (shouldTrace) {
-          const span = Sentry.getActiveSpan();
-          if (span) {
-            const traceData = Sentry.getTraceData();
-            event._sentry = {
-              trace: traceData['sentry-trace'],
-              baggage: traceData.baggage,
-            };
-          }
+        // Attach trace context to ALL events for distributed tracing
+        // This allows events to be linked back to the originating frontend request
+        const span = Sentry.getActiveSpan();
+        if (span) {
+          const traceData = Sentry.getTraceData();
+          event._sentry = {
+            trace: traceData['sentry-trace'],
+            baggage: traceData.baggage,
+          };
         }
 
         const eventJson = JSON.stringify(event);
@@ -1146,8 +1145,8 @@ export async function startRunner(options: RunnerOptions = {}) {
       }
     };
 
-    // Wrap critical events in span for tracing
-    if (shouldTrace) {
+    // Only create spans for critical lifecycle events (not every stream event)
+    if (shouldCreateSpan) {
       Sentry.startSpan(
         {
           name: `runner.sendEvent.${event.type}`,

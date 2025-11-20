@@ -1,4 +1,5 @@
 import type { RunnerCommand } from '../../shared/runner/messages';
+import * as Sentry from '@sentry/node';
 
 const BROKER_HTTP_URL = process.env.RUNNER_BROKER_HTTP_URL ?? 'http://localhost:4000';
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
@@ -7,10 +8,23 @@ function getHeaders() {
   if (!SHARED_SECRET) {
     throw new Error('RUNNER_SHARED_SECRET is not configured');
   }
-  return {
+  
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${SHARED_SECRET}`,
   };
+  
+  // Add trace context to propagate distributed tracing from frontend → broker → runner
+  // This allows the full request lifecycle to be traced in Sentry
+  const traceData = Sentry.getTraceData();
+  if (traceData['sentry-trace']) {
+    headers['sentry-trace'] = traceData['sentry-trace'];
+    if (traceData.baggage) {
+      headers['baggage'] = traceData.baggage;
+    }
+  }
+  
+  return headers;
 }
 
 export async function sendCommandToRunner(runnerId: string, command: RunnerCommand) {
