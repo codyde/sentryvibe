@@ -274,6 +274,174 @@ async function refreshRawState(context: ActiveBuildContext) {
   await context.refreshPromise;
 }
 
+/**
+ * Optimized state refresh for TodoWrite that avoids N+1 queries
+ * by using in-memory todo data instead of re-querying from database
+ */
+async function refreshRawStateOptimized(
+  context: ActiveBuildContext,
+  todos: Array<{ content?: string; activeForm?: string; status?: string }>
+) {
+  // CRITICAL FIX: Serialize refreshRawState calls to prevent out-of-order stateVersion broadcasts
+  if (context.refreshPromise) {
+    await context.refreshPromise;
+  }
+  
+  // Create a new promise for this refresh operation
+  context.refreshPromise = (async () => {
+    try {
+      context.stateVersion += 1;
+      
+      // OPTIMIZATION: Only query data we don't have in memory
+      // We already have todos from the TodoWrite input, so only query session, project, tools, and notes
+      const snapshot = await buildSnapshotOptimized(context, todos);
+      const serialized = serializeGenerationState(snapshot);
+      await db.update(generationSessions)
+        .set({ rawState: serialized, updatedAt: new Date() })
+        .where(eq(generationSessions.id, context.sessionId));
+      
+      // Capture current trace context for distributed tracing
+      const activeSpan = Sentry.getActiveSpan();
+      const traceContext = activeSpan ? {
+        trace: Sentry.getTraceData()['sentry-trace'],
+        baggage: Sentry.getTraceData().baggage,
+      } : undefined;
+      
+      // Broadcast state update via WebSocket with trace context
+      buildWebSocketServer.broadcastStateUpdate(
+        context.projectId,
+        context.sessionId,
+        snapshot,
+        traceContext
+      );
+    } catch (snapshotError) {
+      console.warn('[persistent-processor] Failed to refresh raw generation state (optimized):', snapshotError);
+    } finally {
+      context.refreshPromise = null;
+    }
+  })();
+  
+  await context.refreshPromise;
+}
+
+/**
+ * Build snapshot using in-memory todo data to avoid re-querying todos
+ * Reduces N+1 query pattern for TodoWrite operations
+ */
+async function buildSnapshotOptimized(
+  context: ActiveBuildContext,
+  todos: Array<{ content?: string; activeForm?: string; status?: string }>
+): Promise<GenerationState> {
+  // Parallelize independent database queries (session, project, tools, notes)
+  // Skip querying todos since we have them in memory
+  const [sessionRow, projectRow, toolRows, noteRows] = await Promise.all([
+    db
+      .select()
+      .from(generationSessions)
+      .where(eq(generationSessions.id, context.sessionId))
+      .limit(1)
+      .then(rows => rows[0]),
+    
+    db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, context.projectId))
+      .limit(1)
+      .then(rows => rows[0]),
+    
+    db
+      .select()
+      .from(generationToolCalls)
+      .where(eq(generationToolCalls.sessionId, context.sessionId)),
+    
+    db
+      .select()
+      .from(generationNotes)
+      .where(eq(generationNotes.sessionId, context.sessionId))
+      .orderBy(generationNotes.createdAt),
+  ]);
+
+  if (!sessionRow) {
+    throw new Error('Generation session not found when building snapshot');
+  }
+
+  const projectName = projectRow?.name || context.projectId;
+
+  // Use in-memory todos instead of querying
+  const todosSnapshot: TodoItem[] = todos.map(todo => ({
+    content: todo.content ?? todo.activeForm ?? 'Untitled task',
+    status: (todo.status as TodoItem['status']) ?? 'pending',
+    activeForm: todo.activeForm ?? todo.content ?? 'Untitled task',
+  }));
+
+  const toolsByTodo: Record<number, ToolCall[]> = {};
+  toolRows.forEach(tool => {
+    const index = tool.todoIndex ?? -1;
+    if (index < 0) return;
+    if (!toolsByTodo[index]) {
+      toolsByTodo[index] = [];
+    }
+    toolsByTodo[index].push({
+      id: tool.toolCallId ?? tool.id,
+      name: tool.name,
+      input: tool.input ?? undefined,
+      output: tool.output ?? undefined,
+      state: tool.state as ToolCall['state'],
+      startTime: tool.startedAt ?? sessionRow.startedAt ?? new Date(),
+      endTime: tool.endedAt ?? undefined,
+    });
+  });
+
+  const textByTodo: Record<number, TextMessage[]> = {};
+  noteRows.forEach(note => {
+    const index = note.todoIndex ?? -1;
+    if (index < 0) return;
+    if (!textByTodo[index]) {
+      textByTodo[index] = [];
+    }
+    textByTodo[index].push({
+      id: note.textId ?? note.id,
+      text: note.content,
+      timestamp: note.createdAt ?? new Date(),
+    });
+  });
+
+  const activeIndex = todos.findIndex(todo => todo.status === 'in_progress');
+
+  let persistedState: Record<string, unknown> | null = null;
+  if (sessionRow.rawState) {
+    if (typeof sessionRow.rawState === 'string') {
+      try {
+        persistedState = JSON.parse(sessionRow.rawState) as Record<string, unknown>;
+      } catch (parseError) {
+        console.warn('[persistent-processor] Failed to parse rawState JSON:', parseError);
+      }
+    } else {
+      persistedState = sessionRow.rawState as Record<string, unknown>;
+    }
+  }
+
+  const snapshot: GenerationState = {
+    id: sessionRow.buildId,
+    projectId: sessionRow.projectId,
+    projectName: projectName,
+    operationType: (sessionRow.operationType ?? 'continuation') as GenerationState['operationType'],
+    agentId: (persistedState?.agentId as GenerationState['agentId']) ?? context.agentId as GenerationState['agentId'],
+    claudeModelId: (persistedState?.claudeModelId as GenerationState['claudeModelId']) ?? context.claudeModelId as GenerationState['claudeModelId'],
+    todos: todosSnapshot,
+    toolsByTodo,
+    textByTodo,
+    activeTodoIndex: activeIndex,
+    isActive: sessionRow.status === 'active',
+    startTime: sessionRow.startedAt ?? context.startedAt,
+    endTime: sessionRow.endedAt ?? undefined,
+    codex: persistedState?.codex as GenerationState['codex'],
+    stateVersion: context.stateVersion,
+  };
+
+  return snapshot;
+}
+
 function serializeMessageParts(parts: MessagePart[]): string {
   if (parts.length === 0) {
     return '[]';
@@ -581,8 +749,9 @@ async function persistEvent(
         // Persist TodoWrite as a tool call
         await persistToolCall(context, eventData, 'input-available');
 
-        // CRITICAL: Refresh state NOW to ensure frontend has todos before tools arrive
-        await refreshRawState(context);
+        // OPTIMIZED: Build snapshot incrementally from in-memory data to avoid N+1 queries
+        // Instead of querying all data back from DB, use what we just wrote
+        await refreshRawStateOptimized(context, todos);
         // Quiet: Todos persisted successfully
         
         // BUG FIX: Don't broadcast todos separately - refreshRawState already broadcasts
