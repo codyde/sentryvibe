@@ -27,6 +27,42 @@ export async function GET(
 
   debugLog(`📡 SSE status stream requested for project: ${id}`);
 
+  // Validate project exists BEFORE creating the stream
+  // This prevents "failed to pipe response" errors if database is unavailable
+  let initialProject;
+  try {
+    initialProject = await db.select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1);
+
+    if (initialProject.length === 0) {
+      if (!loggedMissingProjects.has(id)) {
+        console.warn(`⚠️  Project ${id} not found`);
+        loggedMissingProjects.add(id);
+      }
+      return new Response(
+        JSON.stringify({ error: 'Project not found' }),
+        { 
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+  } catch (error) {
+    console.error(`❌ Database error for project ${id}:`, error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Database connection failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }),
+      { 
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  }
+
   const encoder = new TextEncoder();
   let keepaliveInterval: NodeJS.Timeout | null = null;
   let periodicCheck: NodeJS.Timeout | null = null;
@@ -75,27 +111,13 @@ export async function GET(
         const enqueueConnected = `data: ${JSON.stringify({ type: 'connected' })}\n\n`;
         safeEnqueue(controller, enqueueConnected);
 
-        // Send initial project state immediately
-        const initialProject = await db.select()
-          .from(projects)
-          .where(eq(projects.id, id))
-          .limit(1);
-
-        if (initialProject.length > 0) {
-          const data = `data: ${JSON.stringify({
-            type: 'status-update',
-            project: initialProject[0],
-          })}\n\n`;
-          safeEnqueue(controller, data);
-          debugLog(`✅ Sent initial status for ${id}`);
-        } else {
-          if (!loggedMissingProjects.has(id)) {
-            console.warn(`⚠️  Project ${id} not found`);
-            loggedMissingProjects.add(id);
-          }
-          safeClose(controller);
-          return;
-        }
+        // Send initial project state immediately (using pre-fetched data)
+        const data = `data: ${JSON.stringify({
+          type: 'status-update',
+          project: initialProject[0],
+        })}\n\n`;
+        safeEnqueue(controller, data);
+        debugLog(`✅ Sent initial status for ${id}`);
 
         // Start keepalive pings every 15 seconds
         keepaliveInterval = setInterval(() => {
