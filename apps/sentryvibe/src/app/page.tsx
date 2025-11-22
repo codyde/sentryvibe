@@ -21,6 +21,7 @@ import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
+import { MenuIndicator } from "@/components/MenuIndicator";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
@@ -2702,6 +2703,7 @@ function HomeContent() {
       )}
       
       <SidebarProvider defaultOpen={false}>
+        <MenuIndicator />
         <AppSidebar
           onOpenProcessModal={() => setShowProcessModal(true)}
           onRenameProject={setRenamingProject}
