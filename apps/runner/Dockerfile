@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Copy package files and base tsconfig
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/runner/package.json ./apps/runner/
 COPY packages/agent-core/package.json ./packages/agent-core/
 COPY packages/agent-core/tsconfig.json ./packages/agent-core/

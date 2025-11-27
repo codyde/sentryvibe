@@ -16,7 +16,8 @@ import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync } from "fs";
-import express, { type Request, type Response } from "express";
+import express from "express";
+import type { Server } from "http";
 import {
   CLAUDE_SYSTEM_PROMPT,
   CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
@@ -1088,13 +1089,13 @@ export async function startRunner(options: RunnerOptions = {}) {
 
   // Start HTTP health endpoint for Railway health checks
   const isServiceMode = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
-  let healthServer: ReturnType<typeof express> | null = null;
+  let healthServer: Server | null = null;
 
   if (isServiceMode) {
     const healthApp = express();
     const healthPort = process.env.HEALTH_PORT || 8080;
 
-    healthApp.get('/health', (req: Request, res: Response) => {
+    healthApp.get('/health', (req, res) => {
       res.json({
         status: 'healthy',
         runner: {
@@ -1108,7 +1109,7 @@ export async function startRunner(options: RunnerOptions = {}) {
       });
     });
 
-    healthApp.get('/ready', (req: Request, res: Response) => {
+    healthApp.get('/ready', (req, res) => {
       const isReady = socket?.readyState === WebSocket.OPEN && existsSync(WORKSPACE_ROOT);
       res.status(isReady ? 200 : 503).json({
         ready: isReady,
