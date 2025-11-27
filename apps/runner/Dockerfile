@@ -22,6 +22,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/runner/package.json ./apps/runner/
 COPY packages/agent-core/package.json ./packages/agent-core/
 
+# Copy vendor files (required by package.json file: dependencies)
+COPY apps/runner/vendor ./apps/runner/vendor
+COPY apps/sentryvibe/vendor ./apps/sentryvibe/vendor
+
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
