@@ -83,15 +83,20 @@ export default function DeleteProjectModal({
 
   const handleDelete = async () => {
     try {
-      await deleteMutation.mutateAsync({
+      const result = await deleteMutation.mutateAsync({
         projectId,
         options: { deleteFiles },
       });
 
-      // Create success message
-      const message = deleteFiles
-        ? `"${projectName}" and its files have been deleted`
-        : `"${projectName}" removed (files kept on disk)`;
+      // Create success message based on actual result
+      let message: string;
+      if (result.filesDeleted) {
+        message = `"${projectName}" and its files have been deleted`;
+      } else if (result.filesRequested && !result.filesDeleted) {
+        message = `"${projectName}" removed (files kept - no runner connected)`;
+      } else {
+        message = `"${projectName}" removed (files kept on disk)`;
+      }
 
       onDeleteComplete(message);
       onClose();

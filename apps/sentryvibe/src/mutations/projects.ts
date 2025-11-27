@@ -203,7 +203,13 @@ interface DeleteProjectOptions {
   deleteFiles?: boolean;
 }
 
-async function deleteProject(projectId: string, options: DeleteProjectOptions = {}): Promise<void> {
+interface DeleteProjectResult {
+  success: boolean;
+  filesDeleted: boolean;
+  filesRequested: boolean;
+}
+
+async function deleteProject(projectId: string, options: DeleteProjectOptions = {}): Promise<DeleteProjectResult> {
   const res = await fetch(`/api/projects/${projectId}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -214,6 +220,8 @@ async function deleteProject(projectId: string, options: DeleteProjectOptions = 
     const error = await res.json();
     throw new Error(error.error || 'Failed to delete project');
   }
+
+  return res.json();
 }
 
 export function useDeleteProject() {

@@ -127,6 +127,7 @@ export async function DELETE(
     });
 
     // Optionally delete filesystem - delegate to runner
+    let filesDeleted = false;
     if (deleteFiles && project[0].slug) {
       try {
         // Try to use project's saved runner, fallback to any available runner
@@ -151,6 +152,7 @@ export async function DELETE(
           });
 
           console.log(`✅ Delete command sent to runner successfully`);
+          filesDeleted = true;
         }
       } catch (error) {
         console.warn('⚠️  Failed to send delete command to runner:', error);
@@ -160,7 +162,11 @@ export async function DELETE(
       console.warn('⚠️  Cannot delete files: project slug not found');
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      filesDeleted,
+      filesRequested: deleteFiles,
+    });
   } catch (error) {
     console.error('Error deleting project:', error);
     return NextResponse.json({ error: 'Failed to delete project' }, { status: 500 });
