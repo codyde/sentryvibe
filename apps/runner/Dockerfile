@@ -4,8 +4,9 @@ FROM node:20-slim
 # Install pnpm
 RUN npm install -g pnpm@9.15.0
 
-# Install cloudflared for tunnel support
+# Install system dependencies: git (for template cloning) and cloudflared (for tunnels)
 RUN apt-get update && apt-get install -y \
+    git \
     wget \
     ca-certificates \
     && wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb \
