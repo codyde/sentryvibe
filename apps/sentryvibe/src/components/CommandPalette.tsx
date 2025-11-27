@@ -7,6 +7,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useRunner } from '@/contexts/RunnerContext';
+import { useToast } from '@/components/ui/toast';
 import {
   Search,
   Plus,
@@ -22,6 +23,9 @@ import {
   Loader2,
   ChevronRight,
   ArrowLeft,
+  Clock,
+  Zap,
+  Activity,
   type LucideIcon,
 } from 'lucide-react';
 import { getIconComponent } from '@sentryvibe/agent-core/lib/icon-mapper';
@@ -52,10 +56,34 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
   const router = useRouter();
   const { projects, refetch } = useProjects();
   const { selectedRunnerId } = useRunner();
+  const { addToast } = useToast();
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [recentCommands, setRecentCommands] = useState<string[]>([]);
+
+  // Load recent commands from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('recentCommands');
+    if (stored) {
+      try {
+        setRecentCommands(JSON.parse(stored));
+      } catch (e) {
+        console.error('Failed to parse recent commands:', e);
+      }
+    }
+  }, []);
+
+  // Save recent command to localStorage
+  const trackRecentCommand = (commandId: string) => {
+    setRecentCommands((prev) => {
+      const updated = [commandId, ...prev.filter((id) => id !== commandId)].slice(0, 5);
+      localStorage.setItem('recentCommands', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Reset all state when closing
   useEffect(() => {
@@ -100,13 +128,14 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       // View/Navigate to project
       items.push({
         id: 'view-project',
-        label: 'View Project',
+        label: `Open "${project.name}"`,
         description: 'Go to project workspace',
         icon: Folder,
         action: {
           type: 'action',
           fn: () => {
             router.push(`/?project=${project.slug}`);
+            trackRecentCommand('view-project');
             onOpenChange(false);
           },
         },
@@ -127,6 +156,8 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
               await fetch(`/api/projects/${project.id}/stop`, { method: 'POST' });
               await refetch();
               setLoadingAction(null);
+              addToast('success', `Server stopped for "${project.name}"`);
+              onOpenChange(false);
             },
           },
           group: 'Server',
@@ -159,6 +190,8 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
               await fetch(`/api/projects/${project.id}/start`, { method: 'POST' });
               await refetch();
               setLoadingAction(null);
+              addToast('success', `Server starting for "${project.name}"`);
+              onOpenChange(false);
             },
           },
           group: 'Server',
@@ -231,18 +264,23 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       });
     }
 
-    // Toggle bulk mode
-    items.push({
-      id: 'toggle-bulk',
-      label: bulkMode ? 'Exit Bulk Mode' : 'Enable Bulk Mode',
-      description: bulkMode ? 'Switch back to normal mode' : 'Select multiple projects for bulk operations',
-      icon: bulkMode ? XSquare : CheckSquare,
-      action: {
-        type: 'action',
-        fn: () => setBulkMode(!bulkMode),
-      },
-      group: 'Actions',
-    });
+    // Exit bulk mode if active (only show if in bulk mode)
+    if (bulkMode) {
+      items.push({
+        id: 'exit-bulk',
+        label: 'Exit Multi-Select Mode',
+        description: 'Clear selection and return to normal mode',
+        icon: XSquare,
+        action: {
+          type: 'action',
+          fn: () => {
+            setBulkMode(false);
+            setSelectedItems(new Set());
+          },
+        },
+        group: 'Actions',
+      });
+    }
 
     // Project list - drill down on selection
     projects.forEach((project) => {
@@ -260,19 +298,33 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
         return;
       }
 
-      // Normal mode: Show project list, drill down to see actions
+      // Normal mode: Show project list with inline status
       const projectIcon = getIconComponent(project.icon);
-      const metadata: string[] = [];
-      if (project.projectType) metadata.push(project.projectType);
-      if (project.port || project.devServerPort) metadata.push(`Port ${project.devServerPort || project.port}`);
-      if (project.runnerId) metadata.push(`Runner: ${project.runnerId.substring(0, 8)}`);
+      const isRunning = project.devServerStatus === 'running';
+      const isStarting = project.devServerStatus === 'starting';
+      const isBuilding = project.status === 'in_progress' || project.status === 'pending';
+      const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed';
 
-      const enhancedDescription = project.description || metadata.join(' • ') || 'View actions';
+      // Build status description
+      let statusDesc = '';
+      if (isRunning) {
+        statusDesc = `🟢 Running :${project.devServerPort || project.port}`;
+      } else if (isStarting) {
+        statusDesc = '🟡 Starting...';
+      } else if (isBuilding) {
+        statusDesc = '🟡 Building...';
+      } else if (hasFailed) {
+        statusDesc = '🔴 Failed';
+      } else if (project.detectedFramework) {
+        statusDesc = `${project.detectedFramework}`;
+      } else {
+        statusDesc = 'Idle';
+      }
 
       items.push({
         id: `project-${project.id}`,
         label: project.name,
-        description: enhancedDescription,
+        description: statusDesc,
         icon: projectIcon,
         action: {
           type: 'action',
@@ -283,12 +335,30 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
     });
 
     return items;
-  }, [projects, selectedRunnerId, onOpenProcessModal, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction, selectedProject]);
+  }, [projects, selectedRunnerId, onOpenProcessModal, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction, selectedProject, addToast]);
+
+  // Filter recent commands that still exist
+  const recentCommandItems = useMemo(() => {
+    if (selectedProject || bulkMode || recentCommands.length === 0) return [];
+    return recentCommands
+      .map((id) => commands.find((cmd) => cmd.id === id))
+      .filter((cmd): cmd is CommandItem => cmd !== undefined)
+      .slice(0, 5);
+  }, [recentCommands, commands, selectedProject, bulkMode]);
 
   // Group commands
   const groupedCommands = useMemo(() => {
     const groups = new Map<string, CommandItem[]>();
+
+    // Add recent commands as first group if available
+    if (recentCommandItems.length > 0) {
+      groups.set('Recent', recentCommandItems);
+    }
+
     commands.forEach((cmd) => {
+      // Skip if already in recent
+      if (recentCommandItems.some((r) => r.id === cmd.id)) return;
+
       const group = cmd.group || 'Other';
       if (!groups.has(group)) {
         groups.set(group, []);
@@ -296,10 +366,11 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       groups.get(group)!.push(cmd);
     });
     return Array.from(groups.entries());
-  }, [commands]);
+  }, [commands, recentCommandItems]);
 
   // Bulk action handlers
   const handleBulkStopServers = async () => {
+    const count = selectedItems.size;
     setLoadingAction('bulk-stop-servers');
     await Promise.all(
       Array.from(selectedItems).map((id) =>
@@ -310,11 +381,13 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
     setLoadingAction(null);
     setSelectedItems(new Set());
     setBulkMode(false);
+    addToast('success', `Stopped ${count} server${count > 1 ? 's' : ''}`);
     onOpenChange(false);
   };
 
   const handleBulkDelete = async () => {
-    if (confirm(`Are you sure you want to delete ${selectedItems.size} project(s)?`)) {
+    const count = selectedItems.size;
+    if (confirm(`Are you sure you want to delete ${count} project(s)?`)) {
       setLoadingAction('bulk-delete');
       await Promise.all(
         Array.from(selectedItems).map((id) =>
@@ -325,6 +398,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       setLoadingAction(null);
       setSelectedItems(new Set());
       setBulkMode(false);
+      addToast('success', `Deleted ${count} project${count > 1 ? 's' : ''}`);
       onOpenChange(false);
     }
   };
@@ -333,7 +407,35 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
     setSelectedItems(new Set());
   };
 
-  const handleSelect = (command: CommandItem) => {
+  const handleSelect = (command: CommandItem, e?: React.MouseEvent | React.KeyboardEvent) => {
+    // Check for Cmd/Ctrl+Click for multi-select on project commands
+    const isMultiSelect = e && ('metaKey' in e || 'ctrlKey' in e) && (e.metaKey || e.ctrlKey);
+    const isProjectCommand = command.id.startsWith('project-');
+
+    // Handle Cmd+Click multi-select for projects
+    if (isMultiSelect && isProjectCommand) {
+      const projectId = command.id.replace('project-', '');
+      setSelectedItems((prev) => {
+        const next = new Set(prev);
+        if (next.has(projectId)) {
+          next.delete(projectId);
+        } else {
+          next.add(projectId);
+        }
+        return next;
+      });
+      // Enter bulk mode automatically when multi-selecting
+      if (!bulkMode) {
+        setBulkMode(true);
+      }
+      return;
+    }
+
+    // Track recent commands (except bulk-select)
+    if (command.action.type !== 'bulk-select') {
+      trackRecentCommand(command.id);
+    }
+
     const action = command.action;
     switch (action.type) {
       case 'navigate':
@@ -370,21 +472,30 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
         </VisuallyHidden.Root>
 
         {/* Breadcrumb when project selected */}
-        {selectedProject && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-purple-500/10">
-            <button
-              onClick={() => setSelectedProject(null)}
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              <span>Back to projects</span>
-            </button>
-            <ChevronRight className="h-3 w-3 text-gray-600" />
-            <span className="text-sm text-white font-medium">
-              {projects.find(p => p.id === selectedProject)?.name}
-            </span>
-          </div>
-        )}
+        {selectedProject && (() => {
+          const project = projects.find(p => p.id === selectedProject);
+          const isRunning = project?.devServerStatus === 'running';
+          const isStarting = project?.devServerStatus === 'starting';
+          const isBuilding = project?.status === 'in_progress' || project?.status === 'pending';
+
+          return (
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+              <button
+                onClick={() => setSelectedProject(null)}
+                className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors group"
+              >
+                <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+                <span>All Projects</span>
+              </button>
+              <div className="flex items-center gap-2">
+                {isRunning && <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
+                {isStarting && <Loader2 className="w-3 h-3 text-green-400 animate-spin" />}
+                {isBuilding && <Loader2 className="w-3 h-3 text-yellow-400 animate-spin" />}
+                <span className="text-sm text-white font-medium">{project?.name}</span>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="flex items-center border-b border-white/10 px-4">
           <Search className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
@@ -392,19 +503,15 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
             placeholder={
               selectedProject
                 ? 'Search actions...'
-                : bulkMode
-                ? 'Select projects for bulk operations...'
+                : selectedItems.size > 0
+                ? 'Multi-select mode (Cmd+Click to toggle)...'
                 : 'Search projects and commands...'
             }
             className="flex h-12 w-full bg-transparent py-3 text-sm text-white placeholder:text-gray-500 outline-none"
           />
-          {bulkMode && (
-            <span className="ml-2 rounded bg-purple-500/20 px-2 py-1 text-xs text-purple-300 border border-purple-500/30 whitespace-nowrap">
-              Bulk Mode
-            </span>
-          )}
           {selectedItems.size > 0 && (
-            <span className="ml-2 rounded bg-blue-500/20 px-2 py-1 text-xs text-blue-300 border border-blue-500/30 whitespace-nowrap">
+            <span className="ml-2 rounded bg-purple-500/20 px-2 py-1 text-xs text-purple-300 border border-purple-500/30 whitespace-nowrap flex items-center gap-1">
+              <CheckSquare className="w-3 h-3" />
               {selectedItems.size} selected
             </span>
           )}
@@ -461,31 +568,80 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
               {items.map((command) => {
                 const Icon = command.icon || Folder;
                 const isLoading = loadingAction === command.id;
+                const isProjectCmd = command.id.startsWith('project-');
+                const projectId = isProjectCmd ? command.id.replace('project-', '') : null;
+                const isSelected = projectId ? selectedItems.has(projectId) : false;
+
                 return (
                   <Command.Item
                     key={command.id}
                     value={command.label}
-                    onSelect={() => handleSelect(command)}
+                    onSelect={(value, metadata) => {
+                      // cmdk doesn't pass the event, so we can't detect Cmd+Click here
+                      // We'll handle it with a custom onClick wrapper
+                      handleSelect(command);
+                    }}
+                    onClick={(e: React.MouseEvent) => {
+                      // Intercept click to detect Cmd/Ctrl key
+                      e.preventDefault();
+                      handleSelect(command, e);
+                    }}
                     disabled={isLoading}
                     className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none data-[selected=true]:bg-gradient-to-r data-[selected=true]:from-purple-500/20 data-[selected=true]:to-pink-500/20 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed"
                   >
+                    {isSelected && (
+                      <div className="absolute left-1 top-1 w-1.5 h-1.5 bg-purple-400 rounded-full" />
+                    )}
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 shrink-0 text-purple-400 animate-spin" />
                     ) : (
                       <Icon className="h-4 w-4 shrink-0 text-gray-400" />
                     )}
                     <div className="flex-1 overflow-hidden">
-                      <div className="font-medium truncate">{command.label}</div>
+                      <div className="font-medium truncate">
+                        {isSelected && '✓ '}
+                        {command.label}
+                      </div>
                       {command.description && (
                         <div className="text-xs text-gray-500 truncate">{command.description}</div>
                       )}
                     </div>
+                    {/* Show chevron for project items to indicate drill-down */}
+                    {isProjectCmd && !isSelected && (
+                      <ChevronRight className="h-4 w-4 text-gray-600" />
+                    )}
                   </Command.Item>
                 );
               })}
             </Command.Group>
           ))}
         </Command.List>
+
+        {/* Keyboard Hints Footer */}
+        <div className="border-t border-white/10 px-4 py-2 bg-black/20">
+          <div className="flex items-center justify-between text-[10px] text-gray-500">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">↑↓</kbd>
+                Navigate
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">↵</kbd>
+                Select
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">⎋</kbd>
+                {selectedProject ? 'Back' : 'Close'}
+              </span>
+            </div>
+            {!selectedProject && !bulkMode && (
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">⌘</kbd>
+                <span>+Click for multi-select</span>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </Command.Dialog>
   );

@@ -1102,21 +1102,20 @@ export async function startRunner(options: RunnerOptions = {}) {
       return;
     }
     
-    const traceableEvents = ['build-completed', 'build-failed'];
-    const shouldTrace = traceableEvents.includes(event.type);
+    // Only create spans for high-value events (lifecycle, not every text-delta)
+    const shouldCreateSpan = ['build-completed', 'build-failed'].includes(event.type);
     
     const sendOperation = () => {
       try {
-        // Capture trace context for traceable events (build-completed, build-failed)
-        if (shouldTrace) {
-          const span = Sentry.getActiveSpan();
-          if (span) {
-            const traceData = Sentry.getTraceData();
-            event._sentry = {
-              trace: traceData['sentry-trace'],
-              baggage: traceData.baggage,
-            };
-          }
+        // Attach trace context to ALL events for distributed tracing
+        // This allows events to be linked back to the originating frontend request
+        const span = Sentry.getActiveSpan();
+        if (span) {
+          const traceData = Sentry.getTraceData();
+          event._sentry = {
+            trace: traceData['sentry-trace'],
+            baggage: traceData.baggage,
+          };
         }
 
         const eventJson = JSON.stringify(event);
@@ -1146,8 +1145,8 @@ export async function startRunner(options: RunnerOptions = {}) {
       }
     };
 
-    // Wrap critical events in span for tracing
-    if (shouldTrace) {
+    // Only create spans for critical lifecycle events (not every stream event)
+    if (shouldCreateSpan) {
       Sentry.startSpan(
         {
           name: `runner.sendEvent.${event.type}`,
@@ -2260,16 +2259,55 @@ export async function startRunner(options: RunnerOptions = {}) {
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Continue trace if parent trace context exists, otherwise start new
+        // Continue trace from frontend (each build has unique trace ID now)
+        // Use forceTransaction to create a NEW transaction within the trace
+        // This maintains distributed tracing chain while keeping transactions separate
         if (command._sentry?.trace) {
-          console.log("continuing trace", command._sentry.trace);
+          console.log("continuing trace from frontend", command._sentry.trace);
           Sentry.continueTrace(
             {
               sentryTrace: command._sentry.trace,
               baggage: command._sentry.baggage,
             },
+            () => {
+              // Create NEW transaction within the continued trace
+              // This allows distributed tracing view while keeping runner ops separate
+              Sentry.startSpan(
+                {
+                  name: `runner.command.${command.type}`,
+                  op: 'runner.command',
+                  forceTransaction: true, // New transaction (runner operations)
+                  attributes: {
+                    'command.type': command.type,
+                    'command.id': command.id,
+                    'project.id': command.projectId,
+                  },
+                },
+                async () => {
+                  Sentry.setTag("command_type", command.type);
+                  Sentry.setTag("project_id", command.projectId);
+                  Sentry.setTag("command_id", command.id);
+
+                  await handleCommand(command);
+                }
+              );
+            }
+          );
+        } else {
+          console.log("starting new trace (no parent)");
+          // No parent trace - create independent trace
+          Sentry.startSpan(
+            {
+              name: `runner.command.${command.type}`,
+              op: 'runner.command',
+              forceTransaction: true,
+              attributes: {
+                'command.type': command.type,
+                'command.id': command.id,
+                'project.id': command.projectId,
+              },
+            },
             async () => {
-              // Add metadata to trace
               Sentry.setTag("command_type", command.type);
               Sentry.setTag("project_id", command.projectId);
               Sentry.setTag("command_id", command.id);
@@ -2277,16 +2315,6 @@ export async function startRunner(options: RunnerOptions = {}) {
               await handleCommand(command);
             }
           );
-        } else {
-          console.log("starting new trace");
-          // No parent trace - start new one
-          Sentry.startNewTrace(async () => {
-            Sentry.setTag("command_type", command.type);
-            Sentry.setTag("project_id", command.projectId);
-            Sentry.setTag("command_id", command.id);
-
-            await handleCommand(command);
-          });
         }
       } catch (error) {
         console.error("Failed to parse command", error);

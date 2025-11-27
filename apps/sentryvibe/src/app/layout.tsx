@@ -5,6 +5,7 @@ import { ProjectProvider } from "@/contexts/ProjectContext";
 import { RunnerProvider } from "@/contexts/RunnerContext";
 import { AgentProvider } from "@/contexts/AgentContext";
 import { QueryProvider } from "./providers";
+import { ToastProvider } from "@/components/ui/toast";
 
 const rubik = Rubik({
   subsets: ["latin"],
@@ -31,7 +32,9 @@ export default function RootLayout({
           <AgentProvider>
             <RunnerProvider>
               <ProjectProvider>
-                {children}
+                <ToastProvider>
+                  {children}
+                </ToastProvider>
               </ProjectProvider>
             </RunnerProvider>
           </AgentProvider>

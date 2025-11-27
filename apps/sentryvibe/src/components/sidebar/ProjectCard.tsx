@@ -1,0 +1,250 @@
+"use client"
+
+import { motion } from "framer-motion"
+import {
+  MoreHorizontal,
+  Play,
+  Square,
+  ExternalLink,
+  Edit3,
+  Trash2,
+  Folder,
+  Loader2
+} from "lucide-react"
+import { type Project } from "@/contexts/ProjectContext"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { getFrameworkLogo } from "@/lib/framework-logos"
+import Image from "next/image"
+
+interface ProjectCardProps {
+  project: Project
+  onStartServer?: () => void
+  onStopServer?: () => void
+  onRename?: () => void
+  onDelete?: () => void
+  isCurrentProject?: boolean
+}
+
+export function ProjectCard({
+  project,
+  onStartServer,
+  onStopServer,
+  onRename,
+  onDelete,
+  isCurrentProject = false
+}: ProjectCardProps) {
+  const isRunning = project.devServerStatus === 'running'
+  const isStarting = project.devServerStatus === 'starting'
+  const isStopping = project.devServerStatus === 'stopping'
+  const isBuilding = project.status === 'in_progress' || project.status === 'pending'
+  const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed'
+  const isServerBusy = isStarting || isStopping
+
+  // Get framework logo path
+  const frameworkLogoPath = project.detectedFramework
+    ? getFrameworkLogo(project.detectedFramework)
+    : null
+
+  // Format relative time
+  const getRelativeTime = (date: Date | string | null) => {
+    if (!date) return null
+    const now = new Date()
+    const then = new Date(date)
+    const diffMs = now.getTime() - then.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return then.toLocaleDateString()
+  }
+
+  const handleOpenBrowser = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const port = project.devServerPort || project.port || 3000
+    window.open(`http://localhost:${port}`, '_blank')
+  }
+
+  const handleAction = (e: React.MouseEvent, action: () => void) => {
+    e.preventDefault()
+    e.stopPropagation()
+    action()
+  }
+
+  return (
+    <motion.a
+      href={`/?project=${project.slug}`}
+      className={`group flex items-center gap-2 px-3 py-2 mx-2 rounded-lg transition-all ${
+        isCurrentProject
+          ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30'
+          : 'hover:bg-white/5'
+      }`}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+    >
+      {/* Status indicator */}
+      <div className="relative flex-shrink-0">
+        {(isBuilding || isServerBusy) ? (
+          <Loader2 className={`w-4 h-4 animate-spin ${
+            isStarting ? 'text-green-400' :
+            isStopping ? 'text-orange-400' :
+            'text-yellow-400'
+          }`} />
+        ) : (
+          <motion.div
+            className={`w-2 h-2 rounded-full ${
+              isRunning ? 'bg-green-400' :
+              hasFailed ? 'bg-red-400' :
+              'bg-gray-600'
+            }`}
+            animate={isRunning ? {
+              scale: [1, 1.2, 1],
+              opacity: [1, 0.7, 1]
+            } : {}}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        )}
+      </div>
+
+      {/* Project info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm truncate ${
+            isCurrentProject ? 'text-white font-medium' : 'text-white'
+          }`}>
+            {project.name}
+          </span>
+        </div>
+
+        {/* Secondary info row */}
+        <div className="flex items-center gap-2 mt-0.5">
+          {/* Status badge for active states */}
+          {isRunning && (
+            <span className="text-[10px] text-green-400 font-medium">
+              :{project.devServerPort || project.port}
+            </span>
+          )}
+          {isStarting && (
+            <span className="text-[10px] text-green-400">Starting...</span>
+          )}
+          {isStopping && (
+            <span className="text-[10px] text-orange-400">Stopping...</span>
+          )}
+          {isBuilding && !isServerBusy && (
+            <span className="text-[10px] text-yellow-400">Building...</span>
+          )}
+          {hasFailed && (
+            <span className="text-[10px] text-red-400">Failed</span>
+          )}
+
+          {/* Framework + time for inactive */}
+          {!isRunning && !isBuilding && !hasFailed && !isServerBusy && (
+            <>
+              {frameworkLogoPath && (
+                <div className="flex items-center gap-1">
+                  <Image
+                    src={frameworkLogoPath}
+                    alt={project.detectedFramework || ''}
+                    width={12}
+                    height={12}
+                    className="opacity-50"
+                  />
+                  <span className="text-[10px] text-gray-500 capitalize">
+                    {project.detectedFramework}
+                  </span>
+                </div>
+              )}
+              {project.lastActivityAt && (
+                <span className="text-[10px] text-gray-600">
+                  {getRelativeTime(project.lastActivityAt)}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Inline Actions - Always visible */}
+      <div className="flex items-center gap-0.5 flex-shrink-0">
+        {isRunning && (
+          <>
+            <button
+              onClick={handleOpenBrowser}
+              className="p-1.5 hover:bg-white/10 rounded transition-colors"
+              title="Open in browser"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-gray-400 hover:text-white" />
+            </button>
+            <button
+              onClick={(e) => handleAction(e, onStopServer!)}
+              disabled={isStopping}
+              className="p-1.5 hover:bg-red-500/20 rounded transition-colors disabled:opacity-50"
+              title="Stop server"
+            >
+              <Square className="w-3.5 h-3.5 text-gray-400 hover:text-red-400" />
+            </button>
+          </>
+        )}
+
+        {!isRunning && !isBuilding && !isServerBusy && project.runCommand && (
+          <button
+            onClick={(e) => handleAction(e, onStartServer!)}
+            className="p-1.5 hover:bg-green-500/20 rounded transition-colors opacity-0 group-hover:opacity-100"
+            title="Start server"
+          >
+            <Play className="w-3.5 h-3.5 text-gray-400 hover:text-green-400" />
+          </button>
+        )}
+
+        {/* More menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="p-1.5 hover:bg-white/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+              onClick={(e) => e.preventDefault()}
+            >
+              <MoreHorizontal className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-40 bg-black border-white/10" side="right" align="start">
+            <DropdownMenuItem className="text-white hover:bg-white/5 text-xs" asChild>
+              <a href={`/?project=${project.slug}`}>
+                <Folder className="w-3 h-3 mr-2 text-gray-400" />
+                View Project
+              </a>
+            </DropdownMenuItem>
+            {onRename && (
+              <DropdownMenuItem
+                className="text-white hover:bg-white/5 text-xs cursor-pointer"
+                onClick={onRename}
+              >
+                <Edit3 className="w-3 h-3 mr-2 text-gray-400" />
+                Rename
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator className="bg-white/10" />
+            {onDelete && (
+              <DropdownMenuItem
+                className="text-red-400 hover:bg-red-500/10 text-xs cursor-pointer"
+                onClick={onDelete}
+              >
+                <Trash2 className="w-3 h-3 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </motion.a>
+  )
+}

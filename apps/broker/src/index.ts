@@ -126,6 +126,18 @@ app.post('/commands', auth, (req, res) => {
   }
 
   try {
+    // Extract trace context from HTTP headers and attach to command
+    // This enables distributed tracing: frontend → broker → runner → AI
+    const sentryTrace = req.headers['sentry-trace'];
+    const baggage = req.headers['baggage'];
+    
+    if (sentryTrace) {
+      command._sentry = {
+        trace: Array.isArray(sentryTrace) ? sentryTrace[0] : sentryTrace,
+        baggage: Array.isArray(baggage) ? baggage[0] : baggage,
+      };
+    }
+    
     connection.socket.send(JSON.stringify(command));
     totalCommands++;
     return res.json({ ok: true });

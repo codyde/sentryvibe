@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Trash2, Copy, Check } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Trash2, AlertTriangle, FolderOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDeleteProject } from '@/mutations/projects';
 
@@ -11,8 +11,10 @@ interface DeleteProjectModalProps {
   projectId: string;
   projectName: string;
   projectSlug: string;
-  onDeleteComplete: () => void;
+  onDeleteComplete: (message: string) => void;
 }
+
+const HOLD_DURATION = 1500; // 1.5 seconds to confirm
 
 export default function DeleteProjectModal({
   isOpen,
@@ -22,50 +24,86 @@ export default function DeleteProjectModal({
   projectSlug,
   onDeleteComplete,
 }: DeleteProjectModalProps) {
-  const [confirmText, setConfirmText] = useState('');
-  const [deleteFiles, setDeleteFiles] = useState(true); // Default to true - users expect files to be deleted
-  const [copiedName, setCopiedName] = useState(false);
-  const [copiedSlug, setCopiedSlug] = useState(false);
+  // Default to keeping files (safer default)
+  const [deleteFiles, setDeleteFiles] = useState(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [isHolding, setIsHolding] = useState(false);
+  const holdStartRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
-  // Use TanStack Query mutation
   const deleteMutation = useDeleteProject();
 
-  const isValid = confirmText === projectName || confirmText === projectSlug;
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setDeleteFiles(false);
+      setHoldProgress(0);
+      setIsHolding(false);
+      holdStartRef.current = null;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    }
+  }, [isOpen]);
 
-  const handleCopy = (text: string, type: 'name' | 'slug') => {
-    navigator.clipboard.writeText(text);
-    if (type === 'name') {
-      setCopiedName(true);
-      setTimeout(() => setCopiedName(false), 2000);
+  const updateProgress = useCallback(() => {
+    if (!holdStartRef.current) return;
+
+    const elapsed = Date.now() - holdStartRef.current;
+    const progress = Math.min(elapsed / HOLD_DURATION, 1);
+    setHoldProgress(progress);
+
+    if (progress < 1) {
+      animationFrameRef.current = requestAnimationFrame(updateProgress);
     } else {
-      setCopiedSlug(true);
-      setTimeout(() => setCopiedSlug(false), 2000);
+      // Trigger delete
+      handleDelete();
+    }
+  }, []);
+
+  const handleMouseDown = () => {
+    if (deleteMutation.isPending) return;
+    setIsHolding(true);
+    holdStartRef.current = Date.now();
+    animationFrameRef.current = requestAnimationFrame(updateProgress);
+  };
+
+  const handleMouseUp = () => {
+    setIsHolding(false);
+    holdStartRef.current = null;
+    setHoldProgress(0);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
     }
   };
 
-  const handleDelete = async () => {
-    if (!isValid) return;
+  const handleMouseLeave = () => {
+    handleMouseUp();
+  };
 
+  const handleDelete = async () => {
     try {
       await deleteMutation.mutateAsync({
         projectId,
         options: { deleteFiles },
       });
 
-      // Success - close modal and call callback
-      onDeleteComplete();
+      // Create success message
+      const message = deleteFiles
+        ? `"${projectName}" and its files have been deleted`
+        : `"${projectName}" removed (files kept on disk)`;
+
+      onDeleteComplete(message);
       onClose();
-      setConfirmText('');
-      setDeleteFiles(false);
     } catch (error) {
       console.error('Failed to delete project:', error);
-      alert('Failed to delete project');
     }
   };
 
   const handleClose = () => {
-    setConfirmText('');
+    if (deleteMutation.isPending) return;
     setDeleteFiles(false);
+    setHoldProgress(0);
     onClose();
   };
 
@@ -89,109 +127,135 @@ export default function DeleteProjectModal({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-full max-w-md bg-gradient-to-br from-gray-900 to-gray-800 border border-red-500/30 rounded-xl shadow-2xl"
+            className="relative w-full max-w-md bg-gradient-to-br from-gray-900 to-gray-800 border border-white/10 rounded-xl shadow-2xl overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
+            <div className="flex items-center justify-between p-5 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <Trash2 className="w-6 h-6 text-red-400" />
-                <h2 className="text-xl font-semibold text-white">Delete Project</h2>
+                <div className="p-2 bg-red-500/20 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Delete "{projectName}"?</h2>
+                  <p className="text-xs text-gray-500">This action cannot be undone</p>
+                </div>
               </div>
               <button
                 onClick={handleClose}
-                className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                disabled={deleteMutation.isPending}
+                className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10 disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-4">
-              <p className="text-gray-300">
-                This action cannot be undone. To confirm deletion, type the project name or slug below:
-              </p>
+            <div className="p-5 space-y-4">
+              {/* File deletion option */}
+              <div className="space-y-3">
+                {/* Keep files option (default) */}
+                <label
+                  className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                    !deleteFiles
+                      ? 'bg-purple-500/20 border-2 border-purple-500/50'
+                      : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="deleteOption"
+                    checked={!deleteFiles}
+                    onChange={() => setDeleteFiles(false)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <FolderOpen className="w-4 h-4 text-purple-400" />
+                      <span className="text-sm font-medium text-white">Keep project files</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Remove from SentryVibe but keep files at:<br/>
+                      <code className="text-gray-500">~/sentryvibe-projects/{projectSlug}</code>
+                    </p>
+                  </div>
+                </label>
 
-              {/* Project Name */}
-              <div className="space-y-1">
-                <label className="text-xs text-gray-500">Project Name:</label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-gray-900 border border-white/10 rounded-md text-white font-mono text-sm">
-                    {projectName}
-                  </code>
-                  <button
-                    onClick={() => handleCopy(projectName, 'name')}
-                    className="p-2 bg-white/10 hover:bg-white/20 rounded-md transition-colors"
-                    title="Copy name"
-                  >
-                    {copiedName ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
+                {/* Delete files option */}
+                <label
+                  className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                    deleteFiles
+                      ? 'bg-red-500/20 border-2 border-red-500/50'
+                      : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="deleteOption"
+                    checked={deleteFiles}
+                    onChange={() => setDeleteFiles(true)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Trash2 className="w-4 h-4 text-red-400" />
+                      <span className="text-sm font-medium text-white">Delete everything</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Permanently delete project and all files from disk
+                    </p>
+                  </div>
+                </label>
               </div>
-
-              {/* Project Slug */}
-              <div className="space-y-1">
-                <label className="text-xs text-gray-500">Project Slug:</label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-gray-900 border border-white/10 rounded-md text-white font-mono text-sm">
-                    {projectSlug}
-                  </code>
-                  <button
-                    onClick={() => handleCopy(projectSlug, 'slug')}
-                    className="p-2 bg-white/10 hover:bg-white/20 rounded-md transition-colors"
-                    title="Copy slug"
-                  >
-                    {copiedSlug ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirmation Input */}
-              <div className="space-y-1">
-                <label className="text-xs text-gray-500">Type to confirm:</label>
-                <input
-                  type="text"
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  className="w-full px-4 py-2 bg-gray-900 border border-white/10 rounded-md text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
-                  placeholder="Enter project name or slug"
-                  autoFocus
-                />
-              </div>
-
-              {/* Delete Files Option */}
-              <label className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg cursor-pointer hover:bg-red-500/20 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={deleteFiles}
-                  onChange={(e) => setDeleteFiles(e.target.checked)}
-                  className="w-4 h-4 rounded border-white/20"
-                />
-                <span className="text-sm text-red-300">Also delete project files from disk</span>
-              </label>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
+            <div className="flex items-center justify-between gap-3 p-5 border-t border-white/10 bg-black/20">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 text-sm text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 text-sm text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
+
+              {/* Hold-to-delete button */}
               <button
-                onClick={handleDelete}
-                disabled={!isValid || deleteMutation.isPending}
-                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onTouchStart={handleMouseDown}
+                onTouchEnd={handleMouseUp}
+                disabled={deleteMutation.isPending}
+                className={`relative px-5 py-2 text-sm font-medium rounded-lg transition-all overflow-hidden ${
+                  deleteFiles
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-orange-600 hover:bg-orange-700 text-white'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete Project'}
+                {/* Progress fill */}
+                <motion.div
+                  className={`absolute inset-0 ${deleteFiles ? 'bg-red-400' : 'bg-orange-400'}`}
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: holdProgress }}
+                  style={{ transformOrigin: 'left' }}
+                />
+
+                {/* Button text */}
+                <span className="relative z-10 flex items-center gap-2">
+                  {deleteMutation.isPending ? (
+                    'Deleting...'
+                  ) : isHolding ? (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Hold to confirm...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Hold to Delete
+                    </>
+                  )}
+                </span>
               </button>
             </div>
           </motion.div>

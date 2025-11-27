@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Terminal, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import Convert from 'ansi-to-html';
 import { useProjects } from '@/contexts/ProjectContext';
 
@@ -429,17 +428,10 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
   }, [detectedPort, onPortDetected]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-      className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
-    >
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-white/10 p-3 flex items-center justify-between">
+      <div className="border-b border-white/10 px-4 py-2 flex items-center justify-between bg-black/20">
         <div className="flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-green-400" />
-          <h3 className="text-sm font-medium text-white">Terminal Output</h3>
           {isStreaming && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 animate-pulse">
               Live
@@ -459,13 +451,8 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
 
       {/* Terminal Content */}
       <div className="flex-1 overflow-y-auto p-4 bg-[#181225] font-mono text-sm">
-        {/* Debug info */}
-        <div className="text-xs text-gray-600 mb-2">
-          ProjectID: {projectId || 'none'} | Streaming: {isStreaming ? 'yes' : 'no'} | Logs: {logs.length}
-        </div>
-
         {logs.length === 0 ? (
-          <div className="text-gray-500">
+          <div className="text-gray-500 flex items-center justify-center h-full">
             {projectId ? 'No output yet. Start the dev server to see logs.' : 'Select a project to view terminal output'}
           </div>
         ) : (
@@ -483,6 +470,6 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
