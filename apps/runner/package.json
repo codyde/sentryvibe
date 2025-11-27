@@ -64,6 +64,7 @@
     "conf": "^15.0.2",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.44.5",
+    "express": "^4.21.2",
     "ink": "^6.3.1",
     "ink-select-input": "^6.2.0",
     "ink-spinner": "^5.0.0",
@@ -80,6 +81,7 @@
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/update-notifier": "^6.0.8",
