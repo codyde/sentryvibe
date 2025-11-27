@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MousePointer2, X, Send } from 'lucide-react';
-import { Button } from './ui/button';
+import { useEffect, useRef } from 'react';
+import { MousePointer2 } from 'lucide-react';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 
 interface SelectedElement {
   selector: string;
@@ -71,19 +74,22 @@ export default function SelectionMode({ isEnabled, onToggle, onElementSelected }
   }, [onToggle, onElementSelected]);
 
   return (
-    /* Selection Mode Toggle Button */
-    <Button
-      onClick={() => onToggle(!isEnabled)}
-      variant="outline"
-      size="sm"
-      className={`gap-2 transition-all ${
-        isEnabled
-          ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 hover:bg-purple-500/30'
-          : 'bg-white/5 border-white/10 hover:bg-white/10'
-      }`}
-    >
-      <MousePointer2 className="w-4 h-4" />
-      {isEnabled ? 'Click an element...' : 'Select Element'}
-    </Button>
+    <HoverCard openDelay={300}>
+      <HoverCardTrigger asChild>
+        <button
+          onClick={() => onToggle(!isEnabled)}
+          className={`p-1.5 rounded-md transition-all ${
+            isEnabled
+              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50 hover:bg-purple-500/30'
+              : 'hover:bg-white/10'
+          }`}
+        >
+          <MousePointer2 className={`w-4 h-4 ${isEnabled ? 'text-purple-400' : 'text-gray-400'}`} />
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-auto bg-gray-900 border-white/20 text-xs" side="bottom">
+        {isEnabled ? 'Click an element in the preview' : 'Select Element'}
+      </HoverCardContent>
+    </HoverCard>
   );
 }

@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { motion } from 'framer-motion';
+import { Monitor, Code, Terminal } from 'lucide-react';
 import PreviewPanel from './PreviewPanel';
 import EditorTab from './EditorTab';
+import TerminalOutput from './TerminalOutput';
 
 interface TabbedPreviewProps {
   selectedProject?: string | null;
@@ -17,6 +19,7 @@ interface TabbedPreviewProps {
   isStartingTunnel?: boolean;
   isStoppingTunnel?: boolean;
   isBuildActive?: boolean;
+  onPortDetected?: (port: number) => void;
 }
 
 const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
@@ -31,8 +34,9 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
   isStartingTunnel,
   isStoppingTunnel,
   isBuildActive,
+  onPortDetected,
 }, ref) => {
-  const [activeTab, setActiveTab] = useState<'preview' | 'editor'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'terminal'>('preview');
 
   // Listen for global events to switch tabs
   useEffect(() => {
@@ -44,13 +48,19 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
       console.log('👁️  Switching to Preview tab');
       setActiveTab('preview');
     };
+    const handleSwitchToTerminal = () => {
+      console.log('💻 Switching to Terminal tab');
+      setActiveTab('terminal');
+    };
 
     window.addEventListener('switch-to-editor', handleSwitchToEditor);
     window.addEventListener('switch-to-preview', handleSwitchToPreview);
+    window.addEventListener('switch-to-terminal', handleSwitchToTerminal);
 
     return () => {
       window.removeEventListener('switch-to-editor', handleSwitchToEditor);
       window.removeEventListener('switch-to-preview', handleSwitchToPreview);
+      window.removeEventListener('switch-to-terminal', handleSwitchToTerminal);
     };
   }, []);
 
@@ -65,29 +75,42 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
       <div className="border-b border-white/10 flex">
         <button
           onClick={() => setActiveTab('preview')}
-          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
             activeTab === 'preview'
               ? 'border-purple-500 text-white bg-white/5'
               : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
+          <Monitor className="w-4 h-4" />
           Preview
         </button>
         <button
           onClick={() => setActiveTab('editor')}
-          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
             activeTab === 'editor'
               ? 'border-purple-500 text-white bg-white/5'
               : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
+          <Code className="w-4 h-4" />
           Editor
+        </button>
+        <button
+          onClick={() => setActiveTab('terminal')}
+          className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+            activeTab === 'terminal'
+              ? 'border-purple-500 text-white bg-white/5'
+              : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Terminal className="w-4 h-4" />
+          Terminal
         </button>
       </div>
 
       {/* Tab Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === 'preview' ? (
+        {activeTab === 'preview' && (
           <PreviewPanel
             selectedProject={selectedProject}
             onStartServer={onStartServer}
@@ -100,8 +123,17 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
             isStoppingTunnel={isStoppingTunnel}
             isBuildActive={isBuildActive}
           />
-        ) : (
+        )}
+        {activeTab === 'editor' && (
           <EditorTab projectId={projectId} />
+        )}
+        {activeTab === 'terminal' && (
+          <div className="h-full">
+            <TerminalOutput
+              projectId={projectId}
+              onPortDetected={onPortDetected}
+            />
+          </div>
         )}
       </div>
     </motion.div>

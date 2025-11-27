@@ -9,7 +9,6 @@ import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, CheckCircle2 } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
-import TerminalOutput from "@/components/TerminalOutput";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
@@ -20,6 +19,7 @@ import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { useToast } from "@/components/ui/toast";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
@@ -640,6 +640,7 @@ function HomeContent() {
   const { projects, refetch, runnerOnline, setActiveProjectId } = useProjects();
   const { selectedRunnerId, availableRunners } = useRunner();
   const { selectedAgentId, selectedClaudeModelId, claudeModels } = useAgent();
+  const { addToast } = useToast();
   const selectedClaudeModel = claudeModels.find(
     (model) => model.id === selectedClaudeModelId,
   );
@@ -2730,9 +2731,11 @@ function HomeContent() {
             projectId={deletingProject.id}
             projectName={deletingProject.name}
             projectSlug={deletingProject.slug}
-            onDeleteComplete={() => {
+            onDeleteComplete={(message: string) => {
               setDeletingProject(null);
               refetch();
+              // Show success toast
+              addToast('success', message);
               // If viewing deleted project, navigate home and reset tags
               if (selectedProjectSlug === deletingProject.slug) {
                 router.push('/');
@@ -3569,10 +3572,10 @@ function HomeContent() {
                     </div>
                   </motion.div>
 
-                  {/* Right Panel - Split into Tabbed Preview (top) and Terminal (bottom) (2/3 width on desktop, full width on mobile) */}
-                  <div className="w-full lg:w-2/3 flex flex-col gap-4 min-w-0 h-auto lg:h-full">
-                    {/* Tabbed Preview Panel - Top */}
-                    <div className="flex-1 min-h-0 h-[60vh] lg:h-auto">
+                  {/* Right Panel - Tabbed Preview with Preview/Editor/Terminal tabs (2/3 width on desktop, full width on mobile) */}
+                  <div className="w-full lg:w-2/3 flex flex-col min-w-0 h-auto lg:h-full">
+                    {/* Tabbed Preview Panel - Full height */}
+                    <div className="flex-1 min-h-0 h-[70vh] lg:h-full">
                       <TabbedPreview
                         selectedProject={selectedProjectSlug}
                         projectId={currentProject?.id}
@@ -3585,20 +3588,11 @@ function HomeContent() {
                         isStartingTunnel={isStartingTunnel}
                         isStoppingTunnel={isStoppingTunnel}
                         isBuildActive={isCreatingProject || generationState?.isActive || false}
-                      />
-                    </div>
-
-                    {/* Terminal Output - Bottom */}
-                    <div className="h-48 lg:h-60">
-                      <TerminalOutput
-                        projectId={currentProject?.id}
                         onPortDetected={(port) => {
                           if (DEBUG_PAGE) console.log(
                             "🔍 Terminal detected port update:",
                             port
                           );
-                          // Port is detected and stored in process-manager on server-side
-                          // No need to update DB from client - creates infinite loops
                         }}
                       />
                     </div>

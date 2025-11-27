@@ -9,6 +9,11 @@ import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
 import AsciiLoadingAnimation from './AsciiLoadingAnimation';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
@@ -345,10 +350,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   }, [handleRefresh]);
 
   const handleCopyUrl = async () => {
-    // Copy the actual URL (tunnel for remote, localhost for local)
-    const url = isLocalRunner
-      ? `http://localhost:${actualPort}`
-      : (verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`);
+    // Copy the actual URL - prefer tunnel if available, otherwise localhost
+    const url = verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`;
 
     try {
       await navigator.clipboard.writeText(url);
@@ -471,27 +474,38 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               </button>
             </div>
 
-            {/* URL bar - Center */}
-            <div className="flex-1 flex items-center gap-2 mx-3">
-              <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors">
-                <div className="w-2 h-2 rounded-full bg-[#92DD00] shadow-lg shadow-[#92DD00]/50 flex-shrink-0"></div>
-                <span className="text-xs font-mono text-gray-300 truncate">
-                  {isLocalRunner
-                    ? `http://localhost:${actualPort}`
-                    : (verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`)}
-                </span>
-                <button
-                  onClick={handleCopyUrl}
-                  className="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
-                  title="Copy URL"
-                >
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-green-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  )}
-                </button>
-              </div>
+            {/* URL bar - Center (Fixed width to prevent layout shift) */}
+            <div className="flex items-center gap-2 mx-3">
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="w-[512px] flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors cursor-default">
+                    <div className={`w-2 h-2 rounded-full shadow-lg flex-shrink-0 ${
+                      verifiedTunnelUrl || currentProject?.tunnelUrl
+                        ? 'bg-blue-400 shadow-blue-400/50'
+                        : 'bg-[#92DD00] shadow-[#92DD00]/50'
+                    }`}></div>
+                    <span className="text-xs font-mono text-gray-300 truncate flex-1">
+                      {verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`}
+                    </span>
+                    <button
+                      onClick={handleCopyUrl}
+                      className="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                      title="Copy URL"
+                    >
+                      {copied ? (
+                        <Check className="w-3.5 h-3.5 text-green-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-auto max-w-xl bg-gray-900 border-white/20" side="bottom">
+                  <p className="text-xs font-mono text-gray-300 break-all">
+                    {verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`}
+                  </p>
+                </HoverCardContent>
+              </HoverCard>
 
               {/* Device presets */}
               <div className="flex items-center gap-1 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md p-1">
