@@ -16,7 +16,7 @@ import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync } from "fs";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import {
   CLAUDE_SYSTEM_PROMPT,
   CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
@@ -1069,7 +1069,7 @@ export async function startRunner(options: RunnerOptions = {}) {
     process.exit(1);
   }
 
-  const runnerSharedSecret = SHARED_SECRET; // Guaranteed to be string after check
+  const runnerSharedSecret = SHARED_SECRET!; // Guaranteed to be string after validation check
 
   // Ensure workspace directory exists
   if (!existsSync(WORKSPACE_ROOT)) {
@@ -1094,7 +1094,7 @@ export async function startRunner(options: RunnerOptions = {}) {
     const healthApp = express();
     const healthPort = process.env.HEALTH_PORT || 8080;
 
-    healthApp.get('/health', (req, res) => {
+    healthApp.get('/health', (req: Request, res: Response) => {
       res.json({
         status: 'healthy',
         runner: {
@@ -1108,7 +1108,7 @@ export async function startRunner(options: RunnerOptions = {}) {
       });
     });
 
-    healthApp.get('/ready', (req, res) => {
+    healthApp.get('/ready', (req: Request, res: Response) => {
       const isReady = socket?.readyState === WebSocket.OPEN && existsSync(WORKSPACE_ROOT);
       res.status(isReady ? 200 : 503).json({
         ready: isReady,
@@ -1116,8 +1116,9 @@ export async function startRunner(options: RunnerOptions = {}) {
       });
     });
 
-    healthServer = healthApp.listen(healthPort, () => {
-      console.log(`✅ Health endpoint listening on port ${healthPort}`);
+    const portNumber = typeof healthPort === 'string' ? parseInt(healthPort, 10) : healthPort;
+    healthServer = healthApp.listen(portNumber, () => {
+      console.log(`✅ Health endpoint listening on port ${portNumber}`);
     });
   }
 
