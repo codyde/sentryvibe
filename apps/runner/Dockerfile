@@ -1,8 +1,8 @@
 # Railway-optimized Dockerfile for SentryVibe Runner
 FROM node:20-slim
 
-# Install pnpm
-RUN npm install -g pnpm@9.15.0
+# Install pnpm and Claude Code CLI globally
+RUN npm install -g pnpm@9.15.0 @anthropic-ai/claude-code@latest
 
 # Install system dependencies: git (for template cloning) and cloudflared (for tunnels)
 RUN apt-get update && apt-get install -y \
