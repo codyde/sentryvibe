@@ -48,6 +48,7 @@ Deploy runners as Railway services with full production support:
 ### Railway Dockerfile Improvements
 - **Fixed missing git** - Template cloning now works
 - **Fixed missing Claude Code CLI** - AI builds now work
+- **Fixed Claude Code initialization** - Created ~/.claude config directory
 - **Fixed vendor file copying** - Sentry packages load correctly
 - **Fixed tsconfig.base.json** - TypeScript builds succeed
 - **Fixed source code ordering** - Prepare scripts run successfully
@@ -57,12 +58,16 @@ Deploy runners as Railway services with full production support:
 - **Fixed health endpoint types** - Request/Response types resolved
 - **Upgraded to Express v5.1.0** - Latest stable version
 
+### CLI Fixes
+- **Fixed missing jsonc-parser** - Required dependency for ai-sdk-provider-claude-code
+
 ---
 
 ## 📦 Dependencies Added
 
 - `express@^5.1.0` - HTTP health endpoint server (service mode only)
 - `@types/express@^4.17.21` - TypeScript definitions
+- `jsonc-parser@^3.3.1` - Required by ai-sdk-provider-claude-code
 
 **Impact:** ~5MB additional container size in Railway deployments. Zero impact on local CLI usage.
 
@@ -100,9 +105,9 @@ GET /ready   → 200 OK when ready, 503 when not ready
 
 ## 📊 Stats
 
-- **12 commits** since v0.16.0
-- **9 files modified**
-- **+850 lines** (mostly docs and Dockerfile)
+- **15 commits** since v0.16.0
+- **11 files modified**
+- **+870 lines** (mostly docs and Dockerfile)
 - **Deployment guides:** 2 comprehensive documents
 
 ---
