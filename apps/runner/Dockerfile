@@ -21,6 +21,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/runner/package.json ./apps/runner/
 COPY packages/agent-core/package.json ./packages/agent-core/
+COPY packages/agent-core/tsconfig.json ./packages/agent-core/
 
 # Copy vendor files (required by package.json file: dependencies)
 COPY apps/runner/vendor ./apps/runner/vendor
@@ -29,9 +30,12 @@ COPY apps/sentryvibe/vendor ./apps/sentryvibe/vendor
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
-COPY apps/runner ./apps/runner
-COPY packages/agent-core ./packages/agent-core
+# Copy remaining source code
+COPY apps/runner/src ./apps/runner/src
+COPY apps/runner/tsconfig.json ./apps/runner/
+COPY apps/runner/templates.json ./apps/runner/
+COPY apps/runner/scripts ./apps/runner/scripts
+COPY packages/agent-core/src ./packages/agent-core/src
 
 # Build agent-core and runner
 RUN pnpm --filter @sentryvibe/agent-core build
