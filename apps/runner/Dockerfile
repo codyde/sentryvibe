@@ -19,26 +19,25 @@ WORKDIR /app
 
 # Copy package files and base tsconfig
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY apps/runner/package.json ./apps/runner/
-COPY packages/agent-core/package.json ./packages/agent-core/
-COPY packages/agent-core/tsconfig.json ./packages/agent-core/
+
+# Copy all package.json and tsconfig files
+COPY apps/runner/package.json apps/runner/tsconfig.json ./apps/runner/
+COPY packages/agent-core/package.json packages/agent-core/tsconfig.json ./packages/agent-core/
 
 # Copy vendor files (required by package.json file: dependencies)
 COPY apps/runner/vendor ./apps/runner/vendor
 COPY apps/sentryvibe/vendor ./apps/sentryvibe/vendor
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy remaining source code
+# Copy source code (needed before install due to prepare scripts)
 COPY apps/runner/src ./apps/runner/src
-COPY apps/runner/tsconfig.json ./apps/runner/
 COPY apps/runner/templates.json ./apps/runner/
 COPY apps/runner/scripts ./apps/runner/scripts
 COPY packages/agent-core/src ./packages/agent-core/src
 
-# Build agent-core and runner
-RUN pnpm --filter @sentryvibe/agent-core build
+# Install dependencies (will run prepare scripts that build agent-core)
+RUN pnpm install --frozen-lockfile
+
+# Build runner (agent-core already built by prepare script)
 RUN pnpm --filter @sentryvibe/runner-cli build
 
 # Create workspace directory (will be mounted as volume in Railway)
