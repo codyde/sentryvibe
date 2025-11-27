@@ -15,6 +15,8 @@ import { createInstrumentedCodex } from "@sentry/node";
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
+import { existsSync, mkdirSync } from "fs";
+import express from "express";
 import {
   CLAUDE_SYSTEM_PROMPT,
   CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
@@ -1021,7 +1023,11 @@ export async function startRunner(options: RunnerOptions = {}) {
   const WORKSPACE_ROOT = options.workspace || getWorkspaceRoot();
   log("workspace root:", WORKSPACE_ROOT);
 
-  const RUNNER_ID = options.runnerId || process.env.RUNNER_ID || os.hostname();
+  // Railway-aware RUNNER_ID: Prefer explicit config, then Railway replica ID, fallback to hostname
+  const RUNNER_ID = options.runnerId ||
+    process.env.RUNNER_ID ||
+    process.env.RAILWAY_REPLICA_ID ||
+    `runner-${os.hostname()}`;
   const BROKER_URL =
     options.brokerUrl ||
     process.env.RUNNER_BROKER_URL ||
@@ -1051,12 +1057,25 @@ export async function startRunner(options: RunnerOptions = {}) {
       return `${protocol}//${brokerUrl.host}`;
     })();
 
-  if (!SHARED_SECRET) {
-    console.error("RUNNER_SHARED_SECRET is required");
-    throw new Error("RUNNER_SHARED_SECRET is required");
+  // Startup validation - fail fast if required config missing
+  const missingConfig: string[] = [];
+  if (!SHARED_SECRET) missingConfig.push('RUNNER_SHARED_SECRET');
+  if (!BROKER_URL) missingConfig.push('RUNNER_BROKER_URL (or --broker flag)');
+  if (!WORKSPACE_ROOT) missingConfig.push('WORKSPACE_ROOT');
+
+  if (missingConfig.length > 0) {
+    console.error("❌ Missing required configuration:");
+    missingConfig.forEach(cfg => console.error(`   - ${cfg}`));
+    process.exit(1);
   }
 
   const runnerSharedSecret = SHARED_SECRET; // Guaranteed to be string after check
+
+  // Ensure workspace directory exists
+  if (!existsSync(WORKSPACE_ROOT)) {
+    console.log(`📁 Creating workspace directory: ${WORKSPACE_ROOT}`);
+    mkdirSync(WORKSPACE_ROOT, { recursive: true });
+  }
 
   // Set environment variables for process-manager and other modules
   process.env.API_BASE_URL = apiBaseUrl;
@@ -1064,6 +1083,43 @@ export async function startRunner(options: RunnerOptions = {}) {
   process.env.RUNNER_ID = RUNNER_ID;
 
   log("api base url:", apiBaseUrl);
+  log("runner id:", RUNNER_ID);
+  log("workspace root:", WORKSPACE_ROOT);
+
+  // Start HTTP health endpoint for Railway health checks
+  const isServiceMode = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+  let healthServer: ReturnType<typeof express> | null = null;
+
+  if (isServiceMode) {
+    const healthApp = express();
+    const healthPort = process.env.HEALTH_PORT || 8080;
+
+    healthApp.get('/health', (req, res) => {
+      res.json({
+        status: 'healthy',
+        runner: {
+          id: RUNNER_ID,
+          connected: socket?.readyState === WebSocket.OPEN,
+          workspace: WORKSPACE_ROOT,
+          workspaceExists: existsSync(WORKSPACE_ROOT),
+        },
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    healthApp.get('/ready', (req, res) => {
+      const isReady = socket?.readyState === WebSocket.OPEN && existsSync(WORKSPACE_ROOT);
+      res.status(isReady ? 200 : 503).json({
+        ready: isReady,
+        runnerId: RUNNER_ID,
+      });
+    });
+
+    healthServer = healthApp.listen(healthPort, () => {
+      console.log(`✅ Health endpoint listening on port ${healthPort}`);
+    });
+  }
 
   // Cleanup orphaned processes on startup
   cleanupOrphanedProcesses(apiBaseUrl, runnerSharedSecret, RUNNER_ID).catch(
@@ -2395,9 +2451,19 @@ export async function startRunner(options: RunnerOptions = {}) {
       socket.close(1000, "Shutdown requested");
     }
 
+    // Close HTTP health server if running
+    if (healthServer) {
+      await new Promise<void>((resolve) => {
+        healthServer.close(() => {
+          log("health server closed");
+          resolve();
+        });
+      });
+    }
+
     // Stop all running dev servers and cleanup tunnels
     const { stopAllDevServers } = await import('./lib/process-manager.js');
-    
+
     // Stop all dev server processes (this also handles tunnel cleanup per-process)
     await stopAllDevServers(tunnelManager);
 
@@ -2406,6 +2472,8 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     // Flush Sentry events before exiting
     await Sentry.flush(2000);
+
+    log("shutdown complete");
   };
 
   process.on("SIGINT", async () => {
