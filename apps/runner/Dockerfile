@@ -4,6 +4,10 @@ FROM node:20-slim
 # Install pnpm and Claude Code CLI globally
 RUN npm install -g pnpm@9.15.0 @anthropic-ai/claude-code@latest
 
+# Initialize Claude Code CLI (create config directory)
+RUN mkdir -p /root/.claude && \
+    echo '{"telemetry": false}' > /root/.claude/config.json
+
 # Install system dependencies: git (for template cloning) and cloudflared (for tunnels)
 RUN apt-get update && apt-get install -y \
     git \
