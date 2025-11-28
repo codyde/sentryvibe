@@ -470,6 +470,12 @@ function createClaudeQuery(
     };
     const aiSdkModelId = modelIdMap[modelId] || modelId || "haiku";
 
+    // Ensure working directory exists before passing to Claude Code
+    if (!existsSync(workingDirectory)) {
+      console.log(`[createClaudeQuery] Creating working directory: ${workingDirectory}`);
+      mkdirSync(workingDirectory, { recursive: true });
+    }
+
     const model = claudeCode(aiSdkModelId, {
       queryFunction: instrumentedQuery as typeof query,
       systemPrompt: {
