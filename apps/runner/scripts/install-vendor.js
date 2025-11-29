@@ -5,7 +5,7 @@
  * so the CLI always runs with the patched builds even when installed offline.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, lstatSync, readlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, lstatSync, readlinkSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -88,7 +88,54 @@ try {
       { stdio: 'pipe' },
     );
 
-    log(`  ✓ @sentry/${name}`);
+    log(`  ✓ ${scope ? `${scope}/${name}` : name}`);
+  }
+
+  // Ensure jsonc-parser is available for ai-sdk-provider-claude-code
+  // This is needed because the vendored package imports it but in global installs
+  // with pnpm, the dependency hoisting doesn't always work correctly
+  const aiSdkProviderDir = path.join(nodeModules, 'ai-sdk-provider-claude-code');
+
+  if (existsSync(aiSdkProviderDir)) {
+    try {
+      // Try to find jsonc-parser in various locations
+      let jsoncParserSource = path.join(nodeModules, 'jsonc-parser');
+
+      // If not found directly, try to find it in the pnpm store (for global installs)
+      if (!existsSync(jsoncParserSource)) {
+        // In pnpm global installs, node_modules is at .pnpm/<package>@<version>/node_modules
+        // The store is at .pnpm/ level, so we need to go up: node_modules -> <package> -> .pnpm
+        const pnpmStoreDir = path.join(nodeModules, '..', '..');
+
+        if (existsSync(pnpmStoreDir)) {
+          const entries = readdirSync(pnpmStoreDir);
+          const jsoncParserEntry = entries.find((entry) => entry.startsWith('jsonc-parser@'));
+
+          if (jsoncParserEntry) {
+            jsoncParserSource = path.join(pnpmStoreDir, jsoncParserEntry, 'node_modules', 'jsonc-parser');
+          }
+        }
+      }
+
+      if (existsSync(jsoncParserSource)) {
+        const jsoncParserDest = path.join(aiSdkProviderDir, 'node_modules', 'jsonc-parser');
+
+        mkdirSync(path.join(aiSdkProviderDir, 'node_modules'), { recursive: true });
+
+        // Remove existing symlink/directory if it exists
+        rmSync(jsoncParserDest, { recursive: true, force: true });
+
+        // Create symlink to jsonc-parser
+        execFileSync('ln', ['-s', jsoncParserSource, jsoncParserDest], { stdio: 'pipe' });
+
+        log(`  ✓ Linked jsonc-parser for ai-sdk-provider-claude-code`);
+      } else {
+        log(`  ⚠ jsonc-parser not found, skipping symlink`);
+      }
+    } catch (error) {
+      // Non-fatal error, log and continue
+      log(`  ⚠ Could not link jsonc-parser: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   log('✓ Vendor packages installed successfully');
