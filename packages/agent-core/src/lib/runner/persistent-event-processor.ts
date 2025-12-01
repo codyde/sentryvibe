@@ -121,122 +121,127 @@ async function retryOnTimeout<T>(fn: () => Promise<T>, retries = 5): Promise<T |
 }
 
 async function buildSnapshot(context: ActiveBuildContext): Promise<GenerationState> {
-  const [sessionRow] = await db
-    .select()
-    .from(generationSessions)
-    .where(eq(generationSessions.id, context.sessionId))
-    .limit(1);
+  // Use a transaction to execute all queries on a single connection
+  // This eliminates the N+1 query pattern by reusing one connection
+  // instead of acquiring 5+ separate connections from the pool
+  return await db.transaction(async (tx) => {
+    const [sessionRow] = await tx
+      .select()
+      .from(generationSessions)
+      .where(eq(generationSessions.id, context.sessionId))
+      .limit(1);
 
-  if (!sessionRow) {
-    throw new Error('Generation session not found when building snapshot');
-  }
-  
-  // Parallelize independent database queries to reduce latency and connection churn
-  // Fixes N+1 query issue: https://buildwithcode.sentry.io/issues/6977830586/
-  const [projectRow, todoRows, toolRows, noteRows] = await Promise.all([
-    // Fetch project name from database
-    db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, sessionRow.projectId))
-      .limit(1)
-      .then(rows => rows[0]),
-    
-    // Fetch todos
-    db
-      .select()
-      .from(generationTodos)
-      .where(eq(generationTodos.sessionId, context.sessionId))
-      .orderBy(generationTodos.todoIndex),
-    
-    // Fetch tool calls
-    db
-      .select()
-      .from(generationToolCalls)
-      .where(eq(generationToolCalls.sessionId, context.sessionId)),
-    
-    // Fetch notes
-    db
-      .select()
-      .from(generationNotes)
-      .where(eq(generationNotes.sessionId, context.sessionId))
-      .orderBy(generationNotes.createdAt),
-  ]);
-  
-  const projectName = projectRow?.name || context.projectId;
-
-  const todosSnapshot: TodoItem[] = todoRows.map(row => ({
-    content: row.content,
-    status: (row.status as TodoItem['status']) ?? 'pending',
-    activeForm: row.activeForm ?? row.content,
-  }));
-
-  const toolsByTodo: Record<number, ToolCall[]> = {};
-  toolRows.forEach(tool => {
-    const index = tool.todoIndex ?? -1;
-    if (index < 0) return;
-    if (!toolsByTodo[index]) {
-      toolsByTodo[index] = [];
+    if (!sessionRow) {
+      throw new Error('Generation session not found when building snapshot');
     }
-    toolsByTodo[index].push({
-      id: tool.toolCallId ?? tool.id,
-      name: tool.name,
-      input: tool.input ?? undefined,
-      output: tool.output ?? undefined,
-      state: tool.state as ToolCall['state'],
-      startTime: tool.startedAt ?? sessionRow.startedAt ?? new Date(),
-      endTime: tool.endedAt ?? undefined,
-    });
-  });
+    
+    // Parallelize independent database queries on the same transaction connection
+    // This combines parallelization with connection reuse for optimal performance
+    const [projectRow, todoRows, toolRows, noteRows] = await Promise.all([
+      // Fetch project name from database
+      tx
+        .select()
+        .from(projects)
+        .where(eq(projects.id, sessionRow.projectId))
+        .limit(1)
+        .then(rows => rows[0]),
+      
+      // Fetch todos
+      tx
+        .select()
+        .from(generationTodos)
+        .where(eq(generationTodos.sessionId, context.sessionId))
+        .orderBy(generationTodos.todoIndex),
+      
+      // Fetch tool calls
+      tx
+        .select()
+        .from(generationToolCalls)
+        .where(eq(generationToolCalls.sessionId, context.sessionId)),
+      
+      // Fetch notes
+      tx
+        .select()
+        .from(generationNotes)
+        .where(eq(generationNotes.sessionId, context.sessionId))
+        .orderBy(generationNotes.createdAt),
+    ]);
+    
+    const projectName = projectRow?.name || context.projectId;
 
-  const textByTodo: Record<number, TextMessage[]> = {};
-  noteRows.forEach(note => {
-    const index = note.todoIndex ?? -1;
-    if (index < 0) return;
-    if (!textByTodo[index]) {
-      textByTodo[index] = [];
-    }
-    textByTodo[index].push({
-      id: note.textId ?? note.id,
-      text: note.content,
-      timestamp: note.createdAt ?? new Date(),
-    });
-  });
+    const todosSnapshot: TodoItem[] = todoRows.map(row => ({
+      content: row.content,
+      status: (row.status as TodoItem['status']) ?? 'pending',
+      activeForm: row.activeForm ?? row.content,
+    }));
 
-  const activeIndex = todoRows.findIndex(row => row.status === 'in_progress');
-
-  let persistedState: Record<string, unknown> | null = null;
-  if (sessionRow.rawState) {
-    if (typeof sessionRow.rawState === 'string') {
-      try {
-        persistedState = JSON.parse(sessionRow.rawState) as Record<string, unknown>;
-      } catch (parseError) {
-        console.warn('[persistent-processor] Failed to parse rawState JSON:', parseError);
+    const toolsByTodo: Record<number, ToolCall[]> = {};
+    toolRows.forEach(tool => {
+      const index = tool.todoIndex ?? -1;
+      if (index < 0) return;
+      if (!toolsByTodo[index]) {
+        toolsByTodo[index] = [];
       }
-    } else {
-      persistedState = sessionRow.rawState as Record<string, unknown>;
+      toolsByTodo[index].push({
+        id: tool.toolCallId ?? tool.id,
+        name: tool.name,
+        input: tool.input ?? undefined,
+        output: tool.output ?? undefined,
+        state: tool.state as ToolCall['state'],
+        startTime: tool.startedAt ?? sessionRow.startedAt ?? new Date(),
+        endTime: tool.endedAt ?? undefined,
+      });
+    });
+
+    const textByTodo: Record<number, TextMessage[]> = {};
+    noteRows.forEach(note => {
+      const index = note.todoIndex ?? -1;
+      if (index < 0) return;
+      if (!textByTodo[index]) {
+        textByTodo[index] = [];
+      }
+      textByTodo[index].push({
+        id: note.textId ?? note.id,
+        text: note.content,
+        timestamp: note.createdAt ?? new Date(),
+      });
+    });
+
+    const activeIndex = todoRows.findIndex(row => row.status === 'in_progress');
+
+    let persistedState: Record<string, unknown> | null = null;
+    if (sessionRow.rawState) {
+      if (typeof sessionRow.rawState === 'string') {
+        try {
+          persistedState = JSON.parse(sessionRow.rawState) as Record<string, unknown>;
+        } catch (parseError) {
+          console.warn('[persistent-processor] Failed to parse rawState JSON:', parseError);
+        }
+      } else {
+        persistedState = sessionRow.rawState as Record<string, unknown>;
+      }
     }
-  }
 
-  const snapshot: GenerationState = {
-    id: sessionRow.buildId,
-    projectId: sessionRow.projectId,
-    projectName: projectName,
-    operationType: (sessionRow.operationType ?? 'continuation') as GenerationState['operationType'],
-    agentId: (persistedState?.agentId as GenerationState['agentId']) ?? context.agentId as GenerationState['agentId'],
-    claudeModelId: (persistedState?.claudeModelId as GenerationState['claudeModelId']) ?? context.claudeModelId as GenerationState['claudeModelId'],
-    todos: todosSnapshot,
-    toolsByTodo,
-    textByTodo,
-    activeTodoIndex: activeIndex,
-    isActive: sessionRow.status === 'active',
-    startTime: sessionRow.startedAt ?? context.startedAt,
-    endTime: sessionRow.endedAt ?? undefined,
-    codex: persistedState?.codex as GenerationState['codex'],
-    stateVersion: context.stateVersion,
-  };
+    const snapshot: GenerationState = {
+      id: sessionRow.buildId,
+      projectId: sessionRow.projectId,
+      projectName: projectName,
+      operationType: (sessionRow.operationType ?? 'continuation') as GenerationState['operationType'],
+      agentId: (persistedState?.agentId as GenerationState['agentId']) ?? context.agentId as GenerationState['agentId'],
+      claudeModelId: (persistedState?.claudeModelId as GenerationState['claudeModelId']) ?? context.claudeModelId as GenerationState['claudeModelId'],
+      todos: todosSnapshot,
+      toolsByTodo,
+      textByTodo,
+      activeTodoIndex: activeIndex,
+      isActive: sessionRow.status === 'active',
+      startTime: sessionRow.startedAt ?? context.startedAt,
+      endTime: sessionRow.endedAt ?? undefined,
+      codex: persistedState?.codex as GenerationState['codex'],
+      stateVersion: context.stateVersion,
+    };
 
-  return snapshot;
+    return snapshot;
+  });
 }
 
 async function refreshRawState(context: ActiveBuildContext) {
