@@ -139,7 +139,52 @@ export async function GET(
         { status: 202, headers: { 'X-Tunnel-Status': 'pending' } }
       );
     }
-    const response = await fetch(targetUrl);
+    let response: Response;
+    try {
+      response = await fetch(targetUrl, {
+        // Add timeout to prevent hanging on failed imports
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      });
+    } catch (error) {
+      // Handle network errors and failed dynamic imports gracefully
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error(`[proxy] Request timeout for ${path}`);
+        return new NextResponse(
+          `Request timeout: Failed to fetch ${path}`,
+          { status: 504 }
+        );
+      }
+      // Handle failed dynamic import module errors (e.g., Astro modules)
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.error(`[proxy] Failed to fetch module: ${path}`, error);
+        return new NextResponse(
+          `Failed to fetch module: ${path}. The module may not exist or the dev server may be restarting.`,
+          { 
+            status: 404,
+            headers: {
+              'Content-Type': 'text/plain',
+              'Access-Control-Allow-Origin': '*',
+            }
+          }
+        );
+      }
+      throw error;
+    }
+
+    // Check if response is ok before processing
+    if (!response.ok) {
+      console.error(`[proxy] Upstream error: ${response.status} for ${path}`);
+      return new NextResponse(
+        `Upstream error: ${response.status} ${response.statusText}`,
+        { 
+          status: response.status,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+          }
+        }
+      );
+    }
+
     const contentType = response.headers.get('content-type') || '';
     const isViteChunk = path.includes('/node_modules/.vite/') || /chunk-[A-Z0-9]+\.js/i.test(path);
 

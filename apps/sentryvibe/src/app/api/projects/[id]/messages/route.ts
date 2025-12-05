@@ -94,28 +94,30 @@ export async function GET(
 
     const sessionIds = sessions.map(session => session.id);
 
-    const todos = sessionIds.length > 0
-      ? await db
-        .select()
-        .from(generationTodos)
-        .where(inArray(generationTodos.sessionId, sessionIds))
-        .orderBy(generationTodos.todoIndex)
-      : [];
-
-    const toolCalls = sessionIds.length > 0
-      ? await db
-        .select()
-        .from(generationToolCalls)
-        .where(inArray(generationToolCalls.sessionId, sessionIds))
-      : [];
-
-    const notes = sessionIds.length > 0
-      ? await db
-        .select()
-        .from(generationNotes)
-        .where(inArray(generationNotes.sessionId, sessionIds))
-        .orderBy(generationNotes.createdAt)
-      : [];
+    // Fix N+1 query issue: Run all queries in parallel instead of sequentially
+    // This significantly improves performance when fetching related data
+    const [todos, toolCalls, notes] = await Promise.all([
+      sessionIds.length > 0
+        ? db
+            .select()
+            .from(generationTodos)
+            .where(inArray(generationTodos.sessionId, sessionIds))
+            .orderBy(generationTodos.todoIndex)
+        : Promise.resolve([]),
+      sessionIds.length > 0
+        ? db
+            .select()
+            .from(generationToolCalls)
+            .where(inArray(generationToolCalls.sessionId, sessionIds))
+        : Promise.resolve([]),
+      sessionIds.length > 0
+        ? db
+            .select()
+            .from(generationNotes)
+            .where(inArray(generationNotes.sessionId, sessionIds))
+            .orderBy(generationNotes.createdAt)
+        : Promise.resolve([]),
+    ]);
 
     const sessionsWithRelations = sessions.map(session => {
       const sessionTodos = todos.filter(todo => todo.sessionId === session.id);

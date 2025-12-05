@@ -103,14 +103,15 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       if (e.key === 'Escape') {
         if (selectedProject) {
           e.preventDefault();
+          e.stopPropagation();
           setSelectedProject(null);
         }
         // Otherwise let Command.Dialog handle closing
       }
     };
 
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleEscape, { capture: true });
+    return () => document.removeEventListener('keydown', handleEscape, { capture: true });
   }, [open, selectedProject]);
 
   // Build command list
@@ -577,13 +578,13 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
                     key={command.id}
                     value={command.label}
                     onSelect={(value, metadata) => {
-                      // cmdk doesn't pass the event, so we can't detect Cmd+Click here
-                      // We'll handle it with a custom onClick wrapper
+                      // Handle keyboard Enter - no modifier keys possible
                       handleSelect(command);
                     }}
-                    onClick={(e: React.MouseEvent) => {
-                      // Intercept click to detect Cmd/Ctrl key
+                    onMouseDown={(e: React.MouseEvent) => {
+                      // Intercept mousedown to detect Cmd/Ctrl key before cmdk processes it
                       e.preventDefault();
+                      e.stopPropagation();
                       handleSelect(command, e);
                     }}
                     disabled={isLoading}

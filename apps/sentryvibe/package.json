@@ -51,7 +51,7 @@
     "highlight.js": "^11.9.0",
     "lucide-react": "^0.544.0",
     "mcp-handler": "^1.0.3",
-    "next": "15.5.4",
+    "next": "16.0.7",
     "pg": "^8.13.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
