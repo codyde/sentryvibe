@@ -69,7 +69,7 @@ export async function POST(req: Request) {
   );
 
   const selectedClaudeModel: ClaudeModelId =
-    claudeModel === "claude-haiku-4-5" || claudeModel === "claude-sonnet-4-5"
+    claudeModel === "claude-haiku-4-5" || claudeModel === "claude-sonnet-4-5" || claudeModel === "claude-opus-4-5"
       ? claudeModel
       : DEFAULT_CLAUDE_MODEL_ID;
 

@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/node';
+import { Codex } from '@openai/codex-sdk';
 import {
   DEFAULT_CLAUDE_MODEL_ID,
   CLAUDE_MODEL_METADATA,
@@ -31,6 +31,11 @@ const CLAUDE_ANALYSIS_MODELS: Record<ClaudeModelId, AnalysisModelConfig> = {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5',
     displayName: CLAUDE_MODEL_METADATA['claude-sonnet-4-5'].label,
+  },
+  'claude-opus-4-5': {
+    provider: 'anthropic',
+    model: 'claude-opus-4-5',
+    displayName: CLAUDE_MODEL_METADATA['claude-opus-4-5'].label,
   },
 };
 
@@ -223,10 +228,8 @@ async function analyzeWithOpenAI(
   model: string
 ): Promise<string> {
   try {
-    // Use Sentry instrumented Codex SDK (same as runner)
-    const codex = await Sentry.createInstrumentedCodex({
-      workingDirectory: process.cwd(),
-    });
+    // Note: Codex is auto-instrumented by Sentry's openAIIntegration via OTel
+    const codex = new Codex();
 
     const thread = codex.startThread({
       sandboxMode: 'danger-full-access',

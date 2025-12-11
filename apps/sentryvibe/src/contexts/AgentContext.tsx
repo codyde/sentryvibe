@@ -81,7 +81,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
 
     const storedClaudeModel = window.localStorage.getItem(CLAUDE_MODEL_STORAGE_KEY);
-    if (storedClaudeModel === 'claude-haiku-4-5' || storedClaudeModel === 'claude-sonnet-4-5') {
+    if (storedClaudeModel === 'claude-haiku-4-5' || storedClaudeModel === 'claude-sonnet-4-5' || storedClaudeModel === 'claude-opus-4-5') {
       setSelectedClaudeModelIdState(storedClaudeModel);
     }
   }, []);

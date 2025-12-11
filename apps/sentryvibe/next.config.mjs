@@ -1,17 +1,14 @@
 import {withSentryConfig} from "@sentry/nextjs";
-import type { NextConfig } from "next";
 import {fileURLToPath} from "url";
 import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   // Allow deployment even when TypeScript or ESLint report errors
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   outputFileTracingRoot: path.resolve(__dirname, "..", ".."),
   transpilePackages: ['@sentryvibe/agent-core'],
@@ -20,6 +17,15 @@ const nextConfig: NextConfig = {
     fetches: {
       fullUrl: false,
     },
+  },
+  webpack: (config) => {
+    // Ensure @/lib/* resolves to ./src/lib/* within this app
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@/lib': path.resolve(__dirname, 'src/lib'),
+      '@/shared': path.resolve(__dirname, 'src/shared'),
+    };
+    return config;
   },
 };
 

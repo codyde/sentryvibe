@@ -6,10 +6,11 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "sentryvibe-cli": "./dist/cli/index.js",
-    "sentryvibe": "./dist/cli/index.js"
+    "sentryvibe-cli": "./bin/sentryvibe.js",
+    "sentryvibe": "./bin/sentryvibe.js"
   },
   "files": [
+    "bin/",
     "dist/",
     "templates/",
     "vendor/*.tgz",
@@ -41,11 +42,11 @@
   "preferGlobal": true,
   "scripts": {
     "postinstall": "node scripts/install-vendor.js",
-    "dev": "tsx src/index.ts",
-    "dev:cli": "tsx src/cli/index.ts",
+    "dev": "tsx --import ./src/instrument.ts src/index.ts",
+    "dev:cli": "tsx --import ./src/instrument.ts src/cli/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "cli": "node dist/cli/index.js"
+    "start": "node --import ./dist/instrument.js dist/index.js",
+    "cli": "node --import ./dist/instrument.js dist/cli/index.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",

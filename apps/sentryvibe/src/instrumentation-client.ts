@@ -42,16 +42,4 @@ console.log('   DSN:', Sentry.getClient()?.getDsn()?.toString());
 console.log('   Metrics API available:', typeof Sentry.metrics !== 'undefined');
 console.log('   Client exists:', !!Sentry.getClient());
 
-// Test sending a metric immediately to verify it works
-setTimeout(() => {
-  console.log('[Sentry Client] Testing metrics by sending test.client.init...');
-  try {
-    Sentry.metrics.count('test.client.init', 1, {
-      attributes: { test: 'initialization' }
-    });
-    console.log('[Sentry Client] ✅ Test metric sent');
-  } catch (error) {
-    console.error('[Sentry Client] ❌ Test metric failed:', error);
-  }
-}, 2000);
 

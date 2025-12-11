@@ -1,7 +1,8 @@
-import "./instrument.js";
+// Sentry is initialized via --import flag (see package.json scripts)
+// This ensures instrumentation loads before any other modules
 import * as Sentry from "@sentry/node";
-import { createInstrumentedQueryForProvider } from "@sentry/node";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { Codex } from "@openai/codex-sdk";
 import { fileLog } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
@@ -9,8 +10,6 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { streamText, type TextPart, type ImagePart } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
-
-import { createInstrumentedCodex } from "@sentry/node";
 
 import WebSocket from "ws";
 import os from "os";
@@ -430,9 +429,7 @@ function createClaudeQuery(
   modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
 ): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt, agent, codexThreadId, messageParts) {
-    const instrumentedQuery = createInstrumentedQueryForProvider(
-      query as (...args: unknown[]) => AsyncGenerator<unknown, void, unknown>
-    );
+    // Note: query is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration via OTel
 
     process.stderr.write(
       "[runner] [createClaudeQuery] 🎯 Query function called\n"
@@ -461,14 +458,8 @@ function createClaudeQuery(
     }
     const appendedSystemPrompt = systemPromptSegments.join("\n\n");
 
-    // Normalize model IDs to the Claude Code provider's canonical names
-    const modelIdMap: Record<string, string> = {
-      "claude-haiku-4-5": "haiku",
-      "claude-sonnet-4-5": "sonnet",
-      "claude-opus-4": "opus",
-      "claude-opus-4.1": "opus",
-    };
-    const aiSdkModelId = modelIdMap[modelId] || modelId || "haiku";
+    // Use the full model ID as-is (claude-haiku-4-5, claude-sonnet-4-5, claude-opus-4-5)
+    const aiSdkModelId = modelId || "claude-haiku-4-5";
 
     // Ensure working directory exists before passing to Claude Code
     if (!existsSync(workingDirectory)) {
@@ -477,7 +468,7 @@ function createClaudeQuery(
     }
 
     const model = claudeCode(aiSdkModelId, {
-      queryFunction: instrumentedQuery as typeof query,
+      queryFunction: query,
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
@@ -613,9 +604,8 @@ function createCodexQuery(): BuildQueryFn {
     fileLog.info("Working directory:", workingDirectory);
     fileLog.info("Prompt length:", prompt.length);
 
-    const codex = await createInstrumentedCodex({
-      workingDirectory,
-    });
+    // Note: Codex is auto-instrumented by Sentry's openAIIntegration via OTel
+    const codex = new Codex();
 
     const systemParts: string[] = [CODEX_SYSTEM_PROMPT.trim()]; // Use Codex-specific prompt (no TodoWrite tool)
     if (systemPrompt && systemPrompt.trim().length > 0) {
@@ -1819,7 +1809,8 @@ export async function startRunner(options: RunnerOptions = {}) {
               const claudeModel: ClaudeModelId =
                 agent === "claude-code" &&
                 (command.payload.claudeModel === "claude-haiku-4-5" ||
-                  command.payload.claudeModel === "claude-sonnet-4-5")
+                  command.payload.claudeModel === "claude-sonnet-4-5" ||
+                  command.payload.claudeModel === "claude-opus-4-5")
                   ? command.payload.claudeModel
                   : DEFAULT_CLAUDE_MODEL_ID;
 

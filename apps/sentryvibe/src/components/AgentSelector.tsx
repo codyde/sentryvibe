@@ -100,7 +100,7 @@ export default function AgentSelector({ className }: AgentSelectorProps = {}) {
             <DropdownMenuRadioGroup
               value={selectedClaudeModelId}
               onValueChange={(value) => {
-                if (value === 'claude-haiku-4-5' || value === 'claude-sonnet-4-5') {
+                if (value === 'claude-haiku-4-5' || value === 'claude-sonnet-4-5' || value === 'claude-opus-4-5') {
                   setSelectedClaudeModelId(value);
                 }
               }}

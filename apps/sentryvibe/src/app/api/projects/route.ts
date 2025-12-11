@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import { createInstrumentedCodex } from '@sentry/nextjs';
+import { Codex } from '@openai/codex-sdk';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, messages } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -36,9 +36,8 @@ Generate a slug (kebab-case), friendly name, description, and appropriate icon.`
 }
 
 async function runCodexMetadataPrompt(promptText: string): Promise<string> {
-  const codex = await createInstrumentedCodex({
-    workingDirectory: process.cwd(),
-  });
+  // Note: Codex is auto-instrumented by Sentry's openAIIntegration via OTel
+  const codex = new Codex();
 
   const thread = codex.startThread({
     sandboxMode: "danger-full-access",

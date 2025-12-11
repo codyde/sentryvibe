@@ -56,6 +56,14 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         model: 'claude-sonnet-4-5'
       },
       {
+        value: 'claude-opus-4-5',
+        label: 'Claude Opus 4.5',
+        description: 'Anthropic Claude - Most capable for complex tasks',
+        logo: '/claude.png',
+        provider: 'claude-code',
+        model: 'claude-opus-4-5'
+      },
+      {
         value: 'claude-haiku-4-5',
         label: 'Claude Haiku 4.5',
         description: 'Anthropic Claude - Fastest, good for iterations',

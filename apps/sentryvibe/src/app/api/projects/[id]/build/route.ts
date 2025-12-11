@@ -110,7 +110,7 @@ export async function POST(
     } else {
       // Fallback to body parameters if no model tag
       claudeModel =
-        agentId === 'claude-code' && (body.claudeModel === 'claude-haiku-4-5' || body.claudeModel === 'claude-sonnet-4-5')
+        agentId === 'claude-code' && (body.claudeModel === 'claude-haiku-4-5' || body.claudeModel === 'claude-sonnet-4-5' || body.claudeModel === 'claude-opus-4-5')
           ? body.claudeModel
           : DEFAULT_CLAUDE_MODEL_ID;
     }

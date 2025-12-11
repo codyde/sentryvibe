@@ -14,11 +14,11 @@ Sentry.init({
     // Only enable Spotlight in development (it can cause issues in production)
     ...(process.env.NODE_ENV === 'development' ? [Sentry.spotlightIntegration()] : []),
     Sentry.consoleLoggingIntegration(),
-    Sentry.claudeCodeIntegration({
+    Sentry.claudeCodeAgentSdkIntegration({
       recordInputs: true,
       recordOutputs: true,
     }),
-    Sentry.openaiCodexIntegration({
+    Sentry.openAIIntegration({
       recordInputs: true,
       recordOutputs: true,
     }),

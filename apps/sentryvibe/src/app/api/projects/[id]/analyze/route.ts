@@ -78,7 +78,7 @@ export async function POST(
 
     // Analyze prompt using the agent's model
     const resolvedClaudeModel =
-      selectedAgent === 'claude-code' && (claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5')
+      selectedAgent === 'claude-code' && (claudeModel === 'claude-haiku-4-5' || claudeModel === 'claude-sonnet-4-5' || claudeModel === 'claude-opus-4-5')
         ? claudeModel
         : DEFAULT_CLAUDE_MODEL_ID;
 

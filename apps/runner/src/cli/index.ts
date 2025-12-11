@@ -34,6 +34,9 @@ if (!isLinkedDevelopment) {
   }
 }
 
+// Sentry instrumentation is loaded via --import flag in bin/sentryvibe.js wrapper
+// This ensures instrumentation happens before any ESM module resolution
+
 import { Command } from 'commander';
 import updateNotifier from 'update-notifier';
 import { displayBanner } from './utils/banner.js';
