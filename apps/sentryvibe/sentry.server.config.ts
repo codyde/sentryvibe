@@ -14,7 +14,7 @@ Sentry.init({
     // Only enable Spotlight in development (it can cause issues in production)
     ...(process.env.NODE_ENV === 'development' ? [Sentry.spotlightIntegration()] : []),
     Sentry.consoleLoggingIntegration(),
-    Sentry.claudeCodeAgentSdkIntegration({
+    Sentry.claudeCodeIntegration({
       recordInputs: true,
       recordOutputs: true,
     }),

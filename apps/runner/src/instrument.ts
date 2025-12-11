@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/node";
 type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
   dsn: string;
   integrations?: Array<
-    | ReturnType<typeof Sentry.claudeCodeAgentSdkIntegration>
+    | ReturnType<typeof Sentry.claudeCodeIntegration>
     | ReturnType<typeof Sentry.openAIIntegration>
     | ReturnType<typeof Sentry.consoleLoggingIntegration>
     | ReturnType<typeof Sentry.httpIntegration>
@@ -18,8 +18,8 @@ type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
 const sentryOptions: RunnerSentryOptions = {
   dsn: "https://94f02492541e36eaa9ebfa56c4c042d2@o4508130833793024.ingest.us.sentry.io/4510156711919616",
   integrations: [
-    // Claude Code Agent SDK integration - auto-patches query function via OTel
-    Sentry.claudeCodeAgentSdkIntegration({
+    // Claude Code integration - auto-patches query function via OTel
+    Sentry.claudeCodeIntegration({
       recordInputs: true,
       recordOutputs: true,
     }),

@@ -429,7 +429,7 @@ function createClaudeQuery(
   modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
 ): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt, agent, codexThreadId, messageParts) {
-    // Note: query is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration via OTel
+    // Note: query is auto-instrumented by Sentry's claudeCodeIntegration via OTel
 
     process.stderr.write(
       "[runner] [createClaudeQuery] 🎯 Query function called\n"
