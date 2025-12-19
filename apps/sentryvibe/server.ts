@@ -1,3 +1,7 @@
+// Load .env.local for local development (Railway injects env vars directly)
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+
 import './sentry.server.config';
 /**
  * Custom Next.js Server with WebSocket Support
