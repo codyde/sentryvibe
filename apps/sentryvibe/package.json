@@ -9,7 +9,7 @@
     "dev": "tsx server.ts",
     "dev:next": "next dev",
     "build": "next build",
-    "start": "set -a && source .env.local && set +a && NODE_ENV=production tsx server.ts",
+    "start": "NODE_ENV=production tsx server.ts",
     "start:next": "next start",
     "lint": "eslint"
   },
