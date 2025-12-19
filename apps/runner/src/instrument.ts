@@ -1,40 +1,50 @@
 import * as Sentry from "@sentry/node";
 
-type RunnerSentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]> & {
-  dsn: string;
-  integrations?: Array<
-    | ReturnType<typeof Sentry.claudeCodeAgentSdkIntegration>
-    | ReturnType<typeof Sentry.openAIIntegration>
-    | ReturnType<typeof Sentry.httpIntegration>
-  >;
-  tracesSampleRate?: number;
-  debug?: boolean;
-  enableLogs?: boolean;
-  sendDefaultPii?: boolean;
-  tracePropagationTargets?: Array<string | RegExp>;
-};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const SentryAny = Sentry as any;
 
-const sentryOptions: RunnerSentryOptions = {
+// Build integrations array, gracefully handling missing custom integrations
+// Custom integrations (claudeCodeAgentSdkIntegration, vercelAIIntegration, openAIIntegration)
+// are only available in the vendored Sentry SDK, not the public npm version
+const integrations: unknown[] = [];
+
+// Always add http integration (available in all versions)
+if (typeof Sentry.httpIntegration === "function") {
+  integrations.push(Sentry.httpIntegration());
+}
+
+// Add custom integrations if available (vendored SDK only)
+if (typeof SentryAny.claudeCodeAgentSdkIntegration === "function") {
+  integrations.push(
+    SentryAny.claudeCodeAgentSdkIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    })
+  );
+}
+
+if (typeof SentryAny.vercelAIIntegration === "function") {
+  integrations.push(
+    SentryAny.vercelAIIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    })
+  );
+}
+
+if (typeof SentryAny.openAIIntegration === "function") {
+  integrations.push(
+    SentryAny.openAIIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    })
+  );
+}
+
+Sentry.init({
   dsn: "https://94f02492541e36eaa9ebfa56c4c042d2@o4508130833793024.ingest.us.sentry.io/4510156711919616",
-  integrations: [
-    // Claude Code Agent SDK integration - auto-patches query function via OpenTelemetry
-    Sentry.claudeCodeAgentSdkIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
-    Sentry.vercelAIIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
-    // OpenAI integration
-    Sentry.openAIIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
-    Sentry.httpIntegration(), // For HTTP trace propagation
-  ],
+  integrations: integrations as Sentry.Integration[],
   tracesSampleRate: 1.0,
-  enableLogs: true,
   debug: false,
   sendDefaultPii: false,
   // Configure trace propagation (Runner → Broker communication)
@@ -56,6 +66,4 @@ const sentryOptions: RunnerSentryOptions = {
     /^https?:\/\/.*\.up\.railway\.app/, // Railway preview deployments
     /^https?:\/\/.*\.sentryvibe\.app/, // Custom domain subdomains
   ],
-};
-
-Sentry.init(sentryOptions);
+});
