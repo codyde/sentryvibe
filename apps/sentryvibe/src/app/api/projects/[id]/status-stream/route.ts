@@ -29,7 +29,6 @@ export async function GET(
 
   const encoder = new TextEncoder();
   let keepaliveInterval: NodeJS.Timeout | null = null;
-  let periodicCheck: NodeJS.Timeout | null = null;
   let isClosed = false;
   let activeProjectUpdateHandler: ((project: any) => void) | null = null;
 
@@ -58,10 +57,6 @@ export async function GET(
     if (keepaliveInterval) {
       clearInterval(keepaliveInterval);
       keepaliveInterval = null;
-    }
-    if (periodicCheck) {
-      clearInterval(periodicCheck);
-      periodicCheck = null;
     }
     if (activeProjectUpdateHandler) {
       projectEvents.offProjectUpdate(id, activeProjectUpdateHandler);
@@ -103,6 +98,7 @@ export async function GET(
         }, 15000);
 
         // Event-driven updates: listen for project changes
+        // This is the PRIMARY mechanism - no polling needed!
         const projectUpdateHandler = (project: any) => {
           try {
             const data = `data: ${JSON.stringify({
@@ -120,51 +116,13 @@ export async function GET(
           }
         };
 
-        // Subscribe to project events
+        // Subscribe to project events - this handles ALL updates
         projectEvents.onProjectUpdate(id, projectUpdateHandler);
         activeProjectUpdateHandler = projectUpdateHandler;
 
-        // Hybrid approach: Event-driven with periodic safety check
-        // This handles race conditions and missed events
-        let lastSentState: string | null = null;
-
-        const sendLatestState = async () => {
-          try {
-            const latestProject = await db.select()
-              .from(projects)
-              .where(eq(projects.id, id))
-              .limit(1);
-
-            if (latestProject.length > 0) {
-              const proj = latestProject[0];
-              const currentState = JSON.stringify({
-                status: proj.status,
-                devServerStatus: proj.devServerStatus,
-                devServerPort: proj.devServerPort,
-                tunnelUrl: proj.tunnelUrl,
-              });
-
-              // Only send if state actually changed
-              if (currentState !== lastSentState) {
-                debugLog(`🔄 Sending state update for ${id} (periodic check)`);
-                lastSentState = currentState;
-                const data = `data: ${JSON.stringify({
-                  type: 'status-update',
-                  project: proj,
-                })}\n\n`;
-                safeEnqueue(controller, data);
-              }
-            }
-          } catch (err) {
-            console.error(`   Failed to send state update for ${id}:`, err);
-          }
-        };
-
-        // Initial fallback after 1 second
-        setTimeout(sendLatestState, 1000);
-
-        // Periodic safety check every 5 seconds
-        periodicCheck = setInterval(sendLatestState, 5000);
+        // NOTE: Removed periodic polling (was every 5 seconds)
+        // The event-driven approach via projectEvents handles all updates
+        // This eliminates unnecessary database SELECTs
 
         // Cleanup on connection close
         req.signal.addEventListener('abort', () => {

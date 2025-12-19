@@ -5,6 +5,7 @@ import { createServer } from 'net';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { buildLogger } from './logging/build-logger';
 
 interface ReservePortParams {
   projectId: string;
@@ -114,7 +115,7 @@ export async function detectFrameworkFromFilesystem(projectPath: string): Promis
       if (pkg.devScript.includes('vite')) return 'vite';
     }
   } catch (error) {
-    console.error('[port-allocator] Failed to detect framework from filesystem:', error);
+    buildLogger.portAllocator.error('Failed to detect framework from filesystem', error);
   }
   
   return null; // Couldn't detect
@@ -130,62 +131,63 @@ async function resolveFramework(
   runCommand: string | null,
   savedFramework?: string | null
 ): Promise<FrameworkKey> {
-  // Debug logging
-  console.log(`[port-allocator] Framework detection:`);
-  console.log(`  savedFramework: "${savedFramework}"`);
-  console.log(`  projectType: "${projectType}"`);
-  console.log(`  runCommand: "${runCommand}"`);
-
   // Strategy 1: Use saved framework (most reliable - detected during build)
   if (savedFramework) {
     const framework = toFrameworkKey(savedFramework);
-    console.log(`  ✅ Using saved framework: ${framework}`);
+    buildLogger.log('debug', 'port-allocator', `Using saved framework: ${framework}`, { 
+      savedFramework, 
+      projectType, 
+      runCommand 
+    });
     return framework;
   }
 
   // Strategy 2: Check projectType field
   const normalizedType = projectType?.toLowerCase() ?? '';
   if (normalizedType.includes('tanstack')) {
-    console.log(`  ✅ Detected from projectType: tanstack`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from projectType: tanstack', { projectType });
     return 'tanstack';
   }
   if (normalizedType.includes('vite')) {
-    console.log(`  ✅ Detected from projectType: vite`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from projectType: vite', { projectType });
     return 'vite';
   }
   if (normalizedType.includes('astro')) {
-    console.log(`  ✅ Detected from projectType: astro`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from projectType: astro', { projectType });
     return 'astro';
   }
   if (normalizedType.includes('next')) {
-    console.log(`  ✅ Detected from projectType: next`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from projectType: next', { projectType });
     return 'next';
   }
   if (normalizedType.includes('node')) {
-    console.log(`  ✅ Detected from projectType: node`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from projectType: node', { projectType });
     return 'node';
   }
 
   // Strategy 3: Check runCommand
   const normalizedCommand = runCommand?.toLowerCase() ?? '';
   if (normalizedCommand.includes('vite')) {
-    console.log(`  ✅ Detected from runCommand: vite`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from runCommand: vite', { runCommand });
     return 'vite';
   }
   if (normalizedCommand.includes('astro')) {
-    console.log(`  ✅ Detected from runCommand: astro`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from runCommand: astro', { runCommand });
     return 'astro';
   }
   if (normalizedCommand.includes('tanstack')) {
-    console.log(`  ✅ Detected from runCommand: tanstack`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from runCommand: tanstack', { runCommand });
     return 'tanstack';
   }
   if (normalizedCommand.includes('next')) {
-    console.log(`  ✅ Detected from runCommand: next`);
+    buildLogger.log('debug', 'port-allocator', 'Detected from runCommand: next', { runCommand });
     return 'next';
   }
 
-  console.log(`  ⚠️  No framework detected, using default (port 6000+)`);
+  buildLogger.log('warn', 'port-allocator', 'No framework detected, using default (port 6000+)', {
+    projectType,
+    runCommand
+  });
   return 'default';
 }
 
@@ -370,95 +372,27 @@ export function getRunCommand(baseCommand: string | null | undefined): string {
   return baseCommand;
 }
 
-export function withEnforcedPort(command: string, framework: FrameworkKey, port: number | null | undefined): string {
-  if (!port) return command;
-
-  const trimmed = command.trim();
-  if (!trimmed) return command;
-
-  // Vite and Astro need explicit --port flags with --strictPort
-  if (framework === 'vite' || framework === 'astro' || framework === 'tanstack') {
-    const cliArgs = `--port ${port} --host 0.0.0.0 --strictPort`;
-
-    if (/^npm\s+run\s+/i.test(trimmed)) {
-      return `${trimmed} -- ${cliArgs}`;
-    }
-
-    if (/^pnpm\s+/i.test(trimmed)) {
-      return `${trimmed} -- ${cliArgs}`;
-    }
-
-    if (/^yarn\s+/i.test(trimmed)) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    if (/^bun\s+/i.test(trimmed)) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    if (trimmed.includes('astro') || trimmed.includes('vite')) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    return `${trimmed} -- ${cliArgs}`;
+/**
+ * Check if a port is available by attempting to bind to it
+ * Checks both localhost and 0.0.0.0 to ensure port is truly free
+ * Returns true if port is free on both interfaces, false if in use on either
+ */
+export async function checkPortAvailability(port: number): Promise<boolean> {
+  // Check localhost first
+  const localhostAvailable = await checkSingleInterface(port, 'localhost');
+  if (!localhostAvailable) {
+    return false;
   }
-
-  // Default framework: Try common port patterns
-  if (framework === 'default') {
-    // Most dev servers accept --port flag
-    const cliArgs = `--port ${port} --host 0.0.0.0`;
-
-    if (/^npm\s+run\s+/i.test(trimmed)) {
-      return `${trimmed} -- ${cliArgs}`;
-    }
-
-    if (/^pnpm\s+/i.test(trimmed)) {
-      return `${trimmed} -- ${cliArgs}`;
-    }
-
-    if (/^yarn\s+/i.test(trimmed)) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    return `${trimmed} -- ${cliArgs}`;
-  }
-
-  // Next.js needs -p flag (passed after --)
-  if (framework === 'next') {
-    const cliArgs = `-p ${port}`;
-
-    if (/^npm\s+run\s+/i.test(trimmed)) {
-      return `${trimmed} -- ${cliArgs}`;
-    }
-
-    if (/^pnpm\s+/i.test(trimmed)) {
-      return `${trimmed} -- ${cliArgs}`;
-    }
-
-    if (/^yarn\s+/i.test(trimmed)) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    if (/^bun\s+/i.test(trimmed)) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    if (trimmed.includes('next')) {
-      return `${trimmed} ${cliArgs}`;
-    }
-
-    return `${trimmed} -- ${cliArgs}`;
-  }
-
-  // For node and default, rely on PORT env var
-  return command;
+  
+  // Check 0.0.0.0
+  const allInterfacesAvailable = await checkSingleInterface(port, '0.0.0.0');
+  return allInterfacesAvailable;
 }
 
 /**
- * Check if a port is available by attempting to bind to it
- * Returns true if port is free, false if in use
+ * Check if a port is available on a specific interface
  */
-export async function checkPortAvailability(port: number): Promise<boolean> {
+function checkSingleInterface(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
     
@@ -477,7 +411,7 @@ export async function checkPortAvailability(port: number): Promise<boolean> {
       });
     });
 
-    server.listen(port, '0.0.0.0');
+    server.listen(port, host);
   });
 }
 
@@ -494,32 +428,39 @@ async function findAvailablePortInRange(
     ? preferredStart
     : range.start;
   
-  console.log(`[port-allocator] 🔍 Scanning for available port in range ${range.start}-${range.end}, starting from ${scanStart}`);
+  buildLogger.log('debug', 'port-allocator', `Scanning for available port in range ${range.start}-${range.end}`, { 
+    scanStart, 
+    rangeStart: range.start, 
+    rangeEnd: range.end 
+  });
   
   // First pass: scan from scanStart to end of range
   for (let port = scanStart; port <= range.end; port++) {
     const isAvailable = await checkPortAvailability(port);
     if (isAvailable) {
-      console.log(`[port-allocator] ✅ Found available port: ${port}`);
+      buildLogger.log('debug', 'port-allocator', `Found available port: ${port}`, { port });
       return port;
     }
-    console.log(`[port-allocator] ❌ Port ${port} in use`);
+    buildLogger.log('debug', 'port-allocator', `Port ${port} in use`, { port });
   }
   
   // Second pass: wrap around from range.start to scanStart (if we didn't start there)
   if (scanStart > range.start) {
-    console.log(`[port-allocator] 🔄 Wrapping around to scan ${range.start}-${scanStart - 1}`);
+    buildLogger.log('debug', 'port-allocator', `Wrapping around to scan ${range.start}-${scanStart - 1}`, { 
+      rangeStart: range.start, 
+      scanStart: scanStart - 1 
+    });
     for (let port = range.start; port < scanStart; port++) {
       const isAvailable = await checkPortAvailability(port);
       if (isAvailable) {
-        console.log(`[port-allocator] ✅ Found available port: ${port}`);
+        buildLogger.log('debug', 'port-allocator', `Found available port: ${port}`, { port });
         return port;
       }
-      console.log(`[port-allocator] ❌ Port ${port} in use`);
+      buildLogger.log('debug', 'port-allocator', `Port ${port} in use`, { port });
     }
   }
   
-  console.warn(`[port-allocator] ⚠️  No available ports found in range ${range.start}-${range.end}`);
+  buildLogger.portAllocator.portRangeExhausted(range.start, range.end);
   return null;
 }
 
@@ -560,9 +501,13 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
   const framework = await resolveFramework(params.projectType, params.runCommand, params.detectedFramework);
   const range = FRAMEWORK_RANGES[framework];
 
-  console.log(`[port-allocator] 🎯 Allocating port for project ${params.projectId}`);
-  console.log(`[port-allocator]    Framework: ${framework}, Range: ${range.start}-${range.end}`);
-  console.log(`[port-allocator]    Skip port check: ${skipPortCheck}`);
+  buildLogger.log('info', 'port-allocator', `Allocating port for project ${params.projectId}`, {
+    projectId: params.projectId,
+    framework,
+    rangeStart: range.start,
+    rangeEnd: range.end,
+    skipPortCheck
+  });
 
   // Step 1: Check existing allocation - reuse if still valid and available
   const existing = await getPortForProject(params.projectId);
@@ -571,18 +516,34 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
     const withinRange = existing.port >= range.start && existing.port <= range.end;
     const sameFramework = existing.framework === framework;
 
-    console.log(`[port-allocator] 📋 Found existing allocation: port ${existing.port} (framework: ${existing.framework})`);
+    buildLogger.log('debug', 'port-allocator', `Found existing allocation: port ${existing.port}`, {
+      port: existing.port,
+      framework: existing.framework,
+      projectId: params.projectId
+    });
 
     if (!withinRange) {
-      console.warn(`[port-allocator] ⚠️  Port ${existing.port} outside valid range ${range.start}-${range.end}, will reallocate`);
+      buildLogger.log('warn', 'port-allocator', `Port ${existing.port} outside valid range ${range.start}-${range.end}, will reallocate`, {
+        port: existing.port,
+        rangeStart: range.start,
+        rangeEnd: range.end,
+        projectId: params.projectId
+      });
       await releasePortForProject(params.projectId);
     } else if (!sameFramework) {
-      console.warn(`[port-allocator] ⚠️  Framework mismatch (${existing.framework} → ${framework}), will reallocate`);
+      buildLogger.log('warn', 'port-allocator', `Framework mismatch (${existing.framework} → ${framework}), will reallocate`, {
+        oldFramework: existing.framework,
+        newFramework: framework,
+        projectId: params.projectId
+      });
       await releasePortForProject(params.projectId);
     } else {
       // Valid allocation - reuse if available or skipPortCheck
       if (skipPortCheck) {
-        console.log(`[port-allocator] ✅ Reusing port ${existing.port} (skipPortCheck=true)`);
+        buildLogger.log('info', 'port-allocator', `Reusing port ${existing.port} (skipPortCheck=true)`, {
+          port: existing.port,
+          projectId: params.projectId
+        });
         await db.update(portAllocations)
           .set({ reservedAt: new Date() })
           .where(eq(portAllocations.projectId, params.projectId))
@@ -592,7 +553,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
 
       const isAvailable = await checkPortAvailability(existing.port);
       if (isAvailable) {
-        console.log(`[port-allocator] ✅ Reusing port ${existing.port} (still available)`);
+        buildLogger.portAllocator.portAllocated(existing.port, params.projectId);
         await db.update(portAllocations)
           .set({ reservedAt: new Date() })
           .where(eq(portAllocations.projectId, params.projectId))
@@ -600,7 +561,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
         return existing;
       }
 
-      console.warn(`[port-allocator] ❌ Port ${existing.port} no longer available, will reallocate`);
+      buildLogger.portAllocator.portInUse(existing.port);
       await releasePortForProject(params.projectId);
     }
   }
@@ -610,20 +571,28 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
 
   if (skipPortCheck) {
     // Remote runner: use DB-only allocation (trust that remote machine has ports available)
-    console.log(`[port-allocator] 🌐 Remote runner mode: using DB allocation without OS check`);
+    buildLogger.log('info', 'port-allocator', 'Remote runner mode: using DB allocation without OS check', {
+      projectId: params.projectId
+    });
     try {
       const allocation = await reservePortForProject({
         ...params,
         detectedFramework: params.detectedFramework ?? framework,
       });
       availablePort = allocation.port;
-      console.log(`[port-allocator] ✅ Allocated port ${availablePort} from DB`);
+      buildLogger.log('info', 'port-allocator', `Allocated port ${availablePort} from DB`, {
+        port: availablePort,
+        projectId: params.projectId
+      });
     } catch (error) {
       throw new Error(`Unable to allocate port for remote runner: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } else {
     // Local runner: scan OS for actually available port
-    console.log(`[port-allocator] 💻 Local runner mode: scanning OS for available port`);
+    buildLogger.log('info', 'port-allocator', 'Local runner mode: scanning OS for available port', {
+      projectId: params.projectId,
+      preferredPort: params.preferredPort
+    });
     availablePort = await findAvailablePortInRange(range, params.preferredPort ?? undefined);
 
     if (!availablePort) {
@@ -635,7 +604,10 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
   }
 
   // Step 3: Reserve the port atomically in the database
-  console.log(`[port-allocator] 💾 Reserving port ${availablePort} in database`);
+  buildLogger.log('debug', 'port-allocator', `Reserving port ${availablePort} in database`, {
+    port: availablePort,
+    projectId: params.projectId
+  });
   
   await db.transaction(async (tx) => {
     // Clear any existing allocation for this project
@@ -670,7 +642,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
     }
   });
 
-  console.log(`[port-allocator] ✅ Successfully reserved port ${availablePort} for project ${params.projectId}\n`);
+  buildLogger.portAllocator.portAllocated(availablePort, params.projectId);
   
   return { port: availablePort, framework };
 }
@@ -692,7 +664,7 @@ export async function cleanupAbandonedPorts(): Promise<number> {
   
   const cleanedCount = result.length;
   if (cleanedCount > 0) {
-    console.log(`🧹 Cleaned up ${cleanedCount} abandoned port allocation(s)`);
+    buildLogger.portAllocator.allocationsCleared(cleanedCount);
   }
   
   return cleanedCount;

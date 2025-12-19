@@ -46,40 +46,8 @@ export default function DeleteProjectModal({
     }
   }, [isOpen]);
 
-  const updateProgress = useCallback(() => {
-    if (!holdStartRef.current) return;
-
-    const elapsed = Date.now() - holdStartRef.current;
-    const progress = Math.min(elapsed / HOLD_DURATION, 1);
-    setHoldProgress(progress);
-
-    if (progress < 1) {
-      animationFrameRef.current = requestAnimationFrame(updateProgress);
-    } else {
-      // Trigger delete
-      handleDelete();
-    }
-  }, []);
-
-  const handleMouseDown = () => {
-    if (deleteMutation.isPending) return;
-    setIsHolding(true);
-    holdStartRef.current = Date.now();
-    animationFrameRef.current = requestAnimationFrame(updateProgress);
-  };
-
-  const handleMouseUp = () => {
-    setIsHolding(false);
-    holdStartRef.current = null;
-    setHoldProgress(0);
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    handleMouseUp();
-  };
+  // Ref to hold the latest handleDelete function - fixes stale closure in updateProgress
+  const handleDeleteRef = useRef<() => Promise<void>>();
 
   const handleDelete = async () => {
     try {
@@ -103,6 +71,44 @@ export default function DeleteProjectModal({
     } catch (error) {
       console.error('Failed to delete project:', error);
     }
+  };
+
+  // Keep ref updated with latest handleDelete (which captures current deleteFiles state)
+  handleDeleteRef.current = handleDelete;
+
+  const updateProgress = useCallback(() => {
+    if (!holdStartRef.current) return;
+
+    const elapsed = Date.now() - holdStartRef.current;
+    const progress = Math.min(elapsed / HOLD_DURATION, 1);
+    setHoldProgress(progress);
+
+    if (progress < 1) {
+      animationFrameRef.current = requestAnimationFrame(updateProgress);
+    } else {
+      // Trigger delete - use ref to get latest handleDelete with current deleteFiles state
+      handleDeleteRef.current?.();
+    }
+  }, []);
+
+  const handleMouseDown = () => {
+    if (deleteMutation.isPending) return;
+    setIsHolding(true);
+    holdStartRef.current = Date.now();
+    animationFrameRef.current = requestAnimationFrame(updateProgress);
+  };
+
+  const handleMouseUp = () => {
+    setIsHolding(false);
+    holdStartRef.current = null;
+    setHoldProgress(0);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    handleMouseUp();
   };
 
   const handleClose = () => {

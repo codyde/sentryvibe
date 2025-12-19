@@ -9,9 +9,15 @@ export interface RunnerConfig {
   monorepoPath?: string; // Path to cloned sentryvibe repository
   databaseUrl?: string; // PostgreSQL connection string
   apiUrl?: string; // API base URL (e.g., http://localhost:3000)
-  broker: {
-    url: string; // WebSocket URL (e.g., ws://localhost:4000/socket)
-    httpUrl?: string; // HTTP URL for broker (e.g., http://localhost:4000)
+  // Server connection config (formerly "broker" - now connects directly to Next.js)
+  server: {
+    wsUrl: string; // WebSocket URL (e.g., ws://localhost:3000/ws/runner)
+    secret: string;
+  };
+  // Legacy broker config for backward compatibility
+  broker?: {
+    url: string;
+    httpUrl?: string;
     secret: string;
   };
   runner: {
@@ -45,9 +51,8 @@ export class ConfigManager {
       version: '0.1.0',
       workspace: join(homedir(), 'sentryvibe-workspace'),
       apiUrl: 'http://localhost:3000', // Default API URL
-      broker: {
-        url: 'ws://localhost:4000/socket', // Default WebSocket broker
-        httpUrl: 'http://localhost:4000', // Default HTTP broker
+      server: {
+        wsUrl: 'ws://localhost:3000/ws/runner', // Direct WebSocket connection to Next.js
         secret: 'dev-secret', // Default local secret
       },
       runner: {
@@ -98,12 +103,13 @@ export class ConfigManager {
       errors.push('Workspace path is required');
     }
 
-    if (!config.broker?.secret) {
-      errors.push('Broker shared secret is required');
-    }
-
-    if (!config.broker?.url) {
-      errors.push('Broker URL is required');
+    // Check for server config (new) or legacy broker config
+    const hasServerConfig = config.server?.secret && config.server?.wsUrl;
+    const hasLegacyBrokerConfig = config.broker?.secret && config.broker?.url;
+    
+    if (!hasServerConfig && !hasLegacyBrokerConfig) {
+      errors.push('Server shared secret is required');
+      errors.push('Server WebSocket URL is required');
     }
 
     if (!config.runner?.id) {
@@ -123,10 +129,51 @@ export class ConfigManager {
 
   /**
    * Check if config has been initialized (secret is set)
+   * Supports both new server config and legacy broker config
    */
   isInitialized(): boolean {
+    const server = this.get('server');
     const broker = this.get('broker');
+    
+    // Check new server config first
+    if (server && typeof server === 'object' && 'secret' in server && server.secret) {
+      return true;
+    }
+    
+    // Fall back to legacy broker config
     return !!(broker && typeof broker === 'object' && 'secret' in broker && broker.secret);
+  }
+  
+  /**
+   * Get the WebSocket URL (supports both new and legacy config)
+   */
+  getWsUrl(): string {
+    const server = this.get('server');
+    const broker = this.get('broker');
+    
+    // Prefer new server config
+    if (server?.wsUrl) {
+      return server.wsUrl;
+    }
+    
+    // Fall back to legacy broker URL
+    return broker?.url ?? 'ws://localhost:3000/ws/runner';
+  }
+  
+  /**
+   * Get the shared secret (supports both new and legacy config)
+   */
+  getSecret(): string {
+    const server = this.get('server');
+    const broker = this.get('broker');
+    
+    // Prefer new server config
+    if (server?.secret) {
+      return server.secret;
+    }
+    
+    // Fall back to legacy broker secret
+    return broker?.secret ?? '';
   }
 }
 

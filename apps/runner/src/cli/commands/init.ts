@@ -58,25 +58,10 @@ function getDefaultMonorepoPath(): string {
   return join(process.cwd(), 'sentryvibe');
 }
 
-/**
- * Derive HTTP URL from WebSocket URL
- * ws://localhost:4000/socket → http://localhost:4000
- * wss://broker.example.com/socket → https://broker.example.com
- */
-function deriveBrokerHttpUrl(wsUrl: string): string {
-  try {
-    const url = new URL(wsUrl);
-    const protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
-    return `${protocol}//${url.host}`;
-  } catch {
-    // Fallback if URL parsing fails
-    return wsUrl.replace(/^wss?:\/\//, (match) => match === 'wss://' ? 'https://' : 'http://').replace(/\/socket$/, '');
-  }
-}
-
 interface InitOptions {
   workspace?: string;
-  broker?: string;
+  wsUrl?: string; // New: WebSocket URL for direct connection
+  broker?: string; // Legacy: still supported for backward compatibility
   url?: string;
   secret?: string;
   branch?: string;
@@ -317,13 +302,13 @@ export async function initCommand(options: InitOptions) {
       // Step 4: Connection configuration
       p.log.step(pc.cyan('Connection Configuration'));
 
-      const brokerUrl = await p.text({
-        message: 'Broker WebSocket URL',
-        placeholder: 'ws://localhost:4000/socket',
-        defaultValue: options.broker || 'ws://localhost:4000/socket',
+      const wsUrl = await p.text({
+        message: 'Server WebSocket URL',
+        placeholder: 'ws://localhost:3000/ws/runner',
+        defaultValue: options.wsUrl || options.broker || 'ws://localhost:3000/ws/runner',
       });
 
-      if (p.isCancel(brokerUrl)) {
+      if (p.isCancel(wsUrl)) {
         handleCancel();
         return;
       }
@@ -426,9 +411,8 @@ export async function initCommand(options: InitOptions) {
           configManager.set('databaseUrl', databaseUrl);
         }
         configManager.set('apiUrl', normalizeUrl(apiUrl as string));
-        configManager.set('broker', {
-          url: brokerUrl,
-          httpUrl: deriveBrokerHttpUrl(brokerUrl as string),
+        configManager.set('server', {
+          wsUrl: wsUrl,
           secret: secret,
         });
         configManager.set('runner', {
@@ -658,10 +642,9 @@ export async function initCommand(options: InitOptions) {
         configManager.set('databaseUrl', databaseUrl);
       }
       configManager.set('apiUrl', normalizeUrl(options.url || 'http://localhost:3000'));
-      const brokerUrl = options.broker || 'ws://localhost:4000/socket';
-      configManager.set('broker', {
-        url: brokerUrl,
-        httpUrl: deriveBrokerHttpUrl(brokerUrl),
+      const wsUrl = options.wsUrl || options.broker || 'ws://localhost:3000/ws/runner';
+      configManager.set('server', {
+        wsUrl: wsUrl,
         secret: generatedSecret,
       });
       configManager.set('runner', {
@@ -698,11 +681,12 @@ export async function initCommand(options: InitOptions) {
     p.outro(pc.green('✨ SentryVibe is ready!'));
 
     // Show config summary
+    const wsUrlDisplay = options.wsUrl || options.broker || 'ws://localhost:3000/ws/runner';
     const configSummary = [
       '',
       pc.bold('Configuration:'),
       `  Workspace:  ${pc.cyan(workspace)}`,
-      `  Broker:     ${pc.cyan(options.broker || 'ws://localhost:4000/socket')}`,
+      `  Server:     ${pc.cyan(wsUrlDisplay)}`,
       `  Runner ID:  ${pc.cyan('local')}`,
     ];
 

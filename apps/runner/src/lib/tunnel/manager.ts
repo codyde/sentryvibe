@@ -1,11 +1,20 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { ensureCloudflared } from './auto-install.js';
+import { createInjectionProxy, findAvailablePort, type InjectionProxy } from '../injection-proxy.js';
+
+/** Default port for the injection proxy */
+const DEFAULT_INJECTION_PROXY_PORT = 4000;
 
 interface TunnelInfo {
   url: string;
+  /** Original dev server port */
   port: number;
+  /** Injection proxy port (tunnel connects to this) */
+  proxyPort: number;
   process: ChildProcess;
+  /** Injection proxy instance (for cleanup) */
+  injectionProxy?: InjectionProxy;
 }
 
 export class TunnelManager extends EventEmitter {
@@ -32,6 +41,10 @@ export class TunnelManager extends EventEmitter {
   /**
    * Create a tunnel for a specific port
    * Returns the public tunnel URL
+   * 
+   * The tunnel is created through an injection proxy that adds the element
+   * selection script to HTML responses. This enables the "select element"
+   * feature to work when the frontend is hosted remotely.
    */
   async createTunnel(port: number, maxRetries = 5): Promise<string> {
     // Check if tunnel already exists for this port
@@ -46,11 +59,38 @@ export class TunnelManager extends EventEmitter {
       this.cloudflaredPath = await ensureCloudflared(this.silent);
     }
 
+    // Step 1: Start injection proxy
+    // This proxy injects the element selection script into HTML responses
+    let injectionProxy: InjectionProxy | undefined;
+    let proxyPort = DEFAULT_INJECTION_PROXY_PORT;
+
+    try {
+      // Find an available port for the proxy
+      proxyPort = await findAvailablePort(DEFAULT_INJECTION_PROXY_PORT);
+      
+      injectionProxy = await createInjectionProxy({
+        targetPort: port,
+        proxyPort,
+        onError: (err) => this.log(`[injection-proxy] Error: ${err.message}`),
+        log: (...args) => this.log(...args),
+      });
+      
+      this.log(`✅ Injection proxy started: localhost:${proxyPort} → localhost:${port}`);
+    } catch (err) {
+      // Fallback: tunnel directly to dev server (selection won't work but preview will)
+      this.log(`⚠️  Injection proxy failed to start: ${err instanceof Error ? err.message : String(err)}`);
+      this.log(`⚠️  Falling back to direct tunnel (element selection will not work)`);
+      proxyPort = port; // Fall back to direct connection
+    }
+
+    // Step 2: Create tunnel to proxy port (or dev server if proxy failed)
+    const tunnelTargetPort = injectionProxy ? proxyPort : port;
+
     // Try creating tunnel with smart retries
     const errors: string[] = [];
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        return await this._createTunnelAttempt(port);
+        return await this._createTunnelAttempt(port, tunnelTargetPort, injectionProxy);
       } catch (error: any) {
         const errorMsg = error?.message || String(error);
         errors.push(errorMsg);
@@ -58,10 +98,18 @@ export class TunnelManager extends EventEmitter {
 
         // Check if this is a permanent error (fail fast)
         if (this._isPermanentError(errorMsg)) {
+          // Clean up injection proxy on permanent failure
+          if (injectionProxy) {
+            await injectionProxy.close().catch(() => {});
+          }
           throw new Error(`Permanent failure: ${errorMsg}`);
         }
 
         if (attempt === maxRetries) {
+          // Clean up injection proxy on final failure
+          if (injectionProxy) {
+            await injectionProxy.close().catch(() => {});
+          }
           throw new Error(`Failed to create tunnel after ${maxRetries} attempts: ${errors.join('; ')}`);
         }
 
@@ -74,6 +122,10 @@ export class TunnelManager extends EventEmitter {
       }
     }
 
+    // Clean up injection proxy on failure
+    if (injectionProxy) {
+      await injectionProxy.close().catch(() => {});
+    }
     throw new Error('Tunnel creation failed after all retries');
   }
 
@@ -147,15 +199,23 @@ export class TunnelManager extends EventEmitter {
 
   /**
    * Single attempt to create a tunnel
+   * @param devServerPort - The original dev server port (used as key in tunnels map)
+   * @param tunnelTargetPort - The port to tunnel to (proxy port or dev server port if proxy failed)
+   * @param injectionProxy - Optional injection proxy instance for cleanup
    */
-  private async _createTunnelAttempt(port: number): Promise<string> {
+  private async _createTunnelAttempt(
+    devServerPort: number, 
+    tunnelTargetPort: number,
+    injectionProxy?: InjectionProxy
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
-      this.log(`[tunnel] Creating tunnel for port ${port}...`);
+      const isUsingProxy = tunnelTargetPort !== devServerPort;
+      this.log(`[tunnel] Creating tunnel for port ${tunnelTargetPort}${isUsingProxy ? ` (proxy for dev server on ${devServerPort})` : ''}...`);
 
       // Direct binary execution with unbuffered streams
       const proc = spawn(this.cloudflaredPath!, [
         'tunnel',
-        '--url', `http://localhost:${port}`,
+        '--url', `http://localhost:${tunnelTargetPort}`,
         '--no-autoupdate',
       ], {
         cwd: process.cwd(),
@@ -194,8 +254,15 @@ export class TunnelManager extends EventEmitter {
           const url = this._extractTunnelUrl(output);
           if (url) {
             tunnelUrl = url;
-            this.log(`✅ Tunnel URL received: ${url} → localhost:${port}`);
-            this.tunnels.set(port, { url, port, process: proc });
+            this.log(`✅ Tunnel URL received: ${url} → localhost:${tunnelTargetPort}${isUsingProxy ? ` → localhost:${devServerPort}` : ''}`);
+            // Store with dev server port as key, but include proxy info
+            this.tunnels.set(devServerPort, { 
+              url, 
+              port: devServerPort, 
+              proxyPort: tunnelTargetPort,
+              process: proc,
+              injectionProxy,
+            });
           }
         }
 
@@ -214,6 +281,9 @@ export class TunnelManager extends EventEmitter {
             clearTimeout(timeout);
 
             this.log(`✅ Tunnel ready: ${tunnelUrl}`);
+            if (isUsingProxy) {
+              this.log(`✅ Element selection enabled via injection proxy`);
+            }
 
             // Note: Backend verification skipped for localhost tunnels
             // The tunnel connects localhost to Cloudflare - backend can't verify it
@@ -236,7 +306,7 @@ export class TunnelManager extends EventEmitter {
             !lower.includes('context canceled') &&
             !lower.includes('connection terminated') &&
             !lower.includes('no more connections active')) {
-          this.log(`[cloudflared:${port}] ${output.trim()}`);
+          this.log(`[cloudflared:${devServerPort}] ${output.trim()}`);
         }
 
         // Check for tunnel URL in stderr too
@@ -244,9 +314,14 @@ export class TunnelManager extends EventEmitter {
       });
 
       proc.on('exit', (code, signal) => {
-        this.log(`Tunnel exited for port ${port} with code ${code} signal ${signal}`);
-        this.tunnels.delete(port);
-        this.emit('tunnel-closed', port);
+        this.log(`Tunnel exited for port ${devServerPort} with code ${code} signal ${signal}`);
+        // Clean up injection proxy when tunnel exits
+        const tunnel = this.tunnels.get(devServerPort);
+        if (tunnel?.injectionProxy) {
+          tunnel.injectionProxy.close().catch(() => {});
+        }
+        this.tunnels.delete(devServerPort);
+        this.emit('tunnel-closed', devServerPort);
       });
 
       proc.on('error', (error) => {
@@ -269,6 +344,16 @@ export class TunnelManager extends EventEmitter {
     }
 
     this.log(`🔗 Closing tunnel for port ${port}...`);
+
+    // Close injection proxy first (if exists)
+    if (tunnel.injectionProxy) {
+      try {
+        await tunnel.injectionProxy.close();
+        this.log(`✅ Injection proxy closed for port ${port}`);
+      } catch (err) {
+        this.log(`⚠️  Error closing injection proxy: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {

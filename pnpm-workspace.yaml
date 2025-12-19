@@ -1,5 +1,4 @@
 packages:
   - apps/sentryvibe
-  - apps/broker
   - apps/runner
   - packages/agent-core

@@ -3,11 +3,12 @@
 import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import * as Sentry from "@sentry/nextjs";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, CheckCircle2 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
@@ -15,6 +16,9 @@ import ProcessManagerModal from "@/components/ProcessManagerModal";
 import RenameProjectModal from "@/components/RenameProjectModal";
 import DeleteProjectModal from "@/components/DeleteProjectModal";
 import { TodoList } from "@/components/BuildProgress/TodoList";
+import { CompletedTodosSummary } from "@/components/CompletedTodosSummary";
+import { ErrorDetectedSection } from "@/components/ErrorDetectedSection";
+import { PlanningPhase } from "@/components/BuildProgress/PlanningPhase";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -44,7 +48,7 @@ import {
   createInitialCodexSessionState,
 } from "@sentryvibe/agent-core/lib/build-helpers";
 import { processCodexEvent } from "@sentryvibe/agent-core/lib/agents/codex/events";
-import ElementChangeCard from "@/components/ElementChangeCard";
+
 import { TagInput } from "@/components/tags/TagInput";
 import type { AppliedTag } from "@sentryvibe/agent-core/types/tags";
 import { parseModelTag } from "@sentryvibe/agent-core/lib/tags/model-parser";
@@ -81,26 +85,6 @@ interface Message {
   content: string;
   parts?: MessagePart[];
   timestamp?: number;
-  elementChange?: ElementChange;
-}
-
-interface ElementChange {
-  id: string;
-  elementSelector: string;
-  changeRequest: string;
-  elementInfo?: {
-    tagName?: string;
-    className?: string;
-    textContent?: string;
-  };
-  status: 'processing' | 'completed' | 'failed';
-  toolCalls: Array<{
-    name: string;
-    input?: unknown;
-    output?: unknown;
-    status: 'running' | 'completed' | 'failed';
-  }>;
-  error?: string;
 }
 
 const DEBUG_PAGE = false; // Set to true to enable verbose page logging
@@ -210,10 +194,9 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const lastRefetchedBuildIdRef = useRef<string | null>(null);
+  const freshBuildIdRef = useRef<string | null>(null); // Track fresh build to prevent stale state merging
   const [generationRevision, setGenerationRevision] = useState(0);
-  const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
-  const [expandedCompletedBuilds, setExpandedCompletedBuilds] = useState<Set<string>>(new Set());
-  const [expandedCompletedBuildTodos, setExpandedCompletedBuildTodos] = useState<Map<string, Set<number>>>(new Map());
+
   const isThinking =
     generationState?.isActive &&
     (!generationState.todos || generationState.todos.length === 0);
@@ -289,10 +272,12 @@ function HomeContent() {
   // Then follow-up build starts but WS isn't reconnected yet (race condition)
   const {
     state: wsState,
+    autoFixState,
     isConnected: wsConnected,
     isReconnecting: wsReconnecting,
     error: wsError,
     reconnect: wsReconnect,
+    clearAutoFixState,
     sentryTrace: wsSentryTrace,
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
@@ -487,13 +472,14 @@ function HomeContent() {
   }, [messagesFromDB]);
 
   const serverBuilds = useMemo(() => {
+    // Include builds that have todos OR have a summary (element edits may complete without todos)
     const builds = sessionStates.filter(
-      (state) => state.todos && state.todos.length > 0 && !state.isActive
+      (state) => !state.isActive && ((state.todos && state.todos.length > 0) || state.buildSummary)
     );
 
     console.log('[serverBuilds] Loaded from database:', {
       count: builds.length,
-      buildIds: builds.map(b => ({ id: b.id, source: b.source, todos: b.todos?.length })),
+      buildIds: builds.map(b => ({ id: b.id, source: b.source, todos: b.todos?.length, hasSummary: !!b.buildSummary })),
     });
 
     return builds;
@@ -512,21 +498,24 @@ function HomeContent() {
       localIsActive: generationState?.isActive,
     });
 
+    // Include builds that have todos OR have a summary (element edits may complete without todos)
+    const hasContent = generationState && 
+      !generationState.isActive && 
+      ((generationState.todos && generationState.todos.length > 0) || generationState.buildSummary);
+    
     if (
-      generationState &&
-      !generationState.isActive &&
-      generationState.todos &&
-      generationState.todos.length > 0 &&
+      hasContent &&
       !builds.some((build) => build.id === generationState.id)
     ) {
       console.log('➕ [buildHistory] Adding LOCAL completed build to history:', {
         buildId: generationState.id,
         source: generationState.source || 'unknown',
-        todos: generationState.todos.length,
+        todos: generationState.todos?.length || 0,
+        hasSummary: !!generationState.buildSummary,
       });
       builds.unshift({ ...generationState, source: generationState.source || 'local' });
     } else if (generationState && !generationState.isActive) {
-      console.log('⏭️ [buildHistory] Skipping local build (already in server builds):', generationState.id);
+      console.log('⏭️ [buildHistory] Skipping local build (already in server builds or no content):', generationState.id);
     }
 
     console.log('✅ [buildHistory] Final history:', {
@@ -538,11 +527,11 @@ function HomeContent() {
   }, [serverBuilds, generationState]);
 
   const latestCompletedBuild = useMemo(() => {
+    // Include builds that have todos OR have a summary
     if (
       generationState &&
       !generationState.isActive &&
-      generationState.todos &&
-      generationState.todos.length > 0
+      ((generationState.todos && generationState.todos.length > 0) || generationState.buildSummary)
     ) {
       return generationState;
     }
@@ -572,19 +561,11 @@ function HomeContent() {
     // Also trigger explicit refetch
     refetchProjectMessages?.();
     
-    // CRITICAL FIX: Clear local generationState after it's been synced to database
+    // CRITICAL FIX: Clear local generationState immediately when build completes
     // This prevents the build from appearing in BOTH active section AND history
-    // We'll set it to null after a brief delay to allow the refetch to complete
-    const buildId = generationState.id;
-    const clearTimer = setTimeout(() => {
-      // Only clear if this build is now in serverBuilds (successfully synced)
-      if (serverBuilds.some(build => build.id === buildId)) {
-        console.log('🧹 [State Cleanup] Clearing local generationState (now in database):', buildId);
-        setGenerationState(null);
-      }
-    }, 1000); // Wait 1s for refetch to complete
-    
-    return () => clearTimeout(clearTimer);
+    // The refetch will populate serverBuilds/buildHistory with the DB version
+    console.log('🧹 [State Cleanup] Clearing local generationState (build completed):', generationState.id);
+    setGenerationState(null);
   }, [generationState, currentProject?.id, refetchProjectMessages, queryClient, serverBuilds]);
 
   const updateGenerationState = useCallback(
@@ -612,17 +593,7 @@ function HomeContent() {
     []
   );
 
-  // Element changes tracked separately for Build tab
-  const [activeElementChanges, setActiveElementChanges] = useState<
-    ElementChange[]
-  >([]);
 
-  const [elementChangeHistoryByProject, setElementChangeHistoryByProject] =
-    useState<Map<string, ElementChange[]>>(new Map());
-
-  const elementChangeHistory = currentProject
-    ? elementChangeHistoryByProject.get(currentProject.id) || []
-    : [];
 
 
   // Track if component has mounted to avoid hydration errors
@@ -699,23 +670,50 @@ function HomeContent() {
   //   5. This effect merges server updates into local state
   useEffect(() => {
     if (wsState) {
-      if (DEBUG_PAGE) console.log('🔌 WebSocket state update:', {
+      console.log('🔌 WebSocket state update:', {
         isConnected: wsConnected,
         hasState: !!wsState,
         buildId: wsState.id,
-        agentId: wsState.agentId,
-        claudeModelId: wsState.claudeModelId,
-        projectName: wsState.projectName,
         todosLength: wsState.todos?.length,
         isActive: wsState.isActive,
+        hasBuildSummary: !!wsState.buildSummary,
+        buildSummaryLength: wsState.buildSummary?.length,
+        freshBuildId: freshBuildIdRef.current,
       });
       
+      // GUARD: If we just started a fresh build, ignore stale WebSocket state
+      // until we receive updates for the new build
+      if (freshBuildIdRef.current && wsState.id !== freshBuildIdRef.current) {
+        console.log('🛡️ [Fresh Build Guard] Ignoring stale WebSocket state:', {
+          freshBuildId: freshBuildIdRef.current,
+          wsStateBuildId: wsState.id,
+          wsStateTodosLength: wsState.todos?.length,
+        });
+        return; // Skip this update - it's from an old build
+      }
+      
+      // Clear the fresh build guard once we receive matching state from server
+      if (freshBuildIdRef.current && wsState.id === freshBuildIdRef.current) {
+        console.log('✅ [Fresh Build Guard] Received matching state, clearing guard');
+        freshBuildIdRef.current = null;
+      }
+      
       setGenerationState((prevState) => {
-        // If no previous state, use WebSocket state as-is
-        if (!prevState) {
-          if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
-          return wsState;
-        }
+// If no previous state, use WebSocket state ONLY if build is active
+          // Don't restore completed builds - they belong in serverBuilds/buildHistory
+          if (!prevState) {
+            if (!wsState.isActive) {
+              if (DEBUG_PAGE) console.log('   Skipping completed build from WebSocket (should be in DB)');
+              return null;
+            }
+            if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
+            // Clear autoFixState when auto-fix session starts
+            if (wsState.isAutoFix) {
+              console.log('🔧 [Auto-Fix Session] Clearing autoFixState - session started');
+              clearAutoFixState();
+            }
+            return wsState;
+          }
         
         // CRITICAL FIX: Check if buildId changed (new build started)
         // If buildId changed, REPLACE old state instead of merging
@@ -741,6 +739,23 @@ function HomeContent() {
           };
         }
         
+        // If build becomes inactive (completed/failed), keep the state with summary
+        // Don't clear it - we need to show the buildSummary until it's saved to DB
+        if (!wsState.isActive && prevState.isActive) {
+          console.log('🏁 Build became inactive, preserving state with summary:', {
+            buildId: wsState.id,
+            hasSummary: !!wsState.buildSummary,
+            summaryLength: wsState.buildSummary?.length,
+          });
+          // Return the completed state (including buildSummary) instead of null
+          return {
+            ...prevState,
+            ...wsState,
+            isActive: false,
+            buildSummary: wsState.buildSummary || prevState.buildSummary,
+          };
+        }
+
         // Same build - merge updates incrementally
         // This handles todos being added, tools updating, etc. within the same build
         const merged = {
@@ -903,28 +918,24 @@ function HomeContent() {
         return;
       }
 
-      // Switch to Build tab to show element change
+      // Switch to Build tab to show build progress
       switchTab("build");
 
-      // Create element change
-      const changeId = `element-change-${Date.now()}`;
-      const newChange: ElementChange = {
-        id: changeId,
-        elementSelector: element?.selector || "unknown",
-        changeRequest: prompt,
-        elementInfo: {
-          tagName: element?.tagName,
-          className: element?.className,
-          textContent: element?.textContent,
-        },
-        status: "processing",
-        toolCalls: [],
-      };
+      // Build enhanced prompt with element context using code formatting for selectors/classes
+      const elementContext = element ? `
 
-      setActiveElementChanges((prev) => [...prev, newChange]);
+[Element Context]
+- Selector: \`${element.selector || 'unknown'}\`
+- Tag: \`${element.tagName || 'unknown'}\`
+- Class: \`${element.className || 'none'}\`
+- Text: ${element.textContent?.substring(0, 100) || 'none'}` : '';
+      const enhancedPrompt = `${prompt}${elementContext}`;
 
-      // Start element change stream
-      startElementChange(currentProject.id, prompt, element, changeId);
+      // Use the standard generation flow with isElementChange flag
+      startGeneration(currentProject.id, enhancedPrompt, {
+        addUserMessage: true,
+        isElementChange: true,
+      });
     };
 
     window.addEventListener(
@@ -1050,7 +1061,6 @@ function HomeContent() {
       // TanStack Query handles this automatically
 
       updateGenerationState(null);
-      setActiveElementChanges([]);
       setTemplateProvisioningInfo(null);
       // Don't clear history - it's now per-project and preserved
       hasStartedGenerationRef.current.clear();
@@ -1140,249 +1150,6 @@ function HomeContent() {
 
   // Disabled: We now handle generation directly in handleSubmit without redirects
   // This prevents the flash/reload issue when creating new projects
-
-  const startElementChange = async (
-    projectId: string,
-    prompt: string,
-    element: Record<string, unknown>,
-    changeId: string
-  ) => {
-    try {
-      const res = await fetch(`/api/projects/${projectId}/build`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operationType: "focused-edit",
-          prompt,
-          runnerId: selectedRunnerId,
-          agent: selectedAgentId,
-          claudeModel:
-            selectedAgentId === "claude-code" ? selectedClaudeModelId : undefined,
-          context: {
-            elementSelector: element?.selector,
-            elementInfo: {
-              tagName: element?.tagName,
-              className: element?.className,
-              textContent: element?.textContent,
-            },
-          },
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Element change failed");
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No reader available");
-
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          if (line === "data: [DONE]") {
-            if (DEBUG_PAGE) console.log("✅ SSE stream completed for project", projectId);
-            continue;
-          }
-
-          const payload = line.slice(6);
-          if (!payload.trim()) {
-            continue;
-          }
-
-          try {
-            const data = JSON.parse(payload);
-
-            // Update element change with tool calls
-            if (data.type === "tool-input-available") {
-              setActiveElementChanges((prev) =>
-                prev.map((change) => {
-                  if (change.id === changeId) {
-                    // Check if tool already exists (prevent duplicates)
-                    const existingToolIndex = change.toolCalls.findIndex(
-                      (t) => t.name === data.toolName && t.status === "running"
-                    );
-
-                    if (existingToolIndex >= 0) {
-                      if (DEBUG_PAGE) console.log(
-                        "⚠️ Tool already exists, skipping duplicate:",
-                        data.toolName
-                      );
-                      return change;
-                    }
-
-                    return {
-                      ...change,
-                      toolCalls: [
-                        ...change.toolCalls,
-                        {
-                          name: data.toolName,
-                          input: data.input,
-                          status: "running" as const,
-                        },
-                      ],
-                    };
-                  }
-                  return change;
-                })
-              );
-            } else if (data.type === "tool-output-available") {
-              setActiveElementChanges((prev) =>
-                prev.map((change) => {
-                  if (change.id === changeId) {
-                    // Find the matching running tool and update it
-                    const updatedTools = change.toolCalls.map((tool) => {
-                      if (tool.status === "running" && !tool.output) {
-                        return {
-                          ...tool,
-                          output: data.output,
-                          status: "completed" as const,
-                        };
-                      }
-                      return tool;
-                    });
-
-                    return {
-                      ...change,
-                      toolCalls: updatedTools,
-                    };
-                  }
-                  return change;
-                })
-              );
-            }
-          } catch {
-            // Skip malformed JSON
-          }
-        }
-      }
-
-      // Mark as completed and finalize all tool calls
-      let completedChange: ElementChange | null = null;
-
-      setActiveElementChanges((prev) => {
-        const updated = prev.map((change) => {
-          if (change.id === changeId) {
-            completedChange = {
-              ...change,
-              status: "completed" as const,
-              // Mark all tools as completed
-              toolCalls: change.toolCalls.map((tool) => ({
-                ...tool,
-                status:
-                  tool.status === "running"
-                    ? ("completed" as const)
-                    : tool.status,
-              })),
-            };
-            return completedChange;
-          }
-          return change;
-        });
-        return updated;
-      });
-
-      // Wait a bit to let user see the completion
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Archive to history (per project) and remove from active
-      if (completedChange) {
-        setElementChangeHistoryByProject((prev) => {
-          const newMap = new Map(prev);
-          const projectHistory = newMap.get(projectId) || [];
-          newMap.set(projectId, [completedChange!, ...projectHistory]);
-          return newMap;
-        });
-        setActiveElementChanges((prev) =>
-          prev.filter((c) => c.id !== changeId)
-        );
-
-        // Trigger iframe refresh after element change completes
-        window.dispatchEvent(new CustomEvent('refresh-iframe'));
-
-        // Save to database
-        const saveRes = await fetch(`/api/projects/${projectId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            role: "assistant",
-            content: [
-              {
-                type: "element-change",
-                elementChange: completedChange,
-              },
-            ],
-          }),
-        });
-
-        if (saveRes.ok) {
-          // Success
-        } else {
-          console.error(
-            "❌ Failed to save element change:",
-            await saveRes.text()
-          );
-        }
-
-        // Switch back to Chat after completion
-        switchTab("chat");
-      }
-    } catch (error) {
-      console.error("Element change error:", error);
-
-      // Mark as failed
-      setActiveElementChanges((prev) =>
-        prev.map((change) => {
-          if (change.id === changeId) {
-            return {
-              ...change,
-              status: "failed" as const,
-              error: error instanceof Error ? error.message : "Unknown error",
-            };
-          }
-          return change;
-        })
-      );
-
-      // Archive failed change to history after a delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      setActiveElementChanges((prev) => {
-        const failedChange = prev.find((c) => c.id === changeId);
-        if (failedChange) {
-          setElementChangeHistoryByProject((prevMap) => {
-            const newMap = new Map(prevMap);
-            const projectHistory = newMap.get(projectId) || [];
-            newMap.set(projectId, [failedChange, ...projectHistory]);
-            return newMap;
-          });
-
-          // Save to database
-          fetch(`/api/projects/${projectId}/messages`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              role: "assistant",
-              content: [
-                {
-                  type: "element-change",
-                  elementChange: failedChange,
-                },
-              ],
-            }),
-          });
-        }
-        return prev.filter((c) => c.id !== changeId);
-      });
-    }
-  };
 
   const startGeneration = async (
     projectId: string,
@@ -1535,6 +1302,11 @@ function HomeContent() {
       projectId: project.id,
     });
 
+    // CRITICAL: Set fresh build ID guard BEFORE updating state
+    // This prevents stale WebSocket state from overwriting our fresh state
+    freshBuildIdRef.current = freshState.id;
+    console.log('🛡️ [Fresh Build Guard] Set guard for new build:', freshState.id);
+
     // Set the fresh local state (optimistic, will be replaced by WebSocket updates)
     updateGenerationState(freshState);
 
@@ -1567,6 +1339,21 @@ function HomeContent() {
     const existingBuildId = buildId || generationStateRef.current?.id;
 
     console.log('🆔 [Build ID Sync] Using build ID:', existingBuildId, buildId ? '(passed)' : '(from ref)');
+
+    // Start a Sentry span for the entire build operation
+    // This creates the root trace that will be continued by the backend and runner
+    return await Sentry.startSpan(
+      {
+        name: `build.${operationType}`,
+        op: 'build.request',
+        attributes: {
+          'build.id': existingBuildId || 'unknown',
+          'build.operation_type': operationType,
+          'build.project_id': projectId,
+          'build.is_element_change': isElementChange,
+        },
+      },
+      async (span) => {
     try {
       // Derive agent and model from tags if present, otherwise use context
       const modelTag = appliedTags.find(t => t.key === 'model');
@@ -2202,6 +1989,8 @@ function HomeContent() {
       setTimeout(() => refetch(), 1000);
     } catch (error) {
       console.error("Generation error:", error);
+      // Set span status to error
+      span.setStatus({ code: 2, message: error instanceof Error ? error.message : 'Build failed' });
       // Mark generation as failed and SAVE
       updateGenerationState((prev) => {
         if (!prev) return null;
@@ -2222,6 +2011,8 @@ function HomeContent() {
       // Keep generationState visible - don't hide it!
       // User can manually dismiss with X button
     }
+      } // Close Sentry.startSpan callback
+    ); // Close Sentry.startSpan
   };
 
   const handleBreaksMouseEnter = () => {
@@ -3212,23 +3003,44 @@ function HomeContent() {
                                 : (displayedInitialMessage ? [displayedInitialMessage] : []);
                               
                               if (allUserMessages.length === 0) return null;
+
+                              // Get the sorted build history (oldest first for display)
+                              const sortedBuildHistory = [...buildHistory].reverse();
+                              
+                              console.log('📋 Rendering conversation with builds:', {
+                                buildHistoryLength: buildHistory.length,
+                                sortedBuildHistoryLength: sortedBuildHistory.length,
+                                builds: sortedBuildHistory.map(b => ({
+                                  id: b.id?.slice(0, 8),
+                                  isActive: b.isActive,
+                                  hasSummary: !!b.buildSummary,
+                                  summaryLength: b.buildSummary?.length,
+                                  todosCount: b.todos?.length,
+                                })),
+                              });
                               
                               return (
                                 <div className="space-y-6 px-1">
                                   {allUserMessages.map((msg, idx) => {
                                     const messageBuildPlan = getBuildPlanForUserMessage(idx);
+                                    const correspondingBuild = sortedBuildHistory[idx];
+                                    const isLastMessage = idx === allUserMessages.length - 1;
+                                    const hasActiveBuild = isLastMessage && generationState?.isActive;
 
                                     return (
                                       <div key={msg.id || idx} className="space-y-3">
                                         {idx > 0 && <div className="border-t border-white/10 my-6" />}
 
+                                        {/* User Request Section */}
                                         <div className="space-y-1">
                                           <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
                                             {idx === 0 ? 'Initial request' : `Follow-up ${idx}`}
                                           </p>
-                                          <p className="text-sm text-gray-300 leading-relaxed">
-                                            {getMessageContent(msg)}
-                                          </p>
+                                          <div className="text-sm text-gray-300 leading-relaxed prose prose-invert max-w-none [&_p]:my-0 [&_code]:text-xs [&_code]:text-pink-300 [&_code]:bg-pink-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:font-mono">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                              {getMessageContent(msg)}
+                                            </ReactMarkdown>
+                                          </div>
                                         </div>
 
                                         {/* Build Plan for this message */}
@@ -3248,199 +3060,64 @@ function HomeContent() {
                                           </div>
                                         )}
 
-                                        {buildHistory[idx]?.buildSummary && (
-                                        <div className="space-y-2">
-                                          <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                                            Result
-                                          </p>
-                                          <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-white [&_h3]:mb-3 [&_h3]:mt-4 [&_h4]:text-xs [&_h4]:font-semibold [&_h4]:uppercase [&_h4]:tracking-[0.2em] [&_h4]:text-gray-400 [&_h4]:mb-2 [&_h4]:mt-3 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-1.5 [&_ul]:my-2 [&_ul]:space-y-1 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_li]:pl-1 [&_strong]:text-white [&_strong]:font-medium [&_em]:text-gray-400 [&_em]:not-italic [&_em]:text-xs">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                              {buildHistory[idx].buildSummary!}
-                                            </ReactMarkdown>
+                                        {/* Planning Phase - only show for current active build */}
+                                        {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && (
+                                          <div className="space-y-3">
+                                            <PlanningPhase
+                                              activePlanningTool={generationState?.activePlanningTool}
+                                              projectName={currentProject.name}
+                                            />
                                           </div>
-                                        </div>
-                                      )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
+                                        )}
 
-                            {/* Removed standalone buildPlanMarkdown - now shown per user message above */}
-
-                            {isThinking && currentProject && (
-                              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-4">
-                                  <ProjectMetadataCard
-                                    projectName={currentProject.name}
-                                    description={currentProject.description}
-                                    icon={currentProject.icon}
-                                    slug={currentProject.slug}
-                                  />
-                                <div className="flex items-center gap-2 justify-center text-sm text-gray-400">
-                                  <span>Thinking…</span>
-                                  <div className="flex items-center gap-1">
-                                    <motion.span
-                                      animate={{ opacity: [0.3, 1, 0.3] }}
-                                      transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
-                                      className="h-2 w-2 rounded-full bg-purple-400"
-                                    />
-                                    <motion.span
-                                      animate={{ opacity: [0.3, 1, 0.3] }}
-                                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.15 }}
-                                      className="h-2 w-2 rounded-full bg-pink-400"
-                                    />
-                                    <motion.span
-                                      animate={{ opacity: [0.3, 1, 0.3] }}
-                                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.3 }}
-                                      className="h-2 w-2 rounded-full bg-purple-400"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Active Build - Show live todo list (no card) */}
-                            {generationState &&
-                              generationState.todos &&
-                              generationState.todos.length > 0 &&
-                              generationState.isActive && (
-                                <div className="space-y-3 px-1">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                                      Build in progress
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                      <div className="text-xs text-gray-400">
-                                        {generationState.todos.filter(t => t.status === 'completed').length} / {generationState.todos.length}
-                                      </div>
-                                      <div className="text-sm font-semibold text-purple-400">
-                                        {Math.round((generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100)}%
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="h-1 overflow-hidden rounded-full bg-white/10">
-                                    <motion.div
-                                      initial={{ width: 0 }}
-                                      animate={{
-                                        width: `${(generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100}%`,
-                                      }}
-                                      transition={{ duration: 0.5, ease: 'easeOut' }}
-                                      className="h-full bg-gradient-to-r from-emerald-400 to-sky-400"
-                                    />
-                                  </div>
-                                  {/* Minimalist todo list - no card wrapper */}
-                                  <TodoList
-                                    todos={generationState.todos}
-                                    toolsByTodo={generationState.toolsByTodo}
-                                    textByTodo={generationState.textByTodo}
-                                    activeTodoIndex={generationState.activeTodoIndex}
-                                    expandedTodos={expandedTodos}
-                                    onToggleTodo={(index) => {
-                                      setExpandedTodos(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(index)) {
-                                          next.delete(index);
-                                        } else {
-                                          next.add(index);
-                                        }
-                                        return next;
-                                      });
-                                    }}
-                                    allTodosCompleted={generationState.todos.every(t => t.status === 'completed')}
-                                    onViewFiles={() => {
-                                      window.dispatchEvent(
-                                        new CustomEvent("switch-to-editor")
-                                      );
-                                    }}
-                                    onStartServer={startDevServer}
-                                  />
-                                </div>
-                              )}
-
-                            {/* Builds Section - Minimal card view for completed builds */}
-                            {buildHistory.length > 0 && (
-                              <div className="px-1">
-                                <h3 className="text-sm font-semibold text-gray-400 mb-3">
-                                  Builds ({buildHistory.length})
-                                </h3>
-                                <div className="space-y-3">
-                                  {buildHistory.map((build, buildIndex) => {
-                                    const isExpanded = expandedCompletedBuilds.has(build.id);
-
-                                    // Add build number for differentiation
-                                    const buildLabel = buildIndex === buildHistory.length - 1
-                                      ? 'Initial'
-                                      : `Follow-up ${buildHistory.length - buildIndex - 1}`;
-
-                                    // Get a meaningful title for the build
-                                    let buildTitle = build.projectName || 'Build';
-                                    if (build.buildSummary) {
-                                      const firstSentence = build.buildSummary.split(/[.!?]\s/)[0];
-                                      buildTitle = firstSentence.substring(0, 60);
-                                    }
-                                    return (
-                                      <div
-                                        key={build.id}
-                                        className="border border-sky-500/30 rounded-lg bg-gradient-to-br from-sky-950/30 via-blue-950/20 to-gray-900/50 overflow-hidden shadow-lg shadow-sky-500/10"
-                                      >
-                                        {/* Card header - clickable to expand */}
-                                        <button
-                                          onClick={() => {
-                                            setExpandedCompletedBuilds(prev => {
-                                              const next = new Set(prev);
-                                              if (next.has(build.id)) {
-                                                next.delete(build.id);
-                                              } else {
-                                                next.add(build.id);
-                                              }
-                                              return next;
-                                            });
-                                          }}
-                                          className="w-full px-4 py-3 hover:bg-sky-500/5 transition-colors text-left"
-                                        >
-                                          <div className="flex items-center gap-3">
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400/20 to-blue-400/20">
-                                              <CheckCircle2 className="h-5 w-5 text-sky-400" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-semibold text-sky-400">
-                                                {buildTitle} - Complete
-                                              </p>
-                                              <p className="text-xs text-gray-400 mt-0.5">
-                                                {buildLabel} • {build.todos?.length || 0} tasks • {build.buildSummary ? 'Summary available' : build.projectName}
-                                              </p>
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                              {isExpanded ? '▼' : '▶'}
+                                        {/* Build Plan from active generation - Show after planning completes */}
+                                        {isLastMessage && generationState?.buildPlan && (
+                                          <div className="space-y-2">
+                                            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                                              Build plan
+                                            </p>
+                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-purple-300 [&_code]:bg-purple-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
+                                              <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                rehypePlugins={[rehypeHighlight]}
+                                              >
+                                                {generationState.buildPlan}
+                                              </ReactMarkdown>
                                             </div>
                                           </div>
-                                        </button>
+                                        )}
 
-                                        {/* Expanded todo list */}
-                                        {isExpanded && (
-                                          <div className="border-t border-gray-700/50 px-3 py-2">
+                                        {/* Active Build Progress - Skip for auto-fix sessions which are rendered separately */}
+                                        {hasActiveBuild && generationState.todos && generationState.todos.length > 0 && !generationState.isAutoFix && (
+                                          <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                                                Build in progress
+                                              </p>
+                                              <div className="flex items-center gap-2">
+                                                <div className="text-xs text-gray-400">
+                                                  {generationState.todos.filter(t => t.status === 'completed').length} / {generationState.todos.length}
+                                                </div>
+                                                <div className="text-sm font-semibold text-purple-400">
+                                                  {Math.round((generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100)}%
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                                              <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{
+                                                  width: `${(generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100}%`,
+                                                }}
+                                                transition={{ duration: 0.5, ease: 'easeOut' }}
+                                                className="h-full bg-gradient-to-r from-emerald-400 to-sky-400"
+                                              />
+                                            </div>
                                             <TodoList
-                                              todos={build.todos}
-                                              toolsByTodo={build.toolsByTodo}
-                                              textByTodo={build.textByTodo}
-                                              activeTodoIndex={-1}
-                                              expandedTodos={expandedCompletedBuildTodos.get(build.id) || new Set()}
-                                              onToggleTodo={(todoIndex) => {
-                                                setExpandedCompletedBuildTodos(prev => {
-                                                  const newMap = new Map(prev);
-                                                  const buildTodos = newMap.get(build.id) || new Set();
-                                                  const next = new Set(buildTodos);
-                                                  if (next.has(todoIndex)) {
-                                                    next.delete(todoIndex);
-                                                  } else {
-                                                    next.add(todoIndex);
-                                                  }
-                                                  newMap.set(build.id, next);
-                                                  return newMap;
-                                                });
-                                              }}
-                                              allTodosCompleted={true}
+                                              todos={generationState.todos}
+                                              toolsByTodo={generationState.toolsByTodo}
+                                              activeTodoIndex={generationState.activeTodoIndex}
+                                              allTodosCompleted={generationState.todos.every(t => t.status === 'completed')}
                                               onViewFiles={() => {
                                                 window.dispatchEvent(new CustomEvent("switch-to-editor"));
                                               }}
@@ -3448,69 +3125,80 @@ function HomeContent() {
                                             />
                                           </div>
                                         )}
+
+                                        {/* Completed Build - Show completed todos and summary */}
+                                        {correspondingBuild && !correspondingBuild.isActive && !correspondingBuild.isAutoFix && (
+                                          <>
+                                            {/* Completed todos section - only show if there are todos */}
+                                            {correspondingBuild.todos && correspondingBuild.todos.length > 0 && (
+                                              <div className="space-y-2">
+                                                <CompletedTodosSummary todos={correspondingBuild.todos} />
+                                              </div>
+                                            )}
+                                            
+                                            {/* Build summary section - show even without todos */}
+                                            {correspondingBuild.buildSummary && (
+                                              <div className="space-y-2">
+                                                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                                                  Build summary
+                                                </p>
+                                                <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-white [&_h3]:mb-3 [&_h3]:mt-4 [&_h4]:text-xs [&_h4]:font-semibold [&_h4]:uppercase [&_h4]:tracking-[0.2em] [&_h4]:text-gray-400 [&_h4]:mb-2 [&_h4]:mt-3 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-1.5 [&_ul]:my-2 [&_ul]:space-y-1 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_li]:pl-1 [&_strong]:text-white [&_strong]:font-medium [&_em]:text-gray-400 [&_em]:not-italic [&_em]:text-xs">
+                                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {correspondingBuild.buildSummary}
+                                                  </ReactMarkdown>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </>
+                                        )}
+
+                                        {/* Auto-Fix Section - Show when corresponding build is an auto-fix */}
+                                        {correspondingBuild && correspondingBuild.isAutoFix && (
+                                          <ErrorDetectedSection
+                                            errorMessage={correspondingBuild.autoFixError}
+                                            todos={correspondingBuild.todos || []}
+                                            buildSummary={correspondingBuild.buildSummary}
+                                            isActive={correspondingBuild.isActive}
+                                          />
+                                        )}
+
+                                        {/* Active Auto-Fix - Show when current generation state is an auto-fix */}
+                                        {hasActiveBuild && generationState?.isAutoFix && (
+                                          <ErrorDetectedSection
+                                            errorMessage={generationState.autoFixError}
+                                            todos={generationState.todos || []}
+                                            buildSummary={generationState.buildSummary}
+                                            isActive={true}
+                                          />
+                                        )}
+
+                                        {/* Auto-Fix Starting - Show when autofix-started event received but session not yet created */}
+                                        {autoFixState && !generationState?.isAutoFix && (
+                                          <ErrorDetectedSection
+                                            errorMessage={autoFixState.errorMessage}
+                                            todos={[]}
+                                            buildSummary={undefined}
+                                            isActive={true}
+                                          />
+                                        )}
                                       </div>
                                     );
                                   })}
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
 
-                            {activeElementChanges.length > 0 && (
-                              <div>
-                                <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
-                                  <span>Element Changes</span>
-                                  <span className="text-xs text-gray-600">
-                                    ({activeElementChanges.length})
-                                  </span>
-                                </h3>
-                                <div className="space-y-3">
-                                  {activeElementChanges.map((change) => (
-                                    <ElementChangeCard
-                                      key={change.id}
-                                      elementSelector={change.elementSelector}
-                                      changeRequest={change.changeRequest}
-                                      elementInfo={change.elementInfo}
-                                      status={change.status}
-                                      toolCalls={change.toolCalls}
-                                      error={change.error}
-                                    />
-                                  ))}
+                            {conversationMessages.length === 0 && !generationState && (
+                              <div className="flex items-center justify-center min-h-[400px]">
+                                <div className="text-center space-y-3 text-gray-400">
+                                  <Sparkles className="w-12 h-12 mx-auto opacity-50" />
+                                  <p className="text-lg">Start a conversation</p>
+                                  <p className="text-sm">
+                                    Enter a prompt below to begin building
+                                  </p>
                                 </div>
                               </div>
                             )}
-
-                            {elementChangeHistory.length > 0 && (
-                              <div>
-                                <h3 className="text-sm font-semibold text-gray-400 mb-3">
-                                  Element Changes ({elementChangeHistory.length})
-                                </h3>
-                                <div className="space-y-3">
-                                  {elementChangeHistory.map((change) => (
-                                    <ElementChangeCard
-                                      key={change.id}
-                                      elementSelector={change.elementSelector}
-                                      changeRequest={change.changeRequest}
-                                      elementInfo={change.elementInfo}
-                                      status={change.status}
-                                      toolCalls={change.toolCalls}
-                                      error={change.error}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                                {conversationMessages.length === 0 && !generationState && (
-                                  <div className="flex items-center justify-center min-h-[400px]">
-                                    <div className="text-center space-y-3 text-gray-400">
-                                      <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                                      <p className="text-lg">Start a conversation</p>
-                                      <p className="text-sm">
-                                        Enter a prompt below to begin building
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                         )}
 

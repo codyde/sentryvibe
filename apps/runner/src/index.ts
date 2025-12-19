@@ -8,9 +8,8 @@ import { config as loadEnv } from "dotenv";
 import { resolve, join } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { streamText, type TextPart, type ImagePart } from "ai";
+import { streamText, generateText, type TextPart, type ImagePart, type ToolSet } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
-
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
@@ -47,6 +46,22 @@ import { createProjectScopedPermissionHandler } from "./lib/permissions/project-
 
 globalThis.AI_SDK_LOG_WARNINGS = false;
 
+/**
+ * Truncate strings for logging to prevent excessive output
+ */
+function truncate(str: string, maxLength: number = 200): string {
+  if (str.length <= maxLength) return str;
+  return str.substring(0, maxLength) + '...';
+}
+
+/**
+ * Truncate JSON objects for logging
+ */
+function truncateJSON(obj: unknown, maxLength: number = 200): string {
+  const json = JSON.stringify(obj, null, 2);
+  return truncate(json, maxLength);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 setTemplatesPath(resolve(__dirname, "../templates.json"));
@@ -54,7 +69,7 @@ setTemplatesPath(resolve(__dirname, "../templates.json"));
 loadEnv({ path: resolve(__dirname, "../.env.local"), override: true });
 
 export interface RunnerOptions {
-  brokerUrl?: string;
+  wsUrl?: string;
   apiUrl?: string;
   sharedSecret?: string;
   runnerId?: string;
@@ -429,7 +444,7 @@ function createClaudeQuery(
   modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
 ): BuildQueryFn {
   return async function* (prompt, workingDirectory, systemPrompt, agent, codexThreadId, messageParts) {
-    // Note: query is auto-instrumented by Sentry's claudeCodeIntegration via OTel
+    // Note: query is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration via OpenTelemetry
 
     process.stderr.write(
       "[runner] [createClaudeQuery] 🎯 Query function called\n"
@@ -541,9 +556,16 @@ function createClaudeQuery(
 
     // Stream with telemetry enabled for Sentry
     // Use 'messages' param for multi-part content, 'prompt' for simple text
+    // IMPORTANT: experimental_telemetry is REQUIRED for the Vercel AI SDK integration to work
     const streamOptions = {
       model,
-      tools: CLAUDE_CLI_TOOL_REGISTRY as any,
+      tools: CLAUDE_CLI_TOOL_REGISTRY as ToolSet,
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: 'createClaudeQuery',
+        recordInputs: true,
+        recordOutputs: true,
+      },
     } as const;
 
     const result = Array.isArray(userMessage)
@@ -1025,39 +1047,34 @@ export async function startRunner(options: RunnerOptions = {}) {
     process.env.RUNNER_ID ||
     process.env.RAILWAY_REPLICA_ID ||
     `runner-${os.hostname()}`;
-  const BROKER_URL =
-    options.brokerUrl ||
-    process.env.RUNNER_BROKER_URL ||
-    "ws://localhost:4000/socket";
+  
+  // WebSocket URL for direct connection to Next.js server
+  // Supports both new RUNNER_WS_URL and legacy RUNNER_BROKER_URL for backward compatibility
+  const WS_URL =
+    options.wsUrl ||
+    process.env.RUNNER_WS_URL ||
+    process.env.RUNNER_BROKER_URL || // Legacy fallback
+    "ws://localhost:3000/ws/runner";
+  
   const SHARED_SECRET =
     options.sharedSecret || process.env.RUNNER_SHARED_SECRET;
   const HEARTBEAT_INTERVAL_MS = options.heartbeatInterval || 15_000;
 
-  // Get API URL from options, env, or fallback to deriving from broker
+  // Get API URL from options, env, or fallback to deriving from WebSocket URL
   const apiBaseUrl =
     options.apiUrl ||
     process.env.API_BASE_URL ||
     (() => {
-      // Fallback: derive from broker URL (same host, http/https protocol)
-      const brokerUrl = new URL(BROKER_URL);
-      const protocol = brokerUrl.protocol === "wss:" ? "https:" : "http:";
-
-      // Special case for local development: broker is :4000, API is :3000
-      if (
-        brokerUrl.hostname === "localhost" ||
-        brokerUrl.hostname === "127.0.0.1"
-      ) {
-        return `${protocol}//localhost:3000`;
-      }
-
-      // For remote deployments, API and broker share the same host
-      return `${protocol}//${brokerUrl.host}`;
+      // Fallback: derive from WebSocket URL (same host, http/https protocol)
+      const wsUrl = new URL(WS_URL);
+      const protocol = wsUrl.protocol === "wss:" ? "https:" : "http:";
+      return `${protocol}//${wsUrl.host}`;
     })();
 
   // Startup validation - fail fast if required config missing
   const missingConfig: string[] = [];
   if (!SHARED_SECRET) missingConfig.push('RUNNER_SHARED_SECRET');
-  if (!BROKER_URL) missingConfig.push('RUNNER_BROKER_URL (or --broker flag)');
+  if (!WS_URL) missingConfig.push('RUNNER_WS_URL');
   if (!WORKSPACE_ROOT) missingConfig.push('WORKSPACE_ROOT');
 
   if (missingConfig.length > 0) {
@@ -1141,8 +1158,263 @@ export async function startRunner(options: RunnerOptions = {}) {
   const PONG_TIMEOUT = 45000; // 45 seconds (1.5x ping interval)
   const CONNECTION_HANDSHAKE_TIMEOUT = 10000; // 10 second connection timeout
   const COMMAND_RECEIVE_TIMEOUT = 300000; // 5 minutes - force reconnect if no commands received
+  const INITIAL_CONNECTION_DELAY = 5000; // Wait 5 seconds before first connection (allows server to start)
+  const SUPPRESS_ERRORS_UNTIL_ATTEMPT = 3; // Don't log ECONNREFUSED for first N attempts (expected during startup)
   let lastPongReceived = Date.now();
   let lastCommandReceived = Date.now(); // BUG FIX: Track when we last received a command
+
+  // ============================================================
+  // HTTP PERSISTENCE FOR PROPER DISTRIBUTED TRACE CONTEXT
+  // DB writes now go via HTTP to ensure traces are properly linked
+  // ============================================================
+
+  interface BuildContext {
+    commandId: string;
+    sessionId: string;
+    projectId: string;
+    buildId: string;
+    agentId: string;
+    claudeModelId?: string;
+    // For auto-start dev server after build
+    projectDirectory?: string;
+    projectSlug?: string;
+    detectedFramework?: string;
+  }
+
+  const activeBuildContexts = new Map<string, BuildContext>();
+
+  /**
+   * Direct persistence for special events (TodoWrite, start)
+   * These bypass the buffer and go directly to the original endpoint.
+   * Includes Sentry trace headers for distributed tracing.
+   */
+  /**
+   * Helper function to retry HTTP requests
+   */
+  async function fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    maxRetries: number = 1
+  ): Promise<Response> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+
+        // Retry on 5xx errors
+        if (!response.ok && response.status >= 500 && attempt < maxRetries) {
+          console.warn(`[runner] Persist failed (${response.status}), retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+          continue;
+        }
+
+        return response;
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt < maxRetries) {
+          console.warn(`[runner] Persist error, retrying:`, error);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    }
+
+    throw lastError || new Error('Persistence failed after retries');
+  }
+
+  async function persistBuildEventDirect(
+    context: BuildContext,
+    event: Record<string, unknown>
+  ): Promise<void> {
+    return Sentry.startSpan(
+      {
+        name: `persist.build-event.${event.type}`,
+        op: 'http.client',
+        attributes: {
+          'http.method': 'POST',
+          'http.url': `${apiBaseUrl}/api/build-events`,
+          'event.type': event.type as string,
+          'event.tool_name': event.toolName as string || undefined,
+        },
+      },
+      async () => {
+        // Get trace context for propagation
+        const traceData = Sentry.getTraceData();
+        const headers: Record<string, string> = {
+          'Authorization': `Bearer ${runnerSharedSecret}`,
+          'Content-Type': 'application/json',
+        };
+
+        // Add Sentry trace headers for distributed tracing
+        if (traceData['sentry-trace']) {
+          headers['sentry-trace'] = traceData['sentry-trace'];
+        }
+        if (traceData.baggage) {
+          headers['baggage'] = traceData.baggage;
+        }
+
+        const response = await fetchWithRetry(
+          `${apiBaseUrl}/api/build-events`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              commandId: context.commandId,
+              sessionId: context.sessionId,
+              projectId: context.projectId,
+              buildId: context.buildId,
+              agentId: context.agentId,
+              claudeModelId: context.claudeModelId,
+              event,
+            }),
+          },
+          1 // Max 1 retry
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      }
+    );
+  }
+
+  /**
+   * Send a build event to the HTTP persistence endpoint.
+   * This ensures DB writes are properly linked in distributed traces.
+   *
+   * SIMPLIFIED: Only persists meaningful events:
+   * - start: Session status update
+   * - tool-input-available: Tool calls and TodoWrite
+   * - tool-output-available: Tool completion
+   *
+   * SKIPPED (no DB persistence needed):
+   * - text-delta: Streaming text (handled via WebSocket for UI only)
+   * - reasoning/data-reasoning: Claude's thinking (not persisted)
+   * - finish: Message completion (no longer needed)
+   */
+  // Track event counts for debugging
+  const eventCounts = new Map<string, number>();
+
+  // Track which sessions have had their start event sent to avoid duplicates
+  const startedSessions = new Set<string>();
+
+  async function persistBuildEvent(
+    context: BuildContext,
+    event: Record<string, unknown>
+  ): Promise<void> {
+    const eventType = event.type as string;
+
+    // SKIPPED EVENTS - don't send to server at all
+    // These are handled via WebSocket for real-time UI, no DB persistence needed
+    const SKIPPED_EVENTS = [
+      'text-delta',           // Streaming text (UI only via WebSocket)
+      'reasoning',            // Claude's thinking (UI only)
+      'data-reasoning',       // Structured reasoning (UI only)
+      'finish',               // Message completion marker (not needed)
+      'text-start',           // Text block start (UI only)
+      'text-end',             // Text block end (UI only)
+      'tool-input-start',     // Tool streaming start (UI only)
+      'tool-input-delta',     // Tool streaming chunks (UI only)
+      'tool-input-end',       // Tool streaming end (UI only)
+    ];
+
+    if (SKIPPED_EVENTS.includes(eventType)) {
+      return; // Skip entirely - no network call
+    }
+
+    // Skip duplicate 'start' events - only send the first one per session
+    if (eventType === 'start') {
+      if (startedSessions.has(context.sessionId)) {
+        console.log(`[runner] ⏭️  Skipping duplicate start event for session=${context.sessionId}`);
+        return; // Skip duplicate start events
+      }
+      console.log(`[runner] 🚀 Sending first start event for session=${context.sessionId}`);
+      startedSessions.add(context.sessionId);
+    }
+
+    // Track event counts
+    const count = eventCounts.get(eventType || 'undefined') || 0;
+    eventCounts.set(eventType || 'undefined', count + 1);
+
+    // All non-skipped events sent immediately to /api/build-events
+    // ONLY persist these build events:
+    // - start: Build session begins (first one only)
+    // - tool-input-available: Tool calls (including TodoWrite for todos)
+    // - tool-output-available: Tool completions
+    // - tool-error: Tool errors
+    try {
+      await persistBuildEventDirect(context, event);
+    } catch (error) {
+      console.error(`[runner] ⚠️  Failed to persist ${eventType} event:`, error);
+      // Don't throw - persistence failure shouldn't crash the build
+    }
+  }
+
+  function printEventSummary() {
+    console.log('\n[runner] 📊 Event Persistence Summary:');
+    let total = 0;
+    for (const [eventType, count] of eventCounts.entries()) {
+      console.log(`  ${eventType}: ${count}`);
+      total += count;
+    }
+    console.log(`  TOTAL HTTP CALLS: ${total}\n`);
+    eventCounts.clear();
+  }
+
+  /**
+   * Send a runner lifecycle event to the HTTP persistence endpoint.
+   */
+  async function persistRunnerEvent(
+    event: Record<string, unknown>
+  ): Promise<void> {
+    // Wrap in Sentry span to create proper trace hierarchy
+    return Sentry.startSpan(
+      {
+        name: `persist.runner-event.${event.type}`,
+        op: 'http.client',
+        attributes: {
+          'http.method': 'POST',
+          'http.url': `${apiBaseUrl}/api/runner/events`,
+          'event.type': event.type as string,
+        },
+      },
+      async () => {
+        try {
+          const response = await fetch(`${apiBaseUrl}/api/runner/events`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${runnerSharedSecret}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(event),
+          });
+
+          if (!response.ok) {
+            console.error(`[runner] Failed to persist runner event: ${response.status}`);
+          }
+        } catch (error) {
+          console.error('[runner] Error persisting runner event:', error);
+          throw error; // Re-throw so Sentry span records the error
+        }
+      }
+    );
+  }
+
+  // Event types that trigger DB writes and should be persisted via HTTP
+  const DB_WORTHY_RUNNER_EVENTS = [
+    'project-metadata',
+    'build-completed',
+    'build-failed',
+    'tunnel-created',
+    'tunnel-closed',
+    'port-conflict',
+    'process-exited',
+    'error',
+    'ack',
+  ];
+
+
+  // ============================================================
 
   function assertNever(value: never): never {
     throw new Error(`Unhandled runner command: ${JSON.stringify(value)}`);
@@ -1156,9 +1428,7 @@ export async function startRunner(options: RunnerOptions = {}) {
       return;
     }
     
-    // Only create spans for high-value events (lifecycle, not every text-delta)
-    const shouldCreateSpan = ['build-completed', 'build-failed'].includes(event.type);
-    
+
     const sendOperation = () => {
       try {
         // Attach trace context to ALL events for distributed tracing
@@ -1199,25 +1469,34 @@ export async function startRunner(options: RunnerOptions = {}) {
       }
     };
 
-    // Only create spans for critical lifecycle events (not every stream event)
-    if (shouldCreateSpan) {
-      Sentry.startSpan(
-        {
-          name: `runner.sendEvent.${event.type}`,
-          op: 'runner.event.send',
-          attributes: {
-            'event.type': event.type,
-            'event.projectId': event.projectId,
-            'event.commandId': event.commandId,
-            'event.size': JSON.stringify(event).length,
-          },
-        },
-        () => {
-          sendOperation();
-        }
-      );
-    } else {
-      sendOperation();
+    // REMOVED: Manual Sentry span creation - rely on automatic instrumentation
+    sendOperation();
+
+    // ALSO persist DB-worthy events via HTTP for proper trace linking
+    if (DB_WORTHY_RUNNER_EVENTS.includes(event.type) && event.projectId) {
+      // Get session ID from active build context if available
+      const context = event.commandId ? activeBuildContexts.get(event.commandId) : null;
+      
+      const eventPayload: Record<string, unknown> = {
+        type: event.type,
+        projectId: event.projectId,
+        commandId: event.commandId,
+        sessionId: context?.sessionId,
+      };
+      
+      // Include event-specific fields
+      if ('payload' in event) eventPayload.payload = event.payload;
+      if ('tunnelUrl' in event) eventPayload.tunnelUrl = event.tunnelUrl;
+      if ('port' in event) eventPayload.port = event.port;
+      if ('exitCode' in event) eventPayload.exitCode = event.exitCode;
+      if ('signal' in event) eventPayload.signal = event.signal;
+      if ('error' in event) eventPayload.error = event.error;
+      if ('message' in event) eventPayload.message = event.message;
+      if ('failureReason' in event) eventPayload.failureReason = event.failureReason;
+      if ('stderr' in event) eventPayload.stderr = event.stderr;
+      
+      // Fire and forget - don't await to avoid blocking
+      persistRunnerEvent(eventPayload);
     }
   }
 
@@ -1278,9 +1557,26 @@ export async function startRunner(options: RunnerOptions = {}) {
           if (allocatedPort) {
             log(`🔌 Using pre-allocated port ${allocatedPort} for project ${command.projectId}`);
 
+            // IMPORTANT: First, stop any existing process for this project
+            // This handles the case where the UI was reset but the process is still running
+            log(`🧹 Stopping any existing process for project ${command.projectId}...`);
+            const { stopDevServer } = await import('./lib/process-manager.js');
+            const wasStopped = await stopDevServer(command.projectId, {
+              tunnelManager,
+              reason: 'restart',
+              port: allocatedPort,
+            });
+            
+            if (wasStopped) {
+              log(`✅ Stopped existing process for project ${command.projectId}`);
+              // Wait a bit for the port to be released by the OS
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            // Now check if port is in use (might be another unrelated process)
             const portInUse = await checkPortInUse(allocatedPort);
             if (portInUse) {
-              const conflictMessage = `Port ${allocatedPort} is already in use on the runner host`;
+              const conflictMessage = `Port ${allocatedPort} is already in use on the runner host (not by this project)`;
               log(`❌ ${conflictMessage}`);
 
               sendEvent({
@@ -1321,6 +1617,38 @@ export async function startRunner(options: RunnerOptions = {}) {
             port: allocatedPort ?? undefined,
           });
 
+          // Track errors for potential auto-fix
+          let errorBuffer: string[] = [];
+          let lastErrorTime = 0;
+          let serverStarted = false;
+          const ERROR_DEBOUNCE_MS = 3000; // Wait 3s after last error before triggering fix
+          const ERROR_COOLDOWN_MS = 10000; // Don't report errors in first 10s (startup noise)
+          const serverStartTimestamp = Date.now();
+
+          // Error patterns that indicate real problems (not just warnings or info)
+          const REAL_ERROR_PATTERNS = [
+            /Error: Cannot find module/i,
+            /Module not found/i,
+            /SyntaxError:/i,
+            /TypeError:/i,
+            /ReferenceError:/i,
+            /failed to compile/i,
+            /Build error occurred/i,
+            /Unhandled Runtime Error/i,
+            /ENOENT:/i,
+            /EACCES:/i,
+          ];
+
+          // Patterns to ignore (common in dev server output but not errors)
+          const IGNORE_PATTERNS = [
+            /Compiling/i,
+            /compiled.*successfully/i,
+            /Fast Refresh/i,
+            /waiting.*changes/i,
+            /ready.*http/i,
+            /warn.*experimental/i,
+          ];
+
           // Forward logs to API
           devProcess.emitter.on("log", (logEvent) => {
             sendEvent({
@@ -1330,10 +1658,49 @@ export async function startRunner(options: RunnerOptions = {}) {
               data: logEvent.data,
               cursor: randomUUID(),
             });
+
+            // Track when server has successfully started
+            if (/ready|compiled.*successfully|listening/i.test(logEvent.data)) {
+              serverStarted = true;
+            }
+
+            // Only check for errors after cooldown period and if server started
+            const timeSinceStart = Date.now() - serverStartTimestamp;
+            if (timeSinceStart < ERROR_COOLDOWN_MS) {
+              return; // Skip error detection during startup
+            }
+
+            // Check if this is a real error (not just stderr or warning)
+            const shouldIgnore = IGNORE_PATTERNS.some(pattern => pattern.test(logEvent.data));
+            if (shouldIgnore) {
+              return;
+            }
+
+            const isRealError = REAL_ERROR_PATTERNS.some(pattern => pattern.test(logEvent.data));
+            if (isRealError && logEvent.data.trim().length > 10) {
+              errorBuffer.push(logEvent.data);
+              lastErrorTime = Date.now();
+
+              // Debounce: wait for errors to settle, then send for auto-fix
+              setTimeout(() => {
+                if (Date.now() - lastErrorTime >= ERROR_DEBOUNCE_MS && errorBuffer.length > 0) {
+                  const collectedErrors = errorBuffer.join('\n');
+                  errorBuffer = []; // Reset buffer
+
+                  log(`🔧 Real dev server error detected, sending for auto-fix...`);
+                  sendEvent({
+                    type: "dev-server-error",
+                    ...buildEventBase(command.projectId, command.id),
+                    error: collectedErrors,
+                    message: "Dev server error detected - auto-fix triggered",
+                  } as RunnerEvent);
+                }
+              }, ERROR_DEBOUNCE_MS + 100);
+            }
           });
 
           // Handle process exit
-          devProcess.emitter.on("exit", async ({ code, signal }) => {
+          devProcess.emitter.on("exit", async ({ code, signal, state, failureReason, stderr }) => {
             // Close tunnel if one exists for this port
             if (allocatedPort) {
               log(`🔗 Closing tunnel for port ${allocatedPort}`);
@@ -1346,6 +1713,9 @@ export async function startRunner(options: RunnerOptions = {}) {
               exitCode: code ?? null,
               signal: signal ?? null,
               durationMs: Date.now() - startTime,
+              state,
+              failureReason,
+              stderr, // Pass stderr for immediate crashes to enable auto-fix
             });
           });
 
@@ -1364,7 +1734,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           if (allocatedPort) {
             log(`🔍 Running health check for port ${allocatedPort}...`);
             
-            const { runHealthCheck } = await import('./lib/process-manager.js');
+            const { runHealthCheck, startDevServer } = await import('./lib/process-manager.js');
             const healthResult = await runHealthCheck(command.projectId, allocatedPort);
             
             if (healthResult.healthy) {
@@ -1375,6 +1745,93 @@ export async function startRunner(options: RunnerOptions = {}) {
                 ...buildEventBase(command.projectId, command.id),
                 message: `Dev server is running and healthy on port ${allocatedPort}`,
               });
+            } else if (healthResult.portFixed) {
+              // Port was fixed in package.json - wait for process to exit, then retry
+              log(`🔧 Port configuration fixed, waiting for process cleanup before retry...`);
+              
+              // Send a status update that we're fixing and retrying (keeps status as 'starting')
+              sendEvent({
+                type: "ack",
+                ...buildEventBase(command.projectId, command.id),
+                message: `Port configuration fixed, cleaning up and retrying...`,
+              });
+              
+              // Wait 3 seconds for the process to fully exit and cleanup
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              
+              log(`🔄 Retrying dev server start with fixed port configuration...`);
+              
+              // Send another status update for retry
+              sendEvent({
+                type: "ack",
+                ...buildEventBase(command.projectId, command.id),
+                message: `Retrying server start with corrected port configuration...`,
+              });
+              
+              // Retry starting the dev server
+              const retryProcess = startDevServer({
+                projectId: command.projectId,
+                command: command.payload.runCommand,
+                cwd: command.payload.workingDirectory,
+                env: command.payload.env || {},
+                port: allocatedPort,
+              });
+
+              // Set up event handlers for the retry
+              retryProcess.emitter.on("log", ({ type, data }) => {
+                sendEvent({
+                  type: "log-chunk",
+                  ...buildEventBase(command.projectId, command.id),
+                  data,
+                  stream: type,
+                } as RunnerEvent);
+              });
+
+              retryProcess.emitter.on("exit", async ({ code, signal, state, failureReason }) => {
+                if (allocatedPort) {
+                  log(`🔗 Closing tunnel for port ${allocatedPort}`);
+                  await tunnelManager.closeTunnel(allocatedPort);
+                }
+
+                sendEvent({
+                  type: "process-exited",
+                  ...buildEventBase(command.projectId, command.id),
+                  exitCode: code ?? null,
+                  signal: signal ?? null,
+                  durationMs: Date.now() - startTime,
+                  state,
+                  failureReason,
+                });
+              });
+
+              retryProcess.emitter.on("error", (error: unknown) => {
+                sendEvent({
+                  type: "error",
+                  ...buildEventBase(command.projectId, command.id),
+                  error: error instanceof Error ? error.message : "Unknown runner error",
+                  stack: error instanceof Error ? error.stack : undefined,
+                });
+              });
+
+              // Run health check on the retry
+              log(`🔍 Running health check for retry on port ${allocatedPort}...`);
+              const retryHealthResult = await runHealthCheck(command.projectId, allocatedPort);
+              
+              if (retryHealthResult.healthy) {
+                log(`✅ Dev server retry successful and healthy on port ${allocatedPort}`);
+                sendEvent({
+                  type: "ack",
+                  ...buildEventBase(command.projectId, command.id),
+                  message: `Dev server is running and healthy on port ${allocatedPort}`,
+                });
+              } else {
+                log(`❌ Dev server retry failed: ${retryHealthResult.error}`);
+                sendEvent({
+                  type: "error",
+                  ...buildEventBase(command.projectId, command.id),
+                  error: `Health check failed after port fix: ${retryHealthResult.error}`,
+                });
+              }
             } else {
               log(`⚠️  Dev server started but health check failed: ${healthResult.error}`);
               
@@ -1773,434 +2230,582 @@ export async function startRunner(options: RunnerOptions = {}) {
         fileLog.info("Agent:", command.payload?.agent);
         fileLog.info("Template:", command.payload?.template);
 
-        await Sentry.startSpan(
-          {
-            name: "runner.build",
-            op: "ai.build",
-            attributes: {
-              "build.project_id": command.projectId,
-              "build.operation": command.payload?.operationType,
-              "build.agent": command.payload?.agent,
-              "build.template": command.payload?.template?.name,
-            },
-          },
-          async () => {
-            try {
-              loggedFirstChunk = false;
-              if (!command.payload?.prompt || !command.payload?.operationType) {
-                throw new Error("Invalid build payload");
-              }
+        // REMOVED: Manual Sentry span creation - rely on automatic instrumentation
+        // await Sentry.startSpan({ name: "runner.build", op: "ai.build", ... }, async () => {
+        // Build operation (previously wrapped in Sentry span)
+        try {
+          loggedFirstChunk = false;
+          if (!command.payload?.prompt || !command.payload?.operationType) {
+            throw new Error("Invalid build payload");
+          }
 
-              // Calculate the project directory using slug
-              const projectSlug =
-                command.payload.projectSlug || command.projectId;
-              const projectName = command.payload.projectName || projectSlug;
-              const projectDirectory = resolve(WORKSPACE_ROOT, projectSlug);
+          // Calculate the project directory using slug
+          const projectSlug =
+            command.payload.projectSlug || command.projectId;
+          const projectName = command.payload.projectName || projectSlug;
+          const projectDirectory = resolve(WORKSPACE_ROOT, projectSlug);
 
-              log("project directory:", projectDirectory);
-              log("project slug:", projectSlug);
-              log("project name:", projectName);
+          log("project directory:", projectDirectory);
+          log("project slug:", projectSlug);
+          log("project name:", projectName);
 
-              // Determine agent to use for this build
-              const agent =
-                (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
-              const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
-              log("selected agent:", agent);
-              const claudeModel: ClaudeModelId =
-                agent === "claude-code" &&
-                (command.payload.claudeModel === "claude-haiku-4-5" ||
-                  command.payload.claudeModel === "claude-sonnet-4-5" ||
-                  command.payload.claudeModel === "claude-opus-4-5")
-                  ? command.payload.claudeModel
-                  : DEFAULT_CLAUDE_MODEL_ID;
+          // Determine agent to use for this build
+          const agent =
+            (command.payload.agent as AgentId | undefined) ?? DEFAULT_AGENT;
+          const agentLabel = agent === "openai-codex" ? "Codex" : "Claude";
+          log("selected agent:", agent);
+          const claudeModel: ClaudeModelId =
+            agent === "claude-code" &&
+            (command.payload.claudeModel === "claude-haiku-4-5" ||
+              command.payload.claudeModel === "claude-sonnet-4-5" ||
+              command.payload.claudeModel === "claude-opus-4-5")
+              ? command.payload.claudeModel
+              : DEFAULT_CLAUDE_MODEL_ID;
 
-              if (agent === "claude-code") {
-                log("claude model:", claudeModel);
-              }
+          // Register build context for HTTP persistence
+          // Using commandId as correlation key (server will look up sessionId)
+          const buildContextId = command.id;
+          activeBuildContexts.set(buildContextId, {
+            commandId: command.id,
+            sessionId: '', // Server will look up from buildId
+            projectId: command.projectId,
+            buildId: `build-${command.id}`, // Correlation ID for session lookup
+            agentId: agent,
+            claudeModelId: agent === 'claude-code' ? claudeModel : undefined,
+            // Store for auto-start after build completion
+            projectDirectory,
+            projectSlug,
+          });
 
-              const agentQuery = createBuildQuery(agent, claudeModel);
+          if (agent === "claude-code") {
+            log("claude model:", claudeModel);
+          }
 
-              // Reset transformer state for new build
-              resetTransformerState();
-              setExpectedCwd(projectDirectory);
+          const agentQuery = createBuildQuery(agent, claudeModel);
 
-              // Orchestrate the build - handle templates, generate dynamic prompt
-              log("orchestrating build...");
+          // Reset transformer state for new build
+          resetTransformerState();
+          setExpectedCwd(projectDirectory);
 
-              // Log template if provided
-              if (command.payload.templateId) {
-                log(
-                  "template provided by frontend:",
-                  command.payload.templateId
-                );
-              }
+          // Orchestrate the build - handle templates, generate dynamic prompt
+          log("orchestrating build...");
 
-              const orchestration = await orchestrateBuild({
-                projectId: command.projectId,
-                projectName: projectSlug,
-                prompt: command.payload.prompt,
-                messageParts: (command.payload as any).messageParts, // Multi-modal content (images, etc.)
-                operationType: command.payload.operationType,
-                workingDirectory: projectDirectory,
-                agent,
-                template: command.payload.template, // NEW: Pass template from frontend
-                designPreferences: command.payload.designPreferences, // User-specified design constraints (deprecated - use tags)
-                tags: command.payload.tags, // Tag-based configuration
-                conversationHistory: (command.payload as any).conversationHistory, // Pass conversation context (type will be updated after rebuild)
-              });
+          // Log template if provided
+          if (command.payload.templateId) {
+            log(
+              "template provided by frontend:",
+              command.payload.templateId
+            );
+          }
 
-              log("orchestration complete:", {
-                isNewProject: orchestration.isNewProject,
-                hasTemplate: !!orchestration.template,
-                templateEventsCount: orchestration.templateEvents.length,
-                hasMetadata: !!orchestration.projectMetadata,
-              });
+          const orchestration = await orchestrateBuild({
+            projectId: command.projectId,
+            projectName: projectSlug,
+            prompt: command.payload.prompt,
+            messageParts: (command.payload as unknown as { messageParts: MessagePart[] }).messageParts, // Multi-modal content (images, etc.)
+            operationType: command.payload.operationType,
+            workingDirectory: projectDirectory,
+            agent,
+            template: command.payload.template, // NEW: Pass template from frontend
+            designPreferences: command.payload.designPreferences, // User-specified design constraints (deprecated - use tags)
+            tags: command.payload.tags, // Tag-based configuration
+            conversationHistory: (command.payload as unknown as { conversationHistory: Array<{ role: string; content: string; timestamp: Date }> }).conversationHistory, // Pass conversation context (type will be updated after rebuild)
+          });
 
-              // Send project metadata if available (template download sets path, runCommand, etc.)
-              if (orchestration.projectMetadata) {
-                sendEvent({
-                  type: "project-metadata",
-                  ...buildEventBase(command.projectId, command.id),
-                  payload: orchestration.projectMetadata,
-                } as RunnerEvent);
-              }
+          log("orchestration complete:", {
+            isNewProject: orchestration.isNewProject,
+            hasTemplate: !!orchestration.template,
+            templateEventsCount: orchestration.templateEvents.length,
+            hasMetadata: !!orchestration.projectMetadata,
+          });
 
-              // Send template events (TodoWrite for template selection/download)
-              for (const templateEvent of orchestration.templateEvents) {
-                const payload = `data: ${JSON.stringify(
-                  templateEvent.data
-                )}\n\n`;
-                sendEvent({
-                  type: "build-stream",
-                  ...buildEventBase(command.projectId, command.id),
-                  data: payload,
-                });
-              }
+          // Send project metadata if available (template download sets path, runCommand, etc.)
+          if (orchestration.projectMetadata) {
+            sendEvent({
+              type: "project-metadata",
+              ...buildEventBase(command.projectId, command.id),
+              payload: orchestration.projectMetadata,
+            } as RunnerEvent);
+          }
 
+          // Send template events (TodoWrite for template selection/download)
+          const buildContextForTemplates = activeBuildContexts.get(command.id);
+          for (const templateEvent of orchestration.templateEvents) {
+            // Persist template events via HTTP (filtering happens in persistBuildEvent)
+            if (buildContextForTemplates && templateEvent.type && templateEvent.data) {
+              // Merge type into event data for persistence
+              const fullEvent = {
+                type: templateEvent.type,
+                ...(templateEvent.data as Record<string, unknown>),
+              };
+              persistBuildEvent(buildContextForTemplates, fullEvent);
+            }
+
+            const payload = `data: ${JSON.stringify(
+              templateEvent.data
+            )}\n\n`;
+            sendEvent({
+              type: "build-stream",
+              ...buildEventBase(command.projectId, command.id),
+              data: payload,
+            });
+          }
+
+          buildLog(
+            ` 🚀 Starting build stream for project: ${command.projectId}`
+          );
+          buildLog(`   Directory: ${projectDirectory}`);
+          buildLog(`   Is new project: ${orchestration.isNewProject}`);
+          buildLog(
+            `   Template: ${orchestration.template?.name || "none"}`
+          );
+
+          const stream = await createBuildStream({
+            projectId: command.projectId,
+            projectName,
+            prompt: orchestration.fullPrompt,
+            messageParts: (command.payload as unknown as { messageParts: MessagePart[] }).messageParts,
+            operationType: command.payload.operationType,
+            context: command.payload.context,
+            query: agentQuery,
+            workingDirectory: projectDirectory,
+            systemPrompt: orchestration.systemPrompt,
+            agent,
+            claudeModel: agent === "claude-code" ? claudeModel : undefined,
+            isNewProject: orchestration.isNewProject,
+          });
+
+          buildLog(
+            ` 📡 Build stream created, starting to process chunks...`
+          );
+
+          const reader = stream.getReader();
+          const decoder = new TextDecoder();
+
+          let chunkCount = 0;
+          
+          // Track files modified and todos for build summary
+          const filesModified = new Set<string>();
+          const completedTodos: string[] = [];
+          
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
               buildLog(
-                ` 🚀 Starting build stream for project: ${command.projectId}`
+                ` Stream reader reports DONE after ${chunkCount} chunks`
               );
-              buildLog(`   Directory: ${projectDirectory}`);
-              buildLog(`   Is new project: ${orchestration.isNewProject}`);
-              buildLog(
-                `   Template: ${orchestration.template?.name || "none"}`
-              );
+              break;
+            }
+            if (value === undefined || value === null) continue;
+            chunkCount++;
 
-              const stream = await createBuildStream({
-                projectId: command.projectId,
-                projectName,
-                prompt: orchestration.fullPrompt,
-                messageParts: (command.payload as any).messageParts,
-                operationType: command.payload.operationType,
-                context: command.payload.context,
-                query: agentQuery,
-                workingDirectory: projectDirectory,
-                systemPrompt: orchestration.systemPrompt,
-                agent,
-                claudeModel: agent === "claude-code" ? claudeModel : undefined,
-                isNewProject: orchestration.isNewProject,
+            // Decode the chunk to get the agent message object
+            let agentMessage: unknown;
+            if (typeof value === "string") {
+              try {
+                agentMessage = JSON.parse(value);
+              } catch {
+                agentMessage = { raw: value };
+              }
+            } else if (value instanceof Uint8Array) {
+              const text = decoder.decode(value, { stream: true });
+              try {
+                agentMessage = JSON.parse(text);
+              } catch {
+                agentMessage = { raw: text };
+              }
+            } else if (ArrayBuffer.isView(value)) {
+              const view = value as ArrayBufferView;
+              const text = decoder.decode(
+                new Uint8Array(
+                  view.buffer,
+                  view.byteOffset,
+                  view.byteLength
+                ),
+                { stream: true }
+              );
+              try {
+                agentMessage = JSON.parse(text);
+              } catch {
+                agentMessage = { raw: text };
+              }
+            } else if (value instanceof ArrayBuffer) {
+              const text = decoder.decode(new Uint8Array(value), {
+                stream: true,
               });
-
-              buildLog(
-                ` 📡 Build stream created, starting to process chunks...`
+              try {
+                agentMessage = JSON.parse(text);
+              } catch {
+                agentMessage = { raw: text };
+              }
+            } else if (typeof value === "object") {
+              agentMessage = value;
+            } else {
+              log(
+                "Unsupported chunk type from build stream:",
+                typeof value
               );
+              continue;
+            }
 
-              const reader = stream.getReader();
-              const decoder = new TextDecoder();
+            if (!loggedFirstChunk) {
+              buildLog(` 📨 First chunk received from ${agentLabel}`);
+              loggedFirstChunk = true;
+            }
 
-              let chunkCount = 0;
-              while (true) {
-                const { value, done } = await reader.read();
-                if (done) {
-                  buildLog(
-                    ` Stream reader reports DONE after ${chunkCount} chunks`
-                  );
-                  break;
+            // Log generation and tool usage
+            if (typeof agentMessage === "object" && agentMessage !== null) {
+              const msg = agentMessage as Record<string, unknown>;
+
+              // The actual message is nested in a 'message' property
+              const actualMessage =
+                (msg.message as Record<string, unknown>) || msg;
+
+              // Handle assistant messages (conversation turn format)
+              if (
+                msg.type === "assistant" &&
+                actualMessage.content &&
+                Array.isArray(actualMessage.content)
+              ) {
+                for (const block of actualMessage.content) {
+                  // Log text content
+                  if (block.type === "text" && block.text) {
+                    buildLog(
+                      ` 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
+                        block.text.length > 200 ? "..." : ""
+                      }`
+                    );
+                  }
+
+                  // Log thinking blocks
+                  if (block.type === "thinking" && block.thinking) {
+                    buildLog(
+                      ` 🤔 Thinking: ${block.thinking.slice(0, 300)}${
+                        block.thinking.length > 300 ? "..." : ""
+                      }`
+                    );
+                  }
+
+                  // DEBUG: Log tool use (adapter already logs this)
+                  if (DEBUG_BUILD && block.type === "tool_use") {
+                    const toolName = block.name;
+                    const toolId = block.id;
+                    buildLog(` 🔧 Tool called: ${toolName} (${toolId})`);
+                    buildLog(`    Input: ${truncateJSON(block.input, 200)}`);
+                  }
                 }
-                if (value === undefined || value === null) continue;
-                chunkCount++;
+              }
 
-                // Decode the chunk to get the agent message object
-                let agentMessage: unknown;
-                if (typeof value === "string") {
-                  try {
-                    agentMessage = JSON.parse(value);
-                  } catch {
-                    agentMessage = { raw: value };
-                  }
-                } else if (value instanceof Uint8Array) {
-                  const text = decoder.decode(value, { stream: true });
-                  try {
-                    agentMessage = JSON.parse(text);
-                  } catch {
-                    agentMessage = { raw: text };
-                  }
-                } else if (ArrayBuffer.isView(value)) {
-                  const view = value as ArrayBufferView;
-                  const text = decoder.decode(
-                    new Uint8Array(
-                      view.buffer,
-                      view.byteOffset,
-                      view.byteLength
-                    ),
-                    { stream: true }
-                  );
-                  try {
-                    agentMessage = JSON.parse(text);
-                  } catch {
-                    agentMessage = { raw: text };
-                  }
-                } else if (value instanceof ArrayBuffer) {
-                  const text = decoder.decode(new Uint8Array(value), {
-                    stream: true,
-                  });
-                  try {
-                    agentMessage = JSON.parse(text);
-                  } catch {
-                    agentMessage = { raw: text };
-                  }
-                } else if (typeof value === "object") {
-                  agentMessage = value;
-                } else {
-                  log(
-                    "Unsupported chunk type from build stream:",
-                    typeof value
-                  );
-                  continue;
-                }
+              // Handle user messages (tool results)
+              if (
+                msg.type === "user" &&
+                actualMessage.content &&
+                Array.isArray(actualMessage.content)
+              ) {
+                for (const block of actualMessage.content) {
+                  if (block.type === "tool_result") {
+                    const toolId = block.tool_use_id;
+                    const isError = block.is_error;
 
-                if (!loggedFirstChunk) {
-                  buildLog(` 📨 First chunk received from ${agentLabel}`);
-                  loggedFirstChunk = true;
-                }
+                    // Handle different content formats
+                    let content = "";
+                    if (typeof block.content === "string") {
+                      content = block.content;
+                    } else if (Array.isArray(block.content)) {
+                      // Content might be an array of content blocks
+                      content = (
+                        block.content as Array<{
+                          type: string;
+                          text?: string;
+                        }>
+                      )
+                        .map((c) => {
+                          if (c.type === "text" && c.text) return c.text;
+                          return JSON.stringify(c);
+                        })
+                        .join("\n");
+                    } else {
+                      content = JSON.stringify(block.content);
+                    }
 
-                // Log generation and tool usage
-                if (typeof agentMessage === "object" && agentMessage !== null) {
-                  const msg = agentMessage as Record<string, unknown>;
-
-                  // The actual message is nested in a 'message' property
-                  const actualMessage =
-                    (msg.message as Record<string, unknown>) || msg;
-
-                  // Handle assistant messages (conversation turn format)
-                  if (
-                    msg.type === "assistant" &&
-                    actualMessage.content &&
-                    Array.isArray(actualMessage.content)
-                  ) {
-                    for (const block of actualMessage.content) {
-                      // Log text content
-                      if (block.type === "text" && block.text) {
-                        buildLog(
-                          ` 💭 ${agentLabel}: ${block.text.slice(0, 200)}${
-                            block.text.length > 200 ? "..." : ""
-                          }`
-                        );
-                      }
-
-                      // Log thinking blocks
-                      if (block.type === "thinking" && block.thinking) {
-                        buildLog(
-                          ` 🤔 Thinking: ${block.thinking.slice(0, 300)}${
-                            block.thinking.length > 300 ? "..." : ""
-                          }`
-                        );
-                      }
-
-                      // Log tool use
-                      if (block.type === "tool_use") {
-                        const toolName = block.name;
-                        const toolId = block.id;
-                        const input = JSON.stringify(block.input, null, 2);
-                        buildLog(` 🔧 Tool called: ${toolName} (${toolId})`);
-                        buildLog(
-                          `    Input: ${input.slice(0, 300)}${
-                            input.length > 300 ? "..." : ""
-                          }`
-                        );
+                    // DEBUG: Log tool results (adapter already logs this)
+                    if (DEBUG_BUILD) {
+                      if (isError) {
+                        buildLog(` ❌ Tool error (${toolId}):`);
+                        buildLog(`    ${truncate(content, 200)}`);
+                      } else {
+                        buildLog(` ✅ Tool result (${toolId}):`);
+                        buildLog(`    ${truncate(content, 200)}`);
                       }
                     }
                   }
+                }
+              }
+            }
 
-                  // Handle user messages (tool results)
-                  if (
-                    msg.type === "user" &&
-                    actualMessage.content &&
-                    Array.isArray(actualMessage.content)
-                  ) {
-                    for (const block of actualMessage.content) {
-                      if (block.type === "tool_result") {
-                        const toolId = block.tool_use_id;
-                        const isError = block.is_error;
+            // Transform agent message to SSE events
+            const sseEvents = transformAgentMessageToSSE(agentMessage);
 
-                        // Handle different content formats
-                        let content = "";
-                        if (typeof block.content === "string") {
-                          content = block.content;
-                        } else if (Array.isArray(block.content)) {
-                          // Content might be an array of content blocks
-                          content = (
-                            block.content as Array<{
-                              type: string;
-                              text?: string;
-                            }>
-                          )
-                            .map((c) => {
-                              if (c.type === "text" && c.text) return c.text;
-                              return JSON.stringify(c);
-                            })
-                            .join("\n");
-                        } else {
-                          content = JSON.stringify(block.content);
-                        }
+            // Filter and send events - exclude high-volume events that don't affect UI
+            // This reduces websocket traffic by ~60-70% (text-delta: ~500/build, reasoning: ~100/build)
+            const IMPORTANT_EVENT_TYPES = [
+              'start',
+              'finish',
+              'tool-input-available',
+              'tool-output-available',
+              'text-start',
+              'text-end',
+              'error',
+              // NOT text-delta (high volume, only for DB persistence if needed)
+              // NOT reasoning (high volume, only for DB persistence if needed)
+            ];
 
-                        if (isError) {
-                          buildLog(` ❌ Tool error (${toolId}):`);
-                          buildLog(
-                            `    ${content.slice(0, 500)}${
-                              content.length > 500 ? "..." : ""
-                            }`
-                          );
-                        } else {
-                          buildLog(` ✅ Tool result (${toolId}):`);
-                          buildLog(
-                            `    ${content.slice(0, 500)}${
-                              content.length > 500 ? "..." : ""
-                            }`
-                          );
-                        }
-                      }
-                    }
+            // Get build context for HTTP persistence
+            const buildContext = activeBuildContexts.get(command.id);
+
+            for (const event of sseEvents) {
+              // Track files modified via Edit/Write tools for summary context
+              if (event.type === 'tool-input-available') {
+                const toolEvent = event as { toolName?: string; input?: unknown };
+                if ((toolEvent.toolName === 'Edit' || toolEvent.toolName === 'Write') && toolEvent.input) {
+                  const input = toolEvent.input as { file_path?: string; filePath?: string };
+                  const filePath = input.file_path || input.filePath;
+                  if (filePath) {
+                    // Extract just the filename/relative path for cleaner summary
+                    const relativePath = filePath.includes('/') 
+                      ? filePath.split('/').slice(-2).join('/')
+                      : filePath;
+                    filesModified.add(relativePath);
                   }
                 }
-
-                // Transform agent message to SSE events
-                const sseEvents = transformAgentMessageToSSE(agentMessage);
-
-                // Send each transformed event
-                for (const event of sseEvents) {
-                  const payload = `data: ${JSON.stringify(event)}\n\n`;
-                  sendEvent({
-                    type: "build-stream",
-                    ...buildEventBase(command.projectId, command.id),
-                    data: payload,
-                  });
+                // Track completed todos for summary context
+                if (toolEvent.toolName === 'TodoWrite' && toolEvent.input) {
+                  const input = toolEvent.input as { todos?: Array<{ content: string; status: string }> };
+                  if (input.todos) {
+                    // Get completed todos (excluding any "summarize" todos from old prompts)
+                    const completed = input.todos
+                      .filter(t => t.status === 'completed' && !t.content.toLowerCase().includes('summarize'))
+                      .map(t => t.content);
+                    // Update our list with the latest completed todos
+                    completedTodos.length = 0;
+                    completedTodos.push(...completed);
+                  }
                 }
               }
-
-              buildLog(` ═══════════════════════════════════════════════`);
-              buildLog(` STREAM ENDED - Processing final chunks`);
-              buildLog(` ═══════════════════════════════════════════════`);
-
-              const finalChunk = decoder.decode();
-              if (finalChunk) {
-                buildLog(` Final chunk decoded: ${finalChunk.length} chars`);
-                let payload = finalChunk.startsWith("data:")
-                  ? finalChunk
-                  : `data: ${finalChunk}`;
-                if (!payload.endsWith("\n\n")) {
-                  payload = `${payload}\n\n`;
-                }
-                sendEvent({
-                  type: "build-stream",
-                  ...buildEventBase(command.projectId, command.id),
-                  data: payload,
-                });
+              
+              // Persist events via HTTP (filtering happens in persistBuildEvent)
+              // AWAIT to ensure input writes before output arrives (prevents race condition)
+              if (buildContext) {
+                await persistBuildEvent(buildContext, event);
               }
 
-              buildLog(` Sending [DONE] signal to client`);
+              // Only send important events via WebSocket for frontend UI
+              if (!IMPORTANT_EVENT_TYPES.includes(event.type)) {
+                continue;
+              }
+
+              const payload = `data: ${JSON.stringify(event)}\n\n`;
               sendEvent({
                 type: "build-stream",
                 ...buildEventBase(command.projectId, command.id),
-                data: "data: [DONE]\n\n",
+                data: payload,
               });
-
-              // Detect runCommand from built project's package.json
-              try {
-                const { readFileSync, existsSync } = await import("fs");
-                const packageJsonPath = join(projectDirectory, "package.json");
-
-                if (existsSync(packageJsonPath)) {
-                  const packageJson = JSON.parse(
-                    readFileSync(packageJsonPath, "utf-8")
-                  );
-                  let runCommand = null;
-
-                  if (packageJson.scripts?.dev) {
-                    runCommand = "npm run dev";
-                  } else if (packageJson.scripts?.start) {
-                    runCommand = "npm start";
-                  }
-
-                  if (runCommand) {
-                    // Send project-metadata event with detected runCommand
-                    sendEvent({
-                      type: "project-metadata",
-                      ...buildEventBase(command.projectId, command.id),
-                      payload: {
-                        path: projectDirectory,
-                        projectType: "unknown",
-                        runCommand,
-                        port: 3000,
-                      },
-                    } as RunnerEvent);
-
-                    if (!isSilentMode && DEBUG_BUILD)
-                      console.log(`✅ Detected runCommand: ${runCommand}`);
-                  }
-                }
-              } catch (error) {
-                log("Failed to detect runCommand:", error);
-              }
-
-              buildLog(
-                ` ✅ Build completed successfully for project: ${command.projectId}`
-              );
-              buildLog(`   Total chunks processed: (stream ended)`);
-
-              // Detect framework from generated files
-              let detectedFramework: string | null = null;
-              try {
-                const { detectFrameworkFromFilesystem } = await import('@sentryvibe/agent-core/lib/port-allocator');
-                const framework = await detectFrameworkFromFilesystem(projectDirectory);
-                detectedFramework = framework;
-                
-                if (framework) {
-                  buildLog(`   🔍 Detected framework: ${framework}`);
-                  log(`[build] Detected framework for ${command.projectId}: ${framework}`);
-                }
-              } catch (error) {
-                log(`[build] Failed to detect framework:`, error);
-              }
-
-              sendEvent({
-                type: "build-completed",
-                ...buildEventBase(command.projectId, command.id),
-                payload: { 
-                  todos: [], 
-                  summary: "Build completed",
-                  detectedFramework, // Send detected framework to API
-                },
-              });
-            } catch (error) {
-              console.error("Failed to run build", error);
-              Sentry.getActiveSpan()?.setStatus({
-                code: 2, // SPAN_STATUS_ERROR
-                message: "Build failed",
-              });
-              sendEvent({
-                type: "build-failed",
-                ...buildEventBase(command.projectId, command.id),
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Failed to run build",
-                stack: error instanceof Error ? error.stack : undefined,
-              });
-              throw error; // Re-throw to mark span as failed
             }
           }
-        );
+
+          buildLog(` ═══════════════════════════════════════════════`);
+          buildLog(` STREAM ENDED - Processing final chunks`);
+          buildLog(` ═══════════════════════════════════════════════`);
+
+          const finalChunk = decoder.decode();
+          if (finalChunk) {
+            buildLog(` Final chunk decoded: ${finalChunk.length} chars`);
+            let payload = finalChunk.startsWith("data:")
+              ? finalChunk
+              : `data: ${finalChunk}`;
+            if (!payload.endsWith("\n\n")) {
+              payload = `${payload}\n\n`;
+            }
+            sendEvent({
+              type: "build-stream",
+              ...buildEventBase(command.projectId, command.id),
+              data: payload,
+            });
+          }
+
+          buildLog(` Sending [DONE] signal to client`);
+          sendEvent({
+            type: "build-stream",
+            ...buildEventBase(command.projectId, command.id),
+            data: "data: [DONE]\n\n",
+          });
+
+          // Detect runCommand from built project's package.json
+          try {
+            const { readFileSync, existsSync } = await import("fs");
+            const packageJsonPath = join(projectDirectory, "package.json");
+
+            if (existsSync(packageJsonPath)) {
+              const packageJson = JSON.parse(
+                readFileSync(packageJsonPath, "utf-8")
+              );
+              let runCommand = null;
+
+              if (packageJson.scripts?.dev) {
+                runCommand = "npm run dev";
+              } else if (packageJson.scripts?.start) {
+                runCommand = "npm start";
+              }
+
+              if (runCommand) {
+                // Send project-metadata event with detected runCommand
+                sendEvent({
+                  type: "project-metadata",
+                  ...buildEventBase(command.projectId, command.id),
+                  payload: {
+                    path: projectDirectory,
+                    projectType: "unknown",
+                    runCommand,
+                    port: 3000,
+                  },
+                } as RunnerEvent);
+
+                if (!isSilentMode && DEBUG_BUILD)
+                  console.log(`✅ Detected runCommand: ${runCommand}`);
+              }
+            }
+          } catch (error) {
+            log("Failed to detect runCommand:", error);
+          }
+
+          buildLog(
+            ` ✅ Build completed successfully for project: ${command.projectId}`
+          );
+          buildLog(`   Total chunks processed: (stream ended)`);
+
+          // Detect framework from generated files
+          let detectedFramework: string | null = null;
+          try {
+            const { detectFrameworkFromFilesystem } = await import('@sentryvibe/agent-core/lib/port-allocator');
+            const framework = await detectFrameworkFromFilesystem(projectDirectory);
+            detectedFramework = framework;
+            
+            if (framework) {
+              buildLog(`   🔍 Detected framework: ${framework}`);
+              log(`[build] Detected framework for ${command.projectId}: ${framework}`);
+            }
+          } catch (error) {
+            log(`[build] Failed to detect framework:`, error);
+          }
+
+          // ============================================================
+          // GENERATE BUILD SUMMARY VIA AI
+          // ============================================================
+          // Use a dedicated AI call to generate a clean, consistent summary
+          // based on the original prompt, files modified, and tasks completed
+          let buildSummary = 'Build completed successfully.';
+          
+          try {
+            const filesArray = Array.from(filesModified);
+            const hasChanges = filesArray.length > 0 || completedTodos.length > 0;
+            
+            if (hasChanges) {
+              buildLog(` 📝 Generating build summary via AI...`);
+              buildLog(`    Files modified: ${filesArray.length}`);
+              buildLog(`    Tasks completed: ${completedTodos.length}`);
+              
+              const summaryPrompt = `You are a build summary generator. Generate a concise 1-3 sentence summary of what was built or changed.
+
+Original request: "${command.payload.prompt}"
+
+${filesArray.length > 0 ? `Files modified:\n${filesArray.map(f => `- ${f}`).join('\n')}` : 'No files were modified.'}
+
+${completedTodos.length > 0 ? `Tasks completed:\n${completedTodos.map(t => `- ${t}`).join('\n')}` : ''}
+
+Write a brief, professional summary (1-3 sentences) describing what was accomplished. Focus on the outcome, not the process. Do not use phrases like "I did" or "The assistant". Just describe what was built or changed.`;
+
+              const summaryResult = await generateText({
+                model: claudeCode("claude-haiku-4-5"),
+                prompt: summaryPrompt,
+              });
+              
+              if (summaryResult.text && summaryResult.text.trim().length > 0) {
+                buildSummary = summaryResult.text.trim();
+                buildLog(` ✅ AI summary generated (${buildSummary.length} chars)`);
+              }
+            } else {
+              buildLog(` 📝 No files modified or tasks tracked - using default summary`);
+            }
+          } catch (summaryError) {
+            log(`[build] Failed to generate AI summary:`, summaryError);
+            buildLog(` ⚠️ AI summary failed, using default`);
+            // Keep the default "Build completed successfully." message
+          }
+          
+          sendEvent({
+            type: "build-completed",
+            ...buildEventBase(command.projectId, command.id),
+            payload: {
+              todos: [],
+              summary: buildSummary,
+              detectedFramework, // Send detected framework to API
+            },
+          });
+
+          // Print event summary
+          printEventSummary();
+
+          // ============================================================
+          // AUTO-START DEV SERVER AFTER BUILD COMPLETION
+          // ============================================================
+          // Note: The dev server will be started by the API via the start route
+          // which handles proper port allocation. We just send an event to trigger it.
+          const buildContext = activeBuildContexts.get(command.id);
+          if (buildContext?.projectDirectory && detectedFramework) {
+            log(`🚀 Build complete - dev server will be started via API with proper port allocation`);
+
+            // Send an event to signal the frontend/API to start the dev server
+            // The API's start route handles port allocation correctly
+            sendEvent({
+              type: "ack",
+              ...buildEventBase(command.projectId, command.id),
+              message: "build-complete-ready-for-dev-server",
+            });
+          }
+
+          // Clean up build context and session tracking
+          const completedContext = activeBuildContexts.get(command.id);
+          if (completedContext) {
+            startedSessions.delete(completedContext.sessionId);
+          }
+          activeBuildContexts.delete(command.id);
+        } catch (error) {
+          console.error("Failed to run build", error);
+          Sentry.getActiveSpan()?.setStatus({
+            code: 2, // SPAN_STATUS_ERROR
+            message: "Build failed",
+          });
+          sendEvent({
+            type: "build-failed",
+            ...buildEventBase(command.projectId, command.id),
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to run build",
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+
+          // Print event summary
+          printEventSummary();
+
+          // Clean up build context and session tracking on failure
+          const failedContext = activeBuildContexts.get(command.id);
+          if (failedContext) {
+            startedSessions.delete(failedContext.sessionId);
+          }
+          activeBuildContexts.delete(command.id);
+          throw error;
+        }
         break;
       }
       default:
@@ -2252,7 +2857,7 @@ export async function startRunner(options: RunnerOptions = {}) {
   function connect() {
     // Clean up old socket and listeners to prevent memory leaks
     cleanupSocket();
-    const url = new URL(BROKER_URL);
+    const url = new URL(WS_URL);
     url.searchParams.set("runnerId", RUNNER_ID);
 
     socket = new WebSocket(url.toString(), {
@@ -2266,7 +2871,7 @@ export async function startRunner(options: RunnerOptions = {}) {
       reconnectAttempts = 0; // Reset on successful connection
       lastPongReceived = Date.now(); // Reset pong timer on new connection
       lastCommandReceived = Date.now(); // Reset command timer on new connection
-      log("✅ connected to broker", url.toString());
+      log("✅ connected to server", url.toString());
       log("   Health check: ping/pong enabled, command timeout: 5 minutes");
       publishStatus();
       scheduleHeartbeat();
@@ -2307,67 +2912,115 @@ export async function startRunner(options: RunnerOptions = {}) {
       }, PING_INTERVAL);
     });
 
-    socket.on("message", (data: WebSocket.RawData) => {
+    socket.on("message", async (data: WebSocket.RawData) => {
       try {
         const command = JSON.parse(String(data)) as RunnerCommand;
-        
+
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
-        // Continue trace from frontend (each build has unique trace ID now)
-        // Use forceTransaction to create a NEW transaction within the trace
-        // This maintains distributed tracing chain while keeping transactions separate
+        // Continue trace from frontend - each build now starts its trace in the frontend
+        // This creates a span within the continued trace for the runner's work
         if (command._sentry?.trace) {
-          console.log("continuing trace from frontend", command._sentry.trace);
-          Sentry.continueTrace(
+          console.log("[runner] Continuing trace from frontend:", command._sentry.trace.substring(0, 50));
+          await Sentry.continueTrace(
             {
               sentryTrace: command._sentry.trace,
               baggage: command._sentry.baggage,
             },
-            () => {
-              // Create NEW transaction within the continued trace
-              // This allows distributed tracing view while keeping runner ops separate
-              Sentry.startSpan(
+            async () => {
+              // Create a span for this command execution within the continued trace
+              await Sentry.startSpan(
                 {
-                  name: `runner.command.${command.type}`,
-                  op: 'runner.command',
-                  forceTransaction: true, // New transaction (runner operations)
+                  name: `runner.${command.type}`,
+                  op: command.type === 'start-build' ? 'build.runner' : `runner.${command.type}`,
                   attributes: {
                     'command.type': command.type,
                     'command.id': command.id,
                     'project.id': command.projectId,
+                    'trace.continued': true,
                   },
                 },
-                async () => {
-                  Sentry.setTag("command_type", command.type);
-                  Sentry.setTag("project_id", command.projectId);
-                  Sentry.setTag("command_id", command.id);
+                async (span) => {
+                  try {
+                    Sentry.setTag("command_type", command.type);
+                    Sentry.setTag("project_id", command.projectId);
+                    Sentry.setTag("command_id", command.id);
 
-                  await handleCommand(command);
+                    // Capture build metrics for start-build commands
+                    if (command.type === 'start-build' && command.payload) {
+                      const agent = command.payload.agent ?? 'claude-code';
+                      const claudeModel = agent === 'claude-code' && 
+                        (command.payload.claudeModel === 'claude-haiku-4-5' || 
+                         command.payload.claudeModel === 'claude-sonnet-4-5' || 
+                         command.payload.claudeModel === 'claude-opus-4-5')
+                        ? command.payload.claudeModel
+                        : 'claude-sonnet-4-5';
+                      
+                      Sentry.metrics.count('runner.build.started', 1, {
+                        attributes: {
+                          project_id: command.projectId,
+                          model: agent === 'claude-code' ? claudeModel : agent,
+                          framework: command.payload.template?.framework || 'unknown',
+                          operation_type: command.payload.operationType || 'initial-build',
+                        }
+                      });
+                    }
+
+                    await handleCommand(command);
+                  } catch (error) {
+                    span.setStatus({ code: 2, message: error instanceof Error ? error.message : 'Command failed' });
+                    throw error;
+                  }
                 }
               );
             }
           );
         } else {
-          console.log("starting new trace (no parent)");
-          // No parent trace - create independent trace
-          Sentry.startSpan(
+          console.log("[runner] No trace context - starting isolated span");
+          // Create an isolated span when no trace context is provided
+          await Sentry.startSpan(
             {
-              name: `runner.command.${command.type}`,
-              op: 'runner.command',
-              forceTransaction: true,
+              name: `runner.${command.type}`,
+              op: command.type === 'start-build' ? 'build.runner' : `runner.${command.type}`,
               attributes: {
                 'command.type': command.type,
                 'command.id': command.id,
                 'project.id': command.projectId,
+                'trace.continued': false,
               },
             },
-            async () => {
-              Sentry.setTag("command_type", command.type);
-              Sentry.setTag("project_id", command.projectId);
-              Sentry.setTag("command_id", command.id);
+            async (span) => {
+              try {
+                Sentry.setTag("command_type", command.type);
+                Sentry.setTag("project_id", command.projectId);
+                Sentry.setTag("command_id", command.id);
 
-              await handleCommand(command);
+                // Capture build metrics for start-build commands
+                if (command.type === 'start-build' && command.payload) {
+                  const agent = command.payload.agent ?? 'claude-code';
+                  const claudeModel = agent === 'claude-code' && 
+                    (command.payload.claudeModel === 'claude-haiku-4-5' || 
+                     command.payload.claudeModel === 'claude-sonnet-4-5' || 
+                     command.payload.claudeModel === 'claude-opus-4-5')
+                    ? command.payload.claudeModel
+                    : 'claude-sonnet-4-5';
+                  
+                  Sentry.metrics.count('runner.build.started', 1, {
+                    attributes: {
+                      project_id: command.projectId,
+                      model: agent === 'claude-code' ? claudeModel : agent,
+                      framework: command.payload.template?.framework || 'unknown',
+                      operation_type: command.payload.operationType || 'initial-build',
+                    }
+                  });
+                }
+
+                await handleCommand(command);
+              } catch (error) {
+                span.setStatus({ code: 2, message: error instanceof Error ? error.message : 'Command failed' });
+                throw error;
+              }
             }
           );
         }
@@ -2385,7 +3038,12 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     socket.on("close", (code: number, reason: Buffer) => {
       const reasonStr = reason.toString() || "no reason provided";
-      log(`connection closed with code ${code}, reason: ${reasonStr}`);
+
+      // Suppress close logs during startup (first few attempts) - expected as server starts
+      const isEarlyAttempt = reconnectAttempts < SUPPRESS_ERRORS_UNTIL_ATTEMPT;
+      if (!isEarlyAttempt) {
+        log(`connection closed with code ${code}, reason: ${reasonStr}`);
+      }
 
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
@@ -2418,7 +3076,10 @@ export async function startRunner(options: RunnerOptions = {}) {
         MAX_RECONNECT_DELAY
       );
 
-      log(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+      // Suppress reconnection logs during startup
+      if (!isEarlyAttempt) {
+        log(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+      }
       setTimeout(connect, delay);
     });
 
@@ -2428,7 +3089,14 @@ export async function startRunner(options: RunnerOptions = {}) {
     });
 
     socket.on("error", (error: Error) => {
-      console.error("socket error", error);
+      // Suppress expected ECONNREFUSED errors during startup (first few attempts)
+      const isConnRefused = (error as { code?: string }).code === 'ECONNREFUSED';
+      const isEarlyAttempt = reconnectAttempts < SUPPRESS_ERRORS_UNTIL_ATTEMPT;
+
+      if (!isConnRefused || !isEarlyAttempt) {
+        console.error("socket error", error);
+      }
+
       // Close socket to trigger reconnection
       socket?.close(1006, "Error occurred");
     });
@@ -2488,7 +3156,9 @@ export async function startRunner(options: RunnerOptions = {}) {
     // Don't call process.exit() - let the CLI's shutdown handler finish
   });
 
-  connect();
+  // Wait before initial connection to allow Next.js server to start
+  log(`waiting ${INITIAL_CONNECTION_DELAY / 1000}s for server to start...`);
+  setTimeout(connect, INITIAL_CONNECTION_DELAY);
 
   // Return cleanup function for programmatic shutdown (when used via CLI)
   return performShutdown;
@@ -2497,5 +3167,11 @@ export async function startRunner(options: RunnerOptions = {}) {
 // If running this file directly, start the runner
 // ESM equivalent of: if (require.main === module)
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startRunner();
+  console.log('[runner] Starting runner directly...');
+  console.log('[runner] RUNNER_WS_URL:', process.env.RUNNER_WS_URL);
+  console.log('[runner] RUNNER_SHARED_SECRET:', process.env.RUNNER_SHARED_SECRET ? '***set***' : '***NOT SET***');
+  startRunner().catch((err) => {
+    console.error('[runner] Failed to start:', err);
+    process.exit(1);
+  });
 }

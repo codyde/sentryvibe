@@ -1,11 +1,12 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import type { GenerationState } from '@/types/generation';
+import type { GenerationState, TodoItem } from '@/types/generation';
 import { BuildHeader } from './BuildHeader';
 import { TodoList } from './TodoList';
+import { PlanningPhase } from './PlanningPhase';
 
 interface BuildProgressProps {
   state: GenerationState;
@@ -20,6 +21,70 @@ interface BuildProgressProps {
   } | null;
 }
 
+// Build Complete Summary component - shows collapsed todos
+function BuildCompleteSummary({
+  todos,
+  buildSummary,
+  onExpand,
+}: {
+  todos: TodoItem[];
+  buildSummary?: string;
+  onExpand: () => void;
+}) {
+  const [showTodos, setShowTodos] = useState(false);
+
+  return (
+    <div className="border-t border-purple-500/20">
+      {/* Summary section */}
+      <div className="p-4">
+        <div className="flex items-center gap-2 text-green-400 mb-2">
+          <CheckCircle2 className="w-4 h-4" />
+          <span className="text-sm font-medium">Build Complete</span>
+        </div>
+
+        {buildSummary && (
+          <p className="text-sm text-gray-300 mb-3 leading-relaxed">
+            {buildSummary}
+          </p>
+        )}
+
+        {/* Collapsible todos section */}
+        <button
+          onClick={() => setShowTodos(!showTodos)}
+          className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+        >
+          {showTodos ? (
+            <ChevronUp className="w-3 h-3" />
+          ) : (
+            <ChevronDown className="w-3 h-3" />
+          )}
+          <span>{todos.length} tasks completed</span>
+        </button>
+
+        <AnimatePresence>
+          {showTodos && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-2 space-y-1 pl-2 border-l border-gray-700/50">
+                {todos.map((todo, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-xs">
+                    <CheckCircle2 className="w-3 h-3 text-green-400/60" />
+                    <span className="text-gray-500">{todo.content}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
 export default function BuildProgress({
   state,
   defaultCollapsed = false,
@@ -29,7 +94,6 @@ export default function BuildProgress({
   templateInfo,
 }: BuildProgressProps) {
   // ALWAYS call hooks first (React rules!)
-  const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
   const [isCardExpanded, setIsCardExpanded] = useState(!defaultCollapsed);
   const todoListRef = useRef<HTMLDivElement>(null);
   const activeTodoRef = useRef<HTMLDivElement>(null);
@@ -66,30 +130,6 @@ export default function BuildProgress({
     }
   }, [isComplete, defaultCollapsed]);
 
-  // Auto-expand active todo, auto-collapse completed todos
-  useEffect(() => {
-    if (!state?.todos) return;
-
-    setExpandedTodos((prev) => {
-      const next = new Set(prev);
-
-      // Expand ONLY the active todo
-      state.todos.forEach((todo, index) => {
-        if (index === state.activeTodoIndex && todo.status === 'in_progress') {
-          next.add(index);
-        } else if (todo.status === 'completed') {
-          // Auto-collapse completed todos
-          next.delete(index);
-        } else if (todo.status === 'pending') {
-          // Keep pending todos collapsed
-          next.delete(index);
-        }
-      });
-
-      return next;
-    });
-  }, [state?.activeTodoIndex, state?.todos]);
-
   // Auto-scroll to active todo when it changes
   useEffect(() => {
     if (!state?.isActive || state.activeTodoIndex < 0) return;
@@ -117,18 +157,6 @@ export default function BuildProgress({
     return state.todos?.length ? state.todos.every((todo) => todo.status === 'completed') : false;
   }, [state.todos]);
 
-  const toggleTodo = (index: number) => {
-    setExpandedTodos((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  };
-
   // Validate state AFTER ALL hooks
   if (!state || !state.todos || !Array.isArray(state.todos)) {
     console.error('⚠️ Invalid generation state:', state);
@@ -147,21 +175,18 @@ export default function BuildProgress({
     );
   }
 
-  // Show initializing state ONLY if no todos yet
+  // Show planning phase ONLY if no todos yet (Claude is exploring/planning)
   if (total === 0 && state.isActive) {
     return (
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full p-6 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95"
+        className="w-full p-4 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95"
       >
-        <div className="flex items-center gap-3">
-          <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-          <div>
-            <h3 className="text-base font-semibold text-white">Initializing Build...</h3>
-            <p className="text-xs text-gray-400">Setting up {state.projectName}</p>
-          </div>
-        </div>
+        <PlanningPhase
+          activePlanningTool={state.activePlanningTool}
+          projectName={state.projectName}
+        />
       </motion.div>
     );
   }
@@ -196,10 +221,7 @@ export default function BuildProgress({
               <TodoList
                 todos={state.todos}
                 toolsByTodo={state.toolsByTodo}
-                textByTodo={state.textByTodo}
                 activeTodoIndex={state.activeTodoIndex}
-                expandedTodos={expandedTodos}
-                onToggleTodo={toggleTodo}
                 allTodosCompleted={allTodosCompleted}
                 onViewFiles={onViewFiles}
                 onStartServer={onStartServer}
@@ -211,6 +233,15 @@ export default function BuildProgress({
             </div>
           )}
         </>
+      )}
+
+      {/* Build Complete Summary - show collapsed todos when build is done */}
+      {isComplete && !isCardExpanded && (
+        <BuildCompleteSummary
+          todos={state.todos}
+          buildSummary={state.buildSummary}
+          onExpand={() => setIsCardExpanded(true)}
+        />
       )}
     </motion.div>
   );

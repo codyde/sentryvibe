@@ -134,25 +134,23 @@ export async function DELETE(
         const runnerId = await getProjectRunnerId(project[0].runnerId);
 
         if (!runnerId) {
-          console.warn(`⚠️  No runners connected - skipping file deletion`);
-          console.warn(`   Files in workspace may need manual cleanup: ${project[0].slug}`);
+          console.warn(`No runners connected - skipping file deletion for ${project[0].slug}`);
         } else {
-          console.log(`🗑️  Sending delete-project-files command to runner: ${runnerId}`);
-          console.log(`   Project slug: ${project[0].slug}`);
-
           // Send command to runner - it will delete files from its workspace
-          await sendCommandToRunner(runnerId, {
-            id: randomUUID(),
-            type: 'delete-project-files',
-            projectId: id,
-            timestamp: new Date().toISOString(),
-            payload: {
-              slug: project[0].slug,
-            },
-          });
-
-          console.log(`✅ Delete command sent to runner successfully`);
-          filesDeleted = true;
+          try {
+            await sendCommandToRunner(runnerId, {
+              id: randomUUID(),
+              type: 'delete-project-files',
+              projectId: id,
+              timestamp: new Date().toISOString(),
+              payload: {
+                slug: project[0].slug,
+              },
+            });
+            filesDeleted = true;
+          } catch (sendError) {
+            console.warn(`Failed to send delete command to runner:`, sendError);
+          }
         }
       } catch (error) {
         console.warn('⚠️  Failed to send delete command to runner:', error);

@@ -25,7 +25,8 @@ function normalizeUrl(url: string): string {
 }
 
 interface RunOptions {
-  broker?: string;
+  wsUrl?: string; // New: WebSocket URL for direct connection
+  broker?: string; // Legacy: still supported for backward compatibility
   url?: string;
   workspace?: string;
   runnerId?: string;
@@ -38,7 +39,7 @@ export async function runCommand(options: RunOptions) {
   if (!configManager.isInitialized() && !options.secret) {
     logger.error('Runner not initialized. Please run: sentryvibe-cli init');
     logger.info('Or provide all required options:');
-    logger.info('  sentryvibe-cli run --broker <url> --url <api-url> --secret <secret>');
+    logger.info('  sentryvibe-cli run --ws-url <url> --url <api-url> --secret <secret>');
     process.exit(1);
   }
 
@@ -47,9 +48,10 @@ export async function runCommand(options: RunOptions) {
   const apiUrl = options.url || config.apiUrl || 'http://localhost:3000';
 
   const runnerOptions = {
-    brokerUrl: options.broker || config.broker?.url,
+    // Prefer new wsUrl option, fall back to legacy broker option, then config
+    wsUrl: options.wsUrl || options.broker || configManager.getWsUrl(),
     apiUrl: normalizeUrl(apiUrl),
-    sharedSecret: options.secret || config.broker?.secret,
+    sharedSecret: options.secret || configManager.getSecret(),
     runnerId: options.runnerId || config.runner?.id,
     workspace: options.workspace || config.workspace,
   };
@@ -60,14 +62,14 @@ export async function runCommand(options: RunOptions) {
     process.exit(1);
   }
 
-  if (!runnerOptions.brokerUrl) {
-    logger.error('Broker URL is required');
+  if (!runnerOptions.wsUrl) {
+    logger.error('WebSocket URL is required');
     process.exit(1);
   }
 
   // Display startup info
   logger.section('Starting SentryVibe Runner');
-  logger.info(`Broker: ${chalk.cyan(runnerOptions.brokerUrl)}`);
+  logger.info(`Server: ${chalk.cyan(runnerOptions.wsUrl)}`);
   logger.info(`API URL: ${chalk.cyan(runnerOptions.apiUrl)}`);
   logger.info(`Runner ID: ${chalk.cyan(runnerOptions.runnerId)}`);
   logger.info(`Workspace: ${chalk.cyan(runnerOptions.workspace)}`);

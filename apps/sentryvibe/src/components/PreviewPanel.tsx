@@ -8,7 +8,7 @@ import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
-import AsciiLoadingAnimation from './AsciiLoadingAnimation';
+import BuildingAppSkeleton from './BuildingAppSkeleton';
 import {
   HoverCard,
   HoverCardContent,
@@ -46,6 +46,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const { edits, addEdit, removeEdit } = useElementEdits();
   const lastTunnelUrlRef = useRef<string | null>(null);
   const [verifiedTunnelUrl, setVerifiedTunnelUrl] = useState<string | null>(null);
+  const lastPreviewUrlRef = useRef<string>(''); // Track last working preview URL to keep iframe visible during follow-up builds
 
   // Find the current project
   const project = projects.find(p => p.slug === selectedProject);
@@ -64,6 +65,11 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Track previous stopping states for refetch trigger
   const prevStoppingTunnelRef = useRef(isStoppingTunnel);
   const prevStoppingServerRef = useRef(isStoppingServer);
+
+  // Clear last preview URL when project changes
+  useEffect(() => {
+    lastPreviewUrlRef.current = '';
+  }, [selectedProject]);
 
   // Real-time status updates via SSE
   useEffect(() => {
@@ -320,11 +326,20 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Determine preview URL based on frontend location
   // - Local frontend: Use proxy (works with localhost runner)
   // - Remote frontend + tunnel: Use tunnel directly (proxy can't reach tunnel)
-  const previewUrl = canShowPreview
+  const computedPreviewUrl = canShowPreview
     ? (frontendIsRemote && verifiedTunnelUrl
         ? verifiedTunnelUrl
         : `/api/projects/${currentProject.id}/proxy?path=/`)
     : '';
+
+  // During follow-up builds, keep showing the last working preview URL
+  // This prevents the loading animation from showing when server status temporarily changes
+  if (computedPreviewUrl) {
+    lastPreviewUrlRef.current = computedPreviewUrl;
+  }
+  
+  // Use last known preview URL during builds to keep iframe visible
+  const previewUrl = computedPreviewUrl || (isBuildActive ? lastPreviewUrlRef.current : '');
 
   // Note on URL strategy:
   // - Local frontend: Always use proxy (fetches from localhost runner)
@@ -348,6 +363,25 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     window.addEventListener('refresh-iframe', handleRefreshEvent);
     return () => window.removeEventListener('refresh-iframe', handleRefreshEvent);
   }, [handleRefresh]);
+
+  // Track previous build active state for auto-refresh on completion
+  const prevBuildActiveRef = useRef(isBuildActive);
+  
+  // Auto-refresh iframe when build completes (isBuildActive transitions from true to false)
+  useEffect(() => {
+    // Only refresh if:
+    // 1. Build just completed (was active, now inactive)
+    // 2. Preview URL exists (server is running)
+    // 3. Not during initial render
+    if (prevBuildActiveRef.current && !isBuildActive && previewUrl) {
+      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed, refreshing preview...');
+      // Small delay to let any file changes settle
+      setTimeout(() => {
+        handleRefresh();
+      }, 500);
+    }
+    prevBuildActiveRef.current = isBuildActive;
+  }, [isBuildActive, previewUrl, handleRefresh]);
 
   const handleCopyUrl = async () => {
     // Copy the actual URL - prefer tunnel if available, otherwise localhost
@@ -432,8 +466,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     // Remove the edit (comment window will close)
     removeEdit(editId);
 
-    // Format prompt with element context
-    const formattedPrompt = `Change the element with selector "${edit.element.selector}" (${edit.element.tagName}): ${prompt}`;
+    // Format prompt with element context using code formatting for selector
+    const formattedPrompt = `Change the element with selector \`${edit.element.selector}\` (\`${edit.element.tagName}\`): ${prompt}`;
 
     // Send to regular chat flow - will create todo automatically
     window.dispatchEvent(new CustomEvent('selection-change-requested', {
@@ -818,11 +852,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             {isBuildActive ? (
-              <div className="text-center flex items-center justify-center">
-                <div className="max-w-[400px]">
-                  <AsciiLoadingAnimation />
-                </div>
-              </div>
+              <BuildingAppSkeleton />
             ) : currentProject?.devServerStatus === 'starting' || isStartingServer ? (
               <div className="flex flex-col items-center gap-4">
                 <div className="relative flex items-center justify-center w-24 h-24">

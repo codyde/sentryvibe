@@ -3,7 +3,7 @@ import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { registerBuild, cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
-import type { RunnerEvent } from '@/shared/runner/messages';
+import type { RunnerEvent, StopDevServerCommand } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { sql } from 'drizzle-orm';
 import {
@@ -21,6 +21,8 @@ import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
 import { parseModelTag } from '@sentryvibe/agent-core/lib/tags/model-parser';
 import { TAG_DEFINITIONS } from '@sentryvibe/agent-core/config/tags';
 import { projectEvents } from '@/lib/project-events';
+import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
+import { getProjectRunnerId } from '@/lib/runner-utils';
 import * as Sentry from '@sentry/nextjs';
 
 export const maxDuration = 30;
@@ -41,18 +43,29 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Create isolated trace for this build request
-  // This ensures each build gets its own unique trace ID while maintaining
-  // distributed tracing chain visibility (this trace → broker → runner → AI)
+  // Continue trace from frontend - the frontend starts the trace when user submits a build
+  // This maintains the distributed tracing chain: Frontend → API → Runner → AI
+  // Sentry's automatic instrumentation continues the trace from sentry-trace/baggage headers
+  const sentryTraceHeader = req.headers.get('sentry-trace');
+  const baggageHeader = req.headers.get('baggage');
+
+  console.log('[build-route] Incoming trace context:', {
+    hasTrace: !!sentryTraceHeader,
+    tracePreview: sentryTraceHeader?.substring(0, 50),
+  });
+
   return await Sentry.withIsolationScope(async (scope) => {
+    // Create a span for this build request - it will be a child of the frontend trace
+    // if trace headers are present (automatic continuation by Sentry SDK)
     return await Sentry.startSpan(
       {
         name: 'POST /api/projects/[id]/build',
-        op: 'http.server',
-        forceTransaction: true, // Each build request = new trace
+        op: 'http.server.build',
+        // REMOVED: forceTransaction: true - now continues trace from frontend
         attributes: {
           'http.method': 'POST',
           'http.route': '/api/projects/[id]/build',
+          'trace.continued_from_frontend': !!sentryTraceHeader,
         },
       },
       async () => {
@@ -60,8 +73,8 @@ export async function POST(
         let cleanup: (() => void) | undefined;
         try {
           const { id } = await params;
-          
-          // Set project ID on scope for this isolated trace
+
+          // Set project ID on scope for this trace
           scope.setTag('project.id', id);
     const body = (await req.json()) as BuildRequest;
 
@@ -130,9 +143,73 @@ export async function POST(
       console.log('[build-route] Claude model selected:', claudeModel);
     }
 
+    // ============================================================
+    // STOP DEV SERVER BEFORE ENHANCEMENT/FOCUSED-EDIT BUILDS
+    // ============================================================
+    // For follow-up builds (enhancements/element changes), stop the dev server first
+    // to avoid conflicts. The server will auto-restart after build completes.
+    if (body.operationType === 'enhancement' || body.operationType === 'focused-edit') {
+      const isServerRunning = project[0].devServerStatus === 'running' || project[0].devServerStatus === 'starting';
+      
+      if (isServerRunning) {
+        console.log(`[build-route] 🛑 Stopping dev server before ${body.operationType} build...`);
+        
+        try {
+          // Get the runner for this project
+          const effectiveRunnerId = await getProjectRunnerId(project[0].runnerId) || runnerId;
+          
+          // Update status to stopping
+          await db.update(projects)
+            .set({
+              devServerStatus: 'stopping',
+              lastActivityAt: new Date(),
+            })
+            .where(eq(projects.id, id));
+          
+          // Emit update so UI reflects stopping status
+          const [stoppingProject] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+          if (stoppingProject) {
+            projectEvents.emitProjectUpdate(id, stoppingProject);
+          }
+          
+          // Send stop command to runner
+          const stopCommand: StopDevServerCommand = {
+            id: randomUUID(),
+            type: 'stop-dev-server',
+            projectId: id,
+            timestamp: new Date().toISOString(),
+          };
+          
+          await sendCommandToRunner(effectiveRunnerId, stopCommand);
+          
+          // Release port allocation
+          await releasePortForProject(id);
+          
+          // Clear port and update status
+          await db.update(projects)
+            .set({
+              devServerPort: null,
+              tunnelUrl: null,
+              devServerStatus: 'stopped',
+              lastActivityAt: new Date(),
+            })
+            .where(eq(projects.id, id));
+          
+          // Small delay to ensure clean shutdown before build starts
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          console.log(`[build-route] ✅ Dev server stopped, proceeding with ${body.operationType} build`);
+        } catch (stopError) {
+          // Log but don't fail the build - proceed anyway
+          console.error('[build-route] ⚠️ Failed to stop dev server (non-fatal):', stopError);
+        }
+      } else {
+        console.log(`[build-route] ℹ️ Dev server not running, proceeding with ${body.operationType} build`);
+      }
+    }
+
     // NEW: Conditional analysis - framework tag changes behavior
     let templateMetadata = body.template; // Use provided template if available
-    let generatedSlug: string | undefined;
     let generatedFriendlyName: string | undefined;
 
     if (body.operationType === 'initial-build' && !templateMetadata) {
@@ -145,12 +222,12 @@ export async function POST(
         console.log(`[build-route] Framework: ${frameworkTag.value}`);
 
         try {
-          // Generate project names with Haiku (fast + cheap)
+          // Generate project friendly name with Haiku (fast + cheap)
+          // Note: We only use the friendlyName - slug comes from DB and is immutable
           const names = await generateProjectName(body.prompt, agentId, claudeModel);
-          generatedSlug = names.slug;
           generatedFriendlyName = names.friendlyName;
-          console.log(`[build-route] ✅ Project slug: ${generatedSlug}`);
-          console.log(`[build-route] ✅ Friendly name: ${generatedFriendlyName}`);
+          console.log(`[build-route] ✅ Generated friendly name: ${generatedFriendlyName}`);
+          console.log(`[build-route]    Using stored slug: ${project[0].slug}`);
 
           // Get framework metadata from tag definition
           const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
@@ -174,6 +251,26 @@ export async function POST(
           console.log(`[build-route] ✅ Template from tag: ${frameworkOption.label}`);
           console.log(`[build-route]    Repository: ${frameworkOption.repository}`);
           console.log(`[build-route]    Cost savings: ~85% (skipped template analysis)`);
+
+          // Update project name and framework in DB
+          // Note: We do NOT update the slug - it must remain immutable for directory consistency
+          const updates: { name?: string; detectedFramework?: string } = {};
+          
+          if (generatedFriendlyName && generatedFriendlyName !== project[0].name) {
+            updates.name = generatedFriendlyName;
+          }
+          
+          // Store framework from tag for metrics consistency
+          if (templateMetadata.framework) {
+            updates.detectedFramework = templateMetadata.framework;
+          }
+          
+          if (Object.keys(updates).length > 0) {
+            await db.update(projects)
+              .set(updates)
+              .where(eq(projects.id, id));
+            console.log(`[build-route] ✅ Updated project:`, updates);
+          }
         } catch (error) {
           console.error('[build-route] ⚠️ Framework tag processing failed:', error);
           throw error; // Don't fall back - tag enforcement should work
@@ -224,6 +321,23 @@ export async function POST(
         }
       }
     }
+
+    // ============================================================
+    // CAPTURE BUILD START METRICS
+    // ============================================================
+    // Track framework and model actually used (not just what was selected)
+    const frameworkTag = body.tags?.find(t => t.key === 'framework');
+    Sentry.metrics.count('build.started', 1, {
+      attributes: {
+        project_id: params.id,
+        model: agentId === 'claude-code' ? claudeModel : agentId,
+        framework: templateMetadata?.framework || 'unknown',
+        runner: runnerId,
+        operation_type: body.operationType || 'initial-build',
+        framework_detection_method: frameworkTag ? 'tag' : 'ai-analysis',
+        has_framework_tag: String(!!frameworkTag),
+      }
+    });
 
     const encoder = new TextEncoder();
 
@@ -307,6 +421,8 @@ export async function POST(
         startedAt: now,
         updatedAt: now,
         rawState: initialRawState,
+        isAutoFix: body.isAutoFix ?? false,
+        autoFixError: body.autoFixError ?? null,
       }).returning();
       sessionId = inserted[0].id;
     }
@@ -501,9 +617,9 @@ export async function POST(
       console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
       console.log(`[build-route]    ID: ${templateMetadata.id}`);
       console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
-      if (generatedSlug) {
-        console.log(`[build-route]    Project Slug: ${generatedSlug} (for directory)`);
-        console.log(`[build-route]    Friendly Name: ${generatedFriendlyName} (for display)`);
+      console.log(`[build-route]    Project Slug: ${project[0].slug} (immutable, from database)`);
+      if (generatedFriendlyName) {
+        console.log(`[build-route]    Display Name: ${generatedFriendlyName}`);
       }
 
       // EMIT FRAMEWORK EARLY: Update project with detected framework immediately
@@ -537,8 +653,11 @@ export async function POST(
         operationType: body.operationType,
         prompt: body.prompt,
         messageParts: body.messageParts,
-        projectSlug: generatedSlug || project[0].slug,
-        projectName: generatedFriendlyName || generatedSlug || project[0].name,
+        // CRITICAL: Always use the stored slug from database
+        // The slug is generated once during project creation and must be immutable
+        // Using a regenerated slug causes directory mismatch between initial build and enhancements
+        projectSlug: project[0].slug,
+        projectName: generatedFriendlyName || project[0].name,
         context: body.context,
         designPreferences: body.designPreferences,
         tags: body.tags,

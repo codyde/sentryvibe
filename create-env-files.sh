@@ -45,10 +45,8 @@ DATABASE_URL=postgresql://user:password@localhost:5432/sentryvibe
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 OPENAI_API_KEY=sk-your-openai-key-here
 
-# Runner Communication
+# Runner Communication (runners connect directly via WebSocket)
 RUNNER_SHARED_SECRET=dev-secret
-RUNNER_BROKER_URL=ws://localhost:4000/socket
-RUNNER_BROKER_HTTP_URL=http://localhost:4000
 RUNNER_DEFAULT_ID=default
 NEXT_PUBLIC_RUNNER_DEFAULT_ID=default
 
@@ -59,27 +57,7 @@ NODE_ENV=development"
 
 echo ""
 
-# 2. Create broker/.env.local
-echo "📝 Creating apps/broker/.env.local..."
-create_env_file "apps/broker/.env.local" "# SentryVibe Broker Service Environment Configuration
-# =====================================================
-
-# Server Configuration
-PORT=4000
-BROKER_PORT=4000
-
-# Runner Authentication
-RUNNER_SHARED_SECRET=dev-secret
-
-# Event Target Configuration
-RUNNER_EVENT_TARGET_URL=http://localhost:3000
-
-# Node Configuration
-NODE_ENV=development"
-
-echo ""
-
-# 3. Create runner/.env.local
+# 2. Create runner/.env.local
 echo "📝 Creating apps/runner/.env.local..."
 create_env_file "apps/runner/.env.local" "# SentryVibe Runner CLI Environment Configuration
 # =================================================
@@ -87,9 +65,12 @@ create_env_file "apps/runner/.env.local" "# SentryVibe Runner CLI Environment Co
 # Runner Identity
 RUNNER_ID=local
 
-# Broker Connection
-RUNNER_BROKER_URL=ws://localhost:4000/socket
+# Server Connection (connects directly to Next.js WebSocket)
+RUNNER_WS_URL=ws://localhost:3000/ws/runner
 RUNNER_SHARED_SECRET=dev-secret
+
+# API Base URL
+API_BASE_URL=http://localhost:3000
 
 # Workspace Configuration
 WORKSPACE_ROOT=~/sentryvibe-workspace
@@ -121,7 +102,6 @@ echo "   - Change this for production!"
 echo ""
 echo "To edit the files:"
 echo "  vim apps/sentryvibe/.env.local"
-echo "  vim apps/broker/.env.local"
 echo "  vim apps/runner/.env.local"
 echo ""
 echo "Or use your preferred editor:"
@@ -129,4 +109,3 @@ echo "  code apps/sentryvibe/.env.local"
 echo ""
 echo "📖 See ENV_SETUP_GUIDE.md for detailed configuration info"
 echo ""
-

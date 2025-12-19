@@ -3,11 +3,10 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { 
-  getRunCommand, 
-  reserveOrReallocatePort, 
-  buildEnvForFramework,
-  withEnforcedPort
+import {
+  getRunCommand,
+  reserveOrReallocatePort,
+  buildEnvForFramework
 } from '@sentryvibe/agent-core/lib/port-allocator';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
@@ -89,24 +88,21 @@ export async function POST(
         })
         .where(eq(projects.id, id));
 
-      // Step 3: Build environment variables to enforce port
+      // Step 3: Build environment variables for port (frameworks read PORT env var)
       const portEnv = buildEnvForFramework(portInfo.framework, portInfo.port);
+      const runCommand = getRunCommand(proj.runCommand);
 
-      // Step 4: Enforce port in command (for frameworks that need CLI flags)
-      const baseCommand = getRunCommand(proj.runCommand);
-      const enforcedCommand = withEnforcedPort(baseCommand, portInfo.framework, portInfo.port);
-      
-      console.log(`📝 Run command: ${enforcedCommand}`);
+      console.log(`📝 Run command: ${runCommand}`);
       console.log(`🔧 Port environment: ${JSON.stringify(portEnv)}`);
 
-      // Step 5: Send command to runner with pre-allocated port
+      // Step 4: Send command to runner with pre-allocated port
       const runnerCommand: StartDevServerCommand = {
         id: randomUUID(),
         type: 'start-dev-server',
         projectId: id,
         timestamp: new Date().toISOString(),
         payload: {
-          runCommand: enforcedCommand,
+          runCommand,
           workingDirectory: proj.path,
           env: portEnv,
           preferredPort: portInfo.port,

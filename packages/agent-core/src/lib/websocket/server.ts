@@ -1,24 +1,43 @@
 /**
- * WebSocket Server for Real-Time Build Updates
+ * WebSocket Server for Real-Time Build Updates and Runner Communication
  * 
  * Provides real-time state synchronization without SSE's connection fragility.
- * Clients can:
+ * 
+ * Frontend Clients (/ws):
  * - Subscribe to project/session updates
  * - Receive batched state changes
  * - Auto-reconnect on disconnect
  * - Resume from last known state
+ * 
+ * Runner Connections (/ws/runner):
+ * - Persistent WebSocket connections from runner processes
+ * - Receive commands (start-build, start-dev-server, etc.)
+ * - Send events (build-stream, log-chunk, etc.)
+ * - Heartbeat/ping-pong keepalive
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import type { GenerationState } from '../../types/generation';
+import type { RunnerCommand, RunnerEvent, RunnerMessage } from '../../shared/runner/messages';
+import { isRunnerEvent } from '../../shared/runner/messages';
+import { publishRunnerEvent } from '../runner/event-stream';
+// NOTE: processGlobalRunnerEvent removed - DB writes now happen via HTTP from runner
 import * as Sentry from '@sentry/node';
+import { buildLogger } from '../logging/build-logger';
 
 interface ClientSubscription {
   ws: WebSocket;
   projectId: string;
   sessionId?: string;
   lastHeartbeat: number;
+}
+
+interface RunnerConnection {
+  id: string;
+  socket: WebSocket;
+  lastHeartbeat: number;
+  pingInterval: NodeJS.Timeout;
 }
 
 interface StateUpdateMessage {
@@ -40,26 +59,48 @@ interface BatchedUpdate {
   }>;
 }
 
+// Get shared secret from environment
+const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
+
 class BuildWebSocketServer {
   private wss: WebSocketServer | null = null;
+  private runnerWss: WebSocketServer | null = null;
   private clients: Map<string, ClientSubscription> = new Map();
+  private runnerConnections: Map<string, RunnerConnection> = new Map();
   private pendingUpdates: Map<string, BatchedUpdate> = new Map();
   private batchInterval: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private runnerCleanupInterval: NodeJS.Timeout | null = null;
   
   private readonly BATCH_DELAY = 200; // ms - batch updates for efficiency
   private readonly HEARTBEAT_INTERVAL = 30000; // 30s
   private readonly CLIENT_TIMEOUT = 60000; // 60s
+  private readonly RUNNER_PING_INTERVAL = 30000; // 30s
+  private readonly RUNNER_HEARTBEAT_TIMEOUT = 90000; // 90s
+
+  // Metrics tracking for runner connections
+  private runnerTotalEvents = 0;
+  private runnerTotalCommands = 0;
+  private runnerTotalErrors = 0;
+
+  // Instance ID for debugging singleton issues
+  private readonly instanceId = Math.random().toString(36).substring(7);
+  private initialized = false;
+
+  constructor() {
+    buildLogger.websocket.serverCreated(this.instanceId);
+  }
 
   /**
-   * Initialize WebSocket server
+   * Initialize WebSocket server for both frontend clients and runners
    */
   initialize(server: Server, path: string = '/ws') {
-    console.log('[WebSocket] Initializing server...');
+    buildLogger.log('debug', 'websocket', `Initializing server (instance: ${this.instanceId})...`, { instanceId: this.instanceId });
+    this.initialized = true;
     
+    // Frontend client WebSocket server - noServer mode for manual upgrade handling
     this.wss = new WebSocketServer({ 
-      server,
-      path,
+      noServer: true,
       perMessageDeflate: false, // Disable compression for lower latency
     });
 
@@ -67,21 +108,61 @@ class BuildWebSocketServer {
       this.handleConnection(ws, req);
     });
 
+    // Runner WebSocket server on /ws/runner - noServer mode for manual upgrade handling
+    this.runnerWss = new WebSocketServer({
+      noServer: true,
+      perMessageDeflate: false,
+    });
+
+    this.runnerWss.on('connection', (ws: WebSocket, req) => {
+      this.handleRunnerConnection(ws, req);
+    });
+
+    // Manually handle HTTP upgrade events to route to correct WebSocket server
+    server.on('upgrade', (request, socket, head) => {
+      const pathname = request.url?.split('?')[0] || '';
+      
+      if (pathname === '/ws/runner') {
+        // Runner connection - handle with runnerWss
+        this.runnerWss!.handleUpgrade(request, socket, head, (ws) => {
+          this.runnerWss!.emit('connection', ws, request);
+        });
+      } else if (pathname === path || pathname === '/ws') {
+        // Frontend client connection - handle with wss
+        this.wss!.handleUpgrade(request, socket, head, (ws) => {
+          this.wss!.emit('connection', ws, request);
+        });
+      } else {
+        // Unknown path - destroy the socket
+        buildLogger.websocket.unknownUpgradePath(pathname);
+        socket.destroy();
+      }
+    });
+
     // Start batch processing interval
     this.batchInterval = setInterval(() => {
       this.processBatchedUpdates();
     }, this.BATCH_DELAY);
 
-    // Start heartbeat interval
+    // Start heartbeat interval for frontend clients
     this.heartbeatInterval = setInterval(() => {
       this.sendHeartbeats();
     }, this.HEARTBEAT_INTERVAL);
 
-    console.log(`[WebSocket] Server initialized on path: ${path}`);
+    // Start stale runner connection cleanup interval
+    this.runnerCleanupInterval = setInterval(() => {
+      this.cleanupStaleRunnerConnections();
+    }, 60000); // Check every 60s
+
+    buildLogger.websocket.serverInitialized(path, '/ws/runner');
   }
 
+  // ============================================================
+  // FRONTEND CLIENT HANDLING
+  // ============================================================
+
   /**
-   * Handle new WebSocket connection
+   * Handle new frontend WebSocket connection
    */
   private handleConnection(ws: WebSocket, req: any) {
     const clientId = this.generateClientId();
@@ -89,7 +170,7 @@ class BuildWebSocketServer {
     const projectId = url.searchParams.get('projectId') || '';
     const sessionId = url.searchParams.get('sessionId') || undefined;
 
-    console.log(`[WebSocket] Client connected: ${clientId}`, { projectId, sessionId });
+    buildLogger.websocket.clientConnected(clientId, projectId, sessionId);
 
     // Store client subscription
     this.clients.set(clientId, {
@@ -114,21 +195,251 @@ class BuildWebSocketServer {
         const message = JSON.parse(data.toString());
         this.handleClientMessage(clientId, message);
       } catch (error) {
-        console.error('[WebSocket] Failed to parse client message:', error);
+        buildLogger.websocket.error('Failed to parse client message', error, { clientId });
       }
     });
 
     // Handle client disconnect
     ws.on('close', () => {
-      console.log(`[WebSocket] Client disconnected: ${clientId}`);
+      buildLogger.websocket.clientDisconnected(clientId);
       this.clients.delete(clientId);
     });
 
     // Handle errors
     ws.on('error', (error) => {
-      console.error(`[WebSocket] Client error: ${clientId}`, error);
+      buildLogger.websocket.error('Client error', error, { clientId });
       this.clients.delete(clientId);
     });
+  }
+
+  // ============================================================
+  // RUNNER CONNECTION HANDLING
+  // ============================================================
+
+  /**
+   * Handle new runner WebSocket connection
+   */
+  private handleRunnerConnection(ws: WebSocket, req: any) {
+    // Authenticate runner via Bearer token
+    const authHeader = req.headers['authorization'];
+    if (!SHARED_SECRET) {
+      buildLogger.websocket.runnerAuthMissing();
+      ws.close(1008, 'Server misconfigured');
+      return;
+    }
+
+    if (!authHeader || authHeader !== `Bearer ${SHARED_SECRET}`) {
+      buildLogger.websocket.runnerAuthRejected();
+      ws.close(1008, 'Unauthorized');
+      return;
+    }
+
+    // Extract runner ID from query params
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const runnerId = url.searchParams.get('runnerId') ?? 'default';
+
+    buildLogger.websocket.runnerConnected(runnerId);
+
+    // Setup ping/pong keepalive
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      }
+    }, this.RUNNER_PING_INTERVAL);
+
+    // Store runner connection
+    this.runnerConnections.set(runnerId, {
+      id: runnerId,
+      socket: ws,
+      lastHeartbeat: Date.now(),
+      pingInterval,
+    });
+
+    // Sentry breadcrumb for connection
+    Sentry.addBreadcrumb({
+      category: 'websocket',
+      message: `Runner connected: ${runnerId}`,
+      level: 'info',
+    });
+
+    // Handle pong (heartbeat response)
+    ws.on('pong', () => {
+      const conn = this.runnerConnections.get(runnerId);
+      if (conn) {
+        conn.lastHeartbeat = Date.now();
+      }
+    });
+
+    // Handle messages from runner
+    ws.on('message', async (data: Buffer) => {
+      try {
+        const message = JSON.parse(data.toString()) as RunnerMessage;
+        if (isRunnerEvent(message)) {
+          const event = message as RunnerEvent;
+
+          // Update heartbeat on runner-status events
+          if (event.type === 'runner-status') {
+            const conn = this.runnerConnections.get(runnerId);
+            if (conn) conn.lastHeartbeat = Date.now();
+          }
+
+          this.runnerTotalEvents++;
+          await this.processRunnerEvent(event);
+        }
+      } catch (error) {
+        this.runnerTotalErrors++;
+        Sentry.captureException(error, {
+          tags: { runnerId, source: 'websocket_message' },
+          level: 'error',
+        });
+        buildLogger.websocket.error('Failed to handle runner message', error, { runnerId });
+      }
+    });
+
+    // Handle runner disconnect
+    ws.on('close', (code) => {
+      buildLogger.websocket.runnerDisconnected(runnerId, code);
+      const conn = this.runnerConnections.get(runnerId);
+      if (conn) {
+        clearInterval(conn.pingInterval);
+      }
+      this.runnerConnections.delete(runnerId);
+
+      Sentry.addBreadcrumb({
+        category: 'websocket',
+        message: `Runner disconnected: ${runnerId}`,
+        level: 'info',
+        data: { code },
+      });
+    });
+
+    // Handle runner errors
+    ws.on('error', (error) => {
+      buildLogger.websocket.error('Runner socket error', error, { runnerId });
+      this.runnerTotalErrors++;
+
+      Sentry.captureException(error, {
+        tags: { runnerId, source: 'websocket_error' },
+        level: 'error',
+      });
+
+      const conn = this.runnerConnections.get(runnerId);
+      if (conn) {
+        clearInterval(conn.pingInterval);
+      }
+      this.runnerConnections.delete(runnerId);
+    });
+  }
+
+  /**
+   * Process runner event - publish to event stream for WebSocket broadcasts
+   * NOTE: Database writes now happen via HTTP from the runner (/api/runner-events, /api/build-events)
+   */
+  private async processRunnerEvent(event: RunnerEvent) {
+    // Publish event to internal event stream
+    // This triggers persistent-event-processor for WebSocket broadcasts
+    // DB writes are handled by HTTP endpoints called directly from runner
+    publishRunnerEvent(event);
+  }
+
+  /**
+   * Send a command to a specific runner
+   */
+  sendCommandToRunner(runnerId: string, command: RunnerCommand): boolean {
+    const connection = this.runnerConnections.get(runnerId);
+
+    if (!connection || connection.socket.readyState !== WebSocket.OPEN) {
+      buildLogger.websocket.runnerNotConnected(runnerId, command.type);
+      return false;
+    }
+
+    try {
+      // Attach Sentry trace context only if there's an active span
+      // This ensures we don't propagate stale/ambient trace context
+      const activeSpan = Sentry.getActiveSpan();
+      const hasTrace = !!activeSpan;
+      if (activeSpan) {
+        const traceData = Sentry.getTraceData();
+        if (traceData['sentry-trace']) {
+          command._sentry = {
+            trace: traceData['sentry-trace'],
+            baggage: traceData.baggage,
+          };
+          buildLogger.log('debug', 'websocket', `Attaching trace to command ${command.type}`, {
+            tracePreview: traceData['sentry-trace'].substring(0, 50)
+          });
+        }
+      }
+      
+      buildLogger.websocket.commandSent(runnerId, command.type, hasTrace);
+
+      connection.socket.send(JSON.stringify(command));
+      this.runnerTotalCommands++;
+      return true;
+    } catch (error) {
+      this.runnerTotalErrors++;
+      Sentry.captureException(error, {
+        tags: { runnerId, commandType: command.type },
+        level: 'error',
+      });
+      buildLogger.websocket.error('Failed to send command to runner', error, { runnerId, commandType: command.type });
+      return false;
+    }
+  }
+
+  /**
+   * List all connected runners with their status
+   */
+  listRunnerConnections(): Array<{ runnerId: string; lastHeartbeat: number; lastHeartbeatAge: number }> {
+    const now = Date.now();
+    return Array.from(this.runnerConnections.values()).map(({ id, lastHeartbeat }) => ({
+      runnerId: id,
+      lastHeartbeat,
+      lastHeartbeatAge: now - lastHeartbeat,
+    }));
+  }
+
+  /**
+   * Check if a specific runner is connected
+   */
+  isRunnerConnected(runnerId: string): boolean {
+    const conn = this.runnerConnections.get(runnerId);
+    return conn !== undefined && conn.socket.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Get runner metrics
+   */
+  getRunnerMetrics() {
+    return {
+      totalEvents: this.runnerTotalEvents,
+      totalCommands: this.runnerTotalCommands,
+      totalErrors: this.runnerTotalErrors,
+      activeConnections: this.runnerConnections.size,
+    };
+  }
+
+  /**
+   * Cleanup stale runner connections
+   */
+  private cleanupStaleRunnerConnections() {
+    const now = Date.now();
+    for (const [runnerId, conn] of this.runnerConnections.entries()) {
+      if (now - conn.lastHeartbeat > this.RUNNER_HEARTBEAT_TIMEOUT) {
+        buildLogger.websocket.runnerStaleRemoved(runnerId);
+
+        Sentry.addBreadcrumb({
+          category: 'websocket',
+          message: `Stale runner connection removed: ${runnerId}`,
+          level: 'warning',
+          data: { age: now - conn.lastHeartbeat },
+        });
+
+        clearInterval(conn.pingInterval);
+        conn.socket.close(1000, 'Heartbeat timeout');
+        this.runnerConnections.delete(runnerId);
+      }
+    }
   }
 
   /**
@@ -148,7 +459,7 @@ class BuildWebSocketServer {
         // Update subscription
         client.projectId = message.projectId;
         client.sessionId = message.sessionId;
-        console.log(`[WebSocket] Client ${clientId} subscribed to project: ${message.projectId}`);
+        buildLogger.websocket.clientSubscribed(clientId, message.projectId);
         break;
       
       case 'get-state':
@@ -159,11 +470,13 @@ class BuildWebSocketServer {
   }
 
   /**
-   * Broadcast state update to subscribed clients
+   * @deprecated Use discrete event broadcasts instead (broadcastBuildStarted, broadcastTodosUpdate,
+   * broadcastToolCall, broadcastBuildComplete). This method broadcasts full state snapshots which
+   * is inefficient for real-time updates. Kept for state recovery scenarios.
    */
   broadcastStateUpdate(
-    projectId: string, 
-    sessionId: string, 
+    projectId: string,
+    sessionId: string,
     state: Partial<GenerationState>
   ) {
     const key = `${projectId}-${sessionId}`;
@@ -202,18 +515,27 @@ class BuildWebSocketServer {
    * Broadcast tool call event
    */
   broadcastToolCall(
-    projectId: string, 
-    sessionId: string, 
+    projectId: string,
+    sessionId: string,
     toolCall: {
       id: string;
       name: string;
-      todoIndex: number; // Explicit todo index for proper nesting
+      todoIndex: number; // Can be -1 for planning phase tools (before first TodoWrite)
       input?: unknown;
-      state: 'input-available' | 'output-available';
+      output?: unknown; // Tool output for completion events
+      state: 'input-available' | 'output-available' | 'error'; // input-available for planning shimmer
     }
   ) {
     const key = `${projectId}-${sessionId}`;
-    
+
+    // Debug: Log planning tool broadcasts
+    if (toolCall.todoIndex < 0) {
+      const subscriberCount = Array.from(this.clients.values()).filter(
+        client => client.projectId === projectId
+      ).length;
+      buildLogger.websocket.broadcastToolCall(toolCall.name, toolCall.state, subscriberCount);
+    }
+
     if (!this.pendingUpdates.has(key)) {
       this.pendingUpdates.set(key, {
         projectId,
@@ -236,14 +558,22 @@ class BuildWebSocketServer {
       timestamp: Date.now(),
       _sentry: traceContext, // Optional - won't break if missing
     });
+
+    // Tool updates are critical for UI - flush immediately
+    this.flushBatch(key);
   }
 
   /**
-   * Broadcast todo update
+   * Broadcast build started event
+   * This signals a new build has begun - flush immediately
    */
-  broadcastTodoUpdate(projectId: string, sessionId: string, todos: unknown[]) {
+  broadcastBuildStarted(
+    projectId: string,
+    sessionId: string,
+    buildId: string
+  ) {
     const key = `${projectId}-${sessionId}`;
-    
+
     if (!this.pendingUpdates.has(key)) {
       this.pendingUpdates.set(key, {
         projectId,
@@ -254,12 +584,109 @@ class BuildWebSocketServer {
 
     const batch = this.pendingUpdates.get(key)!;
     batch.updates.push({
-      type: 'todo-update',
-      data: { todos },
+      type: 'build-started',
+      data: { buildId, sessionId, projectId },
       timestamp: Date.now(),
     });
 
-    // Todos are important - flush immediately
+    // Build start is important - flush immediately
+    this.flushBatch(key);
+  }
+
+  /**
+   * Broadcast todos update (when TodoWrite tool is called)
+   * This establishes or updates the todo list - flush immediately
+   */
+  broadcastTodosUpdate(
+    projectId: string,
+    sessionId: string,
+    todos: Array<{ content: string; status: string; activeForm?: string }>,
+    activeTodoIndex: number
+  ) {
+    const key = `${projectId}-${sessionId}`;
+
+    if (!this.pendingUpdates.has(key)) {
+      this.pendingUpdates.set(key, {
+        projectId,
+        sessionId,
+        updates: [],
+      });
+    }
+
+    const batch = this.pendingUpdates.get(key)!;
+    batch.updates.push({
+      type: 'todos-update',
+      data: { todos, activeTodoIndex },
+      timestamp: Date.now(),
+    });
+
+    // Todos are critical for UI - flush immediately
+    this.flushBatch(key);
+  }
+
+  /**
+   * Broadcast that a specific todo has completed (batch write finished)
+   * This signals that all events for this todo have been persisted to DB
+   */
+  broadcastTodoCompleted(
+    projectId: string,
+    sessionId: string,
+    todoIndex: number
+  ) {
+    const key = `${projectId}-${sessionId}`;
+
+    if (!this.pendingUpdates.has(key)) {
+      this.pendingUpdates.set(key, {
+        projectId,
+        sessionId,
+        updates: [],
+      });
+    }
+
+    const batch = this.pendingUpdates.get(key)!;
+    batch.updates.push({
+      type: 'todo-completed',
+      data: { todoIndex, persisted: true },
+      timestamp: Date.now(),
+    });
+
+    // Todo completion is important for reconnection state - flush immediately
+    this.flushBatch(key);
+  }
+
+  /**
+   * Broadcast build completed/failed event
+   * This is a terminal state event - flush immediately
+   */
+  broadcastBuildComplete(
+    projectId: string,
+    sessionId: string,
+    status: 'completed' | 'failed',
+    summary?: string
+  ) {
+    const key = `${projectId}-${sessionId}`;
+
+    if (!this.pendingUpdates.has(key)) {
+      this.pendingUpdates.set(key, {
+        projectId,
+        sessionId,
+        updates: [],
+      });
+    }
+
+    const batch = this.pendingUpdates.get(key)!;
+    batch.updates.push({
+      type: 'build-complete',
+      data: { status, summary },
+      timestamp: Date.now(),
+    });
+
+    const subscriberCount = Array.from(this.clients.values()).filter(
+      client => client.projectId === projectId
+    ).length;
+    buildLogger.websocket.broadcastBuildComplete(projectId, sessionId, subscriberCount);
+
+    // Terminal event - flush immediately
     this.flushBatch(key);
   }
 
@@ -283,7 +710,7 @@ class BuildWebSocketServer {
 
     // Find all clients subscribed to this project/session
     const subscribers = Array.from(this.clients.values()).filter(
-      client => client.projectId === projectId && 
+      client => client.projectId === projectId &&
                 (!client.sessionId || client.sessionId === sessionId)
     );
 
@@ -319,7 +746,7 @@ class BuildWebSocketServer {
     for (const [clientId, client] of this.clients.entries()) {
       // Check if client timed out
       if (now - client.lastHeartbeat > this.CLIENT_TIMEOUT) {
-        console.log(`[WebSocket] Client timeout: ${clientId}`);
+        buildLogger.websocket.clientTimeout(clientId);
         client.ws.close();
         this.clients.delete(clientId);
         continue;
@@ -351,7 +778,7 @@ class BuildWebSocketServer {
       try {
         ws.send(JSON.stringify(message));
       } catch (error) {
-        console.error('[WebSocket] Failed to send message:', error);
+        buildLogger.websocket.error('Failed to send message', error);
       }
     }
   }
@@ -369,8 +796,11 @@ class BuildWebSocketServer {
   getStats() {
     return {
       totalClients: this.clients.size,
+      totalRunners: this.runnerConnections.size,
       pendingBatches: this.pendingUpdates.size,
       clientsByProject: this.getClientsByProject(),
+      runners: this.listRunnerConnections(),
+      runnerMetrics: this.getRunnerMetrics(),
     };
   }
 
@@ -392,7 +822,7 @@ class BuildWebSocketServer {
    * Shutdown WebSocket server
    */
   shutdown() {
-    console.log('[WebSocket] Shutting down server...');
+    buildLogger.websocket.shutdown();
     
     if (this.batchInterval) {
       clearInterval(this.batchInterval);
@@ -402,22 +832,47 @@ class BuildWebSocketServer {
       clearInterval(this.heartbeatInterval);
     }
 
-    // Close all client connections
+    if (this.runnerCleanupInterval) {
+      clearInterval(this.runnerCleanupInterval);
+    }
+
+    // Close all frontend client connections
     for (const client of this.clients.values()) {
       client.ws.close();
     }
-    
     this.clients.clear();
     this.pendingUpdates.clear();
+
+    // Close all runner connections gracefully
+    for (const conn of this.runnerConnections.values()) {
+      clearInterval(conn.pingInterval);
+      conn.socket.close(1000, 'Server shutting down');
+    }
+    this.runnerConnections.clear();
 
     if (this.wss) {
       this.wss.close();
     }
 
-    console.log('[WebSocket] Server shut down');
+    if (this.runnerWss) {
+      this.runnerWss.close();
+    }
+
+    buildLogger.websocket.shutdownComplete();
   }
 }
 
-// Singleton instance
-export const buildWebSocketServer = new BuildWebSocketServer();
+// Use globalThis to ensure singleton survives Next.js bundling
+// Without this, API routes get a different instance than server.ts
+declare global {
+  // eslint-disable-next-line no-var
+  var __buildWebSocketServer: BuildWebSocketServer | undefined;
+}
+
+// Create singleton on globalThis to share across all bundles
+if (!globalThis.__buildWebSocketServer) {
+  globalThis.__buildWebSocketServer = new BuildWebSocketServer();
+}
+
+export const buildWebSocketServer = globalThis.__buildWebSocketServer;
 

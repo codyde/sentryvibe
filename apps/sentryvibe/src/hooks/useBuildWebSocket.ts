@@ -32,12 +32,21 @@ interface UseBuildWebSocketOptions {
   enabled?: boolean;
 }
 
+interface AutoFixState {
+  projectId: string;
+  errorMessage: string;
+  isStarting: boolean;
+  startedAt: Date;
+}
+
 interface UseBuildWebSocketReturn {
   state: GenerationState | null;
+  autoFixState: AutoFixState | null;
   isConnected: boolean;
   isReconnecting: boolean;
   error: Error | null;
   reconnect: () => void;
+  clearAutoFixState: () => void;
   sentryTrace: { trace?: string; baggage?: string } | null; // Current trace context from last WebSocket message
 }
 
@@ -49,6 +58,7 @@ export function useBuildWebSocket({
   enabled = true,
 }: UseBuildWebSocketOptions): UseBuildWebSocketReturn {
   const [state, setState] = useState<GenerationState | null>(null);
+  const [autoFixState, setAutoFixState] = useState<AutoFixState | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -62,6 +72,13 @@ export function useBuildWebSocket({
   const MAX_RECONNECT_ATTEMPTS = 10;
   const BASE_RECONNECT_DELAY = 1000; // 1 second
   const MAX_RECONNECT_DELAY = 30000; // 30 seconds
+
+  /**
+   * Clear the auto-fix state (called when auto-fix session takes over)
+   */
+  const clearAutoFixState = useCallback(() => {
+    setAutoFixState(null);
+  }, []);
   
   /**
    * Calculate reconnect delay with exponential backoff
@@ -135,11 +152,26 @@ export function useBuildWebSocket({
       if (data.sessions && data.sessions.length > 0) {
         const latestSession = data.sessions[0];
         if (latestSession.hydratedState) {
-          if (DEBUG) console.log('[useBuildWebSocket] State hydrated successfully');
-          
           // Normalize dates in the hydrated state
-          const normalizedState = normalizeDates(latestSession.hydratedState);
-          setState(normalizedState as GenerationState);
+          const normalizedState = normalizeDates(latestSession.hydratedState) as GenerationState;
+          
+          console.log('[useBuildWebSocket] Hydration check:', {
+            buildId: normalizedState.id,
+            isActive: normalizedState.isActive,
+            todosCount: normalizedState.todos?.length ?? 0,
+            hasSummary: !!normalizedState.buildSummary,
+          });
+          
+          // GUARD: Don't restore completed builds as active state
+          // This can happen if the session was completed but not properly marked in DB
+          // Only set state if the build is actually active
+          if (normalizedState.isActive) {
+            console.log('[useBuildWebSocket] ✅ Hydrating active build');
+            setState(normalizedState);
+          } else {
+            console.log('[useBuildWebSocket] ⏭️ Skipping hydration of completed build');
+            // Don't set state - completed builds belong in serverBuilds/buildHistory
+          }
         }
       }
     } catch (err) {
@@ -183,6 +215,7 @@ export function useBuildWebSocket({
           activeTodoIndex: -1,
           isActive: true,
           startTime: new Date(),
+          planningTools: [],
         };
       }
       
@@ -190,90 +223,173 @@ export function useBuildWebSocket({
       
       for (const update of updates) {
         switch (update.type) {
+          case 'build-started':
+            // Build has started - mark as active
+            if (DEBUG) console.log('[useBuildWebSocket] 🚀 Build started - setting isActive=true');
+            newState.isActive = true;
+            // If this is an auto-fix build starting, clear the pending autofix state
+            if (newState.isAutoFix) {
+              setAutoFixState(null);
+            }
+            break;
+
+          case 'autofix-started':
+            // Auto-fix has been triggered - show immediate feedback
+            const autofixData = update.data as { projectId: string; errorMessage: string };
+            console.log('[useBuildWebSocket] 🔧 Auto-fix started:', autofixData.errorMessage?.slice(0, 100));
+            setAutoFixState({
+              projectId: autofixData.projectId,
+              errorMessage: autofixData.errorMessage,
+              isStarting: true,
+              startedAt: new Date(),
+            });
+            break;
+
+          case 'todos-update':
+            // New todo list from TodoWrite tool
+            const todosData = update.data as {
+              todos: Array<{ content: string; status: string; activeForm?: string }>;
+              activeTodoIndex: number;
+            };
+            if (DEBUG) console.log(`[useBuildWebSocket] Todos update: ${todosData.todos.length} todos, active: ${todosData.activeTodoIndex}`);
+            newState.todos = todosData.todos.map(t => ({
+              content: t.content,
+              status: t.status as 'pending' | 'in_progress' | 'completed',
+              activeForm: t.activeForm || t.content,
+            }));
+            newState.activeTodoIndex = todosData.activeTodoIndex;
+
+            // Clear activePlanningTool when todos arrive (planning phase is over)
+            if (todosData.todos.length > 0 && newState.activePlanningTool) {
+              if (DEBUG) console.log('[useBuildWebSocket] 🏁 Clearing activePlanningTool - planning phase complete');
+              newState.activePlanningTool = undefined;
+            }
+            break;
+
+          case 'build-complete':
+            // Build has completed or failed
+            const completeData = update.data as { status: 'completed' | 'failed'; summary?: string };
+            console.log(`[useBuildWebSocket] 🏁 Build complete received:`, {
+              status: completeData.status,
+              hasSummary: !!completeData.summary,
+              summaryLength: completeData.summary?.length,
+              summaryPreview: completeData.summary?.slice(0, 100),
+            });
+            newState.isActive = false;
+            newState.endTime = new Date();
+            if (completeData.summary) {
+              newState.buildSummary = completeData.summary;
+              console.log(`[useBuildWebSocket] 📝 Set buildSummary on state`);
+            }
+            break;
+
           case 'state-update':
-            // Merge state update and normalize dates
+            // Legacy: Merge state update and normalize dates
             const normalizedUpdate = normalizeDates(update.data);
             newState = {
               ...newState,
               ...normalizedUpdate as Partial<GenerationState>,
             };
             break;
-          
+
           case 'todo-update':
-            // Update todos
+            // Legacy: Update todos
             const todoData = update.data as { todos?: unknown[] };
             if (todoData.todos) {
               newState.todos = todoData.todos as GenerationState['todos'];
             }
             break;
-          
+
           case 'tool-call':
-            // Add or update tool call
+            // Handle tool calls - both planning phase (todoIndex < 0) and execution phase
             const toolData = update.data as {
               id: string;
               name: string;
-              todoIndex: number; // Explicit todo index from server
-              state: 'input-available' | 'output-available';
+              todoIndex: number;
+              state: 'input-streaming' | 'input-available' | 'output-available' | 'error';
               input?: unknown;
+              output?: unknown;
             };
-            
-            // BUG FIX: Use explicit todoIndex from server instead of guessing
-            // If server didn't provide todoIndex, skip this tool (don't default to 0)
-            if (typeof toolData.todoIndex !== 'number' || toolData.todoIndex < 0) {
-              if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} has no valid todoIndex, skipping`);
+
+            if (DEBUG) console.log(`[useBuildWebSocket] 🔧 tool-call: ${toolData.name} (todoIndex=${toolData.todoIndex}, state=${toolData.state})`);
+
+            // Validate todoIndex
+            if (typeof toolData.todoIndex !== 'number') {
+              if (DEBUG) console.warn(`[useBuildWebSocket] ⚠️ Invalid todoIndex for tool ${toolData.name}:`, toolData.todoIndex);
               break;
             }
-            
-            const targetTodoIndex = toolData.todoIndex;
-            
-            if (toolData.state === 'input-available') {
-              // Add new tool call to the EXPLICIT todo index from server
-              const existingTools = newState.toolsByTodo[targetTodoIndex] || [];
-              
-              // Check if tool already exists (prevent duplicates)
-              const exists = existingTools.some(t => t.id === toolData.id);
-              if (exists) {
-                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} already exists in todo[${targetTodoIndex}], skipping duplicate`);
-                break;
+
+            const toolCall = {
+              id: toolData.id,
+              name: toolData.name,
+              input: toolData.input,
+              output: toolData.output,
+              state: toolData.state,
+              startTime: new Date(),
+            };
+
+            // Handle planning phase tools (todoIndex < 0 = before first TodoWrite)
+            if (toolData.todoIndex < 0) {
+              if (DEBUG) console.log(`[useBuildWebSocket] 🎯 Planning phase tool: ${toolData.name} (state=${toolData.state})`);
+
+              // Initialize planningTools array if needed
+              if (!newState.planningTools) {
+                newState.planningTools = [];
               }
-              
-              if (DEBUG) console.log(`[useBuildWebSocket] Adding tool ${toolData.name} to todo[${targetTodoIndex}]`);
-              
+
+              // Check if tool already exists (prevent duplicates)
+              const existingPlanningIndex = newState.planningTools.findIndex(t => t.id === toolData.id);
+
+              if (existingPlanningIndex >= 0) {
+                // Update existing tool (e.g., streaming -> completed)
+                newState.planningTools = newState.planningTools.map(t =>
+                  t.id === toolData.id ? { ...t, ...toolCall, endTime: toolData.state === 'output-available' || toolData.state === 'error' ? new Date() : undefined } : t
+                );
+              } else {
+                // Add new planning tool
+                newState.planningTools = [...newState.planningTools, toolCall];
+              }
+
+              // Capture build plan from ExitPlanMode tool
+              if (toolData.name === 'ExitPlanMode' && toolData.input) {
+                const input = toolData.input as { plan?: string };
+                if (input.plan) {
+                  newState.buildPlan = input.plan;
+                }
+              }
+
+              // Track active planning tool for shimmer animation
+              // KEY FIX: Always set the active tool when we see a new tool (input-available)
+              // Don't clear it on output-available - let the NEXT tool replace it
+              // This ensures the UI always shows the current/latest tool being used
+              if (toolData.state === 'input-streaming' || toolData.state === 'input-available') {
+                if (DEBUG) console.log(`[useBuildWebSocket] ✨ Setting activePlanningTool: ${toolData.name}`);
+                newState.activePlanningTool = toolCall;
+              }
+              // Note: We don't clear activePlanningTool on output-available anymore
+              // The next input-available will replace it, keeping the UI responsive
+              break;
+            }
+
+            // Handle execution phase tools (todoIndex >= 0)
+            const targetTodoIndex = toolData.todoIndex;
+            const existingTools = newState.toolsByTodo[targetTodoIndex] || [];
+
+            // Check if tool already exists (prevent duplicates)
+            const existingIndex = existingTools.findIndex(t => t.id === toolData.id);
+            if (existingIndex >= 0) {
+              break;
+            }
+
+            // Only add completed tools to toolsByTodo (for display in todo list)
+            if (toolData.state === 'output-available' || toolData.state === 'error') {
               newState.toolsByTodo = {
                 ...newState.toolsByTodo,
                 [targetTodoIndex]: [
                   ...existingTools,
-                  {
-                    id: toolData.id,
-                    name: toolData.name,
-                    input: toolData.input,
-                    state: 'input-available',
-                    startTime: new Date(),
-                  },
+                  toolCall,
                 ],
               };
-            } else {
-              // Update existing tool with output in the EXPLICIT todo index
-              const tools = newState.toolsByTodo[targetTodoIndex] || [];
-              const toolIndex = tools.findIndex(t => t.id === toolData.id);
-              
-              if (toolIndex >= 0) {
-                if (DEBUG) console.log(`[useBuildWebSocket] Updating tool ${toolData.id} output in todo[${targetTodoIndex}]`);
-                
-                const updatedTools = [...tools];
-                updatedTools[toolIndex] = {
-                  ...updatedTools[toolIndex],
-                  state: 'output-available',
-                  endTime: new Date(),
-                };
-                
-                newState.toolsByTodo = {
-                  ...newState.toolsByTodo,
-                  [targetTodoIndex]: updatedTools,
-                };
-              } else {
-                if (DEBUG) console.log(`[useBuildWebSocket] Tool ${toolData.id} not found in todo[${targetTodoIndex}] for output update`);
-              }
             }
             break;
         }
@@ -476,10 +592,12 @@ export function useBuildWebSocket({
 
   return {
     state,
+    autoFixState,
     isConnected,
     isReconnecting,
     error,
     reconnect,
+    clearAutoFixState,
     sentryTrace,
   };
 }

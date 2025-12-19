@@ -96,15 +96,25 @@ export async function downloadTemplateWithGit(
     // Update package.json name(s)
     await updatePackageName(targetPath, projectName);
 
+    // Remove hardcoded ports from dev scripts to allow dynamic port allocation
+    await removeHardcodedPorts(targetPath);
+
+    // Ensure vite.config has PORT env var support for Vite-based projects
+    await ensureVitePortConfig(targetPath);
+
     // Handle multi-package projects (like vite-react-node with client/server)
     const clientPkgPath = join(targetPath, 'client', 'package.json');
     const serverPkgPath = join(targetPath, 'server', 'package.json');
 
     if (existsSync(clientPkgPath)) {
       await updatePackageName(join(targetPath, 'client'), `${projectName}-client`);
+      await removeHardcodedPorts(join(targetPath, 'client'));
+      await ensureVitePortConfig(join(targetPath, 'client'));
     }
     if (existsSync(serverPkgPath)) {
       await updatePackageName(join(targetPath, 'server'), `${projectName}-server`);
+      await removeHardcodedPorts(join(targetPath, 'server'));
+      await ensureVitePortConfig(join(targetPath, 'server'));
     }
 
     return targetPath;
@@ -153,6 +163,126 @@ async function updatePackageName(projectPath: string, newName: string): Promise<
     if (process.env.DEBUG_BUILD === '1') console.log(`   Updated package.json name to: ${newName}`);
   } catch (error) {
     console.warn(`   Failed to update package.json:`, error);
+  }
+}
+
+/**
+ * Remove hardcoded ports from dev scripts to allow dynamic port allocation
+ * This ensures projects respect PORT environment variable instead of hardcoded values
+ */
+async function removeHardcodedPorts(projectPath: string): Promise<void> {
+  const pkgPath = join(projectPath, 'package.json');
+
+  if (!existsSync(pkgPath)) {
+    return;
+  }
+
+  try {
+    const content = await readFile(pkgPath, 'utf-8');
+    const pkg = JSON.parse(content);
+
+    if (!pkg.scripts) return;
+
+    let modified = false;
+    const scriptsToFix = ['dev', 'start', 'serve', 'preview'];
+
+    for (const scriptName of scriptsToFix) {
+      if (pkg.scripts[scriptName]) {
+        const original = pkg.scripts[scriptName];
+        // Remove hardcoded port patterns like --port 3000, -p 3000, --port=3000
+        const fixed = original
+          .replace(/\s+--port[=\s]+\d+/g, '')
+          .replace(/\s+-p[=\s]+\d+/g, '')
+          .replace(/\s+--host\s+[\d.]+/g, '')
+          .replace(/\s+--strictPort/g, '')
+          .trim();
+
+        if (fixed !== original) {
+          pkg.scripts[scriptName] = fixed;
+          modified = true;
+          if (process.env.DEBUG_BUILD === '1') {
+            console.log(`   Removed hardcoded port from ${scriptName}: "${original}" → "${fixed}"`);
+          }
+        }
+      }
+    }
+
+    if (modified) {
+      await writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+      if (process.env.DEBUG_BUILD === '1') {
+        console.log(`   ✅ Fixed hardcoded ports in package.json scripts`);
+      }
+    }
+  } catch (error) {
+    console.warn(`   Failed to fix hardcoded ports:`, error);
+  }
+}
+
+/**
+ * Ensure vite.config.ts/js has server config that respects PORT environment variable
+ * This is needed for Vite-based frameworks (including TanStack Start) to use dynamic ports
+ */
+async function ensureVitePortConfig(projectPath: string): Promise<void> {
+  const viteConfigTs = join(projectPath, 'vite.config.ts');
+  const viteConfigJs = join(projectPath, 'vite.config.js');
+  const viteConfigMts = join(projectPath, 'vite.config.mts');
+
+  let configPath: string | null = null;
+  if (existsSync(viteConfigTs)) configPath = viteConfigTs;
+  else if (existsSync(viteConfigMts)) configPath = viteConfigMts;
+  else if (existsSync(viteConfigJs)) configPath = viteConfigJs;
+
+  if (!configPath) return;
+
+  try {
+    let content = await readFile(configPath, 'utf-8');
+
+    // Check if server config already has port configuration
+    if (content.includes('process.env.PORT') || content.includes('server:') && content.includes('port:')) {
+      if (process.env.DEBUG_BUILD === '1') {
+        console.log(`   vite.config already has port configuration, skipping`);
+      }
+      return;
+    }
+
+    // Look for existing server config and add port if missing
+    const serverConfigRegex = /server:\s*\{([^}]*)\}/s;
+    const match = content.match(serverConfigRegex);
+
+    // Use port 3200 as fallback (end of our defined range 3101-3200)
+    // This avoids conflicts with sentryvibe (3000) and is within our allocated range
+    const fallbackPort = '3200';
+
+    if (match) {
+      // Server config exists, add port to it
+      const existingConfig = match[1];
+      const newServerConfig = `server: {
+    port: parseInt(process.env.PORT || '${fallbackPort}'),
+    host: '0.0.0.0',${existingConfig}
+  }`;
+      content = content.replace(serverConfigRegex, newServerConfig);
+    } else {
+      // No server config, add it before the closing of defineConfig
+      // Look for the last } before export default or the end
+      const defineConfigMatch = content.match(/(defineConfig\s*\(\s*\{)([\s\S]*?)(\}\s*\))/);
+      if (defineConfigMatch) {
+        const [fullMatch, start, middle, end] = defineConfigMatch;
+        const serverConfig = `
+  server: {
+    port: parseInt(process.env.PORT || '${fallbackPort}'),
+    host: '0.0.0.0',
+  },`;
+        // Add server config at the beginning of the config object
+        content = content.replace(fullMatch, `${start}${serverConfig}${middle}${end}`);
+      }
+    }
+
+    await writeFile(configPath, content);
+    if (process.env.DEBUG_BUILD === '1') {
+      console.log(`   ✅ Updated ${configPath.split('/').pop()} with PORT env var support`);
+    }
+  } catch (error) {
+    console.warn(`   Failed to update vite config for PORT support:`, error);
   }
 }
 

@@ -26,6 +26,8 @@ export function appendRunnerLog(projectId: string, entry: LogEntry) {
   if (buffer.length > MAX_LOG_ENTRIES) {
     buffer.splice(0, buffer.length - MAX_LOG_ENTRIES);
   }
+  
+  console.log(`[log-store] Appended log for project ${projectId}, buffer size: ${buffer.length}, listeners: ${listeners.get(projectId)?.size || 0}`);
 
   const projectListeners = listeners.get(projectId);
   if (projectListeners) {

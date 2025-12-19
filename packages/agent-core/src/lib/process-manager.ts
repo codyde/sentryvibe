@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+import { buildLogger } from './logging/build-logger';
 
 interface DevServerProcess {
   pid: number;
@@ -20,7 +21,7 @@ declare global {
 const runningProcesses = global.__devProcesses || new Map<string, DevServerProcess>();
 global.__devProcesses = runningProcesses;
 
-console.log('🔧 Process manager initialized, current processes:', runningProcesses.size);
+buildLogger.log('info', 'process-manager', 'Process manager initialized', { processCount: runningProcesses.size });
 
 export interface StartDevServerOptions {
   projectId: string;
@@ -48,9 +49,7 @@ export function startDevServer(options: StartDevServerOptions): {
   const emitter = new EventEmitter();
   const logs: string[] = [];
 
-  console.log(`🚀 Starting dev server for ${projectId}`);
-  console.log(`   Command: ${command}`);
-  console.log(`   CWD: ${cwd}`);
+  buildLogger.processManager.processStarting(projectId, command, cwd);
 
   // Spawn process using shell to handle full command
   // Don't split - let shell handle it (supports pipes, &&, env vars, etc)
@@ -73,19 +72,15 @@ export function startDevServer(options: StartDevServerOptions): {
     throw new Error('Failed to start process');
   }
 
-  console.log(`   PID: ${childProcess.pid}`);
-  console.log(`   Process spawned successfully`);
-  console.log(`   stdin connected: ${!!childProcess.stdin}`);
-  console.log(`   stdout connected: ${!!childProcess.stdout}`);
-  console.log(`   stderr connected: ${!!childProcess.stderr}`);
+  buildLogger.processManager.processStarted(projectId, childProcess.pid);
 
   // Keep stdin open but don't write to it (prevents "no tty" exits)
   if (childProcess.stdin) {
     childProcess.stdin.on('error', (err) => {
-      console.log(`[${projectId}] stdin error:`, err.message);
+      buildLogger.log('debug', 'process-manager', `stdin error: ${err.message}`, { projectId });
     });
     childProcess.stdin.on('close', () => {
-      console.log(`[${projectId}] stdin closed`);
+      buildLogger.log('debug', 'process-manager', 'stdin closed', { projectId });
     });
   }
 
@@ -96,7 +91,7 @@ export function startDevServer(options: StartDevServerOptions): {
   childProcess.stdout?.on('data', (data: Buffer) => {
     const text = data.toString().replace(/\u001b\[[0-9;]*m/g, '');
     logs.push(text);
-    console.log(`[${projectId}] stdout:`, text);
+    buildLogger.processManager.processOutput(projectId, text);
 
     // Emit log event
     emitter.emit('log', {
@@ -109,7 +104,7 @@ export function startDevServer(options: StartDevServerOptions): {
     if (!detectedPort) {
       // Skip lines mentioning ports that are "in use" or "busy" (e.g., Vite's "Port 5173 is in use, trying another one...")
       if (text.match(/in use|busy|unavailable|already/i)) {
-        console.log(`   ⏭️  Skipping "in use" port message: ${text.trim()}`);
+        buildLogger.log('debug', 'process-manager', `Skipping "in use" port message: ${text.trim()}`, { projectId });
       } else {
         const sanitized = text;
         const portMatch =
@@ -128,7 +123,7 @@ export function startDevServer(options: StartDevServerOptions): {
           // Validate it's a reasonable port number
           if (port >= 3000 && port <= 65535) {
             detectedPort = port;
-            console.log(`   Port detected: ${detectedPort}`);
+            buildLogger.log('info', 'process-manager', `Port detected: ${detectedPort}`, { projectId, port: detectedPort });
             emitter.emit('port', detectedPort);
           }
         }
@@ -140,7 +135,7 @@ export function startDevServer(options: StartDevServerOptions): {
   childProcess.stderr?.on('data', (data: Buffer) => {
     const text = data.toString().replace(/\u001b\[[0-9;]*m/g, '');
     logs.push(text);
-    console.log(`[${projectId}] stderr:`, text);
+    buildLogger.processManager.processError(projectId, text);
 
     emitter.emit('log', {
       timestamp: new Date(),
@@ -152,40 +147,47 @@ export function startDevServer(options: StartDevServerOptions): {
   // Handle exit
   childProcess.on('exit', (code, signal) => {
     const timeAlive = Date.now() - startTime;
-    console.log(`❌ Process ${projectId} exited`);
-    console.log(`   Exit code: ${code}`);
-    console.log(`   Signal: ${signal}`);
-    console.log(`   Time alive: ${timeAlive}ms`);
-    console.log(`   Expected behavior: Dev servers should NOT exit`);
+    buildLogger.processManager.processExited(projectId, code, signal);
 
     if (timeAlive < 5000) {
-      console.error(`   ⚠️  QUICK EXIT: Process died within 5 seconds - likely a startup error`);
+      buildLogger.log('error', 'process-manager', 'Process died within 5 seconds - likely a startup error', { 
+        projectId, 
+        timeAlive, 
+        code, 
+        signal 
+      });
     }
 
     if (code === 0) {
-      console.error(`   ⚠️  EXIT CODE 0: Process exited cleanly - check if it received exit signal`);
+      buildLogger.log('warn', 'process-manager', 'Process exited cleanly (code 0) - check if it received exit signal', { 
+        projectId, 
+        timeAlive 
+      });
     }
 
     emitter.emit('exit', { code, signal });
     runningProcesses.delete(projectId);
-    console.log(`   Removed from Map. Map size now: ${runningProcesses.size}`);
+    buildLogger.log('debug', 'process-manager', 'Removed from Map', { 
+      projectId, 
+      mapSize: runningProcesses.size 
+    });
   });
 
   // Handle errors
   childProcess.on('error', (error) => {
-    console.error(`❌ Process ${projectId} error:`, error);
+    buildLogger.processManager.error('Process error', error, { projectId });
     emitter.emit('error', error);
     runningProcesses.delete(projectId);
   });
 
   // Handle close event (different from exit)
   childProcess.on('close', (code, signal) => {
-    console.log(`🔒 Process ${projectId} closed (code: ${code}, signal: ${signal})`);
+    buildLogger.log('debug', 'process-manager', 'Process closed', { projectId, code, signal });
   });
 
   // Handle disconnect
   childProcess.on('disconnect', () => {
-    console.log(`🔌 Process ${projectId} disconnected`);
+    buildLogger.log('debug', 'process-manager', 'Process disconnected', { projectId });
   });
 
   // Store in memory
@@ -199,7 +201,7 @@ export function startDevServer(options: StartDevServerOptions): {
   };
 
   runningProcesses.set(projectId, processInfo);
-  console.log(`✅ Stored process in Map. Map size now: ${runningProcesses.size}`);
+  buildLogger.log('debug', 'process-manager', 'Stored process in Map', { projectId, mapSize: runningProcesses.size });
 
   return {
     pid: childProcess.pid,
@@ -227,23 +229,26 @@ export function stopDevServer(projectId: string): boolean {
     }, 2000);
 
     runningProcesses.delete(projectId);
+    buildLogger.processManager.processStopped(projectId);
     return true;
   } catch (error) {
-    console.error('Error stopping process:', error);
+    buildLogger.processManager.error('Error stopping process', error, { projectId });
     return false;
   }
 }
 
 export function getProcessInfo(projectId: string): DevServerProcess | undefined {
   const info = runningProcesses.get(projectId);
-  console.log(`🔍 getProcessInfo(${projectId}):`, !!info);
-  console.log(`   Map size: ${runningProcesses.size}`);
-  console.log(`   Map keys:`, Array.from(runningProcesses.keys()));
+  buildLogger.log('debug', 'process-manager', `getProcessInfo(${projectId})`, { 
+    found: !!info, 
+    mapSize: runningProcesses.size,
+    mapKeys: Array.from(runningProcesses.keys())
+  });
   return info;
 }
 
 export function getAllProcesses(): Map<string, DevServerProcess> {
-  console.log(`📋 getAllProcesses: ${runningProcesses.size} processes`);
+  buildLogger.processManager.processListRetrieved(runningProcesses.size);
   return runningProcesses;
 }
 

@@ -12,8 +12,8 @@ export interface ToolCall {
   name: string;
   input?: unknown;
   output?: unknown;
-  state: 'input-streaming' | 'input-available' | 'output-available';
-  startTime: Date;
+  state: 'input-streaming' | 'input-available' | 'output-available' | 'error';
+  startTime?: Date;
   endTime?: Date;
 }
 
@@ -27,7 +27,8 @@ export type BuildOperationType =
   | 'initial-build'
   | 'enhancement'
   | 'focused-edit'
-  | 'continuation';
+  | 'continuation'
+  | 'autofix';
 
 export type CodexPhaseId =
   | 'prompt-analysis'
@@ -108,6 +109,13 @@ export interface GenerationState {
   stateVersion?: number; // Monotonic version counter for reconnect reconciliation
   buildSummary?: string; // Final build summary text
   source?: 'local' | 'database'; // Track where this state came from to prevent duplicates
+  // Planning phase tracking - tool calls before first TodoWrite
+  planningTools?: ToolCall[];
+  activePlanningTool?: ToolCall; // Currently executing planning tool (for shimmer display)
+  buildPlan?: string; // The implementation plan from ExitPlanMode
+  // Auto-fix tracking - for sessions triggered by startup/runtime errors
+  isAutoFix?: boolean; // Flag indicating this is an auto-fix session
+  autoFixError?: string; // The error message that triggered the auto-fix
 }
 
 export type GenerationEvent =

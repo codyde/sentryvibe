@@ -4,7 +4,7 @@ import { join } from 'path';
 
 export interface InitPromptAnswers {
   workspace: string;
-  brokerUrl: string;
+  wsUrl: string;
   apiUrl: string;
   secret: string;
   runnerId: string;
@@ -35,15 +35,15 @@ export class Prompts {
       },
       {
         type: 'input',
-        name: 'brokerUrl',
-        message: 'Broker WebSocket URL:',
-        default: 'ws://localhost:4000/socket', // Default to local
+        name: 'wsUrl',
+        message: 'Server WebSocket URL:',
+        default: 'ws://localhost:3000/ws/runner', // Direct connection to Next.js
         validate: (input: string) => {
           if (!input || input.trim() === '') {
-            return 'Broker URL is required';
+            return 'WebSocket URL is required';
           }
           if (!input.startsWith('ws://') && !input.startsWith('wss://')) {
-            return 'Broker URL must start with ws:// or wss://';
+            return 'WebSocket URL must start with ws:// or wss://';
           }
           return true;
         },

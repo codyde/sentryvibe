@@ -20,7 +20,6 @@ import { LogFileManager } from '../ui/log-file-manager.js';
 
 interface StartOptions {
   port?: string;
-  brokerPort?: string;
   noTui?: boolean; // Disable TUI, use traditional logs
   dev?: boolean; // Use development mode (hot reload)
   rebuild?: boolean; // Rebuild services before starting
@@ -153,11 +152,9 @@ export async function startCommand(options: StartOptions) {
 
   // Step 4: Clean up zombie processes
   const webPort = Number(options.port || '3000');
-  const brokerPort = Number(options.brokerPort || '4000');
 
   s.start('Checking for port conflicts');
   await killProcessOnPort(webPort);
-  await killProcessOnPort(brokerPort);
   s.stop(pc.green('✓') + ' Ports available');
 
   // Step 5: Create ServiceManager, LogFileManager, and Console Interceptor FIRST
@@ -169,7 +166,7 @@ export async function startCommand(options: StartOptions) {
   // Start intercepting IMMEDIATELY before anything else can print
   consoleInterceptor.start();
 
-  const sharedSecret = config.broker?.secret || 'dev-secret';
+  const sharedSecret = configManager.getSecret() || 'dev-secret';
 
   // Hook up service manager output to log file (for child process logs)
   serviceManager.on('service:output', (name, output, stream) => {
@@ -183,7 +180,7 @@ export async function startCommand(options: StartOptions) {
   // Clear screen for clean TUI start
   console.clear();
 
-  // Register web app
+  // Register web app (now handles runner WebSocket connections directly)
   // Default to production mode unless --dev flag is present
   const webCommand = options.dev ? 'dev' : 'start';
   serviceManager.register({
@@ -197,29 +194,9 @@ export async function startCommand(options: StartOptions) {
       PORT: String(webPort),
       DATABASE_URL: config.databaseUrl!,
       RUNNER_SHARED_SECRET: sharedSecret,
-      RUNNER_BROKER_URL: `ws://localhost:${brokerPort}/socket`,
-      RUNNER_BROKER_HTTP_URL: `http://localhost:${brokerPort}`,
       WORKSPACE_ROOT: config.workspace,
       RUNNER_ID: config.runner?.id || 'local',
       RUNNER_DEFAULT_ID: config.runner?.id || 'local',
-    },
-  });
-
-  // Register broker
-  // Default to production mode unless --dev flag is present
-  const brokerCommand = options.dev ? 'dev' : 'start';
-  serviceManager.register({
-    name: 'broker',
-    displayName: 'Broker',
-    port: brokerPort,
-    command: 'pnpm',
-    args: ['--filter', 'sentryvibe-broker', brokerCommand],
-    cwd: monorepoRoot,
-    env: {
-      PORT: String(brokerPort),
-      BROKER_PORT: String(brokerPort),
-      RUNNER_SHARED_SECRET: sharedSecret,
-      RUNNER_EVENT_TARGET_URL: `http://localhost:${webPort}`,
     },
   });
 
@@ -296,12 +273,9 @@ export async function startCommand(options: StartOptions) {
 
   // Step 7: Start services
   try {
-    // Start web and broker (runner will be started separately)
+    // Start web app (runner will be started separately)
     await serviceManager.start('web');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    await serviceManager.start('broker');
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for WebSocket server to initialize
 
     // Mark runner as starting
     const runnerService = serviceManager['services'].get('runner');
@@ -320,9 +294,9 @@ export async function startCommand(options: StartOptions) {
       serviceManager.emit('service:status-change', 'runner', 'running');
     }
 
-    // Start runner and get cleanup function
+    // Start runner and get cleanup function - connects directly to Next.js WebSocket
     runnerCleanupFn = await startRunner({
-      brokerUrl: `ws://localhost:${brokerPort}/socket`,
+      wsUrl: `ws://localhost:${webPort}/ws/runner`,
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,

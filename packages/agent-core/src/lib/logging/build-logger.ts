@@ -5,7 +5,7 @@
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type LogContext = 'runner' | 'orchestrator' | 'transformer' | 'codex-query' | 'claude-query' | 'build';
+export type LogContext = 'runner' | 'orchestrator' | 'transformer' | 'codex-query' | 'claude-query' | 'build' | 'websocket' | 'port-allocator' | 'process-manager' | 'build-events';
 
 interface LogEntry {
   timestamp: string;
@@ -81,7 +81,27 @@ class BuildLogger {
       logFn(`${icon} ${prefix} ${message}`);
     }
 
-    // Future: Could integrate with Sentry breadcrumbs or structured logging service
+    // Send warn and error logs to Sentry as breadcrumbs for better debugging
+    if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {
+      try {
+        // Only import Sentry if we're in a Node environment
+        const Sentry = require('@sentry/node');
+        if (level === 'warn' || level === 'error') {
+          Sentry.addBreadcrumb({
+            category: `build-logger.${context}`,
+            message,
+            level: level === 'error' ? 'error' : 'warning',
+            data: {
+              ...data,
+              buildId: this.buildId,
+              projectId: this.projectId,
+            },
+          });
+        }
+      } catch {
+        // Silently fail if Sentry is not available - don't break logging
+      }
+    }
   }
 
   /**
@@ -372,6 +392,231 @@ class BuildLogger {
 
     runCommandDetected: (runCommand: string) =>
       this.log('info', 'build', `Detected runCommand: ${runCommand}`, { runCommand }),
+  };
+
+  /**
+   * WebSocket-specific logging methods
+   */
+  websocket = {
+    serverCreated: (instanceId: string) =>
+      this.log('info', 'websocket', `WebSocket server instance created`, { instanceId }),
+
+    serverInitialized: (path: string, runnerPath: string) =>
+      this.log('info', 'websocket', `Server initialized`, { path, runnerPath }),
+
+    clientConnected: (clientId: string, projectId?: string, sessionId?: string) =>
+      this.log('info', 'websocket', `Client connected: ${clientId}`, { clientId, projectId, sessionId }),
+
+    clientDisconnected: (clientId: string) =>
+      this.log('info', 'websocket', `Client disconnected: ${clientId}`, { clientId }),
+
+    clientSubscribed: (clientId: string, projectId: string) =>
+      this.log('info', 'websocket', `Client subscribed to project: ${projectId}`, { clientId, projectId }),
+
+    clientTimeout: (clientId: string) =>
+      this.log('warn', 'websocket', `Client timeout: ${clientId}`, { clientId }),
+
+    runnerConnected: (runnerId: string) =>
+      this.log('info', 'websocket', `Runner connected: ${runnerId}`, { runnerId }),
+
+    runnerDisconnected: (runnerId: string, code: number) =>
+      this.log('info', 'websocket', `Runner disconnected: ${runnerId}`, { runnerId, code }),
+
+    runnerNotConnected: (runnerId: string, commandType: string) =>
+      this.log('warn', 'websocket', `Cannot send command to runner ${runnerId}: not connected`, { 
+        runnerId, 
+        commandType 
+      }),
+
+    runnerAuthRejected: () =>
+      this.log('warn', 'websocket', `Runner connection rejected: invalid auth`),
+
+    runnerAuthMissing: () =>
+      this.log('error', 'websocket', `RUNNER_SHARED_SECRET is not configured`),
+
+    runnerStaleRemoved: (runnerId: string) =>
+      this.log('info', 'websocket', `Removing stale runner connection: ${runnerId}`, { runnerId }),
+
+    commandSent: (runnerId: string, commandType: string, traceAttached: boolean) =>
+      this.log('debug', 'websocket', `Sent command to runner: ${commandType}`, { 
+        runnerId, 
+        commandType, 
+        traceAttached 
+      }),
+
+    eventReceived: (runnerId: string, eventType: string) =>
+      this.log('debug', 'websocket', `Received event from runner: ${eventType}`, { 
+        runnerId, 
+        eventType 
+      }),
+
+    broadcastToolCall: (toolName: string, toolState: string, subscriberCount: number) =>
+      this.log('info', 'websocket', `Broadcasting planning tool: ${toolName} (state=${toolState})`, { 
+        toolName, 
+        toolState, 
+        subscriberCount 
+      }),
+
+    broadcastBuildComplete: (projectId: string, sessionId: string, subscriberCount: number) =>
+      this.log('info', 'websocket', `Broadcasting build-complete`, { 
+        projectId, 
+        sessionId, 
+        subscriberCount 
+      }),
+
+    unknownUpgradePath: (pathname: string) =>
+      this.log('warn', 'websocket', `Unknown upgrade path: ${pathname}`, { pathname }),
+
+    shutdown: () =>
+      this.log('info', 'websocket', `Shutting down server...`),
+
+    shutdownComplete: () =>
+      this.log('info', 'websocket', `Server shut down`),
+
+    error: (message: string, error: unknown, context?: Record<string, unknown>) =>
+      this.log('error', 'websocket', message, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        ...context,
+      }),
+  };
+
+  /**
+   * Port allocator-specific logging methods
+   */
+  portAllocator = {
+    portAllocated: (port: number, projectId: string) =>
+      this.log('info', 'port-allocator', `Port allocated: ${port}`, { port, projectId }),
+
+    portReleased: (port: number, projectId: string) =>
+      this.log('info', 'port-allocator', `Port released: ${port}`, { port, projectId }),
+
+    portInUse: (port: number) =>
+      this.log('warn', 'port-allocator', `Port ${port} is already in use`, { port }),
+
+    portRangeExhausted: (minPort: number, maxPort: number) =>
+      this.log('error', 'port-allocator', `No available ports in range ${minPort}-${maxPort}`, { 
+        minPort, 
+        maxPort 
+      }),
+
+    portConflict: (port: number, projectId: string, existingProjectId: string) =>
+      this.log('warn', 'port-allocator', `Port ${port} conflict detected`, { 
+        port, 
+        projectId, 
+        existingProjectId 
+      }),
+
+    allocationsCleared: (count: number) =>
+      this.log('info', 'port-allocator', `Cleared ${count} port allocations`, { count }),
+
+    error: (message: string, error: unknown, context?: Record<string, unknown>) =>
+      this.log('error', 'port-allocator', message, {
+        error: error instanceof Error ? error.message : String(error),
+        ...context,
+      }),
+  };
+
+  /**
+   * Process manager-specific logging methods
+   */
+  processManager = {
+    processStarting: (projectId: string, command: string, cwd: string) =>
+      this.log('info', 'process-manager', `Starting process: ${command}`, { 
+        projectId, 
+        command, 
+        cwd 
+      }),
+
+    processStarted: (projectId: string, pid: number) =>
+      this.log('info', 'process-manager', `Process started`, { projectId, pid }),
+
+    processOutput: (projectId: string, output: string) =>
+      this.log('debug', 'process-manager', `Process output: ${output.substring(0, 100)}`, { 
+        projectId, 
+        outputLength: output.length 
+      }),
+
+    processError: (projectId: string, error: string) =>
+      this.log('error', 'process-manager', `Process error: ${error}`, { projectId, error }),
+
+    processExited: (projectId: string, code: number | null, signal: string | null) =>
+      this.log('info', 'process-manager', `Process exited`, { projectId, code, signal }),
+
+    processStopped: (projectId: string) =>
+      this.log('info', 'process-manager', `Process stopped`, { projectId }),
+
+    processNotFound: (projectId: string) =>
+      this.log('warn', 'process-manager', `Process not found for project: ${projectId}`, { projectId }),
+
+    processKilled: (projectId: string, signal: string) =>
+      this.log('info', 'process-manager', `Process killed with signal: ${signal}`, { 
+        projectId, 
+        signal 
+      }),
+
+    processCleanup: (projectId: string) =>
+      this.log('info', 'process-manager', `Cleaning up process`, { projectId }),
+
+    processListRetrieved: (count: number) =>
+      this.log('debug', 'process-manager', `Retrieved ${count} running processes`, { count }),
+
+    error: (message: string, error: unknown, context?: Record<string, unknown>) =>
+      this.log('error', 'process-manager', message, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        ...context,
+      }),
+  };
+
+  /**
+   * Build events-specific logging methods
+   */
+  buildEvents = {
+    eventReceived: (eventType: string, projectId: string, sessionId?: string) =>
+      this.log('info', 'build-events', `Received event: ${eventType}`, { 
+        eventType, 
+        projectId, 
+        sessionId 
+      }),
+
+    eventProcessed: (eventType: string, projectId: string) =>
+      this.log('debug', 'build-events', `Processed event: ${eventType}`, { eventType, projectId }),
+
+    buildStarted: (projectId: string, sessionId: string) =>
+      this.log('info', 'build-events', `Build started`, { projectId, sessionId }),
+
+    buildCompleted: (projectId: string, sessionId: string, success: boolean) =>
+      this.log('info', 'build-events', `Build ${success ? 'completed' : 'failed'}`, { 
+        projectId, 
+        sessionId, 
+        success 
+      }),
+
+    portDetected: (projectId: string, port: number) =>
+      this.log('info', 'build-events', `Port detected: ${port}`, { projectId, port }),
+
+    devServerStarted: (projectId: string, port: number, url: string) =>
+      this.log('info', 'build-events', `Dev server started: ${url}`, { projectId, port, url }),
+
+    devServerError: (projectId: string, error: string) =>
+      this.log('error', 'build-events', `Dev server error: ${error}`, { projectId, error }),
+
+    toolCallReceived: (toolName: string, toolId: string) =>
+      this.log('debug', 'build-events', `Tool call: ${toolName}`, { toolName, toolId }),
+
+    logChunkReceived: (projectId: string, chunkSize: number) =>
+      this.log('debug', 'build-events', `Log chunk received`, { projectId, chunkSize }),
+
+    invalidEvent: (reason: string) =>
+      this.log('warn', 'build-events', `Invalid event: ${reason}`, { reason }),
+
+    error: (message: string, error: unknown, context?: Record<string, unknown>) =>
+      this.log('error', 'build-events', message, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        ...context,
+      }),
   };
 }
 

@@ -11,6 +11,8 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const stream = searchParams.get('stream') === 'true';
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
+    
+    console.log(`[logs API] GET /api/projects/${id}/logs - stream=${stream}, limit=${limit}`);
 
     if (stream) {
       // Streaming logs using Server-Sent Events
@@ -26,6 +28,9 @@ export async function GET(
           // Send existing logs
           const existingLogs = getRunnerLogs(id);
           console.log(`   Sending ${existingLogs.length} existing log entries (runner)`);
+          if (existingLogs.length === 0) {
+            console.log(`   ⚠️ No existing logs found for project ${id}`);
+          }
 
           for (const log of existingLogs) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'log', data: log.data, stream: log.type })}\n\n`));

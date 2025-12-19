@@ -21,6 +21,14 @@
       "types": "./dist/lib/agents/index.d.ts",
       "default": "./dist/lib/agents/index.js"
     },
+    "./lib/runner/broker-state": {
+      "types": "./dist/lib/runner/broker-state.d.ts",
+      "default": "./dist/lib/runner/broker-state.js"
+    },
+    "./lib/runner/event-stream": {
+      "types": "./dist/lib/runner/event-stream.d.ts",
+      "default": "./dist/lib/runner/event-stream.js"
+    },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"

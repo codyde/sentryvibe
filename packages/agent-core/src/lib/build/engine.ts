@@ -630,6 +630,51 @@ function buildEnhancementPrompt(params: {
   selectedTemplate: Template | null;
 }) {
   const { project, fileTree, prompt, projectsDir, projectName, selectedTemplate } = params;
+
+  // Check if this is an error-fixing request
+  const isErrorFix = /error|bug|fix|broken|crash|fail|issue|problem|not working|doesn't work/i.test(prompt);
+
+  const errorFixInstructions = isErrorFix ? `
+═══════════════════════════════════════════════════════════════════
+🔧 ERROR FIX MODE - VERIFY BEFORE COMPLETING
+═══════════════════════════════════════════════════════════════════
+
+⚠️  CRITICAL: The user reported an error. You MUST verify it's fixed! ⚠️
+
+**ERROR FIXING WORKFLOW:**
+
+1. **Understand the Error**
+   - Read the error message carefully
+   - Identify the root cause (not just symptoms)
+   - Find ALL files that could be related
+
+2. **Make the Fix**
+   - Apply targeted changes to fix the root cause
+   - Don't just suppress the error - actually fix it
+
+3. **VERIFY THE FIX (MANDATORY)**
+   - Run \`npm run build\` or \`npm run dev\` to check for errors
+   - Look at the terminal output for any remaining errors
+   - If the SAME error appears: you didn't fix it, try again
+   - If NEW errors appear: fix those too before completing
+
+4. **ITERATE UNTIL FIXED**
+   - DO NOT declare success until verification passes
+   - DO NOT say "I've fixed the error" without running build/dev
+   - Keep iterating until the app runs without errors
+
+**WRONG ❌:**
+- Make a code change → "Fixed! The error should be resolved now"
+- Make a change → Mark todo complete → Stop
+
+**RIGHT ✅:**
+- Make a code change → Run npm run build/dev → Check output
+- If errors remain → Make another fix → Verify again
+- Only mark complete AFTER verification shows no errors
+
+NEVER declare an error fixed without verification output proving it works!
+` : '';
+
   return `You are enhancing an existing project with new features or changes.
 
 🔄 ENHANCEMENT MODE
@@ -643,12 +688,13 @@ ${fileTree}
 
 **User's Request:**
 "${prompt}"
-
+${errorFixInstructions}
 **Your Task:**
 1. Review the existing code structure
 2. Make the requested changes/additions
 3. Update or add files as needed
-4. Test if necessary
+4. VERIFY your changes work by running the dev server or build
+5. If errors remain, iterate until they're fixed
 
 This is an EXISTING project - modify what's there, don't recreate from scratch!
 
@@ -795,6 +841,32 @@ The template is already downloaded. Follow this sequence:
 6. Mark final todo as complete
 ` : ''}
 
-After completing all tasks, you MUST test by starting the dev server, then stop it before marking work complete!
+═══════════════════════════════════════════════════════════════════
+🔄 VERIFICATION & ITERATION - MANDATORY
+═══════════════════════════════════════════════════════════════════
+
+⚠️  CRITICAL: Always verify your changes actually work! ⚠️
+
+**BEFORE marking ANY work complete:**
+1. Run \`npm run dev\` or \`npm run build\` to verify
+2. Check terminal output for errors
+3. If errors exist: FIX THEM before completing
+4. Only declare success AFTER seeing clean output
+
+**ERROR ITERATION LOOP:**
+- If you see errors → Make a fix → Verify again
+- Repeat until output is clean
+- NEVER stop while errors remain
+- NEVER say "should work now" without verifying
+
+**What to look for in terminal output:**
+✅ "compiled successfully"
+✅ "ready in"
+✅ Server running on port
+❌ "error"
+❌ "failed"
+❌ Stack traces
+
+After completing all tasks, you MUST test by starting the dev server, check output for errors, and iterate until clean!
 `;
 }

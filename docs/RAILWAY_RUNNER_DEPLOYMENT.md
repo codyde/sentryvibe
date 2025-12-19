@@ -11,22 +11,23 @@ This guide walks through deploying a SentryVibe runner as a Railway service with
 │ Railway Project: sentryvibe                             │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│  ┌──────────────┐   ┌───────────┐   ┌───────────────┐  │
-│  │  Web Service │   │  Broker   │   │ Runner Service│  │
-│  │  (Next.js)   │   │ (Express) │   │               │  │
-│  │  Port 3000   │   │ Port 4000 │   │ Health: 8080  │  │
-│  │              │───▶│           │◀──│ WS Client     │  │
-│  │ Public URL   │   │ Public URL│   │ Volume: /data │  │
-│  └──────────────┘   └───────────┘   └───────────────┘  │
+│  ┌──────────────────────────┐   ┌───────────────────┐  │
+│  │    Web Service           │   │  Runner Service   │  │
+│  │    (Next.js)             │   │                   │  │
+│  │    Port 3000             │   │  Health: 8080     │  │
+│  │                          │◀──│  WS Client        │  │
+│  │    Public URL            │   │  Volume: /data    │  │
+│  │    WebSocket: /ws/runner │   │                   │  │
+│  └──────────────────────────┘   └───────────────────┘  │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
 **Key Points:**
-- Runner connects to broker via **public WebSocket URL**
+- Runner connects directly to web app via **WebSocket at /ws/runner**
 - Runner needs **persistent volume** at `/data/workspace`
 - Health checks on port **8080** (HTTP)
-- Uses same `RUNNER_SHARED_SECRET` as broker
+- Uses same `RUNNER_SHARED_SECRET` as web app
 
 ---
 
@@ -34,7 +35,6 @@ This guide walks through deploying a SentryVibe runner as a Railway service with
 
 1. **Existing Railway Project** with:
    - Web service (sentryvibe Next.js app) - deployed
-   - Broker service (sentryvibe-broker) - deployed
    - Shared secret configured (`RUNNER_SHARED_SECRET`)
 
 2. **GitHub Repository** pushed with latest changes
@@ -117,11 +117,11 @@ Add these to the runner service (Railway Settings → Variables):
 # Runner Identity (unique per instance)
 RUNNER_ID=railway-runner-prod
 
-# Authentication (must match broker's secret)
+# Authentication (must match web app's secret)
 RUNNER_SHARED_SECRET=${{shared.RUNNER_SHARED_SECRET}}
 
-# Broker Connection (use your broker's public URL)
-RUNNER_BROKER_URL=wss://your-broker.up.railway.app/socket
+# WebSocket Connection (use your web app's public URL)
+RUNNER_WS_URL=wss://your-app.up.railway.app/ws/runner
 
 # API Endpoint (use your web app's public URL)
 API_BASE_URL=https://your-app.up.railway.app
@@ -153,15 +153,11 @@ ANTHROPIC_API_KEY=${{shared.ANTHROPIC_API_KEY}}
 
 ### **How to Get Your URLs:**
 
-1. **Broker URL:**
-   - Go to broker service → Settings → Domains
-   - Copy the Railway-provided domain
-   - Format: `wss://[your-broker-domain].railway.app/socket`
-
-2. **Web App URL:**
+1. **Web App URL:**
    - Go to web service → Settings → Domains
    - Copy the Railway-provided domain
-   - Format: `https://[your-app-domain].railway.app`
+   - WebSocket URL format: `wss://[your-app-domain].railway.app/ws/runner`
+   - API URL format: `https://[your-app-domain].railway.app`
 
 ---
 
@@ -182,9 +178,8 @@ openssl rand -base64 32
 ```
 
 This same secret must be used by:
-- Broker service
+- Web app
 - Runner service(s)
-- Web app (if calling runner APIs directly)
 
 ---
 
@@ -205,8 +200,7 @@ This same secret must be used by:
 [runner] workspace root: /data/workspace
 [runner] api base url: https://your-app.railway.app
 [runner] runner id: railway-runner-prod
-🤝 Connecting to broker: wss://your-broker.railway.app/socket
-🎉 Connected to broker!
+✅ connected to server wss://your-app.railway.app/ws/runner
 [runner] ⏱️  Heartbeat sent: railway-runner-prod
 ```
 
@@ -306,13 +300,11 @@ To add more runners (e.g., for different regions or load distribution):
    RUNNER_ID=railway-runner-us-west
    ```
 3. **Add separate volume** (each runner needs its own)
-4. **Same broker/API URLs**
+4. **Same WebSocket/API URLs** (all connect to same web app)
 
 ### Load Distribution
 
-Runners self-register with the broker when they connect. The web app's runner selector dropdown will show all connected runners. Users can choose which runner to use for each project.
-
-**Future Enhancement**: Implement automatic load balancing in broker (distribute commands round-robin across healthy runners).
+Runners self-register with the web app when they connect via WebSocket. The web app's runner selector dropdown will show all connected runners. Users can choose which runner to use for each project.
 
 ---
 
@@ -321,15 +313,14 @@ Runners self-register with the broker when they connect. The web app's runner se
 ### Issue: Runner Not Appearing in UI
 
 **Check:**
-1. Runner logs show "Connected to broker"
-2. Broker logs show runner connection
+1. Runner logs show "connected to server"
+2. Web app logs show runner connection
 3. `RUNNER_SHARED_SECRET` matches between services
 4. WebSocket URL is correct (wss:// not ws://)
 
 **Debug:**
 ```bash
 railway logs --service runner | grep -i "connect\|error"
-railway logs --service broker | grep -i "runner\|connect"
 ```
 
 ### Issue: "No workspace directory" Error
@@ -374,8 +365,8 @@ Make sure it's defined in shared variables.
 ### Issue: Runner Keeps Disconnecting
 
 **Check:**
-1. Broker heartbeat timeout (90 seconds)
-2. Runner ping/pong working (30 second interval)
+1. WebSocket heartbeat (30 second ping interval)
+2. Runner ping/pong working
 3. Network stability
 
 **Railway logs:**
@@ -408,8 +399,8 @@ railway run --service runner -- du -sh /data/workspace/*
 ### Recommended Setup:
 
 - **1 runner for personal use**: ~$10/month
-- **2-3 runners for team**: ~$25-35/month
-- **Scaled fleet (5+)**: $50+/month
+- **2-3 runners for team**: ~$20-30/month
+- **Scaled fleet (5+)**: $40+/month
 
 Compare to running locally:
 - Local runner: $0 (uses your machine)
@@ -436,11 +427,11 @@ Railway can deploy multiple replicas of the same service, but:
 
 ### Internal Networking (Future)
 
-Currently the runner uses **public URLs** to reach broker/API. In the future, you could use Railway's private networking:
+Currently the runner uses **public URLs** to reach web app. In the future, you could use Railway's private networking:
 
 ```env
 # Instead of public URLs:
-RUNNER_BROKER_URL=ws://broker.railway.internal:4000/socket
+RUNNER_WS_URL=ws://web.railway.internal:3000/ws/runner
 API_BASE_URL=http://web.railway.internal:3000
 ```
 
@@ -495,8 +486,7 @@ railway service restart --service runner
 
 Before deploying to Railway, ensure:
 
-- [x] Broker is deployed and healthy
-- [x] Web app is deployed with database
+- [x] Web app is deployed with database and WebSocket server
 - [x] Shared secret is configured
 - [x] Volume is created (10GB minimum)
 - [x] Environment variables are set
@@ -522,9 +512,9 @@ After deployment:
 - Never commit to Git
 
 ### 2. **API Authentication**
-- Runner uses Bearer token for all API calls
-- Broker validates token on connection
-- Web app validates runner requests
+- Runner uses Bearer token for WebSocket connections
+- Web app validates token on connection
+- Invalid tokens rejected with close code 1008
 
 ### 3. **Workspace Isolation**
 - Each project in separate directory
@@ -532,7 +522,7 @@ After deployment:
 - Files owned by container user
 
 ### 4. **Network Security**
-- Runner only connects outbound (to broker)
+- Runner only connects outbound (to web app)
 - No inbound connections except health checks
 - Tunnel traffic routed through Cloudflare
 
@@ -570,7 +560,6 @@ Once your Railway runner is deployed and healthy:
 
 **Issues?**
 - Check Railway logs: `railway logs --service runner`
-- Check broker logs: `railway logs --service broker`
 - Review health endpoint: `https://[runner-url].railway.app/health`
 - GitHub Issues: https://github.com/codyde/sentryvibe/issues
 

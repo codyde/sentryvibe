@@ -1,7 +1,9 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { createServer } from 'net';
+import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
+import { join } from 'path';
 
 // Silent mode for TUI
 let isSilentMode = false;
@@ -69,7 +71,7 @@ async function callAPI(endpoint: string, options: RequestInit = {}) {
 
     return await response.json();
   } catch (error) {
-    console.error(`API call to ${endpoint} failed:`, error);
+    buildLogger.log('error', 'process-manager', `API call to ${endpoint} failed`, { error: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 }
@@ -95,94 +97,131 @@ interface DevServerProcess {
   lastHealthCheck?: Date;
   stopReason?: string;
   failureReason?: FailureReason;
+  earlyStderr?: string; // Capture stderr from first 5 seconds for debugging
+  hasExited?: boolean; // Track if process has exited
 }
 
 const activeProcesses = new Map<string, DevServerProcess>();
 
 /**
  * Check if a port is in use (listening)
- * Binds to 0.0.0.0 to match dev servers that bind to all interfaces
+ * Tries both localhost and 0.0.0.0 to catch servers bound to either interface
  */
 export async function checkPortInUse(port: number): Promise<boolean> {
+  // Try localhost first (most common for dev servers)
+  const localhostInUse = await checkSingleAddress(port, 'localhost');
+  if (localhostInUse) {
+    return true;
+  }
+  
+  // Then try 0.0.0.0
+  return checkSingleAddress(port, '0.0.0.0');
+}
+
+/**
+ * Check if a port is in use on a specific address
+ */
+function checkSingleAddress(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
     
     server.once('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        if (!isSilentMode) {
-          console.log(`[process-manager] 🔍 Port ${port} is IN USE (EADDRINUSE)`);
-        }
+        buildLogger.log('debug', 'process-manager', `Port ${port} is IN USE on ${host}`, { port, host });
         resolve(true); // Port is in use
       } else {
-        if (!isSilentMode) {
-          console.log(`[process-manager] 🔍 Port ${port} check error: ${err.code}`);
-        }
+        buildLogger.log('debug', 'process-manager', `Port ${port} check error on ${host}: ${err.code}`, { port, host, code: err.code });
         resolve(false);
       }
     });
     
     server.once('listening', () => {
-      if (!isSilentMode) {
-        console.log(`[process-manager] 🔍 Port ${port} is FREE (we could bind to it)`);
-      }
+      buildLogger.log('debug', 'process-manager', `Port ${port} is FREE on ${host}`, { port, host });
       server.close();
       resolve(false); // Port is free
     });
     
-    // Bind to 0.0.0.0 to match dev servers (not just localhost)
-    server.listen(port, '0.0.0.0');
+    server.listen(port, host);
   });
 }
 
 /**
  * Verify server health after start
  * @param port - Port to check
- * @param maxAttempts - Maximum number of health check attempts (default: 60)
+ * @param projectId - Project ID to check process status
+ * @param maxAttempts - Maximum number of health check attempts (default: 10)
  * @returns Health check result
  */
-async function verifyServerHealth(port: number, maxAttempts = 60): Promise<{
+async function verifyServerHealth(
+  port: number,
+  projectId?: string,
+  maxAttempts = 10
+): Promise<{
   healthy: boolean;
   error?: string;
 }> {
   if (!isSilentMode) {
-    console.log(`[process-manager] Starting health check for port ${port}...`);
+    buildLogger.log('debug', 'process-manager', `Starting health check for port ${port}`, { port });
   }
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
+      // Check if process has exited during health check
+      if (projectId) {
+        const devProcess = activeProcesses.get(projectId);
+        if (devProcess?.hasExited) {
+          let errorMsg = `Process exited during health check (after ${i}s)`;
+          if (devProcess.earlyStderr) {
+            errorMsg += `\n\nProcess stderr:\n${devProcess.earlyStderr}`;
+          }
+          return {
+            healthy: false,
+            error: errorMsg,
+          };
+        }
+      }
+
       // Check if port is listening
       const isListening = await checkPortInUse(port);
-      
+
       if (!isListening) {
         // Port is still free, server hasn't started yet
         if (!isSilentMode && i % 5 === 0) {
-          console.log(`[process-manager] Waiting for port ${port} to be listening... (${i}s)`);
+          buildLogger.log('debug', 'process-manager', `Waiting for port ${port} to be listening... (${i}s)`, { port, seconds: i });
         }
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
-      
+
       // Port is listening! For dev servers, this is good enough.
       // Many frameworks (Astro, Vite, Next) listen on the port but continue
       // building/bundling before serving HTTP requests.
       // Waiting for HTTP responses can cause false timeouts.
-      
+
       if (!isSilentMode) {
-        console.log(`[process-manager] ✅ Health check passed - port ${port} is listening (after ${i}s)`);
+        buildLogger.log('info', 'process-manager', `Health check passed - port ${port} is listening (after ${i}s)`, { port, seconds: i });
       }
       return { healthy: true };
-      
     } catch (error) {
-      return { 
-        healthy: false, 
-        error: `Health check failed: ${error instanceof Error ? error.message : String(error)}` 
+      return {
+        healthy: false,
+        error: `Health check failed: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
   }
-  
-  return { 
-    healthy: false, 
-    error: `Server failed to start listening on port ${port} within ${maxAttempts} seconds` 
+
+  // Health check timed out - include stderr if available
+  let errorMsg = `Server failed to start listening on port ${port} within ${maxAttempts} seconds`;
+  if (projectId) {
+    const devProcess = activeProcesses.get(projectId);
+    if (devProcess?.earlyStderr) {
+      errorMsg += `\n\nProcess stderr:\n${devProcess.earlyStderr}`;
+    }
+  }
+
+  return {
+    healthy: false,
+    error: errorMsg,
   };
 }
 
@@ -250,9 +289,7 @@ function classifyStartupError(error: unknown, processInfo: Partial<DevServerProc
 export function startDevServer(options: DevServerOptions): DevServerProcess {
   const { projectId, command, cwd, env } = options;
 
-  if (!isSilentMode) console.log(`[process-manager] Starting dev server for project: ${projectId}`);
-  if (!isSilentMode) console.log(`[process-manager] Command: ${command}`);
-  if (!isSilentMode) console.log(`[process-manager] CWD: ${cwd}`);
+  buildLogger.processManager.processStarting(projectId, command, cwd);
 
   // Stop any existing process for this project
   stopDevServer(projectId);
@@ -262,7 +299,7 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
   // Verify CWD exists
   if (!existsSync(cwd)) {
     const error = new Error(`Working directory does not exist: ${cwd}`);
-    console.error(`[process-manager]`, error.message);
+    buildLogger.processManager.error('Failed to spawn process', error, { projectId });
     emitter.emit('error', error);
     // Return a dummy process since we can't spawn
     return {
@@ -286,7 +323,9 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     shell: '/bin/bash', // Explicitly use bash instead of default shell
   });
 
-  if (!isSilentMode) console.log(`[process-manager] Child process spawned, PID: ${childProcess.pid}`);
+  if (childProcess.pid) {
+    buildLogger.processManager.processStarted(projectId, childProcess.pid);
+  }
 
   const devProcess: DevServerProcess = {
     projectId,
@@ -315,12 +354,16 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       }),
     })
       .then(() => {
-        if (!isSilentMode) console.log(`[process-manager] ✅ Registered process via API: PID ${childProcess.pid}, Runner ${runnerId}`);
+        buildLogger.log('info', 'process-manager', `Registered process via API: PID ${childProcess.pid}, Runner ${runnerId}`, { pid: childProcess.pid, runnerId, projectId });
       })
       .catch((err: unknown) => {
-        console.error(`[process-manager] ❌ Failed to register process via API:`, err);
+        buildLogger.log('error', 'process-manager', 'Failed to register process via API', { error: err instanceof Error ? err.message : String(err), projectId });
       });
   }
+
+  // Capture early stderr for debugging (first 5 seconds)
+  const stderrBuffer: string[] = [];
+  const captureWindow = 5000; // 5 seconds
 
   // Handle stdout - just forward logs (port is pre-allocated by API)
   childProcess.stdout?.on('data', (data: Buffer) => {
@@ -328,33 +371,61 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     emitter.emit('log', { type: 'stdout', data: text });
   });
 
-  // Handle stderr
+  // Handle stderr - capture early output for debugging
   childProcess.stderr?.on('data', (data: Buffer) => {
-    emitter.emit('log', { type: 'stderr', data: data.toString() });
+    const text = data.toString();
+
+    // Capture stderr from first 5 seconds for debugging startup failures
+    if (Date.now() - devProcess.startedAt.getTime() < captureWindow) {
+      stderrBuffer.push(text);
+      devProcess.earlyStderr = stderrBuffer.join('');
+    }
+
+    emitter.emit('log', { type: 'stderr', data: text });
   });
 
   // Handle exit
   childProcess.on('exit', (code, signal) => {
+    // Mark as exited
+    devProcess.hasExited = true;
+
     // Update state based on exit
     if (code === 0 || devProcess.state === ProcessState.STOPPING) {
       devProcess.state = ProcessState.STOPPED;
     } else {
       devProcess.state = ProcessState.FAILED;
-      
+
       // Classify the failure
       const classification = classifyStartupError(
         new Error(`Process exited with code ${code}, signal ${signal}`),
         devProcess
       );
       devProcess.failureReason = classification.reason;
-      
+
       if (!isSilentMode) {
-        console.error(`[process-manager] ❌ ${classification.message}`);
-        console.error(`[process-manager]    Suggestion: ${classification.suggestion}`);
+        buildLogger.log('error', 'process-manager', classification.message, { 
+          reason: classification.reason,
+          suggestion: classification.suggestion,
+          projectId 
+        });
+
+        // Log captured stderr if available and process failed quickly
+        if (devProcess.earlyStderr && Date.now() - devProcess.startedAt.getTime() < 10000) {
+          buildLogger.log('error', 'process-manager', 'Process stderr output', { 
+            stderr: devProcess.earlyStderr,
+            projectId 
+          });
+        }
       }
     }
-    
-    emitter.emit('exit', { code, signal });
+
+    emitter.emit('exit', { 
+      code, 
+      signal, 
+      state: devProcess.state,
+      failureReason: devProcess.failureReason,
+      stderr: devProcess.earlyStderr || undefined,
+    });
     activeProcesses.delete(projectId);
 
     // Unregister process via API
@@ -362,10 +433,10 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
       method: 'DELETE',
     })
       .then(() => {
-        if (!isSilentMode) console.log(`[process-manager] ✅ Unregistered process via API`);
+        buildLogger.log('info', 'process-manager', 'Unregistered process via API', { projectId });
       })
       .catch((err: unknown) => {
-        console.error(`[process-manager] ❌ Failed to unregister process via API:`, err);
+        buildLogger.log('error', 'process-manager', 'Failed to unregister process via API', { error: err instanceof Error ? err.message : String(err), projectId });
       });
   });
 
@@ -377,8 +448,11 @@ export function startDevServer(options: DevServerOptions): DevServerProcess {
     const classification = classifyStartupError(error, devProcess);
     devProcess.failureReason = classification.reason;
     
-    console.error(`[process-manager] ❌ Process error for ${projectId}: ${classification.message}`);
-    console.error(`[process-manager]    Suggestion: ${classification.suggestion}`);
+    buildLogger.log('error', 'process-manager', `Process error: ${classification.message}`, { 
+      reason: classification.reason,
+      suggestion: classification.suggestion,
+      projectId 
+    });
     
     emitter.emit('error', error);
   });
@@ -409,7 +483,7 @@ export async function stopDevServer(
   }
 
   if (!isSilentMode) {
-    console.log(`[process-manager] Stopping dev server for ${projectId} (reason: ${reason})`);
+    buildLogger.log('info', 'process-manager', `Stopping dev server for ${projectId} (reason: ${reason})`, { projectId, reason });
   }
 
   // Update state to STOPPING
@@ -420,17 +494,17 @@ export async function stopDevServer(
   const tunnelPort = port || devProcess.port;
   if (tunnelManager && tunnelPort) {
     try {
-      if (!isSilentMode) console.log(`[process-manager] Closing tunnel for port ${tunnelPort}...`);
+      buildLogger.log('info', 'process-manager', `Closing tunnel for port ${tunnelPort}`, { port: tunnelPort, projectId });
       await tunnelManager.closeTunnel(tunnelPort);
       devProcess.tunnelUrl = undefined;
     } catch (error) {
-      console.error(`[process-manager] Failed to close tunnel:`, error);
+      buildLogger.log('error', 'process-manager', 'Failed to close tunnel', { error: error instanceof Error ? error.message : String(error), projectId });
       // Continue anyway - we still need to stop the process
     }
   }
 
   // Step 2: Send SIGTERM for graceful shutdown
-  if (!isSilentMode) console.log(`[process-manager] Sending SIGTERM to PID ${devProcess.process.pid}`);
+  buildLogger.log('info', 'process-manager', `Sending SIGTERM to PID ${devProcess.process.pid}`, { pid: devProcess.process.pid, projectId });
   devProcess.process.kill('SIGTERM');
 
   // Step 3: Wait for exit with timeout
@@ -446,7 +520,7 @@ export async function stopDevServer(
 
   // Step 4: Force kill if still running
   if (devProcess.process.exitCode === null && !devProcess.process.killed) {
-    console.warn(`[process-manager] Process ${projectId} didn't exit gracefully, sending SIGKILL`);
+    buildLogger.log('warn', 'process-manager', `Process ${projectId} didn't exit gracefully, sending SIGKILL`, { projectId });
     devProcess.process.kill('SIGKILL');
     // Wait a bit for SIGKILL to take effect
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -455,37 +529,183 @@ export async function stopDevServer(
   // Step 5: Cleanup
   activeProcesses.delete(projectId);
   
-  if (!isSilentMode) console.log(`[process-manager] ✅ Stopped dev server for ${projectId}`);
+  buildLogger.processManager.processStopped(projectId);
   
   return true;
+}
+
+/**
+ * Attempt to fix port configuration in package.json
+ * Looks for --port flags in dev/start scripts and replaces with correct port
+ * @param cwd - Working directory where package.json is located
+ * @param targetPort - The port we want to use
+ * @returns true if package.json was modified, false otherwise
+ */
+function fixPackageJsonPort(cwd: string, targetPort: number): boolean {
+  const packageJsonPath = join(cwd, 'package.json');
+  
+  if (!existsSync(packageJsonPath)) {
+    buildLogger.log('debug', 'process-manager', 'No package.json found to fix', { cwd });
+    return false;
+  }
+
+  try {
+    const content = readFileSync(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(content);
+    
+    if (!packageJson.scripts) {
+      buildLogger.log('debug', 'process-manager', 'No scripts section in package.json', { cwd });
+      return false;
+    }
+
+    let modified = false;
+    const scripts = packageJson.scripts;
+
+    // Common script names that might have port configurations
+    const scriptNames = ['dev', 'start', 'serve', 'preview'];
+    
+    for (const scriptName of scriptNames) {
+      if (scripts[scriptName]) {
+        const originalScript = scripts[scriptName];
+        let newScript = originalScript;
+
+        // Pattern 1: --port 3000 or --port=3000
+        const portFlagPattern = /--port[=\s]+\d+/g;
+        if (portFlagPattern.test(originalScript)) {
+          newScript = originalScript.replace(portFlagPattern, `--port ${targetPort}`);
+          modified = true;
+          buildLogger.log('info', 'process-manager', 
+            `Fixed --port flag in ${scriptName} script`, 
+            { scriptName, oldScript: originalScript, newScript }
+          );
+        }
+
+        // Pattern 2: -p 3000 or -p=3000 (short form, common in some frameworks)
+        const shortPortPattern = /-p[=\s]+\d+/g;
+        if (shortPortPattern.test(originalScript)) {
+          newScript = newScript.replace(shortPortPattern, `-p ${targetPort}`);
+          modified = true;
+          buildLogger.log('info', 'process-manager', 
+            `Fixed -p flag in ${scriptName} script`, 
+            { scriptName, oldScript: originalScript, newScript }
+          );
+        }
+
+        // Pattern 3: PORT=3000 (environment variable inline)
+        const envPortPattern = /PORT=\d+/g;
+        if (envPortPattern.test(originalScript)) {
+          newScript = newScript.replace(envPortPattern, `PORT=${targetPort}`);
+          modified = true;
+          buildLogger.log('info', 'process-manager', 
+            `Fixed PORT env var in ${scriptName} script`, 
+            { scriptName, oldScript: originalScript, newScript }
+          );
+        }
+
+        scripts[scriptName] = newScript;
+      }
+    }
+
+    if (modified) {
+      // Write back with pretty formatting
+      const updatedContent = JSON.stringify(packageJson, null, 2) + '\n';
+      writeFileSync(packageJsonPath, updatedContent, 'utf-8');
+      buildLogger.log('info', 'process-manager', 
+        'Successfully updated package.json with correct port', 
+        { cwd, targetPort }
+      );
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    buildLogger.log('error', 'process-manager', 
+      'Failed to fix package.json port', 
+      { error: error instanceof Error ? error.message : String(error), cwd }
+    );
+    return false;
+  }
 }
 
 /**
  * Run health check on a dev server and update state
  * @param projectId - Project ID to health check
  * @param port - Port to check
- * @returns Health check result
+ * @returns Health check result including whether port was fixed
  */
 export async function runHealthCheck(projectId: string, port: number): Promise<{
   healthy: boolean;
   error?: string;
+  portFixed?: boolean;
 }> {
   const devProcess = activeProcesses.get(projectId);
   if (!devProcess) {
-    return { healthy: false, error: 'Process not found' };
+    return { healthy: false, error: 'Process not found', portFixed: false };
   }
 
-  const result = await verifyServerHealth(port);
-  
+  const result = await verifyServerHealth(port, projectId);
+
   if (result.healthy) {
     devProcess.state = ProcessState.RUNNING;
     devProcess.lastHealthCheck = new Date();
+    return { healthy: true, portFixed: false };
   } else {
+    // Health check failed - try to fix package.json port configuration
+    buildLogger.log('error', 'process-manager', 
+      `Health check failed after maximum retries`, 
+      { projectId, port, error: result.error }
+    );
+    
+    // Attempt to fix port in package.json
+    buildLogger.log('info', 'process-manager', 
+      `Attempting to fix port configuration in package.json`, 
+      { projectId, port, cwd: devProcess.cwd }
+    );
+    
+    const portFixed = fixPackageJsonPort(devProcess.cwd, port);
+    
+    if (portFixed) {
+      buildLogger.log('info', 'process-manager', 
+        `Port configuration fixed in package.json, preparing to retry`, 
+        { projectId, port }
+      );
+    } else {
+      buildLogger.log('warn', 'process-manager', 
+        `Could not automatically fix port configuration`, 
+        { projectId, port }
+      );
+    }
+    
+    // Mark as failed and kill the process
     devProcess.state = ProcessState.FAILED;
     devProcess.failureReason = FailureReason.HEALTH_CHECK_FAILED;
+    
+    // Kill the process since it's not responding properly
+    if (devProcess.process && !devProcess.hasExited) {
+      buildLogger.log('info', 'process-manager', 
+        `Killing failed process`, 
+        { projectId }
+      );
+      devProcess.process.kill('SIGTERM');
+      
+      // Give it 2 seconds to die gracefully, then SIGKILL
+      setTimeout(() => {
+        if (devProcess.process && !devProcess.hasExited) {
+          buildLogger.log('warn', 'process-manager', 
+            `Process didn't exit after health check failure, sending SIGKILL`, 
+            { projectId }
+          );
+          devProcess.process.kill('SIGKILL');
+        }
+      }, 2000);
+    }
+
+    return { 
+      healthy: false, 
+      error: result.error,
+      portFixed 
+    };
   }
-  
-  return result;
 }
 
 /**

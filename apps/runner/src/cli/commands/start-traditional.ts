@@ -1,6 +1,6 @@
 /**
  * Enhanced start command with graceful shutdown and better error handling
- * Starts the full stack: Web App + Broker + Runner
+ * Starts the full stack: Web App + Runner (no broker - runner connects directly)
  */
 
 import { spawn, ChildProcess } from 'child_process';
@@ -16,7 +16,6 @@ import { shutdownHandler } from '../index.js';
 
 interface StartOptions {
   port?: string;
-  brokerPort?: string;
   dev?: boolean; // Use development mode (hot reload)
   rebuild?: boolean; // Rebuild services before starting
 }
@@ -138,11 +137,9 @@ export async function startCommand(options: StartOptions) {
 
   // Step 4: Clean up zombie processes
   const webPort = Number(options.port || '3000');
-  const brokerPort = Number(options.brokerPort || '4000');
 
   s.start('Checking for port conflicts');
   await killProcessOnPort(webPort);
-  await killProcessOnPort(brokerPort);
   s.stop(pc.green('✓') + ' Ports available');
 
   console.log();
@@ -150,7 +147,7 @@ export async function startCommand(options: StartOptions) {
   console.log();
 
   const processes: ManagedProcess[] = [];
-  const sharedSecret = config.broker?.secret || 'dev-secret';
+  const sharedSecret = configManager.getSecret() || 'dev-secret';
 
   // Register cleanup with shutdown handler
   shutdownHandler.onShutdown(async () => {
@@ -183,8 +180,8 @@ export async function startCommand(options: StartOptions) {
   });
 
   try {
-    // Start Web App
-    console.log(pc.cyan('1/3'), 'Starting web app...');
+    // Start Web App (now handles runner WebSocket connections directly)
+    console.log(pc.cyan('1/2'), 'Starting web app...');
     // Default to production mode unless --dev flag is present
     const webCommand = options.dev ? 'dev' : 'start';
     const webApp = spawn('pnpm', ['--filter', 'sentryvibe', webCommand], {
@@ -196,8 +193,6 @@ export async function startCommand(options: StartOptions) {
         PORT: String(webPort),
         DATABASE_URL: config.databaseUrl,
         RUNNER_SHARED_SECRET: sharedSecret,
-        RUNNER_BROKER_URL: `ws://localhost:${brokerPort}/socket`,
-        RUNNER_BROKER_HTTP_URL: `http://localhost:${brokerPort}`,
         WORKSPACE_ROOT: config.workspace,
         RUNNER_ID: config.runner?.id || 'local',
         RUNNER_DEFAULT_ID: config.runner?.id || 'local',
@@ -230,57 +225,11 @@ export async function startCommand(options: StartOptions) {
       }
     });
 
-    // Wait for web app to initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Start Broker
-    console.log(pc.cyan('2/3'), 'Starting broker...');
-    // Default to production mode unless --dev flag is present
-    const brokerCommand = options.dev ? 'dev' : 'start';
-    const broker = spawn('pnpm', ['--filter', 'sentryvibe-broker', brokerCommand], {
-      cwd: monorepoRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      env: {
-        ...process.env,
-        PORT: String(brokerPort),
-        BROKER_PORT: String(brokerPort),
-        RUNNER_SHARED_SECRET: sharedSecret,
-        RUNNER_EVENT_TARGET_URL: `http://localhost:${webPort}`,
-      },
-    });
-
-    processes.push({ name: 'Broker', process: broker, port: brokerPort });
-    shutdownHandler.registerProcess(broker);
-
-    // Handle broker output
-    broker.stdout?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (text) {
-        console.log(pc.green('[broker]'), text);
-      }
-    });
-
-    broker.stderr?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (text && !text.includes('warn') && !text.includes('deprecated')) {
-        console.log(pc.yellow('[broker]'), text);
-      }
-    });
-
-    broker.on('exit', (code) => {
-      // Exit codes 0, 130 (SIGINT), and 143 (SIGTERM) are normal shutdown
-      if (code !== 0 && code !== null && code !== 130 && code !== 143) {
-        console.error(pc.red('✗'), `Broker crashed with code ${code}`);
-        process.exit(1);
-      }
-    });
-
-    // Wait for broker to initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for web app and WebSocket server to initialize
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Start Runner
-    console.log(pc.cyan('3/3'), 'Starting runner...');
+    console.log(pc.cyan('2/2'), 'Starting runner...');
     console.log();
 
     // Success message
@@ -288,16 +237,15 @@ export async function startCommand(options: StartOptions) {
     console.log();
     console.log(pc.bold('Services running:'));
     console.log(`  ${pc.blue('Web App:')} http://localhost:${webPort}`);
-    console.log(`  ${pc.green('Broker:')} http://localhost:${brokerPort}`);
-    console.log(`  ${pc.magenta('Runner:')} Connected to broker`);
+    console.log(`  ${pc.magenta('Runner:')} Connected to web app`);
     console.log();
     console.log(pc.dim(`Press ${pc.cyan('Ctrl+C')} to stop all services`));
     console.log();
 
-    // Start runner (blocks until shutdown)
+    // Start runner (blocks until shutdown) - connects directly to Next.js WebSocket
     const { startRunner } = await import('../../index.js');
     await startRunner({
-      brokerUrl: `ws://localhost:${brokerPort}/socket`,
+      wsUrl: `ws://localhost:${webPort}/ws/runner`,
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,

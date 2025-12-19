@@ -766,9 +766,10 @@ Create `.env.local`:
 ```env
 # Runner Configuration
 RUNNER_ID=default
-RUNNER_BROKER_URL=ws://localhost:4000/socket
+RUNNER_WS_URL=ws://localhost:3000/ws/runner
 RUNNER_SHARED_SECRET=your-secret-here
 WORKSPACE_ROOT=/Users/yourname/sentryvibe-workspace
+API_BASE_URL=http://localhost:3000
 
 # Sentry Configuration
 SENTRY_DSN=your-sentry-dsn

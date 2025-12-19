@@ -26,16 +26,13 @@ Size: 10 GB
 ```env
 RUNNER_ID=railway-runner-prod
 RUNNER_SHARED_SECRET=${{shared.RUNNER_SHARED_SECRET}}
-RUNNER_BROKER_URL=wss://YOUR-BROKER-DOMAIN.up.railway.app/socket
+RUNNER_WS_URL=wss://YOUR-WEB-APP-DOMAIN.up.railway.app/ws/runner
 API_BASE_URL=https://YOUR-WEB-APP-DOMAIN.up.railway.app
 WORKSPACE_ROOT=/data/workspace
 NODE_ENV=production
 HEALTH_PORT=8080
 ANTHROPIC_API_KEY=${{shared.ANTHROPIC_API_KEY}}
 ```
-
-**Get YOUR-BROKER-DOMAIN:**
-- Go to broker service → Settings → Domains → Copy the `.railway.app` URL
 
 **Get YOUR-WEB-APP-DOMAIN:**
 - Go to web service → Settings → Domains → Copy the `.railway.app` URL
@@ -53,7 +50,7 @@ railway logs --service runner
 
 # Should see:
 # ✅ Health endpoint listening on port 8080
-# 🎉 Connected to broker!
+# ✅ connected to server wss://your-app.railway.app/ws/runner
 # [runner] ⏱️  Heartbeat sent: railway-runner-prod
 ```
 
@@ -69,10 +66,10 @@ railway logs --service runner
 
 | Problem | Solution |
 |---------|----------|
-| Runner not in dropdown | Check `RUNNER_BROKER_URL` and `RUNNER_SHARED_SECRET` |
+| Runner not in dropdown | Check `RUNNER_WS_URL` and `RUNNER_SHARED_SECRET` |
 | "No workspace directory" | Verify volume mounted at `/data/workspace` |
 | Builds fail immediately | Check `ANTHROPIC_API_KEY` is set |
-| Runner keeps reconnecting | Check broker URL has `wss://` (not `ws://`) |
+| Runner keeps reconnecting | Check WebSocket URL has `wss://` (not `ws://`) |
 
 ---
 

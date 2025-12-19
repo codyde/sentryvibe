@@ -1,72 +1,56 @@
+/**
+ * Runner Communication Module
+ * 
+ * Provides functions to send commands to runners and query runner status.
+ * Commands are sent directly via WebSocket connections managed by buildWebSocketServer.
+ * 
+ * NOTE: This module was previously named "broker-state" when it communicated via
+ * a separate broker service. It now communicates directly with runners through
+ * the WebSocket server, but keeps the same API for backward compatibility.
+ */
+
 import type { RunnerCommand } from '../../shared/runner/messages';
-import * as Sentry from '@sentry/node';
+import { buildWebSocketServer } from '../websocket/server';
 
-const BROKER_HTTP_URL = process.env.RUNNER_BROKER_HTTP_URL ?? 'http://localhost:4000';
-const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
-
-function getHeaders() {
-  if (!SHARED_SECRET) {
-    throw new Error('RUNNER_SHARED_SECRET is not configured');
-  }
-  
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${SHARED_SECRET}`,
-  };
-  
-  // Propagate trace context for distributed tracing (frontend → broker → runner)
-  // This allows seeing the full chain: API request → Runner → AI calls
-  // 
-  // Note: This may capture trace from concurrent Next.js routes, but runner's
-  // forceTransaction:true creates a NEW transaction, preventing grouping while
-  // maintaining the parent-child link for distributed tracing views.
-  const traceData = Sentry.getTraceData();
-  if (traceData['sentry-trace']) {
-    headers['sentry-trace'] = traceData['sentry-trace'];
-    if (traceData.baggage) {
-      headers['baggage'] = traceData.baggage;
-    }
-  }
-  
-  return headers;
-}
-
+/**
+ * Send a command to a specific runner via WebSocket
+ * 
+ * @param runnerId - The ID of the runner to send the command to
+ * @param command - The command to send
+ * @throws Error if runner is not connected or command fails to send
+ */
 export async function sendCommandToRunner(runnerId: string, command: RunnerCommand) {
-  const response = await fetch(`${BROKER_HTTP_URL.replace(/\/$/, '')}/commands`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify({ runnerId, command }),
-  });
-
-  if (!response.ok) {
-    const message = await safeJson(response);
-    throw new Error(message?.error ?? `Failed to dispatch command (${response.status})`);
+  const success = buildWebSocketServer.sendCommandToRunner(runnerId, command);
+  
+  if (!success) {
+    throw new Error(`Runner '${runnerId}' is not connected`);
   }
 }
 
+/**
+ * List all connected runners with their status
+ * 
+ * @returns Array of connected runners with heartbeat information
+ */
 export async function listRunnerConnections() {
-  try {
-    const response = await fetch(`${BROKER_HTTP_URL.replace(/\/$/, '')}/status`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json().catch(() => ({ connections: [] }));
-    return data.connections ?? [];
-  } catch (error) {
-    console.error('Failed to fetch runner status:', error);
-    return [];
-  }
+  return buildWebSocketServer.listRunnerConnections();
 }
 
-async function safeJson(response: Response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
+/**
+ * Check if a specific runner is connected
+ * 
+ * @param runnerId - The ID of the runner to check
+ * @returns true if runner is connected and ready
+ */
+export function isRunnerConnected(runnerId: string): boolean {
+  return buildWebSocketServer.isRunnerConnected(runnerId);
+}
+
+/**
+ * Get runner connection metrics
+ * 
+ * @returns Metrics about runner connections (events, commands, errors)
+ */
+export function getRunnerMetrics() {
+  return buildWebSocketServer.getRunnerMetrics();
 }

@@ -26,15 +26,16 @@ Sentry.init({
   replaysOnErrorSampleRate: 1.0,
 
   // Debug mode for testing
-  debug: true,
+  debug: false,
 
   tracePropagationTargets: [
     'localhost',
-    'localhost:4000',
     /^\/api\//,
     /^https?:\/\/localhost:\d+$/,
   ],
 });
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
 
 // Log client-side Sentry initialization
 console.log('✅ [Sentry Client] Initialized');

@@ -18,10 +18,8 @@
     "build:agent-core": "turbo run build --filter=@sentryvibe/agent-core",
     "start": "turbo run start --filter=sentryvibe",
     "start:all": "turbo run start",
-    "start:broker": "turbo run start --filter=sentryvibe-broker",
     "lint": "turbo run lint",
     "dev:all": "turbo run dev",
-    "broker": "turbo run dev --filter=sentryvibe-broker",
     "runner": "turbo run dev --filter=@sentryvibe/runner-cli",
     "local:prod": "turbo run build && turbo run start --filter=sentryvibe"
   },

@@ -17,6 +17,7 @@ interface TransformerState {
   messageStarted: boolean;
   expectedCwd?: string;
   commandMetadata: Map<string, { command?: string }>;
+  toolNames: Map<string, string>; // Track tool names by tool call ID
 }
 
 // Track state across transformations
@@ -24,6 +25,7 @@ let transformerState: TransformerState = {
   currentMessageId: null,
   messageStarted: false,
   commandMetadata: new Map(),
+  toolNames: new Map(),
 };
 
 export function resetTransformerState() {
@@ -31,6 +33,7 @@ export function resetTransformerState() {
     currentMessageId: null,
     messageStarted: false,
     commandMetadata: new Map(),
+    toolNames: new Map(),
   };
 }
 
@@ -248,6 +251,9 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
           // Detect path violations
           detectPathViolations(block.name, block.input, transformerState.expectedCwd);
 
+          // Store tool name for later retrieval when output arrives
+          transformerState.toolNames.set(block.id, block.name);
+
           // Send tool input with available state
           events.push({
             type: 'tool-input-available',
@@ -307,11 +313,20 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
             }
           }
 
+          // Retrieve stored tool name for this tool call
+          const toolName = transformerState.toolNames.get(block.tool_use_id);
+
           events.push({
             type: 'tool-output-available',
             toolCallId: block.tool_use_id,
+            toolName, // Include tool name so API can broadcast to WebSocket
             output: block.content,
           });
+
+          // Clean up tool name after use
+          if (toolName) {
+            transformerState.toolNames.delete(block.tool_use_id);
+          }
 
           const commandMeta = transformerState.commandMetadata.get(toolId);
           if (commandMeta) {

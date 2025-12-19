@@ -36,6 +36,8 @@ export type RunnerEventType =
   | 'file-content'
   | 'file-written'
   | 'file-list'
+  | 'dev-server-error'
+  | 'autofix-started'
   | 'error';
 
 export interface BaseCommand {
@@ -78,6 +80,8 @@ export interface StartBuildCommand extends BaseCommand {
       content: string;
       timestamp: Date;
     }>; // Recent conversation messages for context in enhancements
+    isAutoFix?: boolean; // Flag for auto-fix sessions triggered by startup/runtime errors
+    autoFixError?: string; // The error message that triggered the auto-fix
   };
 }
 
@@ -219,6 +223,9 @@ export interface ProcessExitedEvent extends BaseEvent {
   exitCode: number | null;
   signal: string | null;
   durationMs: number | null;
+  state?: string;
+  failureReason?: string;
+  stderr?: string; // Captured stderr output for immediate crashes
 }
 
 export interface BuildProgressEvent extends BaseEvent {
@@ -314,6 +321,20 @@ export interface ErrorEvent extends BaseEvent {
   stack?: string;
 }
 
+export interface DevServerErrorEvent extends BaseEvent {
+  type: 'dev-server-error';
+  error: string;
+  message: string;
+}
+
+export interface AutoFixStartedEvent extends BaseEvent {
+  type: 'autofix-started';
+  errorType: 'startup' | 'runtime'; // Whether this is a startup crash or runtime error
+  errorMessage: string;
+  attempt: number;
+  maxAttempts: number;
+}
+
 export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
@@ -332,6 +353,8 @@ export type RunnerEvent =
   | FileContentEvent
   | FileWrittenEvent
   | FileListEvent
+  | DevServerErrorEvent
+  | AutoFixStartedEvent
   | ErrorEvent;
 
 export type RunnerMessage = RunnerCommand | RunnerEvent;

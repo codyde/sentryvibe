@@ -192,55 +192,77 @@ export async function GET(
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // Inject base tag and pathname fix FIRST (before ANY content)
-      // CRITICAL: Fix window.location.pathname for TanStack Router BEFORE it initializes
-      const pathFixScript = `<script>
+      // Inject base tag, pathname fix, and request interceptors FIRST (before ANY content)
+      // CRITICAL: These must run before ANY other scripts to intercept Vite's requests
+      const earlyScripts = `<script>
 (function() {
-  try {
-    // Extract actual path from proxy URL
-    const url = new URL(window.location.href);
-    const actualPath = url.searchParams.get('path') || '/';
+  var proxyPrefix = '/api/projects/${id}/proxy?path=';
+  
+  // Helper to check if a path should be proxied
+  function shouldProxy(path) {
+    if (!path || typeof path !== 'string') return false;
+    if (path.includes('/api/projects/')) return false;
+    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//')) return false;
+    if (path.startsWith('/src/') || 
+        path.startsWith('/@') || 
+        path.startsWith('/node_modules/') ||
+        path.startsWith('/_serverFn/') ||
+        path.match(/\\.(css|js|ts|tsx|jsx|mjs|json|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|ico)(\\?.*)?$/i)) {
+      return true;
+    }
+    return false;
+  }
+  
+  function proxyUrl(path) {
+    return proxyPrefix + encodeURIComponent(path);
+  }
 
-    // Use history.replaceState to change pathname without reload
-    // This makes Router see the correct path
+  // Path normalization for TanStack Router
+  try {
+    var url = new URL(window.location.href);
+    var actualPath = url.searchParams.get('path') || '/';
     if (window.location.pathname !== actualPath) {
-      const newUrl = window.location.origin + actualPath + (url.hash || '');
+      var newUrl = window.location.origin + actualPath + (url.hash || '');
       history.replaceState(null, '', newUrl);
     }
   } catch (e) {
     console.warn('[SentryVibe] Path normalization failed:', e);
   }
-})();
-</script>`;
 
-      const baseTag = `<head>
-    ${pathFixScript}
-    <base href="/api/projects/${id}/proxy?path=/">`;
-      if (/<head>/i.test(html)) {
-        html = html.replace(/<head>/i, baseTag);
-      }
-
-      // Inject fetch interceptor for TanStack Start server functions ONLY
-      const fetchInterceptor = `<script>
-(function() {
-  const originalFetch = window.fetch;
-  const proxyPrefix = '/api/projects/${id}/proxy?path=';
-
+  // Fetch interceptor
+  var originalFetch = window.fetch;
   window.fetch = function(resource, options) {
-    // ONLY intercept TanStack Start server functions
-    // Do NOT intercept Vite routes - they're handled by inline script rewriting
-    if (typeof resource === 'string' && resource.startsWith('/_serverFn/')) {
-      const proxiedUrl = proxyPrefix + encodeURIComponent(resource);
-      return originalFetch(proxiedUrl, options);
+    if (typeof resource === 'string' && shouldProxy(resource)) {
+      return originalFetch(proxyUrl(resource), options);
     }
     return originalFetch(resource, options);
+  };
+
+  // XMLHttpRequest interceptor
+  var originalXHROpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    if (typeof url === 'string' && shouldProxy(url)) {
+      arguments[1] = proxyUrl(url);
+    }
+    return originalXHROpen.apply(this, arguments);
+  };
+
+  // Intercept dynamic element creation for link/script/img elements
+  var originalSetAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    if ((name === 'href' || name === 'src') && typeof value === 'string' && shouldProxy(value)) {
+      value = proxyUrl(value);
+    }
+    return originalSetAttribute.call(this, name, value);
   };
 })();
 </script>`;
 
-      // Inject after base tag
-      if (/<base[^>]*>/i.test(html)) {
-        html = html.replace(/(<base[^>]*>)/i, `$1\n${fetchInterceptor}`);
+      const baseTag = `<head>
+    ${earlyScripts}
+    <base href="/api/projects/${id}/proxy?path=/">`;
+      if (/<head>/i.test(html)) {
+        html = html.replace(/<head>/i, baseTag);
       }
 
       // Rewrite src/href attributes that point to absolute root paths
@@ -295,6 +317,7 @@ export async function GET(
 
     // JavaScript/TypeScript - Rewrite imports to go through proxy
     // CRITICAL: Also rewrite CSS imports for TanStack Start
+    // NOTE: In Vite dev mode, .css files return JavaScript (HMR wrapper), not actual CSS
     if (
       contentType.includes('javascript') ||
       contentType.includes('typescript') ||
@@ -303,7 +326,8 @@ export async function GET(
       path.endsWith('.tsx') ||
       path.endsWith('.ts') ||
       path.endsWith('.jsx') ||
-      path.endsWith('.mjs')
+      path.endsWith('.mjs') ||
+      (path.endsWith('.css') && !path.includes('?direct'))
     ) {
       let js = await response.text();
 
@@ -357,8 +381,6 @@ export async function GET(
           (match, prefix, importPath, suffix) => {
             // Skip if already proxied
             if (importPath.includes('/api/projects/')) return match;
-            // Skip CSS files (already handled above)
-            if (importPath.endsWith('.css')) return match;
 
             const proxyUrl = `/api/projects/${id}/proxy?path=${encodeURIComponent(importPath)}`;
             return `${prefix}${proxyUrl}${suffix}`;

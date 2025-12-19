@@ -5,12 +5,11 @@ import {
   generationSessions,
   generationTodos,
   generationToolCalls,
-  generationNotes,
 } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq, desc, inArray, sql } from 'drizzle-orm';
+import { eq, desc, inArray, and, sql } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
-import type { GenerationState, ToolCall, TextMessage, TodoItem } from '@/types/generation';
+import type { GenerationState, ToolCall, TodoItem } from '@/types/generation';
 
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') {
@@ -94,9 +93,8 @@ export async function GET(
 
     const sessionIds = sessions.map(session => session.id);
 
-    // Fix N+1 query issue: Run all queries in parallel instead of sequentially
-    // This significantly improves performance when fetching related data
-    const [todos, toolCalls, notes] = await Promise.all([
+    // Fetch todos and tool calls (notes removed - no longer persisted)
+    const [todos, toolCalls] = await Promise.all([
       sessionIds.length > 0
         ? db
             .select()
@@ -108,39 +106,45 @@ export async function GET(
         ? db
             .select()
             .from(generationToolCalls)
-            .where(inArray(generationToolCalls.sessionId, sessionIds))
-        : Promise.resolve([]),
-      sessionIds.length > 0
-        ? db
-            .select()
-            .from(generationNotes)
-            .where(inArray(generationNotes.sessionId, sessionIds))
-            .orderBy(generationNotes.createdAt)
+            .where(and(
+              inArray(generationToolCalls.sessionId, sessionIds),
+              sql`${generationToolCalls.todoIndex} >= 0`, // No pre-todo tools
+              sql`${generationToolCalls.state} IN ('output-available', 'error')` // Only completed
+            ))
         : Promise.resolve([]),
     ]);
 
     const sessionsWithRelations = sessions.map(session => {
       const sessionTodos = todos.filter(todo => todo.sessionId === session.id);
       const sessionTools = toolCalls.filter(tool => tool.sessionId === session.id);
-      const sessionNotes = notes.filter(note => note.sessionId === session.id);
 
       let hydratedState: GenerationState | null = null;
       let rawStateObj: Record<string, unknown> | null = null;
-      
+
       // Try to parse rawState for metadata extraction
       if (session.rawState) {
         try {
-          rawStateObj = typeof session.rawState === 'string' 
+          rawStateObj = typeof session.rawState === 'string'
             ? JSON.parse(session.rawState)
             : session.rawState as Record<string, unknown>;
         } catch (err) {
           console.warn('[messages-route] Failed to parse rawState:', err);
         }
       }
-      
+
       // Try full deserialization first
       if (session.rawState && typeof session.rawState === 'string') {
         hydratedState = deserializeGenerationState(session.rawState);
+        // Ensure buildSummary from DB is included even if deserialization worked
+        if (hydratedState && session.summary && !hydratedState.buildSummary) {
+          hydratedState.buildSummary = session.summary;
+        }
+        // Ensure auto-fix fields from DB are included
+        const sessionWithAutoFix = session as typeof session & { isAutoFix?: boolean; autoFixError?: string | null };
+        if (hydratedState) {
+          hydratedState.isAutoFix = sessionWithAutoFix.isAutoFix ?? hydratedState.isAutoFix ?? false;
+          hydratedState.autoFixError = sessionWithAutoFix.autoFixError ?? hydratedState.autoFixError ?? undefined;
+        }
       }
 
       // Fallback: Build state from database tables if deserialization failed
@@ -149,7 +153,10 @@ export async function GET(
         const agentId = rawStateObj?.agentId as GenerationState['agentId'] | undefined;
         const claudeModelId = rawStateObj?.claudeModelId as GenerationState['claudeModelId'] | undefined;
         const projectName = rawStateObj?.projectName as string | undefined;
-        
+
+        // Access session with auto-fix fields (type assertion for new fields)
+        const sessionWithAutoFix = session as typeof session & { isAutoFix?: boolean; autoFixError?: string | null };
+
         hydratedState = {
           id: session.buildId,
           projectId: session.projectId,
@@ -177,22 +184,18 @@ export async function GET(
             }
             return acc;
           }, {} as Record<number, ToolCall[]>),
-          textByTodo: sessionTodos.reduce((acc, todo) => {
-            const notesForTodo = sessionNotes.filter(note => note.todoIndex === todo.todoIndex);
-            if (notesForTodo.length > 0) {
-              acc[todo.todoIndex] = notesForTodo.map(note => ({
-                id: note.textId ?? note.id,
-                text: note.content,
-                timestamp: note.createdAt ?? new Date(),
-              }));
-            }
-            return acc;
-          }, {} as Record<number, TextMessage[]>),
+          // textByTodo removed - notes no longer persisted
+          textByTodo: {},
           activeTodoIndex: sessionTodos.findIndex(todo => todo.status === 'in_progress'),
           isActive: session.status === 'active',
           startTime: session.startedAt ?? new Date(),
           endTime: session.endedAt ?? undefined,
           codex: rawStateObj?.codex as GenerationState['codex'] | undefined,
+          // Load build summary from session if available
+          buildSummary: session.summary ?? undefined,
+          // Auto-fix tracking
+          isAutoFix: sessionWithAutoFix.isAutoFix ?? false,
+          autoFixError: sessionWithAutoFix.autoFixError ?? undefined,
         };
       }
 
@@ -201,9 +204,19 @@ export async function GET(
       if (hydratedState && session.status === 'active') {
         const allTodosComplete = hydratedState.todos.length > 0 &&
           hydratedState.todos.every(todo => todo.status === 'completed');
+        
+        // Also check for builds with no todos but that have a summary (quick follow-ups)
+        // These are completed builds that skipped the todo phase
+        const isCompletedWithoutTodos = hydratedState.todos.length === 0 && 
+          (session.summary || session.endedAt);
 
-        if (allTodosComplete) {
-          console.log(`[messages-route] 🔄 Detected completed build with active session: ${session.id}`);
+        if (allTodosComplete || isCompletedWithoutTodos) {
+          console.log(`[messages-route] 🔄 Detected completed build with active session: ${session.id}`, {
+            allTodosComplete,
+            isCompletedWithoutTodos,
+            hasSummary: !!session.summary,
+            hasEndedAt: !!session.endedAt,
+          });
           hydratedState.isActive = false;
           hydratedState.endTime = hydratedState.endTime ?? new Date();
 
@@ -223,7 +236,6 @@ export async function GET(
         session,
         todos: sessionTodos,
         tools: sessionTools,
-        notes: sessionNotes,
         hydratedState,
       };
     });

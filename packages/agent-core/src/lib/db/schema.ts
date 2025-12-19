@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, uuid, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp, uuid, jsonb, index, uniqueIndex, boolean } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const projects = pgTable('projects', {
@@ -74,6 +74,8 @@ export const generationSessions = pgTable('generation_sessions', {
   endedAt: timestamp('ended_at'),
   summary: text('summary'),
   rawState: jsonb('raw_state'),
+  isAutoFix: boolean('is_auto_fix').default(false), // Flag for auto-fix sessions triggered by startup errors
+  autoFixError: text('auto_fix_error'), // The error message that triggered the auto-fix
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({

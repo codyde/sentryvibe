@@ -159,6 +159,33 @@
   animation: shake-and-fall 0.8s ease forwards;
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@layer utilities {
+  .shimmer-text {
+    background: linear-gradient(
+      90deg,
+      #a855f7 0%,
+      #ec4899 25%,
+      #f472b6 50%,
+      #ec4899 75%,
+      #a855f7 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2s linear infinite;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

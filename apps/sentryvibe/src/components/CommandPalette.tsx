@@ -26,6 +26,7 @@ import {
   Clock,
   Zap,
   Activity,
+  Bug,
   type LucideIcon,
 } from 'lucide-react';
 import { getIconComponent } from '@sentryvibe/agent-core/lib/icon-mapper';
@@ -233,6 +234,36 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
           group: 'Manage',
         });
       }
+
+      // Debug actions
+      items.push({
+        id: 'force-reset',
+        label: 'Force Reset State',
+        description: loadingAction === 'force-reset' ? 'Resetting...' : 'Reset stuck builds & server status',
+        icon: Bug,
+        action: {
+          type: 'action',
+          fn: async () => {
+            setLoadingAction('force-reset');
+            try {
+              const response = await fetch(`/api/projects/${project.id}/force-complete`, { method: 'POST' });
+              const data = await response.json();
+              
+              if (response.ok) {
+                await refetch();
+                addToast('success', data.message || 'Project state reset');
+              } else {
+                addToast('error', data.error || 'Failed to reset project state');
+              }
+            } catch (err) {
+              addToast('error', 'Failed to reset project state');
+            }
+            setLoadingAction(null);
+            onOpenChange(false);
+          },
+        },
+        group: 'Debug',
+      });
 
       return items;
     }

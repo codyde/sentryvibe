@@ -11,7 +11,8 @@ export type BuildOperationType =
   | 'initial-build'      // First time build, needs template download
   | 'enhancement'        // Follow-up chat for significant changes
   | 'focused-edit'       // Element selector or small targeted changes
-  | 'continuation';      // Retry or continue a failed build
+  | 'continuation'       // Retry or continue a failed build
+  | 'autofix';           // Auto-fix triggered by startup/runtime errors
 
 /**
  * Template metadata for frontend-selected templates
@@ -57,6 +58,8 @@ export interface BuildRequest {
   designPreferences?: DesignPreferences; // User-specified design constraints (deprecated - use tags)
   tags?: AppliedTag[]; // Tag-based configuration system
   codexThreadId?: string; // For Codex thread resumption
+  isAutoFix?: boolean; // Flag for auto-fix sessions triggered by startup/runtime errors
+  autoFixError?: string; // The error message that triggered the auto-fix
   context?: {
     elementSelector?: string;
     elementInfo?: {
