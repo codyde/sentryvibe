@@ -43,7 +43,8 @@ if (typeof SentryAny.openAIIntegration === "function") {
 
 Sentry.init({
   dsn: "https://94f02492541e36eaa9ebfa56c4c042d2@o4508130833793024.ingest.us.sentry.io/4510156711919616",
-  integrations: integrations as Sentry.Integration[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  integrations: integrations as any[],
   tracesSampleRate: 1.0,
   debug: false,
   sendDefaultPii: false,
