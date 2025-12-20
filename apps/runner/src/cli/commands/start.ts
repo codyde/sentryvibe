@@ -173,9 +173,8 @@ export async function startCommand(options: StartOptions) {
     logFileManager.write(name, output.trim(), stream);
   });
 
-  // Enable debug logging for runner events - logs will be captured by LogFileManager
-  process.env.DEBUG_BUILD = '1';
-  process.env.SILENT_MODE = '1'; // Keep silent mode for TUI, logs go to file
+  // Keep silent mode for TUI, logs go to file
+  process.env.SILENT_MODE = '1';
 
   // Clear screen for clean TUI start
   console.clear();

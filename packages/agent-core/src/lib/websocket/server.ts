@@ -59,8 +59,8 @@ interface BatchedUpdate {
   }>;
 }
 
-// Get shared secret from environment
-const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
+// Get shared secret from environment - read dynamically to support late binding
+const getSharedSecret = () => process.env.RUNNER_SHARED_SECRET;
 
 class BuildWebSocketServer {
   private wss: WebSocketServer | null = null;
@@ -95,6 +95,12 @@ class BuildWebSocketServer {
    * Initialize WebSocket server for both frontend clients and runners
    */
   initialize(server: Server, path: string = '/ws') {
+    // Prevent multiple initializations (e.g., during HMR in dev mode)
+    if (this.initialized) {
+      buildLogger.log('debug', 'websocket', `Server already initialized (instance: ${this.instanceId}), skipping...`, { instanceId: this.instanceId });
+      return;
+    }
+    
     buildLogger.log('debug', 'websocket', `Initializing server (instance: ${this.instanceId})...`, { instanceId: this.instanceId });
     this.initialized = true;
     
@@ -221,14 +227,16 @@ class BuildWebSocketServer {
    */
   private handleRunnerConnection(ws: WebSocket, req: any) {
     // Authenticate runner via Bearer token
+    // Read secret dynamically - it may be set after module load
+    const sharedSecret = getSharedSecret();
     const authHeader = req.headers['authorization'];
-    if (!SHARED_SECRET) {
+    if (!sharedSecret) {
       buildLogger.websocket.runnerAuthMissing();
       ws.close(1008, 'Server misconfigured');
       return;
     }
 
-    if (!authHeader || authHeader !== `Bearer ${SHARED_SECRET}`) {
+    if (!authHeader || authHeader !== `Bearer ${sharedSecret}`) {
       buildLogger.websocket.runnerAuthRejected();
       ws.close(1008, 'Unauthorized');
       return;
