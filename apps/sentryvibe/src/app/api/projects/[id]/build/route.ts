@@ -3,7 +3,7 @@ import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { registerBuild, cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
-import type { RunnerEvent, StopDevServerCommand } from '@/shared/runner/messages';
+import type { RunnerEvent, StopDevServerCommand, RestartDevServerCommand } from '@sentryvibe/agent-core/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { sql } from 'drizzle-orm';
 import {
@@ -144,65 +144,43 @@ export async function POST(
     }
 
     // ============================================================
-    // STOP DEV SERVER BEFORE ENHANCEMENT/FOCUSED-EDIT BUILDS
+    // MARK SERVER FOR RESTART BEFORE ENHANCEMENT/FOCUSED-EDIT BUILDS
     // ============================================================
-    // For follow-up builds (enhancements/element changes), stop the dev server first
-    // to avoid conflicts. The server will auto-restart after build completes.
+    // For follow-up builds (enhancements/element changes), mark that we need to restart
+    // The server will be restarted after the build completes
+    let shouldRestartAfterBuild = false;
+    let restartServerConfig: { port: number; runCommand: string; env: Record<string, string>; hasTunnel: boolean } | null = null;
+    
     if (body.operationType === 'enhancement' || body.operationType === 'focused-edit') {
       const isServerRunning = project[0].devServerStatus === 'running' || project[0].devServerStatus === 'starting';
       
       if (isServerRunning) {
-        console.log(`[build-route] 🛑 Stopping dev server before ${body.operationType} build...`);
+        console.log(`[build-route] 🔄 Server is running - will restart after ${body.operationType} build completes`);
+        shouldRestartAfterBuild = true;
         
-        try {
-          // Get the runner for this project
-          const effectiveRunnerId = await getProjectRunnerId(project[0].runnerId) || runnerId;
-          
-          // Update status to stopping
-          await db.update(projects)
-            .set({
-              devServerStatus: 'stopping',
-              lastActivityAt: new Date(),
-            })
-            .where(eq(projects.id, id));
-          
-          // Emit update so UI reflects stopping status
-          const [stoppingProject] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-          if (stoppingProject) {
-            projectEvents.emitProjectUpdate(id, stoppingProject);
-          }
-          
-          // Send stop command to runner
-          const stopCommand: StopDevServerCommand = {
-            id: randomUUID(),
-            type: 'stop-dev-server',
-            projectId: id,
-            timestamp: new Date().toISOString(),
-          };
-          
-          await sendCommandToRunner(effectiveRunnerId, stopCommand);
-          
-          // Release port allocation
-          await releasePortForProject(id);
-          
-          // Clear port and update status
-          await db.update(projects)
-            .set({
-              devServerPort: null,
-              tunnelUrl: null,
-              devServerStatus: 'stopped',
-              lastActivityAt: new Date(),
-            })
-            .where(eq(projects.id, id));
-          
-          // Small delay to ensure clean shutdown before build starts
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          console.log(`[build-route] ✅ Dev server stopped, proceeding with ${body.operationType} build`);
-        } catch (stopError) {
-          // Log but don't fail the build - proceed anyway
-          console.error('[build-route] ⚠️ Failed to stop dev server (non-fatal):', stopError);
+        // Save server config for restart
+        restartServerConfig = {
+          port: project[0].devServerPort || 3000,
+          runCommand: project[0].runCommand || 'npm run dev',
+          env: { PORT: String(project[0].devServerPort || 3000) },
+          hasTunnel: !!project[0].tunnelUrl,
+        };
+        
+        // Update status to restarting
+        await db.update(projects)
+          .set({
+            devServerStatus: 'restarting',
+            lastActivityAt: new Date(),
+          })
+          .where(eq(projects.id, id));
+        
+        // Emit update so UI shows restarting status
+        const [restartingProject] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+        if (restartingProject) {
+          projectEvents.emitProjectUpdate(id, restartingProject);
         }
+        
+        console.log(`[build-route] ✅ Marked server for restart, proceeding with ${body.operationType} build`);
       } else {
         console.log(`[build-route] ℹ️ Dev server not running, proceeding with ${body.operationType} build`);
       }
@@ -498,12 +476,56 @@ export async function POST(
               }
               break;
             case 'build-completed':
+              // Trigger server restart if needed (async, don't block stream)
+              if (shouldRestartAfterBuild && restartServerConfig) {
+                console.log('[build-route] 🔄 Build completed - triggering server restart');
+                (async () => {
+                  try {
+                    const effectiveRunnerId = await getProjectRunnerId(project[0].runnerId) || runnerId;
+                    
+                    const restartCommand: RestartDevServerCommand = {
+                      id: randomUUID(),
+                      type: 'restart-dev-server',
+                      projectId: id,
+                      timestamp: new Date().toISOString(),
+                      payload: {
+                        runCommand: restartServerConfig.runCommand,
+                        workingDirectory: join(process.env.WORKSPACE_DIR || '/app/workspace/sentryvibe-workspace', project[0].slug),
+                        env: restartServerConfig.env,
+                        preferredPort: restartServerConfig.port,
+                        recreateTunnel: restartServerConfig.hasTunnel,
+                      },
+                    };
+                    
+                    await sendCommandToRunner(effectiveRunnerId, restartCommand);
+                    console.log('[build-route] ✅ Restart command sent to runner');
+                  } catch (error) {
+                    console.error('[build-route] ❌ Failed to trigger server restart:', error);
+                    // Update status back to stopped on failure
+                    await db.update(projects)
+                      .set({
+                        devServerStatus: 'stopped',
+                        lastActivityAt: new Date(),
+                      })
+                      .where(eq(projects.id, id));
+                  }
+                })();
+              }
               finish();
               break;
             case 'build-failed': {
               const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
               writeChunk(errorPayload);
               writeChunk('data: [DONE]\n\n');
+              // Reset server status if build failed during restart
+              if (shouldRestartAfterBuild) {
+                await db.update(projects)
+                  .set({
+                    devServerStatus: 'stopped',
+                    lastActivityAt: new Date(),
+                  })
+                  .where(eq(projects.id, id));
+              }
               finish();
               break;
             }
@@ -511,6 +533,15 @@ export async function POST(
               const errorPayload = `data: ${JSON.stringify({ type: 'error', error: event.error })}\n\n`;
               writeChunk(errorPayload);
               writeChunk('data: [DONE]\n\n');
+              // Reset server status if error during restart
+              if (shouldRestartAfterBuild) {
+                await db.update(projects)
+                  .set({
+                    devServerStatus: 'stopped',
+                    lastActivityAt: new Date(),
+                  })
+                  .where(eq(projects.id, id));
+              }
               finish();
               break;
             }

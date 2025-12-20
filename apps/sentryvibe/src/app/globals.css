@@ -184,6 +184,40 @@
     color: transparent;
     animation: shimmer 2s linear infinite;
   }
+
+  /* Orange shimmer for server restart animations */
+  .shimmer-text-orange {
+    background: linear-gradient(
+      90deg,
+      #fb923c 0%,
+      #facc15 25%,
+      #fbbf24 50%,
+      #facc15 75%,
+      #fb923c 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Cyan shimmer for tunnel connection animations */
+  .shimmer-text-cyan {
+    background: linear-gradient(
+      90deg,
+      #22d3ee 0%,
+      #3b82f6 25%,
+      #60a5fa 50%,
+      #3b82f6 75%,
+      #22d3ee 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2s linear infinite;
+  }
 }
 
 @layer base {

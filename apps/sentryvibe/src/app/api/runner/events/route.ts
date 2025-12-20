@@ -275,6 +275,42 @@ export async function POST(request: Request) {
             }
             break;
           }
+          case 'port-reallocated': {
+            // Runner found the pre-allocated port was in use and auto-selected a new port
+            // Update the database with the new port
+            if (event.projectId) {
+              const reallocatedEvent = event as typeof event & { originalPort?: number; newPort?: number };
+              console.log(`[events] 🔄 Port reallocated for project ${event.projectId}: ${reallocatedEvent.originalPort} → ${reallocatedEvent.newPort}`);
+              
+              if (reallocatedEvent.newPort) {
+                // Update port in database
+                const [updated] = await db.update(projects)
+                  .set({
+                    devServerPort: reallocatedEvent.newPort,
+                    lastActivityAt: new Date(),
+                  })
+                  .where(eq(projects.id, event.projectId))
+                  .returning();
+                
+                if (updated) {
+                  console.log(`[events] ✅ Updated devServerPort to ${reallocatedEvent.newPort} for project ${event.projectId}`);
+                  emitProjectUpdateFromData(event.projectId, updated);
+                }
+                
+                // Reset port retry counter since we successfully got a new port
+                portRetryAttempts.delete(event.projectId);
+                
+                Sentry.metrics.count('dev_server_port_reallocated', 1, {
+                  attributes: {
+                    project_id: event.projectId,
+                    original_port: String(reallocatedEvent.originalPort ?? 'unknown'),
+                    new_port: String(reallocatedEvent.newPort),
+                  },
+                });
+              }
+            }
+            break;
+          }
           case 'ack': {
             // Check if this is a health check success (server is healthy)
             const message = (event as { message?: string }).message || '';

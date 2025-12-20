@@ -10,7 +10,7 @@ export interface Project {
   name: string;
   slug: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  devServerStatus: 'stopped' | 'starting' | 'running' | 'failed' | null;
+  devServerStatus: 'stopped' | 'starting' | 'running' | 'stopping' | 'restarting' | 'failed' | null;
 }
 
 export function useProjects(apiUrl: string, pollInterval: number = 5000) {

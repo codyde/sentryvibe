@@ -15,7 +15,7 @@ export interface Project {
   port: number | null;
   devServerPid: number | null;
   devServerPort: number | null;
-  devServerStatus: 'stopped' | 'starting' | 'running' | 'failed' | null;
+  devServerStatus: 'stopped' | 'starting' | 'running' | 'stopping' | 'restarting' | 'failed' | null;
   tunnelUrl: string | null;
   runnerId: string | null;
   generationState: string | null;

@@ -9,6 +9,7 @@ import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
 import BuildingAppSkeleton from './BuildingAppSkeleton';
+import { ServerRestartProgress } from './ServerRestartProgress';
 import {
   HoverCard,
   HoverCardContent,
@@ -853,6 +854,14 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             {isBuildActive ? (
               <BuildingAppSkeleton />
+            ) : currentProject?.devServerStatus === 'restarting' ? (
+              <div className="flex flex-col items-center gap-4 max-w-lg px-6">
+                <ServerRestartProgress 
+                  projectName={currentProject.name}
+                  port={currentProject.devServerPort || undefined}
+                  hasTunnel={!!currentProject.tunnelUrl}
+                />
+              </div>
             ) : currentProject?.devServerStatus === 'starting' || isStartingServer ? (
               <div className="flex flex-col items-center gap-4">
                 <div className="relative flex items-center justify-center w-24 h-24">

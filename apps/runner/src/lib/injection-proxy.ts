@@ -213,9 +213,31 @@ export async function createInjectionProxy(options: InjectionProxyOptions): Prom
         port: proxyPort,
         server,
         close: () => new Promise<void>((resolveClose) => {
+          // Add timeout to prevent hanging if connections don't close
+          const CLOSE_TIMEOUT_MS = 2000;
+          let resolved = false;
+          
+          const timeoutId = setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              log(`[injection-proxy] Force closing after ${CLOSE_TIMEOUT_MS}ms timeout`);
+              // Force destroy the server if it hasn't closed
+              try {
+                server.closeAllConnections?.();
+              } catch {
+                // closeAllConnections may not be available in older Node versions
+              }
+              resolveClose();
+            }
+          }, CLOSE_TIMEOUT_MS);
+          
           proxy.close(() => {
             server.close(() => {
-              log(`[injection-proxy] Stopped`);
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                log(`[injection-proxy] Stopped`);
+              }
               resolveClose();
             });
           });

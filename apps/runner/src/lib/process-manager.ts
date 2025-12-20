@@ -119,6 +119,27 @@ export async function checkPortInUse(port: number): Promise<boolean> {
 }
 
 /**
+ * Find an available port starting from a given port
+ * Scans up to maxAttempts ports from the starting port
+ * 
+ * @param startPort - The port to start scanning from
+ * @param maxAttempts - Maximum number of ports to try (default: 100)
+ * @returns The first available port found, or null if none found
+ */
+export async function findAvailablePort(startPort: number, maxAttempts = 100): Promise<number | null> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i;
+    const inUse = await checkPortInUse(port);
+    if (!inUse) {
+      buildLogger.log('info', 'process-manager', `Found available port ${port}`, { port, startPort, attempts: i + 1 });
+      return port;
+    }
+  }
+  buildLogger.log('error', 'process-manager', `No available port found after ${maxAttempts} attempts starting from ${startPort}`, { startPort, maxAttempts });
+  return null;
+}
+
+/**
  * Check if a port is in use on a specific address
  */
 function checkSingleAddress(port: number, host: string): Promise<boolean> {
@@ -285,14 +306,21 @@ function classifyStartupError(error: unknown, processInfo: Partial<DevServerProc
 
 /**
  * Start a development server for a project
+ * 
+ * Note: This function is intentionally synchronous for compatibility with existing callers.
+ * The caller is responsible for stopping any existing process before calling this function.
+ * Use restartDevServer() for a full stop-then-start cycle.
  */
 export function startDevServer(options: DevServerOptions): DevServerProcess {
   const { projectId, command, cwd, env } = options;
 
   buildLogger.processManager.processStarting(projectId, command, cwd);
 
-  // Stop any existing process for this project
-  stopDevServer(projectId);
+  // NOTE: We no longer call stopDevServer here because:
+  // 1. It's async and we can't properly await it in a sync function
+  // 2. Callers (index.ts handlers) already stop the server before calling this
+  // 3. restartDevServer() properly handles the stop-then-start cycle
+  // The old non-awaited call caused race conditions during restart.
 
   const emitter = new EventEmitter();
 
@@ -473,12 +501,19 @@ export async function stopDevServer(
     reason?: string;
     tunnelManager?: any; // TunnelManager instance
     port?: number;
+    forceKillPort?: boolean; // If true, kill any process on the port
   }
 ): Promise<boolean> {
-  const { timeout = 10000, reason = 'manual', tunnelManager, port } = options || {};
+  const { timeout = 10000, reason = 'manual', tunnelManager, port, forceKillPort = false } = options || {};
   
   const devProcess = activeProcesses.get(projectId);
   if (!devProcess) {
+    // Even if no process is tracked, we might need to kill port
+    if (forceKillPort && port) {
+      const { killProcessOnPort } = await import('../cli/utils/process-killer.js');
+      buildLogger.log('info', 'process-manager', `Force killing process on port ${port}`, { port, projectId });
+      await killProcessOnPort(port);
+    }
     return false;
   }
 
@@ -526,12 +561,68 @@ export async function stopDevServer(
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  // Step 5: Cleanup
+  // Step 5: Force kill port if requested (handles stuck processes)
+  if (forceKillPort && tunnelPort) {
+    const { killProcessOnPort } = await import('../cli/utils/process-killer.js');
+    buildLogger.log('info', 'process-manager', `Force killing any remaining process on port ${tunnelPort}`, { port: tunnelPort, projectId });
+    await killProcessOnPort(tunnelPort);
+    // Wait for port to be released
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  // Step 6: Cleanup
   activeProcesses.delete(projectId);
   
   buildLogger.processManager.processStopped(projectId);
   
   return true;
+}
+
+/**
+ * Restart a development server with full cleanup
+ * Stops the server, kills the port, closes tunnel, then starts fresh
+ * @param projectId - The project ID to restart
+ * @param startOptions - Options for starting the server
+ * @param stopOptions - Options for stopping the server
+ * @returns Promise<DevServerProcess | null> - The new process or null if restart failed
+ */
+export async function restartDevServer(
+  projectId: string,
+  startOptions: DevServerOptions,
+  stopOptions?: {
+    timeout?: number;
+    tunnelManager?: any;
+    port?: number;
+  }
+): Promise<DevServerProcess | null> {
+  const { timeout = 10000, tunnelManager, port } = stopOptions || {};
+  
+  buildLogger.log('info', 'process-manager', `Restarting dev server for ${projectId}`, { projectId });
+  
+  // Step 1: Stop existing server with force kill on port
+  await stopDevServer(projectId, {
+    timeout,
+    reason: 'restart',
+    tunnelManager,
+    port,
+    forceKillPort: true, // Force kill to ensure clean restart
+  });
+  
+  // Step 2: Extra wait for port to be fully released by OS
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  // Step 3: Start the server fresh
+  try {
+    const newProcess = startDevServer(startOptions);
+    buildLogger.log('info', 'process-manager', `Successfully restarted dev server for ${projectId}`, { projectId, pid: newProcess.process.pid });
+    return newProcess;
+  } catch (error) {
+    buildLogger.log('error', 'process-manager', `Failed to restart dev server for ${projectId}`, { 
+      projectId, 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+    return null;
+  }
 }
 
 /**

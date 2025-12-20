@@ -29,7 +29,7 @@ import {
 import { CLAUDE_CLI_TOOL_REGISTRY } from "@sentryvibe/agent-core/lib/claude/tools";
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
-import { startDevServer, stopDevServer, checkPortInUse } from "./lib/process-manager.js";
+import { startDevServer, stopDevServer, checkPortInUse, findAvailablePort } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
 import {
   transformAgentMessageToSSE,
@@ -1554,6 +1554,9 @@ export async function startRunner(options: RunnerOptions = {}) {
           // We use the port from the payload (which includes env vars with PORT set)
           const allocatedPort = preferredPort ?? null;
           
+          // Track the final port to use (may be reallocated if original is in use)
+          let finalPort: number | null = allocatedPort;
+          
           if (allocatedPort) {
             log(`🔌 Using pre-allocated port ${allocatedPort} for project ${command.projectId}`);
 
@@ -1576,15 +1579,52 @@ export async function startRunner(options: RunnerOptions = {}) {
             // Now check if port is in use (might be another unrelated process)
             const portInUse = await checkPortInUse(allocatedPort);
             if (portInUse) {
-              const conflictMessage = `Port ${allocatedPort} is already in use on the runner host (not by this project)`;
-              log(`❌ ${conflictMessage}`);
+              log(`⚠️  Port ${allocatedPort} is in use, searching for available port...`);
+              
+              // Find an available port starting from the allocated port
+              const availablePort = await findAvailablePort(allocatedPort);
+              
+              if (!availablePort) {
+                const conflictMessage = `Port ${allocatedPort} is in use and no available port found in range ${allocatedPort}-${allocatedPort + 99}`;
+                log(`❌ ${conflictMessage}`);
 
+                sendEvent({
+                  type: "port-conflict",
+                  ...buildEventBase(command.projectId, command.id),
+                  port: allocatedPort,
+                  message: conflictMessage,
+                });
+
+                sendEvent({
+                  type: "error",
+                  ...buildEventBase(command.projectId, command.id),
+                  error: conflictMessage,
+                });
+
+                return;
+              }
+              
+              // Use the available port instead
+              log(`✅ Found available port ${availablePort} (originally tried ${allocatedPort})`);
+              finalPort = availablePort;
+              
+              // Notify frontend about the port change so it can update the database
               sendEvent({
-                type: "port-conflict",
+                type: "port-reallocated",
                 ...buildEventBase(command.projectId, command.id),
-                port: allocatedPort,
-                message: conflictMessage,
+                originalPort: allocatedPort,
+                newPort: availablePort,
+                message: `Port ${allocatedPort} was in use, using ${availablePort} instead`,
               });
+            }
+          } else {
+            // No pre-allocated port - we need to find one
+            log(`⚠️  No port pre-allocated, searching for available port...`);
+            const availablePort = await findAvailablePort(3000); // Start from common dev port
+            
+            if (!availablePort) {
+              const conflictMessage = `No available port found in range 3000-3099`;
+              log(`❌ ${conflictMessage}`);
 
               sendEvent({
                 type: "error",
@@ -1594,6 +1634,9 @@ export async function startRunner(options: RunnerOptions = {}) {
 
               return;
             }
+            
+            log(`✅ Found available port ${availablePort}`);
+            finalPort = availablePort;
           }
 
           // Merge port enforcement environment variables
@@ -1614,7 +1657,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             command: runCmd,
             cwd: workingDirectory,
             env: envVars,
-            port: allocatedPort ?? undefined,
+            port: finalPort ?? undefined,
           });
 
           // Track errors for potential auto-fix
@@ -1886,6 +1929,164 @@ export async function startRunner(options: RunnerOptions = {}) {
             type: "error",
             ...buildEventBase(command.projectId, command.id),
             error: error instanceof Error ? error.message : "Failed to stop dev server",
+          });
+        }
+        break;
+      }
+      case "restart-dev-server": {
+        try {
+          const {
+            runCommand: runCmd,
+            workingDirectory,
+            env = {},
+            preferredPort,
+            recreateTunnel = false,
+          } = command.payload;
+
+          const allocatedPort = preferredPort ?? null;
+          
+          if (!allocatedPort) {
+            throw new Error('No port allocated for restart');
+          }
+
+          log(`🔄 Restarting dev server for project ${command.projectId} on port ${allocatedPort}...`);
+
+          // Send restarting status
+          sendEvent({
+            type: "ack",
+            ...buildEventBase(command.projectId, command.id),
+            message: "Restarting server...",
+          });
+
+          // Import restart function
+          const { restartDevServer } = await import('./lib/process-manager.js');
+          
+          // Merge environment variables
+          const envVars: Record<string, string> = {};
+          for (const [key, value] of Object.entries({
+            ...process.env,
+            ...env,
+          })) {
+            if (value !== undefined) {
+              envVars[key] = String(value);
+            }
+          }
+
+          // Restart the server (stops old process, kills port, starts fresh)
+          const devProcess = await restartDevServer(
+            command.projectId,
+            {
+              projectId: command.projectId,
+              command: runCmd,
+              cwd: workingDirectory,
+              env: envVars,
+              port: allocatedPort,
+            },
+            {
+              timeout: 10000,
+              tunnelManager,
+              port: allocatedPort,
+            }
+          );
+
+          if (!devProcess) {
+            throw new Error('Failed to restart dev server');
+          }
+
+          const startTime = Date.now();
+
+          // Forward logs to API
+          devProcess.emitter.on("log", (logEvent) => {
+            sendEvent({
+              type: "log-chunk",
+              ...buildEventBase(command.projectId, command.id),
+              stream: logEvent.type,
+              data: logEvent.data,
+              cursor: randomUUID(),
+            });
+          });
+
+          // Handle process exit
+          devProcess.emitter.on("exit", async ({ code, signal, state, failureReason, stderr }) => {
+            if (allocatedPort) {
+              log(`🔗 Closing tunnel for port ${allocatedPort}`);
+              await tunnelManager.closeTunnel(allocatedPort);
+            }
+
+            sendEvent({
+              type: "process-exited",
+              ...buildEventBase(command.projectId, command.id),
+              exitCode: code ?? null,
+              signal: signal ?? null,
+              durationMs: Date.now() - startTime,
+              state,
+              failureReason,
+              stderr,
+            });
+          });
+
+          // Handle process errors
+          devProcess.emitter.on("error", (error: unknown) => {
+            sendEvent({
+              type: "error",
+              ...buildEventBase(command.projectId, command.id),
+              error: error instanceof Error ? error.message : "Unknown runner error",
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          });
+
+          // Run health check
+          log(`🔍 Running health check for port ${allocatedPort}...`);
+          const { runHealthCheck } = await import('./lib/process-manager.js');
+          const healthResult = await runHealthCheck(command.projectId, allocatedPort);
+          
+          if (healthResult.healthy) {
+            log(`✅ Dev server restarted and healthy for project ${command.projectId} on port ${allocatedPort}`);
+            
+            sendEvent({
+              type: "port-detected",
+              ...buildEventBase(command.projectId, command.id),
+              port: allocatedPort,
+              framework: 'unknown',
+            });
+
+            // Recreate tunnel if requested
+            if (recreateTunnel) {
+              log(`🔗 Recreating tunnel for port ${allocatedPort}...`);
+              try {
+                const isReady = await waitForPort(allocatedPort, 15, 1000);
+                if (isReady) {
+                  const tunnelUrl = await tunnelManager.createTunnel(allocatedPort);
+                  log(`✅ Tunnel recreated: ${tunnelUrl}`);
+                  
+                  sendEvent({
+                    type: "tunnel-created",
+                    ...buildEventBase(command.projectId, command.id),
+                    port: allocatedPort,
+                    tunnelUrl,
+                  });
+                }
+              } catch (error) {
+                log(`⚠️ Failed to recreate tunnel: ${error instanceof Error ? error.message : String(error)}`);
+              }
+            }
+
+            sendEvent({
+              type: "ack",
+              ...buildEventBase(command.projectId, command.id),
+              message: "Dev server restarted successfully",
+            });
+          } else {
+            throw new Error('Health check failed after restart');
+          }
+
+        } catch (error) {
+          log(`❌ Failed to restart dev server: ${error instanceof Error ? error.message : String(error)}`);
+          sendEvent({
+            type: "error",
+            ...buildEventBase(command.projectId, command.id),
+            error: error instanceof Error ? error.message : "Failed to restart dev server",
+            stack: error instanceof Error ? error.stack : undefined,
           });
         }
         break;

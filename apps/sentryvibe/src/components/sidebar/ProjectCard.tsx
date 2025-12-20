@@ -42,9 +42,10 @@ export function ProjectCard({
   const isRunning = project.devServerStatus === 'running'
   const isStarting = project.devServerStatus === 'starting'
   const isStopping = project.devServerStatus === 'stopping'
+  const isRestarting = project.devServerStatus === 'restarting'
   const isBuilding = project.status === 'in_progress' || project.status === 'pending'
   const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed'
-  const isServerBusy = isStarting || isStopping
+  const isServerBusy = isStarting || isStopping || isRestarting
 
   // Get framework logo path
   const frameworkLogoPath = project.detectedFramework
@@ -98,6 +99,7 @@ export function ProjectCard({
           <Loader2 className={`w-4 h-4 animate-spin ${
             isStarting ? 'text-green-400' :
             isStopping ? 'text-orange-400' :
+            isRestarting ? 'text-blue-400' :
             'text-yellow-400'
           }`} />
         ) : (
@@ -139,6 +141,9 @@ export function ProjectCard({
           )}
           {isStopping && (
             <span className="text-[10px] text-orange-400">Stopping...</span>
+          )}
+          {isRestarting && (
+            <span className="text-[10px] text-blue-400">Restarting...</span>
           )}
           {isBuilding && !isServerBusy && (
             <span className="text-[10px] text-yellow-400">Building...</span>

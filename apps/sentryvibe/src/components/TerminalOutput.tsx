@@ -11,7 +11,7 @@ interface ParsedLogEntry {
 }
 
 const MAX_LOG_ENTRIES = 1000;
-const DEBUG_TERMINAL = true; // Set to true to enable verbose terminal logging
+const DEBUG_TERMINAL = false; // Set to true to enable verbose terminal logging
 
 function parseLogChunk(chunk: string): ParsedLogEntry[] {
   const entries: ParsedLogEntry[] = [];

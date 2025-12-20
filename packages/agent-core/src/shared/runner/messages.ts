@@ -9,6 +9,7 @@ export type RunnerCommandType =
   | 'start-build'
   | 'start-dev-server'
   | 'stop-dev-server'
+  | 'restart-dev-server'
   | 'start-tunnel'
   | 'stop-tunnel'
   | 'fetch-logs'
@@ -23,6 +24,7 @@ export type RunnerEventType =
   | 'log-chunk'
   | 'port-detected'
   | 'port-conflict'
+  | 'port-reallocated'
   | 'tunnel-created'
   | 'tunnel-closed'
   | 'process-exited'
@@ -100,6 +102,17 @@ export interface StopDevServerCommand extends BaseCommand {
   type: 'stop-dev-server';
 }
 
+export interface RestartDevServerCommand extends BaseCommand {
+  type: 'restart-dev-server';
+  payload: {
+    runCommand: string;
+    workingDirectory: string;
+    env?: Record<string, string>;
+    preferredPort?: number | null;
+    recreateTunnel?: boolean;
+  };
+}
+
 export interface StartTunnelCommand extends BaseCommand {
   type: 'start-tunnel';
   payload: {
@@ -162,6 +175,7 @@ export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
   | StopDevServerCommand
+  | RestartDevServerCommand
   | StartTunnelCommand
   | StopTunnelCommand
   | FetchLogsCommand
@@ -210,6 +224,13 @@ export interface TunnelCreatedEvent extends BaseEvent {
 export interface PortConflictEvent extends BaseEvent {
   type: 'port-conflict';
   port: number;
+  message?: string;
+}
+
+export interface PortReallocatedEvent extends BaseEvent {
+  type: 'port-reallocated';
+  originalPort: number;
+  newPort: number;
   message?: string;
 }
 
@@ -340,6 +361,7 @@ export type RunnerEvent =
   | LogChunkEvent
   | PortDetectedEvent
   | PortConflictEvent
+  | PortReallocatedEvent
   | TunnelCreatedEvent
   | TunnelClosedEvent
   | ProcessExitedEvent
@@ -363,6 +385,7 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'start-build',
   'start-dev-server',
   'stop-dev-server',
+  'restart-dev-server',
   'start-tunnel',
   'stop-tunnel',
   'fetch-logs',

@@ -44,12 +44,19 @@ export function RichProjectCard({
 }: RichProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const isRunning = project.devServerStatus === 'running'
+  const isStarting = project.devServerStatus === 'starting'
+  const isStopping = project.devServerStatus === 'stopping'
+  const isRestarting = project.devServerStatus === 'restarting'
   const isBuilding = project.status === 'in_progress'
   const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed'
+  const isServerBusy = isStarting || isStopping || isRestarting
 
   // Status indicator
   const getStatusColor = () => {
     if (isBuilding) return 'bg-yellow-400'
+    if (isStarting) return 'bg-green-400'
+    if (isStopping) return 'bg-orange-400'
+    if (isRestarting) return 'bg-blue-400'
     if (isRunning) return 'bg-green-400'
     if (hasFailed) return 'bg-red-400'
     if (project.status === 'completed') return 'bg-blue-400'
@@ -57,7 +64,7 @@ export function RichProjectCard({
   }
 
   const getStatusAnimation = () => {
-    if (isBuilding || isRunning) {
+    if (isBuilding || isRunning || isServerBusy) {
       return { scale: [1, 1.2, 1], opacity: [1, 0.5, 1] }
     }
     return {}
@@ -211,6 +218,21 @@ export function RichProjectCard({
         {isRunning && (
           <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-500/30">
             Running :{project.devServerPort || project.port}
+          </span>
+        )}
+        {isStarting && (
+          <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-500/30">
+            Starting...
+          </span>
+        )}
+        {isStopping && (
+          <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
+            Stopping...
+          </span>
+        )}
+        {isRestarting && (
+          <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            Restarting...
           </span>
         )}
         {isBuilding && (

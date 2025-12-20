@@ -345,10 +345,19 @@ export class TunnelManager extends EventEmitter {
 
     this.log(`🔗 Closing tunnel for port ${port}...`);
 
-    // Close injection proxy first (if exists)
+    // Close injection proxy first (if exists) with timeout
     if (tunnel.injectionProxy) {
       try {
-        await tunnel.injectionProxy.close();
+        // Use Promise.race to enforce timeout - injection proxy close can hang
+        // if there are active HTTP keep-alive connections
+        const PROXY_CLOSE_TIMEOUT_MS = 3000;
+        await Promise.race([
+          tunnel.injectionProxy.close(),
+          new Promise<void>((resolve) => setTimeout(() => {
+            this.log(`⚠️  Injection proxy close timed out after ${PROXY_CLOSE_TIMEOUT_MS}ms, continuing...`);
+            resolve();
+          }, PROXY_CLOSE_TIMEOUT_MS))
+        ]);
         this.log(`✅ Injection proxy closed for port ${port}`);
       } catch (err) {
         this.log(`⚠️  Error closing injection proxy: ${err instanceof Error ? err.message : String(err)}`);
