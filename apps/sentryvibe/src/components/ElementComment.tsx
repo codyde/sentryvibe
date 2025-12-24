@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Settings2, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -35,6 +36,12 @@ export default function ElementComment({
 }: ElementCommentProps) {
   const [prompt, setPrompt] = useState('');
   const [showDetails, setShowDetails] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Ensure we only render portal on client side
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSubmit = () => {
     if (prompt.trim()) {
@@ -98,7 +105,10 @@ export default function ElementComment({
     }
   }
 
-  return (
+  // Don't render until mounted (client-side only for portal)
+  if (!mounted) return null;
+
+  const content = (
     <>
       {/* Only show comment window for pending status - no status orbs */}
       {status === 'pending' && (
@@ -222,4 +232,8 @@ export default function ElementComment({
       )}
     </>
   );
+
+  // Use portal to render at document body level, escaping any transform containers
+  // This fixes position:fixed issues when parent has CSS transforms (e.g., framer-motion)
+  return createPortal(content, document.body);
 }
