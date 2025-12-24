@@ -87,7 +87,7 @@ export default function SelectionMode({ isEnabled, onToggle, onElementSelected }
           <MousePointer2 className={`w-4 h-4 ${isEnabled ? 'text-purple-400' : 'text-gray-400'}`} />
         </button>
       </HoverCardTrigger>
-      <HoverCardContent className="w-auto bg-gray-900 border-white/20 text-xs" side="bottom">
+      <HoverCardContent className="w-auto bg-gray-900 border-white/20 text-xs text-gray-200" side="bottom">
         {isEnabled ? 'Click an element in the preview' : 'Select Element'}
       </HoverCardContent>
     </HoverCard>

@@ -10,6 +10,7 @@ import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/inject
 import { useElementEdits } from '@/hooks/useElementEdits';
 import BuildingAppSkeleton from './BuildingAppSkeleton';
 import { ServerRestartProgress } from './ServerRestartProgress';
+import { ServerRestarting, TunnelConnecting } from './StatusAnimations';
 import {
   HoverCard,
   HoverCardContent,
@@ -441,15 +442,23 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       return;
     }
 
-    // Use click position directly (no transformation)
-    // ElementComment will handle positioning the circle and comment window
+    // Get iframe's position in the parent window
+    const iframeRect = iframeRef.current?.getBoundingClientRect();
+    if (!iframeRect) {
+      console.error('❌ Cannot get iframe position!');
+      return;
+    }
+
+    // Translate iframe-relative coords to parent window coords
+    // clickPosition is relative to iframe viewport, we need to add iframe's position
     const position = {
-      x: element.clickPosition.x,
-      y: element.clickPosition.y + 60, // Offset down 50px
+      x: element.clickPosition.x + iframeRect.left,
+      y: element.clickPosition.y + iframeRect.top,
     };
 
     if (DEBUG_PREVIEW) console.log('📍 Creating comment:', {
       rawClick: element.clickPosition,
+      iframeOffset: { left: iframeRect.left, top: iframeRect.top },
       adjusted: position,
     });
 
@@ -751,26 +760,17 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
             {/* Tunnel loading overlay with attempt counter */}
             {isTunnelLoading && !dnsTroubleshooting && (
-              <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="relative">
-                    <Cloud className="w-16 h-16 text-blue-400 animate-pulse" />
-                    <div className="absolute inset-0 rounded-full border-4 border-blue-400/20 border-t-blue-400 animate-spin"></div>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <p className="text-lg font-semibold text-white">
-                      {dnsVerificationAttempt > 0
-                        ? 'Verifying Tunnel Connection'
-                        : (frontendIsRemote ? 'Creating Tunnel for Remote Access' : 'Initializing Tunnel')}
+              <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
+                <div className="max-w-md w-full">
+                  <TunnelConnecting 
+                    status="connecting"
+                    port={actualPort || undefined}
+                  />
+                  {dnsVerificationAttempt > 0 && (
+                    <p className="text-xs text-gray-500 text-center mt-3">
+                      DNS verification attempt {dnsVerificationAttempt}/10...
                     </p>
-                    <p className="text-sm text-gray-400">
-                      {dnsVerificationAttempt > 0
-                        ? `Attempt ${dnsVerificationAttempt}/10...`
-                        : (frontendIsRemote
-                          ? 'Tunnel required for remote access...'
-                          : 'Setting up secure connection...')}
-                    </p>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
@@ -838,16 +838,28 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
             {/* Floating comment indicators */}
             <AnimatePresence>
-              {edits.map((edit) => (
-                <ElementComment
-                  key={edit.id}
-                  element={edit.element}
-                  position={edit.position}
-                  status={edit.status}
-                  onSubmit={(prompt) => handleCommentSubmit(edit.id, prompt)}
-                  onClose={() => removeEdit(edit.id)}
-                />
-              ))}
+              {edits.map((edit) => {
+                // Get container bounds from iframe for boundary clamping
+                const iframeRect = iframeRef.current?.getBoundingClientRect();
+                const containerBounds = iframeRect ? {
+                  top: iframeRect.top,
+                  left: iframeRect.left,
+                  right: iframeRect.right,
+                  bottom: iframeRect.bottom,
+                } : undefined;
+                
+                return (
+                  <ElementComment
+                    key={edit.id}
+                    element={edit.element}
+                    position={edit.position}
+                    containerBounds={containerBounds}
+                    status={edit.status}
+                    onSubmit={(prompt) => handleCommentSubmit(edit.id, prompt)}
+                    onClose={() => removeEdit(edit.id)}
+                  />
+                );
+              })}
             </AnimatePresence>
           </>
         ) : (
@@ -863,19 +875,13 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
                 />
               </div>
             ) : currentProject?.devServerStatus === 'starting' || isStartingServer ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative flex items-center justify-center w-24 h-24">
-                  <Rocket className="w-16 h-16 text-purple-400 animate-pulse" />
-                  <div className="absolute inset-0 rounded-full border-4 border-purple-400/20 border-t-purple-400 animate-spin"></div>
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-lg font-semibold text-white">
-                    Spinning up your workspace
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    Warming caches, allocating a port, and preparing the dev server.
-                  </p>
-                </div>
+              <div className="flex flex-col items-center gap-4 max-w-lg px-6">
+                <ServerRestarting 
+                  phase="starting"
+                  projectName={currentProject?.name}
+                  port={currentProject?.devServerPort || undefined}
+                  hasTunnel={frontendIsRemote}
+                />
               </div>
             ) : frontendIsRemote && actualPort && currentProject?.devServerStatus === 'running' && !currentProject?.tunnelUrl ? (
               <div className="text-center space-y-4 max-w-md px-6">

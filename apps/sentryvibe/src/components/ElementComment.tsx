@@ -19,6 +19,7 @@ interface ElementCommentProps {
     };
   };
   position: { x: number; y: number };
+  containerBounds?: { top: number; left: number; right: number; bottom: number };
   onSubmit: (prompt: string) => void;
   onClose: () => void;
   status?: 'pending' | 'processing' | 'completed' | 'failed';
@@ -27,6 +28,7 @@ interface ElementCommentProps {
 export default function ElementComment({
   element,
   position,
+  containerBounds,
   onSubmit,
   onClose,
   status = 'pending',
@@ -55,13 +57,46 @@ export default function ElementComment({
   // Position calculations:
   // Circle is centered at click position (position.x, position.y)
   const circleSize = 32;
-  const circleLeft = position.x - (circleSize / 2); // Center circle on click
-  const circleTop = position.y - (circleSize / 2);
-
-  // Comment window appears to the top-right of the circle
   const commentWidth = showDetails ? 400 : 280;
-  const commentLeft = circleLeft + circleSize + 2; // 2px to the right of circle
-  const commentTop = circleTop; // Aligned with top of circle
+  const commentHeight = showDetails ? 280 : 160; // Approximate heights
+  const padding = 10; // Minimum padding from edges
+
+  // Default positions
+  let circleLeft = position.x - (circleSize / 2);
+  let circleTop = position.y - (circleSize / 2);
+  let commentLeft = circleLeft + circleSize + 2; // Default: right of circle
+  let commentTop = circleTop;
+  let flipToLeft = false;
+
+  // Boundary adjustments if containerBounds provided
+  if (containerBounds) {
+    // Clamp circle position within container
+    circleLeft = Math.max(containerBounds.left + padding, Math.min(circleLeft, containerBounds.right - circleSize - padding));
+    circleTop = Math.max(containerBounds.top + padding, Math.min(circleTop, containerBounds.bottom - circleSize - padding));
+
+    // Check if comment would overflow right edge
+    if (circleLeft + circleSize + commentWidth + padding > containerBounds.right) {
+      // Flip comment to left side of circle
+      flipToLeft = true;
+      commentLeft = circleLeft - commentWidth - 2;
+    } else {
+      commentLeft = circleLeft + circleSize + 2;
+    }
+
+    // Check if comment would overflow left edge when flipped
+    if (flipToLeft && commentLeft < containerBounds.left + padding) {
+      // Can't fit on either side, just position at left edge
+      commentLeft = containerBounds.left + padding;
+    }
+
+    // Vertical bounds check - ensure comment doesn't go above or below container
+    if (commentTop + commentHeight > containerBounds.bottom - padding) {
+      commentTop = containerBounds.bottom - commentHeight - padding;
+    }
+    if (commentTop < containerBounds.top + padding) {
+      commentTop = containerBounds.top + padding;
+    }
+  }
 
   return (
     <>
