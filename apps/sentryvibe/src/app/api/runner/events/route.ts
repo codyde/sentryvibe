@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import type { RunnerEvent, StartBuildCommand, AutoFixStartedEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
-import { projects, generationSessions } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { projects, generationSessions, serverOperations } from '@sentryvibe/agent-core/lib/db/schema';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
@@ -318,16 +318,29 @@ export async function POST(request: Request) {
               // Reset port retry counter on successful start
               portRetryAttempts.delete(event.projectId);
               
+              const now = new Date();
               const [updated] = await db.update(projects)
                 .set({
                   devServerStatus: 'running',
-                  lastActivityAt: new Date(),
+                  devServerStatusUpdatedAt: now,
+                  lastActivityAt: now,
                 })
-                .where(eq(projects.id, event.projectId))
+                .where(eq(projects.id, event.projectId!))
                 .returning();
               if (updated) {
                 console.log(`[events] ✅ Updated devServerStatus to 'running' for project ${event.projectId}`);
-                emitProjectUpdateFromData(event.projectId, updated);
+                emitProjectUpdateFromData(event.projectId!, updated);
+              }
+              
+              // Update operation record if commandId matches an operation
+              if (event.commandId) {
+                await db.update(serverOperations)
+                  .set({
+                    status: 'completed',
+                    ackAt: now,
+                    completedAt: now,
+                  })
+                  .where(eq(serverOperations.id, event.commandId));
               }
             }
             break;

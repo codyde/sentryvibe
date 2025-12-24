@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
-import { projects } from '@sentryvibe/agent-core/lib/db/schema';
+import { projects, serverOperations } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import {
@@ -65,6 +65,9 @@ export async function POST(
       }, { status: 400 });
     }
 
+    // Operation ID declared outside try block so catch can access it
+    let operationId: string | undefined;
+    
     try {
       console.log(`🚀 Starting dev server for ${proj.name}`);
       console.log(`   Previous port: ${proj.devServerPort ?? 'none'}, Framework: ${proj.detectedFramework ?? 'unknown'}`);
@@ -87,27 +90,41 @@ export async function POST(
       
       console.log(`📍 Allocated port ${portInfo.port} for framework ${portInfo.framework}`);
 
-      // Step 2: Update database with allocated port BEFORE sending command
+      // Step 2: Create operation record for tracking
+      operationId = randomUUID();
+      await db.insert(serverOperations).values({
+        id: operationId,
+        projectId: id,
+        operation: 'start',
+        status: 'pending',
+        runnerId: runnerId,
+        port: portInfo.port,
+        metadata: { framework: portInfo.framework },
+      });
+
+      // Step 3: Update database with allocated port BEFORE sending command
       // This makes devServerPort the single source of truth
+      const now = new Date();
       await db.update(projects)
         .set({
           devServerStatus: 'starting',
+          devServerStatusUpdatedAt: now,
           devServerPort: portInfo.port,
           errorMessage: null,
-          lastActivityAt: new Date(),
+          lastActivityAt: now,
         })
         .where(eq(projects.id, id));
 
-      // Step 3: Build environment variables for port (frameworks read PORT env var)
+      // Step 4: Build environment variables for port (frameworks read PORT env var)
       const portEnv = buildEnvForFramework(portInfo.framework, portInfo.port);
       const runCommand = getRunCommand(proj.runCommand);
 
       console.log(`📝 Run command: ${runCommand}`);
       console.log(`🔧 Port environment: ${JSON.stringify(portEnv)}`);
 
-      // Step 4: Send command to runner with pre-allocated port
+      // Step 5: Send command to runner with pre-allocated port
       const runnerCommand: StartDevServerCommand = {
-        id: randomUUID(),
+        id: operationId, // Use the operation ID for correlation
         type: 'start-dev-server',
         projectId: id,
         timestamp: new Date().toISOString(),
@@ -121,9 +138,18 @@ export async function POST(
 
       await sendCommandToRunner(runnerId, runnerCommand);
 
+      // Step 6: Mark operation as sent
+      await db.update(serverOperations)
+        .set({
+          status: 'sent',
+          sentAt: new Date(),
+        })
+        .where(eq(serverOperations.id, operationId));
+
       return NextResponse.json({
         message: 'Dev server start requested',
         port: portInfo.port,
+        operationId, // Return operation ID for tracking
       }, { status: 202 });
 
     } catch (error) {
@@ -156,13 +182,27 @@ export async function POST(
       }
 
       // Update project status with user-friendly error message
+      const failedAt = new Date();
       await db.update(projects)
         .set({
           devServerStatus: 'failed',
+          devServerStatusUpdatedAt: failedAt,
           devServerPort: null,
           errorMessage: userFriendlyMessage,
         })
         .where(eq(projects.id, id));
+
+      // Mark operation as failed if it was created
+      if (typeof operationId !== 'undefined') {
+        await db.update(serverOperations)
+          .set({
+            status: 'failed',
+            error: userFriendlyMessage,
+            failureReason: errorMessage.includes('port') ? 'port_in_use' : 'unknown',
+            completedAt: failedAt,
+          })
+          .where(eq(serverOperations.id, operationId));
+      }
 
       // Re-throw with enhanced message
       const enhancedError = new Error(userFriendlyMessage);

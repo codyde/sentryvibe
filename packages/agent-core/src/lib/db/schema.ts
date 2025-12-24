@@ -17,6 +17,7 @@ export const projects = pgTable('projects', {
   devServerPid: integer('dev_server_pid'),
   devServerPort: integer('dev_server_port'),
   devServerStatus: text('dev_server_status').default('stopped'),
+  devServerStatusUpdatedAt: timestamp('dev_server_status_updated_at').defaultNow(),
   tunnelUrl: text('tunnel_url'),
   runnerId: text('runner_id'), // Runner that created/manages this project
   generationState: text('generation_state'),
@@ -131,11 +132,36 @@ export const generationNotes = pgTable('generation_notes', {
     .where(sql`${table.textId} is not null`),
 }));
 
+// Server operations tracking table for reliable status management
+export const serverOperations = pgTable('server_operations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  operation: text('operation').notNull(), // 'start', 'stop', 'restart'
+  status: text('status').notNull().default('pending'), // 'pending', 'sent', 'ack', 'completed', 'failed', 'timeout'
+  runnerId: text('runner_id'),
+  port: integer('port'),
+  pid: integer('pid'),
+  error: text('error'),
+  failureReason: text('failure_reason'), // 'port_in_use', 'health_check_timeout', 'immediate_crash', etc.
+  retryCount: integer('retry_count').notNull().default(0),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  sentAt: timestamp('sent_at'),
+  ackAt: timestamp('ack_at'),
+  completedAt: timestamp('completed_at'),
+}, (table) => ({
+  projectIdIdx: index('server_operations_project_id_idx').on(table.projectId),
+  statusIdx: index('server_operations_status_idx').on(table.status),
+  createdAtIdx: index('server_operations_created_at_idx').on(table.createdAt),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type PortAllocation = typeof portAllocations.$inferSelect;
+export type ServerOperation = typeof serverOperations.$inferSelect;
+export type NewServerOperation = typeof serverOperations.$inferInsert;
 export type GenerationSession = typeof generationSessions.$inferSelect;
 export type GenerationTodo = typeof generationTodos.$inferSelect;
 export type GenerationToolCall = typeof generationToolCalls.$inferSelect;
