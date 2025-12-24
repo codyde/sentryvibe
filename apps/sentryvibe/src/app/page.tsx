@@ -1129,22 +1129,26 @@ function HomeContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, selectedProjectSlug]);
 
-  // Clear generationState as a fallback when project completes
+  // Clear generationState as a fallback when project TRANSITIONS to completed
   // NOTE: Dev server auto-start is handled SERVER-SIDE in the build-completed event handler
   // (apps/sentryvibe/src/app/api/runner/events/route.ts lines 638-710)
   // We do NOT auto-start from the frontend to avoid duplicate start commands
   const prevProjectStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const currentStatus = currentProject?.status;
+    const prevStatus = prevProjectStatusRef.current;
 
-    // FALLBACK: If project status changes to completed but generationState is still active,
-    // clear it. This handles cases where WebSocket broadcast fails to reach the client.
+    // FALLBACK: Only clear if project TRANSITIONED from in_progress to completed
+    // This prevents falsely clearing state when a new build starts while project is already "completed"
+    // The key insight: project status stays "completed" from the PREVIOUS build, so we can't just check
+    // currentStatus === "completed" - we need to detect the actual transition
     if (
+      prevStatus === "in_progress" &&
       currentStatus === "completed" &&
       generationState?.isActive &&
       generationState?.projectId === currentProject?.id
     ) {
-      console.log("🔄 [Fallback] Project completed via SSE but generationState still active, clearing...");
+      console.log("🔄 [Fallback] Project transitioned to completed but generationState still active, clearing...");
       setGenerationState((prev) => prev ? { ...prev, isActive: false } : null);
     }
 
