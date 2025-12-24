@@ -689,9 +689,19 @@ class BuildWebSocketServer {
       timestamp: Date.now(),
     });
 
-    const subscriberCount = Array.from(this.clients.values()).filter(
+    const allClients = Array.from(this.clients.values());
+    const subscriberCount = allClients.filter(
       client => client.projectId === projectId
     ).length;
+    
+    // Debug: Log all connected clients and their projectIds
+    console.log(`[WebSocket] 📡 Broadcasting build-complete for project ${projectId}`);
+    console.log(`[WebSocket]    Total clients connected: ${allClients.length}`);
+    console.log(`[WebSocket]    Subscribers for this project: ${subscriberCount}`);
+    if (allClients.length > 0 && subscriberCount === 0) {
+      console.log(`[WebSocket]    ⚠️ WARNING: No subscribers! Client projectIds: ${allClients.map(c => c.projectId).join(', ')}`);
+    }
+    
     buildLogger.websocket.broadcastBuildComplete(projectId, sessionId, subscriberCount);
 
     // Terminal event - flush immediately
@@ -724,6 +734,8 @@ class BuildWebSocketServer {
 
     if (subscribers.length === 0) {
       // No subscribers, clear batch
+      console.log(`[WebSocket] ⚠️ flushBatch: No subscribers for ${projectId}, dropping ${updates.length} updates`);
+      console.log(`[WebSocket]    Update types: ${updates.map(u => u.type).join(', ')}`);
       this.pendingUpdates.delete(key);
       return;
     }

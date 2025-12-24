@@ -1124,6 +1124,7 @@ function HomeContent() {
   }, [projects, selectedProjectSlug]);
 
   // Auto-start dev server when project status changes to completed
+  // Also clear generationState as a fallback if WebSocket broadcast fails
   const prevProjectStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const currentStatus = currentProject?.status;
@@ -1140,12 +1141,26 @@ function HomeContent() {
       setTimeout(() => startDevServer(), 1000);
     }
 
+    // FALLBACK: If project status changes to completed but generationState is still active,
+    // clear it. This handles cases where WebSocket broadcast fails to reach the client.
+    if (
+      currentStatus === "completed" &&
+      generationState?.isActive &&
+      generationState?.projectId === currentProject?.id
+    ) {
+      console.log("🔄 [Fallback] Project completed via SSE but generationState still active, clearing...");
+      setGenerationState((prev) => prev ? { ...prev, isActive: false } : null);
+    }
+
     prevProjectStatusRef.current = currentStatus || null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentProject?.status,
     currentProject?.devServerStatus,
     currentProject?.runCommand,
+    currentProject?.id,
+    generationState?.isActive,
+    generationState?.projectId,
   ]);
 
   // Disabled: We now handle generation directly in handleSubmit without redirects
