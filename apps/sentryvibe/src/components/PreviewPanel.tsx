@@ -366,32 +366,19 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     return () => window.removeEventListener('refresh-iframe', handleRefreshEvent);
   }, [handleRefresh]);
 
-  // Track previous build active state for auto-refresh on completion
+  // Track build state for auto-refresh on completion
+  // We DON'T auto-refresh anymore - HMR handles file changes automatically
+  // This prevents the distracting "Refreshing preview..." overlay during builds
+  // The user can manually refresh if needed using the refresh button
   const prevBuildActiveRef = useRef(isBuildActive);
-  const hasRefreshedForBuildRef = useRef(false);
   
-  // Auto-refresh iframe ONCE when build completes (isBuildActive transitions from true to false)
-  // We use hasRefreshedForBuildRef to ensure we only refresh once per build cycle
   useEffect(() => {
-    // Reset the refresh guard when a new build starts
-    if (isBuildActive && !prevBuildActiveRef.current) {
-      hasRefreshedForBuildRef.current = false;
-    }
-    
-    // Only refresh if:
-    // 1. Build just completed (was active, now inactive)
-    // 2. Preview URL exists (server is running)
-    // 3. Haven't already refreshed for this build completion
-    if (prevBuildActiveRef.current && !isBuildActive && previewUrl && !hasRefreshedForBuildRef.current) {
-      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed, refreshing preview once...');
-      hasRefreshedForBuildRef.current = true;
-      // Small delay to let any file changes settle
-      setTimeout(() => {
-        handleRefresh();
-      }, 500);
+    // Just track state transitions for debugging, but don't auto-refresh
+    if (prevBuildActiveRef.current && !isBuildActive) {
+      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed - HMR will handle any file changes');
     }
     prevBuildActiveRef.current = isBuildActive;
-  }, [isBuildActive, previewUrl, handleRefresh]);
+  }, [isBuildActive]);
 
   const handleCopyUrl = async () => {
     // Copy the actual URL - prefer tunnel if available, otherwise localhost
