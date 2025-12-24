@@ -176,7 +176,7 @@ export async function POST(request: Request) {
                     }
 
                     // Get runner for this project
-                    const runnerId = await getProjectRunnerId(event.projectId, project.runnerId);
+                    const runnerId = await getProjectRunnerId(project.runnerId);
 
                     if (runnerId) {
                       // Build port environment variables
@@ -455,7 +455,7 @@ export async function POST(request: Request) {
                 if (buildingUpdate) emitProjectUpdateFromData(event.projectId, buildingUpdate);
 
                 // Get the runner for this project
-                const runnerId = await getProjectRunnerId(event.projectId, currentProject.runnerId);
+                const runnerId = await getProjectRunnerId(currentProject.runnerId);
 
                 if (runnerId) {
                   // Create a fix build command
@@ -788,7 +788,7 @@ IMPORTANT:
               if (updated) emitProjectUpdateFromData(event.projectId, updated);
 
               // Get the runner for this project
-              const runnerId = await getProjectRunnerId(event.projectId, project.runnerId);
+              const runnerId = await getProjectRunnerId(project.runnerId);
 
               if (runnerId) {
                 // Create a fix build command

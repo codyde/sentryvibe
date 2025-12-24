@@ -29,12 +29,16 @@ export async function POST(
 
     const proj = project[0];
 
-    // Try to use project's saved runner, fallback to any available runner
+    // Get the project's runner - no fallback to other runners
     const runnerId = await getProjectRunnerId(proj.runnerId);
 
     if (!runnerId) {
+      // Provide specific error based on whether project has a runner assigned
+      const errorMessage = proj.runnerId 
+        ? `Project runner '${proj.runnerId}' is not connected`
+        : 'No runners connected';
       return NextResponse.json(
-        { error: 'No runners connected' },
+        { error: errorMessage },
         { status: 503 }
       );
     }

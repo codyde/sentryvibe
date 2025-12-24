@@ -18,36 +18,38 @@ export async function getActiveRunnerId(): Promise<string | null> {
 }
 
 /**
- * Get the runner ID for a project, with fallback to any available runner.
- * Tries to use the project's saved runnerId first (if that runner is still connected),
- * otherwise falls back to the first available runner.
+ * Get the runner ID for a project - NO FALLBACK.
+ * If the project has a saved runnerId, that specific runner must be connected.
+ * If the project has no runnerId (new project), uses the first available runner.
  *
- * @param preferredRunnerId - The preferred runner ID (e.g., from project.runnerId)
- * @returns The runner ID to use, or null if no runners are connected
+ * @param preferredRunnerId - The project's saved runner ID (from project.runnerId)
+ * @returns The runner ID if available, or null if the required runner is not connected
  */
 export async function getProjectRunnerId(preferredRunnerId: string | null): Promise<string | null> {
   const connections = await listRunnerConnections();
 
   console.log('🔍 [getProjectRunnerId] Connections:', connections);
-  console.log('🔍 [getProjectRunnerId] Preferred runner:', preferredRunnerId);
+  console.log('🔍 [getProjectRunnerId] Project runner:', preferredRunnerId);
 
   if (connections.length === 0) {
-    console.warn('⚠️  [getProjectRunnerId] No connections found');
+    console.warn('⚠️  [getProjectRunnerId] No runners connected');
     return null;
   }
 
-  // If project has a saved runnerId and that runner is connected, use it
-  // Note: connections have 'runnerId' property, not 'id'
+  // If project has a saved runnerId, that specific runner MUST be connected
+  // No fallback - the project is tied to its runner
   if (preferredRunnerId) {
-    const preferredConnection = connections.find(conn => conn.runnerId === preferredRunnerId);
-    if (preferredConnection) {
-      console.log(`✅ [getProjectRunnerId] Using preferred runner: ${preferredConnection.runnerId}`);
-      return preferredConnection.runnerId;
+    const projectRunner = connections.find(conn => conn.runnerId === preferredRunnerId);
+    if (projectRunner) {
+      console.log(`✅ [getProjectRunnerId] Project runner connected: ${projectRunner.runnerId}`);
+      return projectRunner.runnerId;
     }
-    console.warn(`⚠️  Project's runner '${preferredRunnerId}' not connected, using fallback`);
+    // Project's runner is not connected - return null (no fallback)
+    console.warn(`⚠️  [getProjectRunnerId] Project runner '${preferredRunnerId}' is not connected`);
+    return null;
   }
 
-  // Fallback to first available runner
-  console.log(`✅ [getProjectRunnerId] Using fallback runner: ${connections[0].runnerId}`);
+  // No saved runnerId (new project) - use first available runner
+  console.log(`✅ [getProjectRunnerId] New project, using runner: ${connections[0].runnerId}`);
   return connections[0].runnerId;
 }
