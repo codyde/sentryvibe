@@ -10,6 +10,20 @@ import { TagOption, findTagDefinition } from '@sentryvibe/agent-core/config/tags
 import { validateTagSet } from '@sentryvibe/agent-core/lib/tags/resolver';
 import { useTagSuggestions } from '@/mutations/tags';
 
+// Priority order for tags: runner first, model second, then others
+const TAG_PRIORITY: Record<string, number> = {
+  runner: 0,
+  model: 1,
+};
+
+function sortTagsByPriority(tags: AppliedTag[]): AppliedTag[] {
+  return [...tags].sort((a, b) => {
+    const priorityA = TAG_PRIORITY[a.key] ?? 999;
+    const priorityB = TAG_PRIORITY[b.key] ?? 999;
+    return priorityA - priorityB;
+  });
+}
+
 interface TagInputProps {
   tags: AppliedTag[];
   onTagsChange: (tags: AppliedTag[]) => void;
@@ -51,7 +65,7 @@ export function TagInput({
         expandedValues,
         appliedAt: new Date()
       };
-      onTagsChange([...filteredTags, newTag]);
+      onTagsChange(sortTagsByPriority([...filteredTags, newTag]));
       return;
     }
 
@@ -63,16 +77,16 @@ export function TagInput({
       appliedAt: new Date()
     };
 
-    onTagsChange([...tags, newTag]);
+    onTagsChange(sortTagsByPriority([...tags, newTag]));
   };
 
   const handleRemoveTag = (key: string, value?: string) => {
     if (value) {
       // Remove specific tag by key AND value (for multi-select)
-      onTagsChange(tags.filter(t => !(t.key === key && t.value === value)));
+      onTagsChange(sortTagsByPriority(tags.filter(t => !(t.key === key && t.value === value))));
     } else {
       // Remove by key only
-      onTagsChange(tags.filter(t => t.key !== key));
+      onTagsChange(sortTagsByPriority(tags.filter(t => t.key !== key)));
     }
   };
 
@@ -85,7 +99,7 @@ export function TagInput({
       expandedValues,
       appliedAt: new Date()
     };
-    onTagsChange([...filteredTags, newTag]);
+    onTagsChange(sortTagsByPriority([...filteredTags, newTag]));
   };
 
   // Validate tags whenever they change
@@ -116,7 +130,7 @@ export function TagInput({
           expandedValues: tag.expandedValues,
           appliedAt: new Date()
         }));
-        onTagsChange(newTags);
+        onTagsChange(sortTagsByPriority(newTags));
       }
     } catch (error) {
       console.error('[TagInput] Failed to get tag suggestions:', error);
