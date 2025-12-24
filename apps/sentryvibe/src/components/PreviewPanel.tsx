@@ -368,15 +368,23 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // Track previous build active state for auto-refresh on completion
   const prevBuildActiveRef = useRef(isBuildActive);
+  const hasRefreshedForBuildRef = useRef(false);
   
-  // Auto-refresh iframe when build completes (isBuildActive transitions from true to false)
+  // Auto-refresh iframe ONCE when build completes (isBuildActive transitions from true to false)
+  // We use hasRefreshedForBuildRef to ensure we only refresh once per build cycle
   useEffect(() => {
+    // Reset the refresh guard when a new build starts
+    if (isBuildActive && !prevBuildActiveRef.current) {
+      hasRefreshedForBuildRef.current = false;
+    }
+    
     // Only refresh if:
     // 1. Build just completed (was active, now inactive)
     // 2. Preview URL exists (server is running)
-    // 3. Not during initial render
-    if (prevBuildActiveRef.current && !isBuildActive && previewUrl) {
-      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed, refreshing preview...');
+    // 3. Haven't already refreshed for this build completion
+    if (prevBuildActiveRef.current && !isBuildActive && previewUrl && !hasRefreshedForBuildRef.current) {
+      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed, refreshing preview once...');
+      hasRefreshedForBuildRef.current = true;
       // Small delay to let any file changes settle
       setTimeout(() => {
         handleRefresh();
@@ -621,9 +629,10 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
           </div>
         )}
 
-        {/* Right controls - Server/Tunnel buttons - Always visible */}
+        {/* Right controls - Server/Tunnel buttons - Only show when build is complete */}
         <div className="flex items-center gap-2 ml-auto">
-          {currentProject?.runCommand && (
+          {/* Only show server controls when project is completed (not building) and has a run command */}
+          {currentProject?.runCommand && currentProject?.status === 'completed' && !isBuildActive && (
             <>
               {currentProject.devServerStatus === 'running' ? (
                 <>
