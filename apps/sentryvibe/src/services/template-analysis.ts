@@ -101,12 +101,17 @@ Requirements:
 - Both should be descriptive and clear`;
 
   try {
+    console.log('[generateProjectName] 🚀 Starting AI name generation...');
+    console.log('[generateProjectName] Model: claude-haiku-4-5');
+    console.log('[generateProjectName] Prompt preview:', prompt.substring(0, 100));
+    
     const result = await generateObject({
       model: claudeCode(resolveClaudeModelForProvider('claude-haiku-4-5')),
       schema: ProjectNamingSchema,
       prompt: namePrompt,
     });
 
+    console.log('[generateProjectName] ✅ AI response received:', result.object);
     const { slug, friendlyName } = result.object;
 
     // Validate slug
@@ -116,6 +121,8 @@ Requirements:
 
     return { slug, friendlyName };
   } catch (error) {
+    console.error('[generateProjectName] ❌ AI name generation failed:', error instanceof Error ? error.message : error);
+    console.error('[generateProjectName] 📋 Falling back to word extraction from prompt');
 
     // Fallback: generate simple slug and title-case it for friendly name
     const words = prompt
@@ -144,7 +151,13 @@ export async function analyzePromptForTemplate(
   templates: Template[],
   claudeModel?: ClaudeModelId,
 ): Promise<TemplateAnalysisResult> {
+  console.log('[analyzePromptForTemplate] 🎯 Starting template analysis');
+  console.log('[analyzePromptForTemplate] Agent:', selectedAgent, 'Claude model:', claudeModel);
+  console.log('[analyzePromptForTemplate] Available templates:', templates.length);
+  
   const modelConfig = getAnalysisModelConfig(selectedAgent, claudeModel);
+  console.log('[analyzePromptForTemplate] Model config:', modelConfig);
+  
   const systemPrompt = buildTemplateSelectionPrompt(templates, selectedAgent, claudeModel);
 
   let analysisResponse: string;
@@ -211,15 +224,26 @@ async function analyzeWithClaude(
   userPrompt: string,
   model: string
 ): Promise<string> {
+  console.log('[analyzeWithClaude] 🚀 Starting template analysis...');
+  console.log('[analyzeWithClaude] Model:', model);
+  console.log('[analyzeWithClaude] Prompt preview:', userPrompt.substring(0, 100));
+  
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
-  const result = await generateObject({
-    model: claudeCode(resolveClaudeModelForProvider(model)),
-    schema: TemplateAnalysisSchema,
-    prompt: combinedPrompt,
-  });
+  try {
+    const result = await generateObject({
+      model: claudeCode(resolveClaudeModelForProvider(model)),
+      schema: TemplateAnalysisSchema,
+      prompt: combinedPrompt,
+    });
 
-  return JSON.stringify(result.object);
+    console.log('[analyzeWithClaude] ✅ AI response received:', result.object);
+    return JSON.stringify(result.object);
+  } catch (error) {
+    console.error('[analyzeWithClaude] ❌ AI call failed:', error instanceof Error ? error.message : error);
+    console.error('[analyzeWithClaude] Full error:', error);
+    throw error;
+  }
 }
 
 async function analyzeWithOpenAI(
