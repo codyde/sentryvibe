@@ -490,7 +490,7 @@ export async function POST(
                       timestamp: new Date().toISOString(),
                       payload: {
                         runCommand: restartServerConfig.runCommand,
-                        workingDirectory: join(process.env.WORKSPACE_DIR || '/app/workspace/sentryvibe-workspace', project[0].slug),
+                        workingDirectory: join(process.env.WORKSPACE_ROOT || process.env.WORKSPACE_DIR || '/app/workspace/sentryvibe-workspace', project[0].slug),
                         env: restartServerConfig.env,
                         preferredPort: restartServerConfig.port,
                         recreateTunnel: restartServerConfig.hasTunnel,
@@ -499,6 +499,13 @@ export async function POST(
                     
                     await sendCommandToRunner(effectiveRunnerId, restartCommand);
                     console.log('[build-route] ✅ Restart command sent to runner');
+                    
+                    // Re-emit restarting status to ensure UI shows the restart animation
+                    // (Status was set before build, but UI may have been showing BuildingAppSkeleton)
+                    const [restartingProject] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+                    if (restartingProject) {
+                      projectEvents.emitProjectUpdate(id, restartingProject);
+                    }
                   } catch (error) {
                     console.error('[build-route] ❌ Failed to trigger server restart:', error);
                     // Update status back to stopped on failure

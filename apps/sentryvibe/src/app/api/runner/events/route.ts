@@ -312,9 +312,9 @@ export async function POST(request: Request) {
             break;
           }
           case 'ack': {
-            // Check if this is a health check success (server is healthy)
+            // Check if this is a health check success (server is healthy or restarted)
             const message = (event as { message?: string }).message || '';
-            if (message.includes('healthy') || message.includes('running')) {
+            if (message.includes('healthy') || message.includes('running') || message.includes('restarted successfully')) {
               // Reset port retry counter on successful start
               portRetryAttempts.delete(event.projectId);
               
