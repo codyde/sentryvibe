@@ -305,22 +305,55 @@ function classifyStartupError(error: unknown, processInfo: Partial<DevServerProc
 }
 
 /**
- * Start a development server for a project
+ * Start a development server for a project with pre-flight port check
  * 
- * Note: This function is intentionally synchronous for compatibility with existing callers.
+ * This is the preferred way to start a dev server as it verifies the port
+ * is actually available before spawning the process.
+ * 
+ * @param options - DevServerOptions including port
+ * @param maxPortWaitMs - Maximum time to wait for port to become available (default: 5000)
+ * @returns Promise<DevServerProcess> - The dev server process
+ * @throws Error if port is not available after waiting
+ */
+export async function startDevServerAsync(
+  options: DevServerOptions,
+  maxPortWaitMs = 5000
+): Promise<DevServerProcess> {
+  const { projectId, port } = options;
+
+  // Pre-flight check: verify port is available before spawning
+  if (port) {
+    const portInUse = await checkPortInUse(port);
+    if (portInUse) {
+      buildLogger.log('warn', 'process-manager', `Port ${port} is in use, waiting for release...`, { port, projectId });
+      
+      // Wait for port to become available
+      const portReleased = await waitForPortRelease(port, maxPortWaitMs);
+      if (!portReleased) {
+        const error = new Error(`Port ${port} is still in use after ${maxPortWaitMs}ms. Please stop the process using this port.`);
+        buildLogger.log('error', 'process-manager', error.message, { port, projectId });
+        throw error;
+      }
+    }
+    
+    buildLogger.log('info', 'process-manager', `Port ${port} is available, starting dev server`, { port, projectId });
+  }
+
+  // Port is available, start the server
+  return startDevServer(options);
+}
+
+/**
+ * Start a development server for a project (synchronous version)
+ * 
+ * Note: Prefer startDevServerAsync() which includes port availability checks.
+ * This synchronous version is kept for compatibility but does not verify port availability.
  * The caller is responsible for stopping any existing process before calling this function.
- * Use restartDevServer() for a full stop-then-start cycle.
  */
 export function startDevServer(options: DevServerOptions): DevServerProcess {
   const { projectId, command, cwd, env } = options;
 
   buildLogger.processManager.processStarting(projectId, command, cwd);
-
-  // NOTE: We no longer call stopDevServer here because:
-  // 1. It's async and we can't properly await it in a sync function
-  // 2. Callers (index.ts handlers) already stop the server before calling this
-  // 3. restartDevServer() properly handles the stop-then-start cycle
-  // The old non-awaited call caused race conditions during restart.
 
   const emitter = new EventEmitter();
 
@@ -579,50 +612,33 @@ export async function stopDevServer(
 }
 
 /**
- * Restart a development server with full cleanup
- * Stops the server, kills the port, closes tunnel, then starts fresh
- * @param projectId - The project ID to restart
- * @param startOptions - Options for starting the server
- * @param stopOptions - Options for stopping the server
- * @returns Promise<DevServerProcess | null> - The new process or null if restart failed
+ * Wait for a port to become available by polling
+ * @param port - Port to wait for
+ * @param maxWaitMs - Maximum time to wait in milliseconds (default: 10000)
+ * @param pollIntervalMs - How often to check in milliseconds (default: 500)
+ * @returns Promise<boolean> - true if port became available, false if timeout
  */
-export async function restartDevServer(
-  projectId: string,
-  startOptions: DevServerOptions,
-  stopOptions?: {
-    timeout?: number;
-    tunnelManager?: any;
-    port?: number;
+export async function waitForPortRelease(
+  port: number,
+  maxWaitMs = 10000,
+  pollIntervalMs = 500
+): Promise<boolean> {
+  const start = Date.now();
+  
+  buildLogger.log('info', 'process-manager', `Waiting for port ${port} to be released...`, { port, maxWaitMs });
+  
+  while (Date.now() - start < maxWaitMs) {
+    const inUse = await checkPortInUse(port);
+    if (!inUse) {
+      const elapsed = Date.now() - start;
+      buildLogger.log('info', 'process-manager', `Port ${port} released after ${elapsed}ms`, { port, elapsed });
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
-): Promise<DevServerProcess | null> {
-  const { timeout = 10000, tunnelManager, port } = stopOptions || {};
   
-  buildLogger.log('info', 'process-manager', `Restarting dev server for ${projectId}`, { projectId });
-  
-  // Step 1: Stop existing server with force kill on port
-  await stopDevServer(projectId, {
-    timeout,
-    reason: 'restart',
-    tunnelManager,
-    port,
-    forceKillPort: true, // Force kill to ensure clean restart
-  });
-  
-  // Step 2: Extra wait for port to be fully released by OS
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  // Step 3: Start the server fresh
-  try {
-    const newProcess = startDevServer(startOptions);
-    buildLogger.log('info', 'process-manager', `Successfully restarted dev server for ${projectId}`, { projectId, pid: newProcess.process.pid });
-    return newProcess;
-  } catch (error) {
-    buildLogger.log('error', 'process-manager', `Failed to restart dev server for ${projectId}`, { 
-      projectId, 
-      error: error instanceof Error ? error.message : String(error) 
-    });
-    return null;
-  }
+  buildLogger.log('warn', 'process-manager', `Timeout waiting for port ${port} to be released`, { port, maxWaitMs });
+  return false;
 }
 
 /**

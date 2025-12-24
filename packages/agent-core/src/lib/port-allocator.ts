@@ -124,6 +124,10 @@ export async function detectFrameworkFromFilesystem(projectPath: string): Promis
 /**
  * Resolve framework type from multiple sources
  * Priority: saved detectedFramework > projectType field > runCommand > 'default'
+ * 
+ * IMPORTANT: Once a framework is detected and saved during build, it should NOT change.
+ * This prevents port range drift when projects are restarted.
+ * 
  * Note: Filesystem detection removed from here - now happens on build completion
  */
 async function resolveFramework(
@@ -132,15 +136,23 @@ async function resolveFramework(
   savedFramework?: string | null
 ): Promise<FrameworkKey> {
   // Strategy 1: Use saved framework (most reliable - detected during build)
+  // This is the AUTHORITATIVE source once set - prevents port drift on restart
   if (savedFramework) {
     const framework = toFrameworkKey(savedFramework);
-    buildLogger.log('debug', 'port-allocator', `Using saved framework: ${framework}`, { 
+    buildLogger.log('info', 'port-allocator', `Using saved framework (locked): ${framework}`, { 
       savedFramework, 
       projectType, 
       runCommand 
     });
     return framework;
   }
+  
+  // Only fallback to detection if no saved framework exists
+  // This should only happen for projects created before framework detection was implemented
+  buildLogger.log('warn', 'port-allocator', 'No saved framework found, falling back to detection (may cause port drift)', {
+    projectType,
+    runCommand
+  });
 
   // Strategy 2: Check projectType field
   const normalizedType = projectType?.toLowerCase() ?? '';

@@ -9,7 +9,6 @@ export type RunnerCommandType =
   | 'start-build'
   | 'start-dev-server'
   | 'stop-dev-server'
-  | 'restart-dev-server'
   | 'start-tunnel'
   | 'stop-tunnel'
   | 'fetch-logs'
@@ -102,17 +101,6 @@ export interface StopDevServerCommand extends BaseCommand {
   type: 'stop-dev-server';
 }
 
-export interface RestartDevServerCommand extends BaseCommand {
-  type: 'restart-dev-server';
-  payload: {
-    runCommand: string;
-    workingDirectory: string;
-    env?: Record<string, string>;
-    preferredPort?: number | null;
-    recreateTunnel?: boolean;
-  };
-}
-
 export interface StartTunnelCommand extends BaseCommand {
   type: 'start-tunnel';
   payload: {
@@ -175,7 +163,6 @@ export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
   | StopDevServerCommand
-  | RestartDevServerCommand
   | StartTunnelCommand
   | StopTunnelCommand
   | FetchLogsCommand
@@ -385,7 +372,6 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'start-build',
   'start-dev-server',
   'stop-dev-server',
-  'restart-dev-server',
   'start-tunnel',
   'stop-tunnel',
   'fetch-logs',

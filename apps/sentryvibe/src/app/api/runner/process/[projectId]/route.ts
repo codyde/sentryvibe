@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
 
 function ensureAuthorized(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -35,7 +36,15 @@ export async function DELETE(
     await db.delete(runningProcesses)
       .where(eq(runningProcesses.projectId, projectId));
 
-    console.log(`✅ Unregistered process for project ${projectId}`);
+    // Release the port allocation so it can be reused
+    try {
+      await releasePortForProject(projectId);
+      console.log(`✅ Unregistered process and released port for project ${projectId}`);
+    } catch (portError) {
+      // Log but don't fail - process unregistration is more important
+      console.warn(`⚠️ Failed to release port for project ${projectId}:`, portError);
+      console.log(`✅ Unregistered process for project ${projectId} (port release failed)`);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

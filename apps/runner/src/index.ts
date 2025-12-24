@@ -29,7 +29,7 @@ import {
 import { CLAUDE_CLI_TOOL_REGISTRY } from "@sentryvibe/agent-core/lib/claude/tools";
 import { buildLogger } from "@sentryvibe/agent-core/lib/logging/build-logger";
 import { createBuildStream } from "./lib/build/engine.js";
-import { startDevServer, stopDevServer, checkPortInUse, findAvailablePort } from "./lib/process-manager.js";
+import { startDevServer, startDevServerAsync, stopDevServer, checkPortInUse, findAvailablePort } from "./lib/process-manager.js";
 import { getWorkspaceRoot } from "./lib/workspace.js";
 import {
   transformAgentMessageToSSE,
@@ -1652,7 +1652,8 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           const startTime = Date.now();
 
-          const devProcess = startDevServer({
+          // Use async version with port availability check
+          const devProcess = await startDevServerAsync({
             projectId: command.projectId,
             command: runCmd,
             cwd: workingDirectory,
@@ -1777,7 +1778,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           if (allocatedPort) {
             log(`🔍 Running health check for port ${allocatedPort}...`);
             
-            const { runHealthCheck, startDevServer } = await import('./lib/process-manager.js');
+            const { runHealthCheck, startDevServerAsync } = await import('./lib/process-manager.js');
             const healthResult = await runHealthCheck(command.projectId, allocatedPort);
             
             if (healthResult.healthy) {
@@ -1811,8 +1812,8 @@ export async function startRunner(options: RunnerOptions = {}) {
                 message: `Retrying server start with corrected port configuration...`,
               });
               
-              // Retry starting the dev server
-              const retryProcess = startDevServer({
+              // Retry starting the dev server with port check
+              const retryProcess = await startDevServerAsync({
                 projectId: command.projectId,
                 command: command.payload.runCommand,
                 cwd: command.payload.workingDirectory,
@@ -1929,164 +1930,6 @@ export async function startRunner(options: RunnerOptions = {}) {
             type: "error",
             ...buildEventBase(command.projectId, command.id),
             error: error instanceof Error ? error.message : "Failed to stop dev server",
-          });
-        }
-        break;
-      }
-      case "restart-dev-server": {
-        try {
-          const {
-            runCommand: runCmd,
-            workingDirectory,
-            env = {},
-            preferredPort,
-            recreateTunnel = false,
-          } = command.payload;
-
-          const allocatedPort = preferredPort ?? null;
-          
-          if (!allocatedPort) {
-            throw new Error('No port allocated for restart');
-          }
-
-          log(`🔄 Restarting dev server for project ${command.projectId} on port ${allocatedPort}...`);
-
-          // Send restarting status
-          sendEvent({
-            type: "ack",
-            ...buildEventBase(command.projectId, command.id),
-            message: "Restarting server...",
-          });
-
-          // Import restart function
-          const { restartDevServer } = await import('./lib/process-manager.js');
-          
-          // Merge environment variables
-          const envVars: Record<string, string> = {};
-          for (const [key, value] of Object.entries({
-            ...process.env,
-            ...env,
-          })) {
-            if (value !== undefined) {
-              envVars[key] = String(value);
-            }
-          }
-
-          // Restart the server (stops old process, kills port, starts fresh)
-          const devProcess = await restartDevServer(
-            command.projectId,
-            {
-              projectId: command.projectId,
-              command: runCmd,
-              cwd: workingDirectory,
-              env: envVars,
-              port: allocatedPort,
-            },
-            {
-              timeout: 10000,
-              tunnelManager,
-              port: allocatedPort,
-            }
-          );
-
-          if (!devProcess) {
-            throw new Error('Failed to restart dev server');
-          }
-
-          const startTime = Date.now();
-
-          // Forward logs to API
-          devProcess.emitter.on("log", (logEvent) => {
-            sendEvent({
-              type: "log-chunk",
-              ...buildEventBase(command.projectId, command.id),
-              stream: logEvent.type,
-              data: logEvent.data,
-              cursor: randomUUID(),
-            });
-          });
-
-          // Handle process exit
-          devProcess.emitter.on("exit", async ({ code, signal, state, failureReason, stderr }) => {
-            if (allocatedPort) {
-              log(`🔗 Closing tunnel for port ${allocatedPort}`);
-              await tunnelManager.closeTunnel(allocatedPort);
-            }
-
-            sendEvent({
-              type: "process-exited",
-              ...buildEventBase(command.projectId, command.id),
-              exitCode: code ?? null,
-              signal: signal ?? null,
-              durationMs: Date.now() - startTime,
-              state,
-              failureReason,
-              stderr,
-            });
-          });
-
-          // Handle process errors
-          devProcess.emitter.on("error", (error: unknown) => {
-            sendEvent({
-              type: "error",
-              ...buildEventBase(command.projectId, command.id),
-              error: error instanceof Error ? error.message : "Unknown runner error",
-              stack: error instanceof Error ? error.stack : undefined,
-            });
-          });
-
-          // Run health check
-          log(`🔍 Running health check for port ${allocatedPort}...`);
-          const { runHealthCheck } = await import('./lib/process-manager.js');
-          const healthResult = await runHealthCheck(command.projectId, allocatedPort);
-          
-          if (healthResult.healthy) {
-            log(`✅ Dev server restarted and healthy for project ${command.projectId} on port ${allocatedPort}`);
-            
-            sendEvent({
-              type: "port-detected",
-              ...buildEventBase(command.projectId, command.id),
-              port: allocatedPort,
-              framework: 'unknown',
-            });
-
-            // Recreate tunnel if requested
-            if (recreateTunnel) {
-              log(`🔗 Recreating tunnel for port ${allocatedPort}...`);
-              try {
-                const isReady = await waitForPort(allocatedPort, 15, 1000);
-                if (isReady) {
-                  const tunnelUrl = await tunnelManager.createTunnel(allocatedPort);
-                  log(`✅ Tunnel recreated: ${tunnelUrl}`);
-                  
-                  sendEvent({
-                    type: "tunnel-created",
-                    ...buildEventBase(command.projectId, command.id),
-                    port: allocatedPort,
-                    tunnelUrl,
-                  });
-                }
-              } catch (error) {
-                log(`⚠️ Failed to recreate tunnel: ${error instanceof Error ? error.message : String(error)}`);
-              }
-            }
-
-            sendEvent({
-              type: "ack",
-              ...buildEventBase(command.projectId, command.id),
-              message: "Dev server restarted successfully",
-            });
-          } else {
-            throw new Error('Health check failed after restart');
-          }
-
-        } catch (error) {
-          log(`❌ Failed to restart dev server: ${error instanceof Error ? error.message : String(error)}`);
-          sendEvent({
-            type: "error",
-            ...buildEventBase(command.projectId, command.id),
-            error: error instanceof Error ? error.message : "Failed to restart dev server",
-            stack: error instanceof Error ? error.stack : undefined,
           });
         }
         break;
