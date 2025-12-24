@@ -283,6 +283,7 @@ function HomeContent() {
     error: wsError,
     reconnect: wsReconnect,
     clearAutoFixState,
+    clearState: clearWsState,
     sentryTrace: wsSentryTrace,
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
@@ -1315,6 +1316,10 @@ function HomeContent() {
     freshBuildIdRef.current = freshState.id;
     console.log('🛡️ [Fresh Build Guard] Set guard for new build:', freshState.id);
 
+    // CRITICAL: Clear WebSocket state to prevent stale data from previous build
+    // This ensures the old completed build's todos/summary don't flash on screen
+    clearWsState();
+
     // Set the fresh local state (optimistic, will be replaced by WebSocket updates)
     updateGenerationState(freshState);
 
@@ -2118,6 +2123,9 @@ function HomeContent() {
         // This ensures we only accept updates for THIS new build, not old builds
         freshBuildIdRef.current = freshState.id;
         console.log('🛡️ [Fresh Build Guard] Set guard for new project build:', freshState.id);
+
+        // CRITICAL: Clear WebSocket state to prevent stale data from previous build/project
+        clearWsState();
 
         updateGenerationState(freshState);
         if (DEBUG_PAGE) console.log("✅ GenerationState set in React");

@@ -47,6 +47,7 @@ interface UseBuildWebSocketReturn {
   error: Error | null;
   reconnect: () => void;
   clearAutoFixState: () => void;
+  clearState: () => void; // Clear the build state (used when starting a new build to prevent stale data)
   sentryTrace: { trace?: string; baggage?: string } | null; // Current trace context from last WebSocket message
 }
 
@@ -78,6 +79,14 @@ export function useBuildWebSocket({
    */
   const clearAutoFixState = useCallback(() => {
     setAutoFixState(null);
+  }, []);
+
+  /**
+   * Clear the build state (called when starting a new build to prevent stale data)
+   */
+  const clearState = useCallback(() => {
+    if (DEBUG) console.log('[useBuildWebSocket] Clearing state for new build');
+    setState(null);
   }, []);
   
   /**
@@ -634,6 +643,7 @@ export function useBuildWebSocket({
     error,
     reconnect,
     clearAutoFixState,
+    clearState,
     sentryTrace,
   };
 }
