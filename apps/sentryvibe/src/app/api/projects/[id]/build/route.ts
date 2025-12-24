@@ -204,10 +204,18 @@ export async function POST(
           }
           
           if (Object.keys(updates).length > 0) {
-            await db.update(projects)
+            const [updated] = await db.update(projects)
               .set(updates)
-              .where(eq(projects.id, id));
+              .where(eq(projects.id, id))
+              .returning();
             console.log(`[build-route] ✅ Updated project:`, updates);
+            
+            // EMIT FRAMEWORK EARLY: Push update to frontend immediately
+            // This makes the framework tag appear at the START of the build
+            if (updated) {
+              console.log(`[build-route] 🚀 Framework emitted immediately: ${templateMetadata.framework}`);
+              projectEvents.emitProjectUpdate(id, updated);
+            }
           }
         } catch (error) {
           console.error('[build-route] ⚠️ Framework tag processing failed:', error);
