@@ -151,6 +151,11 @@ function normalizeHydratedState(state: unknown): GenerationState {
     buildSummary: stateObj.buildSummary as string | undefined,
     codex: stateObj.codex as GenerationState['codex'],
     stateVersion: stateObj.stateVersion as number | undefined,
+    // Auto-fix tracking fields
+    isAutoFix: Boolean(stateObj.isAutoFix),
+    autoFixError: stateObj.autoFixError as string | undefined,
+    // Source tracking for debugging
+    source: (stateObj.source as GenerationState['source']) ?? 'database',
   };
   return result;
 }
@@ -1123,23 +1128,13 @@ function HomeContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, selectedProjectSlug]);
 
-  // Auto-start dev server when project status changes to completed
-  // Also clear generationState as a fallback if WebSocket broadcast fails
+  // Clear generationState as a fallback when project completes
+  // NOTE: Dev server auto-start is handled SERVER-SIDE in the build-completed event handler
+  // (apps/sentryvibe/src/app/api/runner/events/route.ts lines 638-710)
+  // We do NOT auto-start from the frontend to avoid duplicate start commands
   const prevProjectStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const currentStatus = currentProject?.status;
-    const prevStatus = prevProjectStatusRef.current;
-
-    // Trigger auto-start when transitioning from in_progress to completed
-    if (
-      prevStatus === "in_progress" &&
-      currentStatus === "completed" &&
-      currentProject?.runCommand &&
-      currentProject?.devServerStatus !== "running"
-    ) {
-      if (DEBUG_PAGE) console.log("🚀 Generation completed, auto-starting dev server...");
-      setTimeout(() => startDevServer(), 1000);
-    }
 
     // FALLBACK: If project status changes to completed but generationState is still active,
     // clear it. This handles cases where WebSocket broadcast fails to reach the client.
@@ -1156,8 +1151,6 @@ function HomeContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentProject?.status,
-    currentProject?.devServerStatus,
-    currentProject?.runCommand,
     currentProject?.id,
     generationState?.isActive,
     generationState?.projectId,

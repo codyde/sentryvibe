@@ -637,8 +637,11 @@ IMPORTANT:
 
               // ============================================================
               // AUTO-START DEV SERVER AFTER BUILD COMPLETION
+              // Only start if server is NOT already running (avoid restarting on follow-up builds)
+              // For follow-up builds, HMR will handle the file changes automatically
               // ============================================================
-              if (updated.runCommand && updated.path) {
+              const serverAlreadyRunning = updated.devServerStatus === 'running';
+              if (updated.runCommand && updated.path && !serverAlreadyRunning) {
                 console.log(`[events] 🚀 Auto-starting dev server for completed build...`);
 
                 try {
@@ -707,6 +710,8 @@ IMPORTANT:
                   console.error(`[events] ❌ Auto-start failed:`, autoStartError);
                   // Don't fail the build-completed handling, just log the error
                 }
+              } else if (serverAlreadyRunning) {
+                console.log(`[events] ⏭️ Skipping auto-start - server already running (HMR will handle file changes)`);
               }
             }
             break;
