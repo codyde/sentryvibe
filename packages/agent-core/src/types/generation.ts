@@ -7,6 +7,8 @@ export interface TodoItem {
   activeForm: string;
 }
 
+export type BuildPhase = 'template' | 'build';
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -116,6 +118,10 @@ export interface GenerationState {
   // Auto-fix tracking - for sessions triggered by startup/runtime errors
   isAutoFix?: boolean; // Flag indicating this is an auto-fix session
   autoFixError?: string; // The error message that triggered the auto-fix
+  // Two-phase task tracking - separates template setup from build tasks
+  currentPhase?: BuildPhase; // Current active phase
+  templateTodos?: TodoItem[]; // Phase 1: Template configuration tasks
+  activeTemplateTodoIndex?: number; // Active todo index for template phase
 }
 
 export type GenerationEvent =

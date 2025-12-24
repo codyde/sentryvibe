@@ -225,13 +225,15 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
       // No template provided - auto-select and download for Claude
       buildLogger.log('info', 'orchestrator', `Auto-selecting and downloading template for ${agent}...`);
 
-      // Send initial setup todos
+      // Send initial setup todos (phase: 'template' to distinguish from agent build todos)
       templateEvents.push({
         type: 'tool-input-available',
         data: {
           toolCallId: 'setup-todo-1',
           toolName: 'TodoWrite',
+          phase: 'template',
           input: {
+            phase: 'template',
             todos: [
               { content: 'Select appropriate template', status: 'in_progress', activeForm: 'Selecting template' },
               { content: 'Download template from GitHub', status: 'pending', activeForm: 'Downloading template' },
@@ -250,7 +252,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         data: {
           toolCallId: 'setup-todo-2',
           toolName: 'TodoWrite',
+          phase: 'template',
           input: {
+            phase: 'template',
             todos: [
               { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
               { content: `Download template: ${selectedTemplate.repository}`, status: 'in_progress', activeForm: 'Downloading template' },
@@ -280,7 +284,9 @@ export async function orchestrateBuild(context: BuildContext): Promise<Orchestra
         data: {
           toolCallId: 'setup-todo-3',
           toolName: 'TodoWrite',
+          phase: 'template',
           input: {
+            phase: 'template',
             todos: [
               { content: `Selected: ${selectedTemplate.name}`, status: 'completed', activeForm: 'Selecting template' },
               { content: `Downloaded to: ${projectName}`, status: 'completed', activeForm: 'Downloading template' },

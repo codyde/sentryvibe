@@ -7,6 +7,7 @@ import type { GenerationState, TodoItem } from '@/types/generation';
 import { BuildHeader } from './BuildHeader';
 import { TodoList } from './TodoList';
 import { PlanningPhase } from './PlanningPhase';
+import { PhaseSection } from './PhaseSection';
 
 interface BuildProgressProps {
   state: GenerationState;
@@ -98,10 +99,27 @@ export default function BuildProgress({
   const todoListRef = useRef<HTMLDivElement>(null);
   const activeTodoRef = useRef<HTMLDivElement>(null);
 
-  const completed = state?.todos?.filter((t) => t.status === 'completed').length || 0;
-  const total = state?.todos?.length || 0;
+  // Calculate totals across both phases
+  // Note: templateTodos and currentPhase are new fields added to GenerationState
+  const stateWithPhases = state as GenerationState & {
+    templateTodos?: TodoItem[];
+    activeTemplateTodoIndex?: number;
+    currentPhase?: 'template' | 'build';
+  };
+  const templateTodos = stateWithPhases?.templateTodos || [];
+  const buildTodos = state?.todos || [];
+  const templateCompleted = templateTodos.filter((t) => t.status === 'completed').length;
+  const buildCompleted = buildTodos.filter((t) => t.status === 'completed').length;
+  const completed = templateCompleted + buildCompleted;
+  const total = templateTodos.length + buildTodos.length;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const isComplete = progress === 100 && !state?.isActive;
+  
+  // Determine phase states
+  const templatePhaseComplete = templateTodos.length > 0 && templateTodos.every((t) => t.status === 'completed');
+  const templatePhaseActive = !templatePhaseComplete && templateTodos.some((t) => t.status === 'in_progress');
+  const buildPhaseActive = stateWithPhases?.currentPhase === 'build' || (buildTodos.length > 0 && buildTodos.some((t) => t.status === 'in_progress'));
+  const buildPhaseComplete = buildTodos.length > 0 && buildTodos.every((t) => t.status === 'completed');
 
   // Debug logging for state
   useEffect(() => {
@@ -218,14 +236,42 @@ export default function BuildProgress({
         <>
           {total > 0 ? (
             <div ref={todoListRef}>
-              <TodoList
-                todos={state.todos}
-                toolsByTodo={state.toolsByTodo}
-                activeTodoIndex={state.activeTodoIndex}
-                allTodosCompleted={allTodosCompleted}
-                onViewFiles={onViewFiles}
-                onStartServer={onStartServer}
-              />
+              {/* Two-phase display when template todos exist */}
+              {templateTodos.length > 0 ? (
+                <>
+                  {/* Phase 1: Template Configuration */}
+                  <PhaseSection
+                    phase="template"
+                    title="Template Setup"
+                    todos={templateTodos}
+                    activeTodoIndex={stateWithPhases?.activeTemplateTodoIndex ?? -1}
+                    isActive={templatePhaseActive}
+                    isComplete={templatePhaseComplete}
+                  />
+                  
+                  {/* Phase 2: Application Build */}
+                  {buildTodos.length > 0 && (
+                    <PhaseSection
+                      phase="build"
+                      title="Application Build"
+                      todos={buildTodos}
+                      activeTodoIndex={state.activeTodoIndex}
+                      isActive={buildPhaseActive}
+                      isComplete={buildPhaseComplete}
+                    />
+                  )}
+                </>
+              ) : (
+                /* Legacy single-phase display (no template phase) */
+                <TodoList
+                  todos={state.todos}
+                  toolsByTodo={state.toolsByTodo}
+                  activeTodoIndex={state.activeTodoIndex}
+                  allTodosCompleted={allTodosCompleted}
+                  onViewFiles={onViewFiles}
+                  onStartServer={onStartServer}
+                />
+              )}
             </div>
           ) : (
             <div className="p-6 text-center text-gray-400 text-sm">

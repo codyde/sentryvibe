@@ -48,8 +48,10 @@ interface BuildEventPayload {
     toolName?: string;
     todoIndex?: number;
     todo_index?: number;
-    input?: { todos?: Array<{ content?: string; activeForm?: string; status?: string }> };
+    phase?: 'template' | 'build';
+    input?: { todos?: Array<{ content?: string; activeForm?: string; status?: string }>; phase?: 'template' | 'build' };
     output?: unknown;
+    error?: unknown;
     id?: string;
     delta?: string;
     message?: string;
@@ -227,7 +229,8 @@ export async function POST(request: Request) {
           const activeIndex = todos.findIndex(t => t.status === 'in_progress');
           activeTodoIndexes.set(sessionId, activeIndex);
 
-          // WebSocket: Broadcast todos update
+          // WebSocket: Broadcast todos update (include phase if present)
+          const phase = event.input?.phase ?? event.phase;
           buildWebSocketServer.broadcastTodosUpdate(
             projectId,
             sessionId,
@@ -236,14 +239,17 @@ export async function POST(request: Request) {
               status: t.status ?? 'pending',
               activeForm: t.activeForm,
             })),
-            activeIndex
+            activeIndex,
+            phase
           );
 
           // Auto-finalize if all todos complete
-          // NOTE: Don't broadcast build-complete here - the runner will send build-completed
+          // NOTE: Only auto-finalize for build phase todos, not template phase
+          // Don't broadcast build-complete here - the runner will send build-completed
           // event with the summary, and persistent-event-processor will broadcast it
           const allComplete = todos.length > 0 && todos.every(t => t.status === 'completed');
-          if (allComplete && !finalizedSessions.has(sessionId)) {
+          const isTemplatePhase = phase === 'template';
+          if (allComplete && !finalizedSessions.has(sessionId) && !isTemplatePhase) {
             finalizedSessions.add(sessionId);
             await db.update(generationSessions)
               .set({ status: 'completed', endedAt: timestamp, updatedAt: timestamp })

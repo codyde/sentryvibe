@@ -604,12 +604,14 @@ class BuildWebSocketServer {
   /**
    * Broadcast todos update (when TodoWrite tool is called)
    * This establishes or updates the todo list - flush immediately
+   * @param phase - Optional phase ('template' | 'build') to distinguish template setup from build tasks
    */
   broadcastTodosUpdate(
     projectId: string,
     sessionId: string,
     todos: Array<{ content: string; status: string; activeForm?: string }>,
-    activeTodoIndex: number
+    activeTodoIndex: number,
+    phase?: 'template' | 'build'
   ) {
     const key = `${projectId}-${sessionId}`;
 
@@ -624,7 +626,7 @@ class BuildWebSocketServer {
     const batch = this.pendingUpdates.get(key)!;
     batch.updates.push({
       type: 'todos-update',
-      data: { todos, activeTodoIndex },
+      data: { todos, activeTodoIndex, phase },
       timestamp: Date.now(),
     });
 

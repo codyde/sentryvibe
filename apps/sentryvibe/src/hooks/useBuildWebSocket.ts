@@ -250,19 +250,41 @@ export function useBuildWebSocket({
             const todosData = update.data as {
               todos: Array<{ content: string; status: string; activeForm?: string }>;
               activeTodoIndex: number;
+              phase?: 'template' | 'build';
             };
-            if (DEBUG) console.log(`[useBuildWebSocket] Todos update: ${todosData.todos.length} todos, active: ${todosData.activeTodoIndex}`);
-            newState.todos = todosData.todos.map(t => ({
+            
+            const mappedTodos = todosData.todos.map(t => ({
               content: t.content,
               status: t.status as 'pending' | 'in_progress' | 'completed',
               activeForm: t.activeForm || t.content,
             }));
-            newState.activeTodoIndex = todosData.activeTodoIndex;
 
-            // Clear activePlanningTool when todos arrive (planning phase is over)
-            if (todosData.todos.length > 0 && newState.activePlanningTool) {
-              if (DEBUG) console.log('[useBuildWebSocket] 🏁 Clearing activePlanningTool - planning phase complete');
-              newState.activePlanningTool = undefined;
+            // Route todos to the correct array based on phase
+            // Type assertion for extended state fields (templateTodos, activeTemplateTodoIndex, currentPhase)
+            const extendedState = newState as typeof newState & {
+              templateTodos?: typeof mappedTodos;
+              activeTemplateTodoIndex?: number;
+              currentPhase?: 'template' | 'build';
+            };
+            
+            if (todosData.phase === 'template') {
+              // Template phase todos - store separately, don't touch build todos
+              if (DEBUG) console.log(`[useBuildWebSocket] 📦 Template todos update: ${todosData.todos.length} todos, active: ${todosData.activeTodoIndex}`);
+              extendedState.templateTodos = mappedTodos;
+              extendedState.activeTemplateTodoIndex = todosData.activeTodoIndex;
+              extendedState.currentPhase = 'template';
+            } else {
+              // Build phase todos (from agent) - these go to the main todos array
+              if (DEBUG) console.log(`[useBuildWebSocket] 🔨 Build todos update: ${todosData.todos.length} todos, active: ${todosData.activeTodoIndex}`);
+              newState.todos = mappedTodos;
+              newState.activeTodoIndex = todosData.activeTodoIndex;
+              extendedState.currentPhase = 'build';
+
+              // Clear activePlanningTool when build todos arrive (planning phase is over)
+              if (todosData.todos.length > 0 && newState.activePlanningTool) {
+                if (DEBUG) console.log('[useBuildWebSocket] 🏁 Clearing activePlanningTool - planning phase complete');
+                newState.activePlanningTool = undefined;
+              }
             }
             break;
 

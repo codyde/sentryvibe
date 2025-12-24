@@ -4,6 +4,7 @@ export type {
   ToolCall,
   TextMessage,
   BuildOperationType,
+  BuildPhase,
   CodexPhaseId,
   CodexPhaseStatus,
   CodexPhase,
