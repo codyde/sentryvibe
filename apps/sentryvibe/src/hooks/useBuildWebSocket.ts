@@ -587,10 +587,15 @@ export function useBuildWebSocket({
   }, [connect]);
 
   /**
-   * Initialize connection on mount
+   * Initialize connection on mount or when projectId changes
    */
   useEffect(() => {
     isMountedRef.current = true;
+    
+    // CRITICAL: Clear state when projectId changes to prevent stale data
+    // This ensures we don't show old build data when switching projects
+    setState(null);
+    setAutoFixState(null);
     
     // Hydrate state from database first
     hydrateState();

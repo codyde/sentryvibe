@@ -110,6 +110,7 @@ export async function POST(request: Request) {
     // Use Claude Haiku with structured output
     if (agent === 'claude-code') {
       try {
+        console.log('🤖 Generating project metadata with Claude Haiku...');
         const result = await generateObject({
           model: claudeCode(resolveClaudeModelForProvider('claude-haiku-4-5')),
           schema: ProjectMetadataSchema,
@@ -117,7 +118,9 @@ export async function POST(request: Request) {
         });
 
         metadata = result.object;
+        console.log('✅ AI metadata generated:', metadata);
       } catch (error) {
+        console.error('❌ AI metadata generation failed:', error);
         // If validation failed but we got valid JSON, extract it with fallback icon
         if (error && typeof error === 'object' && 'text' in error) {
           try {
@@ -128,7 +131,9 @@ export async function POST(request: Request) {
               description: parsed.description || prompt.substring(0, 150),
               icon: 'Code', // Fallback to Code if invalid icon chosen
             };
+            console.log('📝 Recovered partial metadata from error:', metadata);
           } catch (parseError) {
+            console.error('❌ Failed to parse metadata from error response');
             // Fall through to simple metadata generation
           }
         }
@@ -164,26 +169,38 @@ export async function POST(request: Request) {
       }
     }
 
-    // If metadata is still undefined, use fallback
+    // If metadata is still undefined, use fallback with SHORTER names
     if (!metadata) {
-      const slug = prompt
+      console.log('⚠️ AI metadata generation failed, using fallback naming');
+      
+      // Extract key words, filtering out common filler words
+      const fillerWords = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'it', 'that', 'this', 'i', 'want', 'would', 'like', 'please', 'can', 'you', 'me', 'my', 'make', 'create', 'build']);
+      const words = prompt
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .substring(0, 50);
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !fillerWords.has(w))
+        .slice(0, 4); // Take first 4 meaningful words
+      
+      // Generate short slug (max 30 chars)
+      const slug = words
+        .join('-')
+        .replace(/[^a-z0-9-]+/g, '')
+        .substring(0, 30) || 'project-' + Date.now();
 
-      const words = prompt.split(/\s+/).filter(w => w.length > 0);
+      // Generate friendly name (max 4 words, title case)
       const friendlyName = words
-        .slice(0, 8)
+        .slice(0, 4)
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+        .join(' ') || 'New Project';
 
       metadata = {
-        slug: slug || 'project-' + Date.now(),
-        friendlyName: friendlyName || 'New Project',
+        slug,
+        friendlyName,
         description: prompt.substring(0, 150) || 'A new project',
         icon: 'Code',
       };
+      
+      console.log('📝 Fallback metadata generated:', { slug, friendlyName });
     }
 
     // Check for slug collision

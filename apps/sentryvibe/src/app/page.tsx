@@ -2114,6 +2114,11 @@ function HomeContent() {
           claudeModelId: freshState.claudeModelId,
         });
 
+        // CRITICAL: Set fresh build guard to prevent stale WebSocket state from overwriting
+        // This ensures we only accept updates for THIS new build, not old builds
+        freshBuildIdRef.current = freshState.id;
+        console.log('🛡️ [Fresh Build Guard] Set guard for new project build:', freshState.id);
+
         updateGenerationState(freshState);
         if (DEBUG_PAGE) console.log("✅ GenerationState set in React");
 
