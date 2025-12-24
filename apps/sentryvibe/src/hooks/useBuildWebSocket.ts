@@ -224,9 +224,18 @@ export function useBuildWebSocket({
       for (const update of updates) {
         switch (update.type) {
           case 'build-started':
-            // Build has started - mark as active
-            if (DEBUG) console.log('[useBuildWebSocket] 🚀 Build started - setting isActive=true');
+            // Build has started - mark as active and update build ID
+            const buildStartData = update.data as { buildId?: string; sessionId?: string; projectId?: string };
+            if (DEBUG) console.log('[useBuildWebSocket] 🚀 Build started - setting isActive=true, buildId:', buildStartData.buildId);
             newState.isActive = true;
+            // CRITICAL: Update the build ID from the server
+            // This ensures the frontend state matches the server's build ID
+            if (buildStartData.buildId) {
+              newState.id = buildStartData.buildId;
+            }
+            if (buildStartData.projectId) {
+              newState.projectId = buildStartData.projectId;
+            }
             // If this is an auto-fix build starting, clear the pending autofix state
             if (newState.isAutoFix) {
               setAutoFixState(null);

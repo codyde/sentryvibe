@@ -1157,7 +1157,7 @@ export async function startRunner(options: RunnerOptions = {}) {
   const PING_INTERVAL = 30000; // Ping every 30 seconds
   const PONG_TIMEOUT = 45000; // 45 seconds (1.5x ping interval)
   const CONNECTION_HANDSHAKE_TIMEOUT = 10000; // 10 second connection timeout
-  const COMMAND_RECEIVE_TIMEOUT = 300000; // 5 minutes - force reconnect if no commands received
+  const COMMAND_RECEIVE_TIMEOUT = 1800000; // 30 minutes - force reconnect if no commands received (was 5 min, too aggressive for idle sessions)
   const INITIAL_CONNECTION_DELAY = 5000; // Wait 5 seconds before first connection (allows server to start)
   const SUPPRESS_ERRORS_UNTIL_ATTEMPT = 3; // Don't log ECONNREFUSED for first N attempts (expected during startup)
   let lastPongReceived = Date.now();
@@ -2944,7 +2944,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         // BUG FIX: Check if we've received any commands recently
         // Even if ping/pong works, the connection might be stuck and not receiving commands
         if (now - lastCommandReceived > COMMAND_RECEIVE_TIMEOUT) {
-          log("⚠️  No commands received for 5 minutes, forcing reconnection");
+          log("⚠️  No commands received for 30 minutes, forcing reconnection");
           log(`   Last command: ${Math.round((now - lastCommandReceived) / 1000)}s ago`);
           socket?.close(1003, "Command receive timeout");
           return;
