@@ -3,11 +3,14 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+export type DatabaseMode = 'postgres' | 'pglite';
+
 export interface RunnerConfig {
   version: string;
   workspace: string;
   monorepoPath?: string; // Path to cloned sentryvibe repository
-  databaseUrl?: string; // PostgreSQL connection string
+  databaseUrl?: string; // PostgreSQL connection string (only for postgres mode)
+  databaseMode?: DatabaseMode; // 'postgres' or 'pglite' (local embedded)
   apiUrl?: string; // API base URL (e.g., http://localhost:3000)
   // Server connection config (formerly "broker" - now connects directly to Next.js)
   server: {
