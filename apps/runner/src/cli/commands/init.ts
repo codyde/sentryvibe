@@ -96,7 +96,7 @@ interface InitOptions {
   url?: string;
   secret?: string;
   branch?: string;
-  database?: string | boolean; // Can be: undefined, true, "neondb", or connection string
+  database?: string | boolean; // Can be: undefined (neon), "pglite"/"local", "neondb"/true, or connection string
   yes?: boolean;
   nonInteractive?: boolean;
 }
@@ -388,7 +388,7 @@ export async function initCommand(options: InitOptions) {
 
       // Step 6: Database setup (if monorepo available)
       let databaseUrl: string | undefined;
-      let databaseMode: 'postgres' | 'pglite' = 'pglite'; // Default to local
+      let databaseMode: 'postgres' | 'pglite' = 'postgres'; // Default to Neon
 
       if (monorepoPath) {
         p.log.step(pc.cyan('Database Setup'));
@@ -397,14 +397,14 @@ export async function initCommand(options: InitOptions) {
           message: 'Database configuration',
           options: [
             {
-              value: 'local',
-              label: 'Local database (recommended)',
-              hint: 'No setup required, data stored locally'
+              value: 'neon',
+              label: 'Create Neon database (recommended)',
+              hint: 'Free tier, persistent storage'
             },
             {
-              value: 'neon',
-              label: 'Create Neon database',
-              hint: 'Free tier, for hosted deployments'
+              value: 'local',
+              label: 'Local database',
+              hint: 'No setup required, data stored locally'
             },
             {
               value: 'existing',
@@ -419,18 +419,7 @@ export async function initCommand(options: InitOptions) {
           return;
         }
 
-        if (dbChoice === 'local') {
-          databaseMode = 'pglite';
-          // Initialize local database
-          s.start('Initializing local database');
-          try {
-            const { initializePgliteSchema } = await import('@sentryvibe/agent-core/lib/db/migrate');
-            await initializePgliteSchema();
-            s.stop(pc.green('✓') + ' Local database initialized');
-          } catch (error) {
-            s.stop(pc.yellow('⚠') + ' Local database setup failed (will retry on first run)');
-          }
-        } else if (dbChoice === 'neon') {
+        if (dbChoice === 'neon') {
           databaseMode = 'postgres';
           p.note(
             'Opening Neon in your browser...\nCreate a database and paste the connection string below.',
@@ -447,6 +436,17 @@ export async function initCommand(options: InitOptions) {
             } else {
               s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
             }
+          }
+        } else if (dbChoice === 'local') {
+          databaseMode = 'pglite';
+          // Initialize local database
+          s.start('Initializing local database');
+          try {
+            const { initializePgliteSchema } = await import('@sentryvibe/agent-core/lib/db/migrate');
+            await initializePgliteSchema();
+            s.stop(pc.green('✓') + ' Local database initialized');
+          } catch (error) {
+            s.stop(pc.yellow('⚠') + ' Local database setup failed (will retry on first run)');
           }
         } else if (dbChoice === 'existing') {
           databaseMode = 'postgres';
@@ -667,20 +667,21 @@ export async function initCommand(options: InitOptions) {
       throw errors.workspaceNotFound(workspace);
     }
 
-    // Step 4: Setup database (default to local in -y mode for simplicity)
+    // Step 4: Setup database (default to Neon in -y mode)
     let databaseUrl: string | undefined;
-    let databaseMode: 'postgres' | 'pglite' = 'pglite'; // Default to local for -y mode
+    let databaseMode: 'postgres' | 'pglite' = 'postgres'; // Default to Neon for -y mode
 
     if (monorepoPath) {
       const dbOption = options.database;
 
       // Determine what to do:
-      // - undefined: use local PGlite (simplest option for -y mode)
-      // - "neondb" or true: auto-setup Neon
+      // - undefined: setup Neon (default)
+      // - "pglite" or "local": use local PGlite database
+      // - "neondb" or true: auto-setup Neon (explicit)
       // - connection string (starts with postgres:// or postgresql://): use directly
       const isConnectionString = typeof dbOption === 'string' &&
         (dbOption.startsWith('postgres://') || dbOption.startsWith('postgresql://'));
-      const useNeon = dbOption === 'neondb' || dbOption === true;
+      const usePglite = dbOption === 'pglite' || dbOption === 'local';
 
       if (isConnectionString) {
         // Use provided connection string directly
@@ -693,8 +694,19 @@ export async function initCommand(options: InitOptions) {
         } catch (error) {
           s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
         }
-      } else if (useNeon) {
-        // Setup Neon if explicitly requested
+      } else if (usePglite) {
+        // Use local PGlite database if explicitly requested
+        databaseMode = 'pglite';
+        s.start('Initializing local database');
+        try {
+          const { initializePgliteSchema } = await import('@sentryvibe/agent-core/lib/db/migrate');
+          await initializePgliteSchema();
+          s.stop(pc.green('✓') + ' Local database initialized');
+        } catch (error) {
+          s.stop(pc.yellow('⚠') + ' Local database setup failed (will retry on first run)');
+        }
+      } else {
+        // Default: setup Neon database
         databaseMode = 'postgres';
         s.start('Setting up Neon database');
         try {
@@ -707,17 +719,6 @@ export async function initCommand(options: InitOptions) {
           }
         } catch (error) {
           s.stop(pc.yellow('⚠') + ' Database setup failed (you can add it later)');
-        }
-      } else {
-        // Default: use local PGlite database (no external dependencies)
-        databaseMode = 'pglite';
-        s.start('Initializing local database');
-        try {
-          const { initializePgliteSchema } = await import('@sentryvibe/agent-core/lib/db/migrate');
-          await initializePgliteSchema();
-          s.stop(pc.green('✓') + ' Local database initialized');
-        } catch (error) {
-          s.stop(pc.yellow('⚠') + ' Local database setup failed (will retry on first run)');
         }
       }
     }

@@ -223,6 +223,7 @@ export function createNativeClaudeQuery(
       includePartialMessages: false, // We don't need streaming deltas
       settingSources: ['project', 'local'],
       env: {
+        ...process.env,
         CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ?? '64000',
       },
       // Use preset tools from Claude Code
