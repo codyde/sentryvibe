@@ -54,7 +54,7 @@
     "dist/**/*"
   ],
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.76",
+    "@anthropic-ai/claude-agent-sdk": "0.1.62",
     "@electric-sql/pglite": "^0.3.14",
     "@sentry/node": "file:../../apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
     "ai": "^5.0.79",
