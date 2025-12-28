@@ -483,8 +483,11 @@ function createClaudeQuery(
       mkdirSync(workingDirectory, { recursive: true });
     }
 
+    // NOTE: The community provider (ai-sdk-provider-claude-code) bundles an older
+    // version of the SDK types. We cast to `any` to avoid type conflicts.
+    // This legacy path is deprecated in favor of the native SDK implementation.
     const model = claudeCode(aiSdkModelId, {
-      queryFunction: query,
+      queryFunction: query as any, // Cast to avoid SDK version type conflict
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
@@ -501,7 +504,7 @@ function createClaudeQuery(
           process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ?? "64000",
       },
       // Explicitly allow all tools to prevent "No tools are available" errors
-      canUseTool: createProjectScopedPermissionHandler(workingDirectory), // Still enforce project scoping
+      canUseTool: createProjectScopedPermissionHandler(workingDirectory) as any, // Cast for type compat
       streamingInput: "always", // REQUIRED when using canUseTool - enables tool callbacks
       includePartialMessages: true,
       settingSources: ["project", "local"], // Load project-level settings
@@ -793,15 +796,15 @@ function createBuildQuery(
     return createCodexQuery();
   }
 
-  // Use native SDK when feature flag is enabled
-  if (USE_NATIVE_SDK) {
-    console.log('[runner] 🔄 Using NATIVE Claude Agent SDK (direct integration)');
-    return createNativeClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+  // Use legacy AI SDK path when explicitly requested
+  if (!USE_NATIVE_SDK) {
+    console.log('[runner] 🔄 Using AI SDK with claude-code provider (legacy mode)');
+    return createClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
   }
 
-  // Legacy: Use AI SDK with community provider
-  console.log('[runner] 🔄 Using AI SDK with claude-code provider (legacy)');
-  return createClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+  // Default: Use native Claude Agent SDK (direct integration)
+  console.log('[runner] 🔄 Using NATIVE Claude Agent SDK v0.1.76');
+  return createNativeClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
 }
 
 /**

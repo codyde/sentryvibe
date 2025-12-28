@@ -280,7 +280,10 @@ export function createNativeClaudeQuery(
 
 /**
  * Feature flag to control which implementation to use
+ * 
+ * Default: Native SDK is enabled (true)
+ * Set USE_LEGACY_AI_SDK=1 to use the old AI SDK + community provider path
  */
-export const USE_NATIVE_SDK = process.env.USE_NATIVE_CLAUDE_SDK === '1';
+export const USE_NATIVE_SDK = process.env.USE_LEGACY_AI_SDK !== '1';
 
 export type { TransformedMessage, MessagePart };
