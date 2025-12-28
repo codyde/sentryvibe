@@ -1,36 +1,24 @@
 /**
- * Anthropic SDK Client Wrapper
+ * Claude Agent SDK Client Wrapper
  * 
- * Provides simple utilities for making Anthropic API calls directly,
- * replacing the AI SDK provider for consistency with the native Claude Agent SDK.
+ * Provides simple utilities for making Claude API calls using the Claude Agent SDK.
+ * This uses the same authentication as the Claude CLI (no API key needed).
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { query, type Options, type SDKMessage, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
+import * as os from 'os';
+import * as path from 'path';
 
-// Create a singleton Anthropic client
-let anthropicClient: Anthropic | null = null;
-
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({
-      // Uses ANTHROPIC_API_KEY from environment by default
-    });
-  }
-  return anthropicClient;
-}
-
-// Map our model IDs to Anthropic API model names
+// Map our model IDs to Claude Agent SDK model names
 const MODEL_MAP: Record<string, string> = {
-  'claude-haiku-4-5': 'claude-sonnet-4-20250514', // Haiku 4.5 not available yet, use Sonnet
-  'claude-sonnet-4-5': 'claude-sonnet-4-20250514',
-  'claude-opus-4-5': 'claude-sonnet-4-20250514', // Opus 4.5 not available yet, use Sonnet
-  'claude-3-5-haiku-latest': 'claude-3-5-haiku-latest',
-  'claude-3-5-sonnet-latest': 'claude-3-5-sonnet-latest',
+  'claude-haiku-4-5': 'claude-sonnet-4-5', // Haiku 4.5 not yet available, use Sonnet
+  'claude-sonnet-4-5': 'claude-sonnet-4-5',
+  'claude-opus-4-5': 'claude-opus-4-5',
 };
 
 function resolveModelName(modelId: string): string {
-  return MODEL_MAP[modelId] || 'claude-sonnet-4-20250514';
+  return MODEL_MAP[modelId] || 'claude-sonnet-4-5';
 }
 
 interface GenerateObjectOptions<T extends z.ZodType> {
@@ -38,17 +26,15 @@ interface GenerateObjectOptions<T extends z.ZodType> {
   schema: T;
   prompt: string;
   system?: string;
-  maxTokens?: number;
 }
 
 /**
- * Generate a structured object using the Anthropic API with JSON mode.
- * This is a replacement for the AI SDK's generateObject function.
+ * Generate a structured object using the Claude Agent SDK.
+ * This uses the same authentication as the Claude CLI.
  */
 export async function generateStructuredOutput<T extends z.ZodType>(
   options: GenerateObjectOptions<T>
 ): Promise<{ object: z.infer<T> }> {
-  const client = getAnthropicClient();
   const modelName = resolveModelName(options.model);
   
   // Build the prompt that instructs Claude to output valid JSON
@@ -63,26 +49,45 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
     ? `${options.system}\n\n${jsonInstructions}\n\nUser request: ${options.prompt}`
     : `${jsonInstructions}\n\nUser request: ${options.prompt}`;
 
-  const response = await client.messages.create({
+  // Use a temp directory for the working directory
+  const tempDir = path.join(os.tmpdir(), 'sentryvibe-ai');
+  
+  const sdkOptions: Options = {
     model: modelName,
-    max_tokens: options.maxTokens || 1024,
-    messages: [
-      {
-        role: 'user',
-        content: fullPrompt,
-      },
-    ],
-  });
+    maxTurns: 1, // Single turn, no tool use needed
+    tools: [], // Empty array disables all built-in tools
+    cwd: tempDir,
+    permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
+    env: {
+      ...process.env,
+    },
+  };
 
-  // Extract text from the response
-  const textBlock = response.content.find(block => block.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error('No text response from Anthropic API');
+  let responseText = '';
+
+  try {
+    // Collect text from the SDK stream
+    for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
+      if (message.type === 'assistant') {
+        for (const block of message.message.content) {
+          if (block.type === 'text') {
+            responseText += block.text;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[anthropic-client] SDK query failed:', error);
+    throw error;
   }
 
-  let jsonText = textBlock.text.trim();
-  
+  if (!responseText) {
+    throw new Error('No text response from Claude Agent SDK');
+  }
+
   // Clean up any markdown code blocks if present
+  let jsonText = responseText.trim();
   const codeBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch) {
     jsonText = codeBlockMatch[1].trim();
@@ -102,67 +107,83 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
 }
 
 /**
- * Simple text completion using Anthropic API
+ * Simple text completion using Claude Agent SDK
  */
 export async function generateText(options: {
   model: string;
   prompt: string;
   system?: string;
-  maxTokens?: number;
 }): Promise<{ text: string }> {
-  const client = getAnthropicClient();
   const modelName = resolveModelName(options.model);
+  const tempDir = path.join(os.tmpdir(), 'sentryvibe-ai');
 
-  const messages: Anthropic.MessageParam[] = [
-    {
-      role: 'user',
-      content: options.prompt,
-    },
-  ];
+  const fullPrompt = options.system 
+    ? `${options.system}\n\n${options.prompt}`
+    : options.prompt;
 
-  const response = await client.messages.create({
+  const sdkOptions: Options = {
     model: modelName,
-    max_tokens: options.maxTokens || 4096,
-    system: options.system,
-    messages,
-  });
+    maxTurns: 1,
+    tools: [], // Empty array disables all built-in tools
+    cwd: tempDir,
+    permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
+    env: {
+      ...process.env,
+    },
+  };
 
-  const textBlock = response.content.find(block => block.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error('No text response from Anthropic API');
+  let responseText = '';
+
+  for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
+    if (message.type === 'assistant') {
+      for (const block of message.message.content) {
+        if (block.type === 'text') {
+          responseText += block.text;
+        }
+      }
+    }
   }
 
-  return { text: textBlock.text };
+  return { text: responseText };
 }
 
 /**
- * Streaming text completion using Anthropic API
+ * Streaming text completion using Claude Agent SDK
  * Returns an async generator that yields text chunks
  */
-export async function* streamText(options: {
+export async function* streamTextWithSDK(options: {
   model: string;
   prompt: string;
   system?: string;
-  maxTokens?: number;
 }): AsyncGenerator<string, void, unknown> {
-  const client = getAnthropicClient();
   const modelName = resolveModelName(options.model);
+  const tempDir = path.join(os.tmpdir(), 'sentryvibe-ai');
 
-  const stream = await client.messages.stream({
+  const fullPrompt = options.system 
+    ? `${options.system}\n\n${options.prompt}`
+    : options.prompt;
+
+  const sdkOptions: Options = {
     model: modelName,
-    max_tokens: options.maxTokens || 4096,
-    system: options.system,
-    messages: [
-      {
-        role: 'user',
-        content: options.prompt,
-      },
-    ],
-  });
+    maxTurns: 1,
+    tools: [], // Empty array disables all built-in tools
+    cwd: tempDir,
+    permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
+    includePartialMessages: true, // Enable streaming deltas
+    env: {
+      ...process.env,
+    },
+  };
 
-  for await (const event of stream) {
-    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-      yield event.delta.text;
+  for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
+    if (message.type === 'assistant') {
+      for (const block of message.message.content) {
+        if (block.type === 'text') {
+          yield block.text;
+        }
+      }
     }
   }
 }
@@ -237,5 +258,3 @@ function zodToJsonSchema(schema: z.ZodType): object {
   // Fallback
   return { type: 'string' };
 }
-
-export { getAnthropicClient };

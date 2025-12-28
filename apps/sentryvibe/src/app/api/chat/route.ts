@@ -1,20 +1,19 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { DEFAULT_CLAUDE_MODEL_ID } from "@sentryvibe/agent-core/types/agent";
 import type { ClaudeModelId } from "@sentryvibe/agent-core/types/agent";
 import * as Sentry from "@sentry/nextjs";
+import * as os from 'os';
+import * as path from 'path';
 
-// Create Anthropic client
-const anthropic = new Anthropic();
-
-// Map model IDs to Anthropic API model names  
+// Map model IDs to Claude Agent SDK model names  
 const MODEL_MAP: Record<string, string> = {
-  'claude-haiku-4-5': 'claude-sonnet-4-20250514',
-  'claude-sonnet-4-5': 'claude-sonnet-4-20250514', 
-  'claude-opus-4-5': 'claude-sonnet-4-20250514',
+  'claude-haiku-4-5': 'claude-sonnet-4-5',
+  'claude-sonnet-4-5': 'claude-sonnet-4-5', 
+  'claude-opus-4-5': 'claude-opus-4-5',
 };
 
 function resolveModelName(modelId: string): string {
-  return MODEL_MAP[modelId] || 'claude-sonnet-4-20250514';
+  return MODEL_MAP[modelId] || 'claude-sonnet-4-5';
 }
 
 interface ChatMessage {
@@ -85,13 +84,33 @@ Remember: This is an iterative chat about an existing project, not a full build 
     systemPrompt = `You are a helpful coding assistant. You can answer questions and help with code, but for creating new projects, the user should use the main interface.`;
   }
 
-  // Convert messages to Anthropic format
-  const anthropicMessages: Anthropic.MessageParam[] = messages
-    .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-    }));
+  // Build the conversation prompt from messages
+  // The SDK expects a single prompt, so we'll format the conversation
+  const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+  const conversationContext = messages
+    .slice(0, -1) // All but the last message
+    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n');
+  
+  const fullPrompt = conversationContext 
+    ? `${systemPrompt}\n\nPrevious conversation:\n${conversationContext}\n\nUser: ${lastUserMessage?.content || ''}`
+    : `${systemPrompt}\n\nUser: ${lastUserMessage?.content || ''}`;
+
+  // Use temp directory for working directory
+  const tempDir = path.join(os.tmpdir(), 'sentryvibe-chat');
+
+  const sdkOptions: Options = {
+    model: resolveModelName(selectedClaudeModel),
+    maxTurns: 1,
+    tools: [], // Empty array disables all built-in tools for chat
+    cwd: tempDir,
+    permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
+    includePartialMessages: true, // Enable streaming
+    env: {
+      ...process.env,
+    },
+  };
 
   // Create streaming response
   const encoder = new TextEncoder();
@@ -99,21 +118,18 @@ Remember: This is an iterative chat about an existing project, not a full build 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const messageStream = await anthropic.messages.stream({
-          model: resolveModelName(selectedClaudeModel),
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: anthropicMessages,
-        });
-
-        for await (const event of messageStream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            // Format as SSE data event compatible with AI SDK UI
-            const data = JSON.stringify({
-              type: 'text-delta',
-              textDelta: event.delta.text,
-            });
-            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
+          if (message.type === 'assistant') {
+            for (const block of message.message.content) {
+              if (block.type === 'text') {
+                // Format as SSE data event
+                const data = JSON.stringify({
+                  type: 'text-delta',
+                  textDelta: block.text,
+                });
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              }
+            }
           }
         }
 
