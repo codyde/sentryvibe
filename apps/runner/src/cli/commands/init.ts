@@ -349,6 +349,7 @@ export async function initCommand(options: InitOptions) {
 
       // Step 6: Database setup (if monorepo available)
       let databaseUrl: string | undefined;
+      let databaseMode: 'postgres' | 'pglite' = 'pglite'; // Default to local
 
       if (monorepoPath) {
         p.log.step(pc.cyan('Database Setup'));
@@ -357,19 +358,19 @@ export async function initCommand(options: InitOptions) {
           message: 'Database configuration',
           options: [
             {
+              value: 'local',
+              label: 'Local database (recommended)',
+              hint: 'No setup required, data stored locally'
+            },
+            {
               value: 'neon',
               label: 'Create Neon database',
-              hint: 'Free tier, no credit card required'
+              hint: 'Free tier, for hosted deployments'
             },
             {
               value: 'existing',
-              label: 'Use existing database',
+              label: 'Use existing PostgreSQL',
               hint: 'Provide connection string'
-            },
-            {
-              value: 'skip',
-              label: 'Skip for now',
-              hint: 'Configure later'
             },
           ],
         });
@@ -379,24 +380,48 @@ export async function initCommand(options: InitOptions) {
           return;
         }
 
-        if (dbChoice === 'neon') {
+        if (dbChoice === 'local') {
+          databaseMode = 'pglite';
+          // Initialize local database
+          s.start('Initializing local database');
+          try {
+            const { initializePgliteSchema } = await import('@sentryvibe/agent-core/lib/db/migrate');
+            await initializePgliteSchema();
+            s.stop(pc.green('✓') + ' Local database initialized');
+          } catch (error) {
+            s.stop(pc.yellow('⚠') + ' Local database setup failed (will retry on first run)');
+          }
+        } else if (dbChoice === 'neon') {
+          databaseMode = 'postgres';
           p.note(
             'Opening Neon in your browser...\nCreate a database and paste the connection string below.',
             pc.cyan('Database Setup')
           );
           databaseUrl = await setupDatabase(monorepoPath) || undefined;
+          
+          // Push schema if we have a database
+          if (databaseUrl) {
+            s.start('Pushing database schema');
+            const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
+            if (pushed) {
+              s.stop(pc.green('✓') + ' Schema initialized');
+            } else {
+              s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
+            }
+          }
         } else if (dbChoice === 'existing') {
+          databaseMode = 'postgres';
           databaseUrl = await connectManualDatabase() || undefined;
-        }
-
-        // Push schema if we have a database
-        if (databaseUrl) {
-          s.start('Pushing database schema');
-          const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
-          if (pushed) {
-            s.stop(pc.green('✓') + ' Schema initialized');
-          } else {
-            s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
+          
+          // Push schema if we have a database
+          if (databaseUrl) {
+            s.start('Pushing database schema');
+            const pushed = await pushDatabaseSchema(monorepoPath, databaseUrl);
+            if (pushed) {
+              s.stop(pc.green('✓') + ' Schema initialized');
+            } else {
+              s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
+            }
           }
         }
       }
@@ -407,6 +432,7 @@ export async function initCommand(options: InitOptions) {
         if (monorepoPath) {
           configManager.set('monorepoPath', monorepoPath);
         }
+        configManager.set('databaseMode', databaseMode);
         if (databaseUrl) {
           configManager.set('databaseUrl', databaseUrl);
         }
@@ -590,20 +616,24 @@ export async function initCommand(options: InitOptions) {
       throw errors.workspaceNotFound(workspace);
     }
 
-    // Step 4: Setup database (auto-setup Neon by default in -y mode)
+    // Step 4: Setup database (default to local in -y mode for simplicity)
     let databaseUrl: string | undefined;
+    let databaseMode: 'postgres' | 'pglite' = 'pglite'; // Default to local for -y mode
 
     if (monorepoPath) {
       const dbOption = options.database;
 
       // Determine what to do:
-      // - undefined or "neondb" or true: auto-setup Neon
+      // - undefined: use local PGlite (simplest option for -y mode)
+      // - "neondb" or true: auto-setup Neon
       // - connection string (starts with postgres:// or postgresql://): use directly
       const isConnectionString = typeof dbOption === 'string' &&
         (dbOption.startsWith('postgres://') || dbOption.startsWith('postgresql://'));
+      const useNeon = dbOption === 'neondb' || dbOption === true;
 
       if (isConnectionString) {
         // Use provided connection string directly
+        databaseMode = 'postgres';
         s.start('Configuring database');
         databaseUrl = dbOption as string;
         try {
@@ -612,8 +642,9 @@ export async function initCommand(options: InitOptions) {
         } catch (error) {
           s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
         }
-      } else {
-        // Auto-setup Neon (default behavior, or if "neondb" specified)
+      } else if (useNeon) {
+        // Setup Neon if explicitly requested
+        databaseMode = 'postgres';
         s.start('Setting up Neon database');
         try {
           databaseUrl = await setupDatabase(monorepoPath) || undefined;
@@ -625,6 +656,17 @@ export async function initCommand(options: InitOptions) {
           }
         } catch (error) {
           s.stop(pc.yellow('⚠') + ' Database setup failed (you can add it later)');
+        }
+      } else {
+        // Default: use local PGlite database (no external dependencies)
+        databaseMode = 'pglite';
+        s.start('Initializing local database');
+        try {
+          const { initializePgliteSchema } = await import('@sentryvibe/agent-core/lib/db/migrate');
+          await initializePgliteSchema();
+          s.stop(pc.green('✓') + ' Local database initialized');
+        } catch (error) {
+          s.stop(pc.yellow('⚠') + ' Local database setup failed (will retry on first run)');
         }
       }
     }
@@ -638,6 +680,7 @@ export async function initCommand(options: InitOptions) {
       if (monorepoPath) {
         configManager.set('monorepoPath', monorepoPath);
       }
+      configManager.set('databaseMode', databaseMode);
       if (databaseUrl) {
         configManager.set('databaseUrl', databaseUrl);
       }

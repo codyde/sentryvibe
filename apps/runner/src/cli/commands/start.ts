@@ -136,15 +136,18 @@ export async function startCommand(options: StartOptions) {
     }
   }
 
-  // Step 3: Check database
-  if (!config.databaseUrl) {
+  // Step 3: Check database configuration
+  const databaseMode = config.databaseMode || 'pglite'; // Default to local if not set
+  
+  // For postgres mode, require DATABASE_URL
+  if (databaseMode === 'postgres' && !config.databaseUrl) {
     throw new CLIError({
       code: 'MISSING_REQUIRED_CONFIG',
-      message: 'Database URL not configured',
+      message: 'Database URL not configured for PostgreSQL mode',
       suggestions: [
         'Run initialization: sentryvibe init',
         'Or set manually: sentryvibe config set databaseUrl <url>',
-        'Or setup database: sentryvibe db',
+        'Or use local database: sentryvibe config set databaseMode pglite',
       ],
       docs: 'https://github.com/codyde/sentryvibe#database-setup',
     });
@@ -182,6 +185,21 @@ export async function startCommand(options: StartOptions) {
   // Register web app (now handles runner WebSocket connections directly)
   // Default to production mode unless --dev flag is present
   const webCommand = options.dev ? 'dev' : 'start';
+  // Build environment variables for the web app
+  const webEnv: Record<string, string> = {
+    PORT: String(webPort),
+    RUNNER_SHARED_SECRET: sharedSecret,
+    WORKSPACE_ROOT: config.workspace,
+    RUNNER_ID: config.runner?.id || 'local',
+    RUNNER_DEFAULT_ID: config.runner?.id || 'local',
+    DATABASE_MODE: databaseMode,
+  };
+  
+  // Add DATABASE_URL only for postgres mode
+  if (databaseMode === 'postgres' && config.databaseUrl) {
+    webEnv.DATABASE_URL = config.databaseUrl;
+  }
+  
   serviceManager.register({
     name: 'web',
     displayName: 'Web App',
@@ -189,14 +207,7 @@ export async function startCommand(options: StartOptions) {
     command: 'pnpm',
     args: ['--filter', 'sentryvibe', webCommand],
     cwd: monorepoRoot,
-    env: {
-      PORT: String(webPort),
-      DATABASE_URL: config.databaseUrl!,
-      RUNNER_SHARED_SECRET: sharedSecret,
-      WORKSPACE_ROOT: config.workspace,
-      RUNNER_ID: config.runner?.id || 'local',
-      RUNNER_DEFAULT_ID: config.runner?.id || 'local',
-    },
+    env: webEnv,
   });
 
   // Register runner (special handling - not spawned, imported directly)

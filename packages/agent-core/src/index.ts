@@ -15,3 +15,17 @@ export { buildLogger } from './lib/logging/build-logger';
 
 // WebSocket server (server-only)
 export { buildWebSocketServer } from './lib/websocket';
+
+// Database utilities
+export { 
+  db, 
+  getDb, 
+  initializeDatabase,
+  getDatabaseMode, 
+  isPgliteMode,
+  getPgliteDataDir,
+  resetDatabase,
+  type DatabaseClient,
+  type DatabaseMode 
+} from './lib/db/client';
+export { runMigrations, initializePgliteSchema } from './lib/db/migrate';
