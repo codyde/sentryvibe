@@ -4,6 +4,34 @@ import type { ClaudeModelId } from "@sentryvibe/agent-core/types/agent";
 import * as Sentry from "@sentry/nextjs";
 import * as os from 'os';
 import * as path from 'path';
+import { existsSync, mkdirSync } from 'fs';
+
+/**
+ * Get a clean env object with only string values (filter out undefined)
+ * and ensure PATH is included
+ */
+function getCleanEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  // Ensure PATH is set - use common paths as fallback
+  if (!env.PATH) {
+    env.PATH = '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+  }
+  return env;
+}
+
+/**
+ * Ensure a directory exists
+ */
+function ensureDir(dir: string): void {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
 
 // Map model IDs to Claude Agent SDK model names  
 const MODEL_MAP: Record<string, string> = {
@@ -98,6 +126,7 @@ Remember: This is an iterative chat about an existing project, not a full build 
 
   // Use temp directory for working directory
   const tempDir = path.join(os.tmpdir(), 'sentryvibe-chat');
+  ensureDir(tempDir);
 
   const sdkOptions: Options = {
     model: resolveModelName(selectedClaudeModel),
@@ -107,9 +136,7 @@ Remember: This is an iterative chat about an existing project, not a full build 
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     includePartialMessages: true, // Enable streaming
-    env: {
-      ...process.env,
-    },
+    env: getCleanEnv(),
   };
 
   // Create streaming response

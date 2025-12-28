@@ -9,6 +9,34 @@ import { query, type Options, type SDKMessage, type SDKResultMessage } from '@an
 import { z } from 'zod';
 import * as os from 'os';
 import * as path from 'path';
+import { existsSync, mkdirSync } from 'fs';
+
+/**
+ * Get a clean env object with only string values (filter out undefined)
+ * and ensure PATH is included
+ */
+function getCleanEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  // Ensure PATH is set - use common paths as fallback
+  if (!env.PATH) {
+    env.PATH = '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+  }
+  return env;
+}
+
+/**
+ * Ensure a directory exists
+ */
+function ensureDir(dir: string): void {
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
 
 // Map our model IDs to Claude Agent SDK model names
 const MODEL_MAP: Record<string, string> = {
@@ -51,6 +79,7 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
 
   // Use a temp directory for the working directory
   const tempDir = path.join(os.tmpdir(), 'sentryvibe-ai');
+  ensureDir(tempDir);
   
   const sdkOptions: Options = {
     model: modelName,
@@ -59,9 +88,7 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
     cwd: tempDir,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    env: {
-      ...process.env,
-    },
+    env: getCleanEnv(),
   };
 
   let responseText = '';
@@ -116,6 +143,7 @@ export async function generateText(options: {
 }): Promise<{ text: string }> {
   const modelName = resolveModelName(options.model);
   const tempDir = path.join(os.tmpdir(), 'sentryvibe-ai');
+  ensureDir(tempDir);
 
   const fullPrompt = options.system 
     ? `${options.system}\n\n${options.prompt}`
@@ -128,9 +156,7 @@ export async function generateText(options: {
     cwd: tempDir,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    env: {
-      ...process.env,
-    },
+    env: getCleanEnv(),
   };
 
   let responseText = '';
@@ -159,6 +185,7 @@ export async function* streamTextWithSDK(options: {
 }): AsyncGenerator<string, void, unknown> {
   const modelName = resolveModelName(options.model);
   const tempDir = path.join(os.tmpdir(), 'sentryvibe-ai');
+  ensureDir(tempDir);
 
   const fullPrompt = options.system 
     ? `${options.system}\n\n${options.prompt}`
@@ -172,9 +199,7 @@ export async function* streamTextWithSDK(options: {
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     includePartialMessages: true, // Enable streaming deltas
-    env: {
-      ...process.env,
-    },
+    env: getCleanEnv(),
   };
 
   for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
