@@ -3,10 +3,10 @@
  * Provides beautiful interactive setup or completely automated installation
  */
 
-import { mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
+import { mkdir, realpath } from 'fs/promises';
+import { existsSync, realpathSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { randomBytes } from 'crypto';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
@@ -30,6 +30,37 @@ import { CLIError, errors } from '../utils/cli-error.js';
  */
 function generateSecret(): string {
   return randomBytes(32).toString('hex');
+}
+
+/**
+ * Check if a path is or contains the current working directory
+ * Prevents accidental deletion of the directory we're running from
+ */
+function isCurrentWorkingDirectory(targetPath: string): boolean {
+  try {
+    const cwd = realpathSync(process.cwd());
+    const target = realpathSync(resolve(targetPath));
+    // Check if target is cwd or if cwd is inside target
+    return cwd === target || cwd.startsWith(target + '/');
+  } catch {
+    // If we can't resolve paths, be safe and assume it might be cwd
+    const cwd = process.cwd();
+    const target = resolve(targetPath);
+    return cwd === target || cwd.startsWith(target + '/');
+  }
+}
+
+/**
+ * Safely remove a directory, but never the current working directory
+ */
+function safeRemoveDirectory(targetPath: string, rmSync: typeof import('fs').rmSync): boolean {
+  if (isCurrentWorkingDirectory(targetPath)) {
+    console.error(`\n⚠️  Cannot remove ${targetPath} - it is the current working directory`);
+    console.error('   Please run this command from a different directory.\n');
+    return false;
+  }
+  rmSync(targetPath, { recursive: true, force: true });
+  return true;
 }
 
 /**
@@ -180,14 +211,22 @@ export async function initCommand(options: InitOptions) {
               s.start('Removing existing installation');
               const { rmSync } = await import('fs');
 
-              // Delete monorepo directory
+              // Safety check: never delete the current working directory
               if (existsSync(clonePath as string)) {
-                rmSync(clonePath as string, { recursive: true, force: true });
+                if (!safeRemoveDirectory(clonePath as string, rmSync)) {
+                  s.stop(pc.red('✗') + ' Cannot remove current working directory');
+                  p.cancel('Please run sentryvibe init from a different directory');
+                  return;
+                }
               }
 
               // Delete workspace directory
               if (existsSync(defaultWorkspace)) {
-                rmSync(defaultWorkspace, { recursive: true, force: true });
+                if (!safeRemoveDirectory(defaultWorkspace, rmSync)) {
+                  s.stop(pc.red('✗') + ' Cannot remove current working directory');
+                  p.cancel('Please run sentryvibe init from a different directory');
+                  return;
+                }
               }
 
               s.stop(pc.green('✓') + ' Existing installation removed');
@@ -526,6 +565,18 @@ export async function initCommand(options: InitOptions) {
       try {
         // Check if directory exists and clean up in -y mode
         if (existsSync(clonePath) || existsSync(workspacePath)) {
+          // Safety check: never delete the current working directory
+          if (isCurrentWorkingDirectory(clonePath) || isCurrentWorkingDirectory(workspacePath)) {
+            throw new CLIError({
+              code: 'CONFIG_INVALID',
+              message: 'Cannot remove the current working directory',
+              suggestions: [
+                'Run sentryvibe init from a different directory (e.g., your home directory)',
+                'Or manually remove the existing installation first',
+              ],
+            });
+          }
+
           s.start('Removing existing installation');
 
           // Import rmSync for directory deletion
@@ -533,12 +584,12 @@ export async function initCommand(options: InitOptions) {
 
           // Delete sentryvibe repo if it exists
           if (existsSync(clonePath)) {
-            rmSync(clonePath, { recursive: true, force: true });
+            safeRemoveDirectory(clonePath, rmSync);
           }
 
           // Delete sentryvibe-workspace if it exists
           if (existsSync(workspacePath)) {
-            rmSync(workspacePath, { recursive: true, force: true });
+            safeRemoveDirectory(workspacePath, rmSync);
           }
 
           s.stop(pc.green('✓') + ' Existing installation removed');
