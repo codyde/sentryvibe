@@ -5,13 +5,8 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, messages } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
-import { createClaudeCode } from 'ai-sdk-provider-claude-code';
-import { generateObject } from 'ai';
+import { generateStructuredOutput } from '@/lib/anthropic-client';
 import { ProjectMetadataSchema } from '@/schemas/metadata';
-import { resolveClaudeModelForProvider } from '@/lib/claude-model';
-
-// Create Claude Code provider - inherits authentication from local CLI
-const claudeCode = createClaudeCode();
 
 const CODEX_MODEL = 'gpt-5-codex';
 
@@ -107,12 +102,12 @@ export async function POST(request: Request) {
     const metadataPrompt = buildMetadataPrompt(prompt);
     let metadata;
 
-    // Use Claude Haiku with structured output
+    // Use Claude with structured output via Anthropic SDK
     if (agent === 'claude-code') {
       try {
-        console.log('🤖 Generating project metadata with Claude Haiku...');
-        const result = await generateObject({
-          model: claudeCode(resolveClaudeModelForProvider('claude-haiku-4-5')),
+        console.log('🤖 Generating project metadata with Claude...');
+        const result = await generateStructuredOutput({
+          model: 'claude-haiku-4-5',
           schema: ProjectMetadataSchema,
           prompt: metadataPrompt,
         });

@@ -7,13 +7,8 @@ import {
   type ClaudeModelId,
 } from '@sentryvibe/agent-core/types/agent';
 import type { Template } from '@sentryvibe/agent-core/lib/templates/config';
-import { createClaudeCode } from 'ai-sdk-provider-claude-code';
-import { generateObject } from 'ai';
+import { generateStructuredOutput } from '@/lib/anthropic-client';
 import { TemplateAnalysisSchema, ProjectNamingSchema } from '../schemas/metadata';
-import { resolveClaudeModelForProvider } from '@/lib/claude-model';
-
-// Create Claude Code provider - inherits authentication from local CLI
-const claudeCode = createClaudeCode();
 
 interface AnalysisModelConfig {
   provider: 'anthropic' | 'openai';
@@ -105,8 +100,8 @@ Requirements:
     console.log('[generateProjectName] Model: claude-haiku-4-5');
     console.log('[generateProjectName] Prompt preview:', prompt.substring(0, 100));
     
-    const result = await generateObject({
-      model: claudeCode(resolveClaudeModelForProvider('claude-haiku-4-5')),
+    const result = await generateStructuredOutput({
+      model: 'claude-haiku-4-5',
       schema: ProjectNamingSchema,
       prompt: namePrompt,
     });
@@ -231,8 +226,8 @@ async function analyzeWithClaude(
   const combinedPrompt = `${systemPrompt}\n\nUser's build request: ${userPrompt}`;
 
   try {
-    const result = await generateObject({
-      model: claudeCode(resolveClaudeModelForProvider(model)),
+    const result = await generateStructuredOutput({
+      model: model,
       schema: TemplateAnalysisSchema,
       prompt: combinedPrompt,
     });

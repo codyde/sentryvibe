@@ -24,8 +24,8 @@ importers:
         specifier: ^2.0.53
         version: 2.0.80(zod@3.25.76)
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.1.62
-        version: 0.1.62(zod@3.25.76)
+        specifier: ^0.1.76
+        version: 0.1.76(zod@3.25.76)
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0
@@ -147,15 +147,6 @@ importers:
 
   apps/sentryvibe:
     dependencies:
-      '@ai-sdk/anthropic':
-        specifier: ^2.0.21
-        version: 2.0.53(zod@3.25.76)
-      '@ai-sdk/react':
-        specifier: ^2.0.57
-        version: 2.0.109(react@19.1.0)(zod@3.25.76)
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.1.62
-        version: 0.1.62(zod@3.25.76)
       '@anthropic-ai/sdk':
         specifier: ^0.68.0
         version: 0.68.0(zod@3.25.76)
@@ -225,12 +216,6 @@ importers:
       '@tanstack/react-query-devtools':
         specifier: ^5.90.2
         version: 5.91.1(@tanstack/react-query@5.90.12(react@19.1.0))(react@19.1.0)
-      ai:
-        specifier: ^5.0.79
-        version: 5.0.108(zod@3.25.76)
-      ai-sdk-provider-claude-code:
-        specifier: file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz
-        version: file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@3.25.76)
       ansi-to-html:
         specifier: ^0.7.2
         version: 0.7.2
@@ -338,8 +323,8 @@ importers:
   packages/agent-core:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.1.62
-        version: 0.1.62(zod@3.25.76)
+        specifier: ^0.1.76
+        version: 0.1.76(zod@3.25.76)
       '@electric-sql/pglite':
         specifier: ^0.3.14
         version: 0.3.14
@@ -383,12 +368,6 @@ importers:
 
 packages:
 
-  '@ai-sdk/anthropic@2.0.53':
-    resolution: {integrity: sha512-ih7NV+OFSNWZCF+tYYD7ovvvM+gv7TRKQblpVohg2ipIwC9Y0TirzocJVREzZa/v9luxUwFbsPji++DUDWWxsg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   '@ai-sdk/gateway@2.0.18':
     resolution: {integrity: sha512-sDQcW+6ck2m0pTIHW6BPHD7S125WD3qNkx/B8sEzJp/hurocmJ5Cni0ybExg6sQMGo+fr/GWOwpHF1cmCdg5rQ==}
     engines: {node: '>=18'}
@@ -417,16 +396,6 @@ packages:
     resolution: {integrity: sha512-6o7Y2SeO9vFKB8lArHXehNuusnpddKPk7xqL7T2/b+OvXMRIXUO1rR4wcv1hAFUAT9avGZshty3Wlua/XA7TvA==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/react@2.0.109':
-    resolution: {integrity: sha512-5qM8KuN7bv7E+g6BXkSAYLFjwIfMSTKOA1prjg1zEShJXJyLSc+Yqkd3EfGibm75b7nJAqJNShurDmR/IlQqFQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      react: ^18 || ^19 || ^19.0.0-rc
-      zod: ^3.25.76 || ^4.1.8
-    peerDependenciesMeta:
-      zod:
-        optional: true
-
   '@alcalzone/ansi-tokenize@0.2.2':
     resolution: {integrity: sha512-mkOh+Wwawzuf5wa30bvc4nA+Qb6DIrGWgBhRR/Pw4T9nsgYait8izvXkNyU78D6Wcu3Z+KUdwCmLCxlWjEotYA==}
     engines: {node: '>=18'}
@@ -435,11 +404,11 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@anthropic-ai/claude-agent-sdk@0.1.62':
-    resolution: {integrity: sha512-KoJAQ0kdrbOukh4r0CFvFZgSKlAGAVJf8baeK2jpFCxbUhqr99Ier88v1L2iehWSWkXR6oVaThCYozN74Q3jUw==}
+  '@anthropic-ai/claude-agent-sdk@0.1.76':
+    resolution: {integrity: sha512-s7RvpXoFaLXLG7A1cJBAPD8ilwOhhc/12fb5mJXRuD561o4FmPtQ+WRfuy9akMmrFRfLsKv8Ornw3ClGAPL2fw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      zod: ^3.24.1
+      zod: ^3.24.1 || ^4.0.0
 
   '@anthropic-ai/sdk@0.68.0':
     resolution: {integrity: sha512-SMYAmbbiprG8k1EjEPMTwaTqssDT7Ae+jxcR5kWXiqTlbwMR2AthXtscEVWOHkRfyAV5+y3PFYTJRNa3OJWIEw==}
@@ -2983,13 +2952,6 @@ packages:
     peerDependencies:
       zod: ^3.0.0 || ^4.0.0
 
-  ai-sdk-provider-claude-code@file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz:
-    resolution: {integrity: sha512-7sgBAsSpc6CCrJxcZgdr4+GihyjzUQBVLOPnE9as6512ZBA12I6EFQp1ZkGSUxQCCE4AcQaJPSF+ikWEPa1E8Q==, tarball: file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz}
-    version: 2.1.0
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.0.0 || ^4.0.0
-
   ai@5.0.108:
     resolution: {integrity: sha512-Jex3Lb7V41NNpuqJHKgrwoU6BCLHdI1Pg4qb4GJH4jRIDRXUBySJErHjyN4oTCwbiYCeb/8II9EnqSRPq9EifA==}
     engines: {node: '>=18'}
@@ -5480,11 +5442,6 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  swr@2.3.7:
-    resolution: {integrity: sha512-ZEquQ82QvalqTxhBVv/DlAg2mbmUjF4UgpPg9wwk4ufb9rQnZXh1iKyyKBqV6bQGu1Ie7L1QwSYO07qFIa1p+g==}
-    peerDependencies:
-      react: ^16.11.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   tagged-tag@1.0.0:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
@@ -5519,10 +5476,6 @@ packages:
     resolution: {integrity: sha512-t/R3R/n0MSwnnazuPpPNVO60LX0SKL45pyl9YlvxIdkH0Of7D5qM2EVe+yASRIlY5pZ73nclYJfNANGWPwFDZw==}
     engines: {node: '>=10'}
     hasBin: true
-
-  throttleit@2.1.0:
-    resolution: {integrity: sha512-nt6AMGKW1p/70DF/hGBdJB57B8Tspmbp5gfJ8ilhLnt7kkr2ye7hzD6NVG8GGErk2HWF34igrL2CXmNIkzKqKw==}
-    engines: {node: '>=18'}
 
   tinyglobby@0.2.15:
     resolution: {integrity: sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ==}
@@ -5899,12 +5852,6 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@2.0.53(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.18(zod@3.25.76)
-      zod: 3.25.76
-
   '@ai-sdk/gateway@2.0.18(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -5936,16 +5883,6 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/react@2.0.109(react@19.1.0)(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider-utils': 3.0.18(zod@3.25.76)
-      ai: 5.0.108(zod@3.25.76)
-      react: 19.1.0
-      swr: 2.3.7(react@19.1.0)
-      throttleit: 2.1.0
-    optionalDependencies:
-      zod: 3.25.76
-
   '@alcalzone/ansi-tokenize@0.2.2':
     dependencies:
       ansi-styles: 6.2.3
@@ -5953,7 +5890,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@anthropic-ai/claude-agent-sdk@0.1.62(zod@3.25.76)':
+  '@anthropic-ai/claude-agent-sdk@0.1.76(zod@3.25.76)':
     dependencies:
       zod: 3.25.76
     optionalDependencies:
@@ -8371,15 +8308,7 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.9(zod@3.25.76)
-      '@anthropic-ai/claude-agent-sdk': 0.1.62(zod@3.25.76)
-      jsonc-parser: 3.3.1
-      zod: 3.25.76
-
-  ai-sdk-provider-claude-code@file:apps/sentryvibe/vendor/ai-sdk-provider-claude-code-LOCAL.tgz(zod@3.25.76):
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.76)
-      '@anthropic-ai/claude-agent-sdk': 0.1.62(zod@3.25.76)
+      '@anthropic-ai/claude-agent-sdk': 0.1.76(zod@3.25.76)
       jsonc-parser: 3.3.1
       zod: 3.25.76
 
@@ -11373,12 +11302,6 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  swr@2.3.7(react@19.1.0):
-    dependencies:
-      dequal: 2.0.3
-      react: 19.1.0
-      use-sync-external-store: 1.6.0(react@19.1.0)
-
   tagged-tag@1.0.0: {}
 
   tailwind-merge@3.4.0: {}
@@ -11413,8 +11336,6 @@ snapshots:
       acorn: 8.15.0
       commander: 2.20.3
       source-map-support: 0.5.21
-
-  throttleit@2.1.0: {}
 
   tinyglobby@0.2.15:
     dependencies:
