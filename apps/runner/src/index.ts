@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { streamText, generateText, type TextPart, type ImagePart, type ToolSet } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
+import { createNativeClaudeQuery, USE_NATIVE_SDK } from "./lib/native-claude-sdk.js";
 import WebSocket from "ws";
 import os from "os";
 import { randomUUID } from "crypto";
@@ -791,6 +792,15 @@ function createBuildQuery(
   if (agent === "openai-codex") {
     return createCodexQuery();
   }
+
+  // Use native SDK when feature flag is enabled
+  if (USE_NATIVE_SDK) {
+    console.log('[runner] 🔄 Using NATIVE Claude Agent SDK (direct integration)');
+    return createNativeClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+  }
+
+  // Legacy: Use AI SDK with community provider
+  console.log('[runner] 🔄 Using AI SDK with claude-code provider (legacy)');
   return createClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
 }
 

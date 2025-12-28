@@ -1,11 +1,5 @@
 import { resolve, relative, isAbsolute } from 'path';
-import type { CanUseTool } from 'ai-sdk-provider-claude-code';
-
-// Define PermissionResult type since it's not exported from the provider
-type PermissionResult = {
-  behavior: 'allow' | 'deny' | 'askUser';
-  updatedInput?: any;
-};
+import type { CanUseTool, PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 
 /**
  * Creates a permission handler that restricts Claude to a specific project directory
