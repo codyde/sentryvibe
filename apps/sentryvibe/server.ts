@@ -2,6 +2,10 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
+// Force webpack mode instead of Turbopack - PGlite WASM files don't resolve correctly with Turbopack
+// This must be set before importing next
+process.env.__NEXT_BUNDLER = 'webpack';
+
 import './sentry.server.config';
 /**
  * Custom Next.js Server with WebSocket Support
