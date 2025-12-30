@@ -1,8 +1,88 @@
 import { pgTable, text, integer, timestamp, uuid, jsonb, index, uniqueIndex, boolean } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+// ============================================================================
+// Better-Auth Tables
+// ============================================================================
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index('sessions_user_id_idx').on(table.userId),
+  tokenIdx: index('sessions_token_idx').on(table.token),
+}));
+
+export const accounts = pgTable('accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(), // 'credential', 'google', etc.
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at'),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+  scope: text('scope'),
+  password: text('password'), // Hashed password for credential provider
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index('accounts_user_id_idx').on(table.userId),
+  providerAccountIdx: uniqueIndex('accounts_provider_account_idx').on(table.providerId, table.accountId),
+}));
+
+export const verifications = pgTable('verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  identifier: text('identifier').notNull(), // email or other identifier
+  value: text('value').notNull(), // verification token
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  identifierIdx: index('verifications_identifier_idx').on(table.identifier),
+}));
+
+// ============================================================================
+// Runner Keys - User-scoped runner authentication
+// ============================================================================
+
+export const runnerKeys = pgTable('runner_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(), // User-friendly name like "My MacBook"
+  keyHash: text('key_hash').notNull(), // SHA-256 hash of the full key
+  keyPrefix: text('key_prefix').notNull(), // First 8 chars for display: "sv_abc123..."
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at'), // Soft delete - null means active
+}, (table) => ({
+  userIdIdx: index('runner_keys_user_id_idx').on(table.userId),
+  keyHashIdx: uniqueIndex('runner_keys_key_hash_idx').on(table.keyHash),
+}));
+
+// ============================================================================
+// Application Tables
+// ============================================================================
+
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }), // Owner of the project (nullable for migration/local mode)
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   description: text('description'),
@@ -29,6 +109,7 @@ export const projects = pgTable('projects', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
   // Indexes for performance
+  userIdIdx: index('projects_user_id_idx').on(table.userId),
   runnerIdIdx: index('projects_runner_id_idx').on(table.runnerId),
   statusIdx: index('projects_status_idx').on(table.status),
   lastActivityIdx: index('projects_last_activity_idx').on(table.lastActivityAt),
@@ -155,6 +236,19 @@ export const serverOperations = pgTable('server_operations', {
   createdAtIdx: index('server_operations_created_at_idx').on(table.createdAt),
 }));
 
+// Auth types
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
+export type Verification = typeof verifications.$inferSelect;
+export type NewVerification = typeof verifications.$inferInsert;
+export type RunnerKey = typeof runnerKeys.$inferSelect;
+export type NewRunnerKey = typeof runnerKeys.$inferInsert;
+
+// Application types
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Message = typeof messages.$inferSelect;

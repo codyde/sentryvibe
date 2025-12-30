@@ -57,6 +57,7 @@ import { deserializeTags, serializeTags } from "@sentryvibe/agent-core/lib/tags/
 import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
+import { useAuthGate } from "@/components/auth/AuthGate";
 // Simplified message structure kept
 interface MessagePart {
   type: string;
@@ -163,6 +164,9 @@ function normalizeHydratedState(state: unknown): GenerationState {
 function HomeContent() {
   // Track browser metrics on page load
   useBrowserMetrics();
+  
+  // Auth gate for protected actions
+  const { requireAuth, LoginModal, isAuthenticated } = useAuthGate();
   
   const [input, setInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<MessagePart[]>([]);
@@ -2045,6 +2049,13 @@ function HomeContent() {
     // Allow submission if there's either text input or image attachments
     if ((!input.trim() && imageAttachments.length === 0) || isLoading) return;
 
+    // Wrap the actual submission in requireAuth
+    // This will show login modal if not authenticated (in hosted mode)
+    requireAuth(() => performSubmit());
+  };
+  
+  // The actual submission logic, called after auth is confirmed
+  const performSubmit = async () => {
     const userPrompt = input;
     const userImages = imageAttachments;
     setInput("");
@@ -2508,6 +2519,9 @@ function HomeContent() {
       onRenameProject={setRenamingProject}
       onDeleteProject={setDeletingProject}
     >
+      {/* Login Modal - shown when auth is required */}
+      {LoginModal}
+      
       {/* WebSocket Connection Status Indicator */}
       {isGenerating && (
         <WebSocketStatus

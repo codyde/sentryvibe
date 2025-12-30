@@ -189,6 +189,8 @@ export async function startCommand(options: StartOptions) {
     RUNNER_ID: config.runner?.id || 'local',
     RUNNER_DEFAULT_ID: config.runner?.id || 'local',
     DATABASE_URL: config.databaseUrl,
+    // Enable local mode - bypasses authentication requirements
+    SENTRYVIBE_LOCAL_MODE: 'true',
   };
   
   serviceManager.register({

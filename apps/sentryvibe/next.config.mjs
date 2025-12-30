@@ -20,6 +20,10 @@ const nextConfig = {
       fullUrl: false,
     },
   },
+  // Expose local mode env var to client
+  env: {
+    NEXT_PUBLIC_LOCAL_MODE: process.env.SENTRYVIBE_LOCAL_MODE || 'false',
+  },
   webpack: (config) => {
     // Ensure @/lib/* resolves to ./src/lib/* within this app
     config.resolve.alias = {
