@@ -173,6 +173,7 @@ export async function authenticateRunnerKey(key: string): Promise<{
   db.update(runnerKeys)
     .set({ lastUsedAt: new Date() })
     .where(eq(runnerKeys.id, runnerKey.id))
+    .execute()
     .catch(() => {}); // Ignore errors
 
   return {
