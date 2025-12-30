@@ -21,58 +21,27 @@ if (!SECRET && process.env.NODE_ENV === "production") {
  * - Email/password credentials
  * - PostgreSQL session storage via Drizzle
  * - 7-day session duration
+ * 
+ * Per better-auth docs: Field names are mapped based on the Drizzle schema
+ * property names (e.g., `emailVerified: boolean('email_verified')` means
+ * better-auth uses `emailVerified` and Drizzle maps it to `email_verified` column).
+ * 
+ * We use `usePlural: true` since our tables are named `users`, `sessions`, etc.
  */
 export const auth = betterAuth({
   secret: SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { users, sessions, accounts, verifications },
-    // Tell drizzle adapter to use snake_case column mapping
     usePlural: true,
   }),
-  // Map better-auth field names to our snake_case database columns
-  user: {
-    fields: {
-      emailVerified: "email_verified",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
-    },
-  },
+  // Session configuration
   session: {
-    fields: {
-      userId: "user_id",
-      expiresAt: "expires_at",
-      ipAddress: "ip_address",
-      userAgent: "user_agent",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
-    },
     expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
     updateAge: 60 * 60 * 24, // Update session every 24 hours
     cookieCache: {
       enabled: true,
       maxAge: 60 * 5, // 5 minutes
-    },
-  },
-  account: {
-    fields: {
-      userId: "user_id",
-      accountId: "account_id",
-      providerId: "provider_id",
-      accessToken: "access_token",
-      refreshToken: "refresh_token",
-      accessTokenExpiresAt: "access_token_expires_at",
-      refreshTokenExpiresAt: "refresh_token_expires_at",
-      idToken: "id_token",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
-    },
-  },
-  verification: {
-    fields: {
-      expiresAt: "expires_at",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
     },
   },
   emailAndPassword: {
