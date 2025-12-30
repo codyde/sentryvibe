@@ -58,6 +58,7 @@ import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { useAuthGate } from "@/components/auth/AuthGate";
+import { AuthHeader } from "@/components/auth/AuthHeader";
 // Simplified message structure kept
 interface MessagePart {
   type: string;
@@ -2593,13 +2594,23 @@ function HomeContent() {
           />
         )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
+        {/* Top Header Bar with Auth */}
+        <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            {/* Left side - can add breadcrumbs or title here later */}
+          </div>
+          <div className="flex items-center gap-4">
+            <AuthHeader />
+          </div>
+        </header>
+        
         {runnerOnline === false && (
           <div className="bg-amber-500/20 border border-amber-400/40 text-amber-200 px-4 py-2 text-sm">
             Local runner is offline. Start the runner CLI on your machine to
             enable builds and previews.
           </div>
         )}
-        <div className="h-screen bg-gradient-to-tr from-[#1D142F] to-[#31145F] text-white flex flex-col overflow-hidden">
+        <div className="h-[calc(100vh-3.5rem)] bg-gradient-to-tr from-[#1D142F] to-[#31145F] text-white flex flex-col overflow-hidden">
           {/* Landing Page */}
           <AnimatePresence mode="wait">
             {conversationMessages.length === 0 &&

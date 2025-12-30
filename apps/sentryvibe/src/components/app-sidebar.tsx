@@ -1,14 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
 import { Plus, Server, ChevronDown, CheckCircle2, Circle, Activity, Lock } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { useRunner } from "@/contexts/RunnerContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { ProjectList } from "@/components/sidebar/ProjectList"
-import { UserMenu } from "@/components/auth/UserMenu"
-import { RunnerKeyManager } from "@/components/auth/RunnerKeyManager"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Sidebar,
@@ -39,7 +36,6 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
   const queryClient = useQueryClient();
-  const [showRunnerKeys, setShowRunnerKeys] = useState(false);
   
   // Show projects only when authenticated or in local mode
   const canViewProjects = isAuthenticated || isLocalMode;
@@ -191,11 +187,8 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
         )}
       </SidebarContent>
 
-      {/* Footer - User Menu, Runner Selector & Running Services */}
+      {/* Footer - Runner Selector & Running Services */}
       <SidebarFooter className="border-t border-white/10 p-3 space-y-2">
-        {/* User Menu */}
-        <UserMenu onOpenRunnerKeys={() => setShowRunnerKeys(true)} />
-        
         {/* Runner Dropdown - only show when authenticated */}
         {canViewProjects && (
           <DropdownMenu>
@@ -280,12 +273,6 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
       </SidebarFooter>
 
       <SidebarRail />
-      
-      {/* Runner Keys Modal */}
-      <RunnerKeyManager 
-        open={showRunnerKeys} 
-        onOpenChange={setShowRunnerKeys} 
-      />
     </Sidebar>
   )
 }

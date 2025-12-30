@@ -3,6 +3,17 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@sentryvibe/agent-core";
 import * as schema from "@sentryvibe/agent-core/lib/db/schema";
 
+// Default secret for local development - in production, BETTER_AUTH_SECRET must be set
+const SECRET = process.env.BETTER_AUTH_SECRET || (
+  process.env.SENTRYVIBE_LOCAL_MODE === "true" 
+    ? "local-development-secret-do-not-use-in-production" 
+    : undefined
+);
+
+if (!SECRET && process.env.NODE_ENV === "production") {
+  console.error("BETTER_AUTH_SECRET must be set in production!");
+}
+
 /**
  * Better-auth server configuration
  * 
@@ -12,6 +23,7 @@ import * as schema from "@sentryvibe/agent-core/lib/db/schema";
  * - 7-day session duration
  */
 export const auth = betterAuth({
+  secret: SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
