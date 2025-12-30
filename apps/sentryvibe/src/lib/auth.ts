@@ -26,11 +26,12 @@ export const auth = betterAuth({
   secret: SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
+    // Pass the full schema - drizzle adapter will find tables by the modelName
     schema: {
-      user: schema.users,
-      session: schema.sessions,
-      account: schema.accounts,
-      verification: schema.verifications,
+      users: schema.users,
+      sessions: schema.sessions,
+      accounts: schema.accounts,
+      verifications: schema.verifications,
     },
   }),
   // Map our table names (plural) to what better-auth expects
