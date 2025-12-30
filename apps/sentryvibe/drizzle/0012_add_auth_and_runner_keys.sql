@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS "accounts" (
   "access_token_expires_at" timestamp,
   "refresh_token_expires_at" timestamp,
   "scope" text,
+  "id_token" text,
   "password" text,
   "created_at" timestamp NOT NULL DEFAULT now(),
   "updated_at" timestamp NOT NULL DEFAULT now()

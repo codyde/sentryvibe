@@ -33,19 +33,60 @@ export const auth = betterAuth({
       verification: schema.verifications,
     },
   }),
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: false,
-    minPasswordLength: 8,
-    maxPasswordLength: 128,
+  // Map our table names (plural) to what better-auth expects
+  user: {
+    modelName: "users",
+    fields: {
+      emailVerified: "email_verified",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
   },
   session: {
+    modelName: "sessions",
+    fields: {
+      userId: "user_id",
+      expiresAt: "expires_at",
+      ipAddress: "ip_address",
+      userAgent: "user_agent",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
     expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
     updateAge: 60 * 60 * 24, // Update session every 24 hours
     cookieCache: {
       enabled: true,
       maxAge: 60 * 5, // 5 minutes
     },
+  },
+  account: {
+    modelName: "accounts",
+    fields: {
+      userId: "user_id",
+      accountId: "account_id",
+      providerId: "provider_id",
+      accessToken: "access_token",
+      refreshToken: "refresh_token",
+      accessTokenExpiresAt: "access_token_expires_at",
+      refreshTokenExpiresAt: "refresh_token_expires_at",
+      idToken: "id_token",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+  verification: {
+    modelName: "verifications",
+    fields: {
+      expiresAt: "expires_at",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+    minPasswordLength: 8,
+    maxPasswordLength: 128,
   },
   trustedOrigins: [
     "http://localhost:3000",
