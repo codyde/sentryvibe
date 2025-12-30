@@ -3,16 +3,26 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@sentryvibe/agent-core";
 import { users, sessions, accounts, verifications } from "@sentryvibe/agent-core/lib/db/schema";
 
-// Default secret for local development - in production, BETTER_AUTH_SECRET must be set
-const SECRET = process.env.BETTER_AUTH_SECRET || (
-  process.env.SENTRYVIBE_LOCAL_MODE === "true" 
-    ? "local-development-secret-do-not-use-in-production" 
-    : undefined
-);
-
-if (!SECRET && process.env.NODE_ENV === "production") {
-  console.error("BETTER_AUTH_SECRET must be set in production!");
+// Determine the auth secret based on environment
+function getAuthSecret(): string {
+  // Use explicitly set secret if available
+  if (process.env.BETTER_AUTH_SECRET) {
+    return process.env.BETTER_AUTH_SECRET;
+  }
+  
+  // In local mode, use a default development secret
+  if (process.env.SENTRYVIBE_LOCAL_MODE === "true") {
+    return "local-development-secret-do-not-use-in-production";
+  }
+  
+  // In hosted/production mode without a secret, fail fast
+  throw new Error(
+    "BETTER_AUTH_SECRET environment variable must be set in hosted mode. " +
+    "Generate a secure secret with: openssl rand -base64 32"
+  );
 }
+
+const SECRET = getAuthSecret();
 
 /**
  * Better-auth server configuration
