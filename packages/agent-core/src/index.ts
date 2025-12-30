@@ -21,11 +21,7 @@ export {
   db, 
   getDb, 
   initializeDatabase,
-  getDatabaseMode, 
-  isPgliteMode,
-  getPgliteDataDir,
   resetDatabase,
-  type DatabaseClient,
-  type DatabaseMode 
+  type DatabaseClient
 } from './lib/db/client';
-export { runMigrations, initializePgliteSchema } from './lib/db/migrate';
+export { runMigrations } from './lib/db/migrate';

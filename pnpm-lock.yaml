@@ -328,9 +328,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.76
         version: 0.1.76(zod@3.25.76)
-      '@electric-sql/pglite':
-        specifier: ^0.3.14
-        version: 0.3.14
       '@sentry/node':
         specifier: file:../../apps/sentryvibe/vendor/sentry-node-1765299043.tgz
         version: file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
@@ -6056,7 +6053,8 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@electric-sql/pglite@0.3.14': {}
+  '@electric-sql/pglite@0.3.14':
+    optional: true
 
   '@emnapi/core@1.7.1':
     dependencies:

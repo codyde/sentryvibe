@@ -2,7 +2,7 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
-// Force webpack mode instead of Turbopack - PGlite WASM files don't resolve correctly with Turbopack
+// Force webpack mode instead of Turbopack for consistent builds
 // This must be set before importing next
 process.env.__NEXT_BUNDLER = 'webpack';
 

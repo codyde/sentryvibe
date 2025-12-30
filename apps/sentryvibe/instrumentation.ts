@@ -13,18 +13,10 @@ export async function register() {
     console.log('[instrumentation] ✅ Sentry server initialized');
     
     // Initialize database BEFORE any database-dependent code
-    // This is critical for PGlite mode - must happen before any sync `db` usage
     try {
-      const { initializeDatabase, getDatabaseMode, runMigrations } = await import('@sentryvibe/agent-core');
+      const { initializeDatabase } = await import('@sentryvibe/agent-core');
       await initializeDatabase();
-      const mode = getDatabaseMode();
-      console.log(`[instrumentation] ✅ Database initialized (mode: ${mode})`);
-      
-      // Run migrations/schema initialization
-      if (mode === 'pglite') {
-        await runMigrations();
-        console.log('[instrumentation] ✅ PGlite schema initialized');
-      }
+      console.log('[instrumentation] ✅ Database initialized');
     } catch (error) {
       console.error('[instrumentation] ❌ Failed to initialize database:', error);
       throw error; // Fail fast - database is required

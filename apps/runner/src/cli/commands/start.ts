@@ -137,17 +137,13 @@ export async function startCommand(options: StartOptions) {
   }
 
   // Step 3: Check database configuration
-  const databaseMode = config.databaseMode || 'pglite'; // Default to local if not set
-  
-  // For postgres mode, require DATABASE_URL
-  if (databaseMode === 'postgres' && !config.databaseUrl) {
+  if (!config.databaseUrl) {
     throw new CLIError({
       code: 'MISSING_REQUIRED_CONFIG',
-      message: 'Database URL not configured for PostgreSQL mode',
+      message: 'Database URL not configured',
       suggestions: [
         'Run initialization: sentryvibe init',
         'Or set manually: sentryvibe config set databaseUrl <url>',
-        'Or use local database: sentryvibe config set databaseMode pglite',
       ],
       docs: 'https://github.com/codyde/sentryvibe#database-setup',
     });
@@ -192,13 +188,8 @@ export async function startCommand(options: StartOptions) {
     WORKSPACE_ROOT: config.workspace,
     RUNNER_ID: config.runner?.id || 'local',
     RUNNER_DEFAULT_ID: config.runner?.id || 'local',
-    DATABASE_MODE: databaseMode,
+    DATABASE_URL: config.databaseUrl,
   };
-  
-  // Add DATABASE_URL only for postgres mode
-  if (databaseMode === 'postgres' && config.databaseUrl) {
-    webEnv.DATABASE_URL = config.databaseUrl;
-  }
   
   serviceManager.register({
     name: 'web',
