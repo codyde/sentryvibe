@@ -3,20 +3,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
-
-function ensureAuthorized(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const expected = process.env.RUNNER_SHARED_SECRET;
-
-  if (!expected) {
-    throw new Error('RUNNER_SHARED_SECRET is not configured');
-  }
-
-  if (!authHeader?.startsWith('Bearer ') || authHeader.slice('Bearer '.length).trim() !== expected) {
-    return false;
-  }
-  return true;
-}
+import { authenticateRunnerRequest } from '@/lib/auth-helpers';
 
 /**
  * Unregister a process when it exits
@@ -27,7 +14,7 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    if (!ensureAuthorized(request)) {
+    if (!await authenticateRunnerRequest(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

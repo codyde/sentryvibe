@@ -1,20 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
-
-function ensureAuthorized(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const expected = process.env.RUNNER_SHARED_SECRET;
-
-  if (!expected) {
-    throw new Error('RUNNER_SHARED_SECRET is not configured');
-  }
-
-  if (!authHeader?.startsWith('Bearer ') || authHeader.slice('Bearer '.length).trim() !== expected) {
-    return false;
-  }
-  return true;
-}
+import { authenticateRunnerRequest } from '@/lib/auth-helpers';
 
 /**
  * Register a new process when the runner starts it
@@ -22,7 +9,7 @@ function ensureAuthorized(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    if (!ensureAuthorized(request)) {
+    if (!await authenticateRunnerRequest(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

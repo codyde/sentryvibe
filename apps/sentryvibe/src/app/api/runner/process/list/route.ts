@@ -1,20 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
-
-function ensureAuthorized(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const expected = process.env.RUNNER_SHARED_SECRET;
-
-  if (!expected) {
-    throw new Error('RUNNER_SHARED_SECRET is not configured');
-  }
-
-  if (!authHeader?.startsWith('Bearer ') || authHeader.slice('Bearer '.length).trim() !== expected) {
-    return false;
-  }
-  return true;
-}
+import { eq } from 'drizzle-orm';
+import { authenticateRunnerRequest } from '@/lib/auth-helpers';
 
 /**
  * Get list of running processes for health checking
@@ -22,7 +10,7 @@ function ensureAuthorized(request: Request) {
  */
 export async function GET(request: Request) {
   try {
-    if (!ensureAuthorized(request)) {
+    if (!await authenticateRunnerRequest(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -32,7 +20,6 @@ export async function GET(request: Request) {
     let processes;
     if (runnerId) {
       // Filter by runner ID if provided
-      const { eq } = await import('drizzle-orm');
       processes = await db.select().from(runningProcesses).where(eq(runningProcesses.runnerId, runnerId));
     } else {
       // Return all processes if no filter

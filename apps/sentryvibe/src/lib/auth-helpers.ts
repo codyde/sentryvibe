@@ -211,6 +211,49 @@ export function extractRunnerKey(request: Request): string | null {
 }
 
 /**
+ * Authenticate a runner request (for runner process APIs)
+ * Accepts either:
+ * - Runner key (sv_xxx) - validated against database
+ * - Shared secret - validated against RUNNER_SHARED_SECRET env var
+ * 
+ * Returns true if authenticated, false otherwise
+ */
+export async function authenticateRunnerRequest(request: Request): Promise<boolean> {
+  // In local mode, always allow
+  if (isLocalMode()) {
+    return true;
+  }
+
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader) {
+    return false;
+  }
+
+  // Extract token from Bearer header or raw token
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.substring(7)
+    : authHeader;
+
+  if (!token) {
+    return false;
+  }
+
+  // Check if it's a runner key
+  if (token.startsWith("sv_")) {
+    const result = await authenticateRunnerKey(token);
+    return result !== null;
+  }
+
+  // Fall back to shared secret check
+  const sharedSecret = process.env.RUNNER_SHARED_SECRET;
+  if (sharedSecret && token === sharedSecret) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Custom error class for auth errors
  */
 export class AuthError extends Error {

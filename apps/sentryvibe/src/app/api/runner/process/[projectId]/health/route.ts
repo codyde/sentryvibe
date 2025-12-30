@@ -3,20 +3,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { runningProcesses, projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { projectEvents } from '@/lib/project-events';
-
-function ensureAuthorized(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const expected = process.env.RUNNER_SHARED_SECRET;
-
-  if (!expected) {
-    throw new Error('RUNNER_SHARED_SECRET is not configured');
-  }
-
-  if (!authHeader?.startsWith('Bearer ') || authHeader.slice('Bearer '.length).trim() !== expected) {
-    return false;
-  }
-  return true;
-}
+import { authenticateRunnerRequest } from '@/lib/auth-helpers';
 
 /**
  * Receive health check report from runner
@@ -29,7 +16,7 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    if (!ensureAuthorized(request)) {
+    if (!await authenticateRunnerRequest(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
