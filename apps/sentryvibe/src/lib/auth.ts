@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@sentryvibe/agent-core";
-import * as schema from "@sentryvibe/agent-core/lib/db/schema";
+import { users, sessions, accounts, verifications } from "@sentryvibe/agent-core/lib/db/schema";
 
 // Default secret for local development - in production, BETTER_AUTH_SECRET must be set
 const SECRET = process.env.BETTER_AUTH_SECRET || (
@@ -26,17 +26,12 @@ export const auth = betterAuth({
   secret: SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
-    // Pass the full schema - drizzle adapter will find tables by the modelName
-    schema: {
-      users: schema.users,
-      sessions: schema.sessions,
-      accounts: schema.accounts,
-      verifications: schema.verifications,
-    },
+    schema: { users, sessions, accounts, verifications },
+    // Tell drizzle adapter to use snake_case column mapping
+    usePlural: true,
   }),
-  // Map our table names (plural) to what better-auth expects
+  // Map better-auth field names to our snake_case database columns
   user: {
-    modelName: "users",
     fields: {
       emailVerified: "email_verified",
       createdAt: "created_at",
@@ -44,7 +39,6 @@ export const auth = betterAuth({
     },
   },
   session: {
-    modelName: "sessions",
     fields: {
       userId: "user_id",
       expiresAt: "expires_at",
@@ -61,7 +55,6 @@ export const auth = betterAuth({
     },
   },
   account: {
-    modelName: "accounts",
     fields: {
       userId: "user_id",
       accountId: "account_id",
@@ -76,7 +69,6 @@ export const auth = betterAuth({
     },
   },
   verification: {
-    modelName: "verifications",
     fields: {
       expiresAt: "expires_at",
       createdAt: "created_at",
