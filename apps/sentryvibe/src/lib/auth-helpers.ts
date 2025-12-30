@@ -184,20 +184,23 @@ export async function authenticateRunnerKey(key: string): Promise<{
 
 /**
  * Extract runner key from Authorization header
+ * Only extracts tokens that are runner keys (prefixed with "sv_")
+ * Returns null for other tokens (e.g., shared secrets) so they can be handled separately
  */
 export function extractRunnerKey(request: Request): string | null {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader) return null;
 
   // Support both "Bearer sv_xxx" and just "sv_xxx"
-  if (authHeader.startsWith("Bearer ")) {
-    return authHeader.substring(7);
+  if (authHeader.startsWith("Bearer sv_")) {
+    return authHeader.substring(7); // Returns "sv_xxx"
   }
 
   if (authHeader.startsWith("sv_")) {
     return authHeader;
   }
 
+  // Not a runner key (could be shared secret or other token)
   return null;
 }
 
