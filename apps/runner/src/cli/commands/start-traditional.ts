@@ -196,6 +196,8 @@ export async function startCommand(options: StartOptions) {
         WORKSPACE_ROOT: config.workspace,
         RUNNER_ID: config.runner?.id || 'local',
         RUNNER_DEFAULT_ID: config.runner?.id || 'local',
+        // Enable local mode - bypasses authentication requirements
+        SENTRYVIBE_LOCAL_MODE: 'true',
       },
     });
 

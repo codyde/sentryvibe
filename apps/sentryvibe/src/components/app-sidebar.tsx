@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Server, ChevronDown, CheckCircle2, Circle, Activity } from "lucide-react"
+import { Plus, Server, ChevronDown, CheckCircle2, Circle, Activity, Lock } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { useRunner } from "@/contexts/RunnerContext"
+import { useAuth } from "@/contexts/AuthContext"
 import { ProjectList } from "@/components/sidebar/ProjectList"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
@@ -30,10 +31,14 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProject, ...props }: AppSidebarProps) {
   const { projects, isLoading } = useProjects();
   const { selectedRunnerId, setSelectedRunnerId, availableRunners, isLoading: runnersLoading } = useRunner();
+  const { isAuthenticated, isLocalMode } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
   const queryClient = useQueryClient();
+  
+  // Show projects only when authenticated or in local mode
+  const canViewProjects = isAuthenticated || isLocalMode;
 
   // Count running services for the footer badge
   const runningCount = projects.filter(p =>
@@ -153,7 +158,16 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
 
       {/* Content - Project List */}
       <SidebarContent className="px-0">
-        {isLoading ? (
+        {!canViewProjects ? (
+          // Not authenticated - show sign in prompt
+          <div className="px-4 py-8 text-center">
+            <Lock className="w-10 h-10 mx-auto mb-3 text-zinc-700" />
+            <p className="text-sm text-zinc-400 font-medium">Sign in to view projects</p>
+            <p className="text-xs text-zinc-600 mt-1">
+              Your projects will appear here after signing in
+            </p>
+          </div>
+        ) : isLoading ? (
           <div className="px-3 py-4 space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="animate-pulse">
@@ -175,83 +189,87 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
 
       {/* Footer - Runner Selector & Running Services */}
       <SidebarFooter className="border-t border-white/10 p-3 space-y-2">
-        {/* Runner Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
-              <div className="flex items-center gap-2">
-                <Server className="w-4 h-4 text-gray-400" />
-                {runnersLoading ? (
-                  <span className="text-xs text-gray-500">Loading...</span>
-                ) : availableRunners.length === 0 ? (
-                  <span className="text-xs text-orange-400">No runners</span>
-                ) : (
-                  <>
-                    <div className={`w-2 h-2 rounded-full ${
-                      selectedRunnerHealthy ? 'bg-green-400' : 'bg-red-400'
-                    }`} />
-                    <span className="text-xs text-white truncate max-w-[120px]">
-                      {selectedRunnerId || 'Select runner'}
-                    </span>
-                  </>
-                )}
-              </div>
-              <ChevronDown className="w-3 h-3 text-gray-500" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56 bg-black border-white/10" align="start" side="top">
-            {availableRunners.length === 0 ? (
-              <div className="px-3 py-4 text-center">
-                <Circle className="w-6 h-6 mx-auto mb-2 text-orange-400" />
-                <p className="text-xs text-orange-300 font-medium">No Runners Connected</p>
-                <p className="text-[10px] text-gray-500 mt-1">Start a runner to begin building</p>
-              </div>
-            ) : (
-              availableRunners.map((runner) => {
-                const isSelected = runner.runnerId === selectedRunnerId;
-                const isHealthy = (Date.now() - runner.lastHeartbeat) < 30000;
+        {/* Runner Dropdown - only show when authenticated */}
+        {canViewProjects && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
+                <div className="flex items-center gap-2">
+                  <Server className="w-4 h-4 text-gray-400" />
+                  {runnersLoading ? (
+                    <span className="text-xs text-gray-500">Loading...</span>
+                  ) : availableRunners.length === 0 ? (
+                    <span className="text-xs text-orange-400">No runners</span>
+                  ) : (
+                    <>
+                      <div className={`w-2 h-2 rounded-full ${
+                        selectedRunnerHealthy ? 'bg-green-400' : 'bg-red-400'
+                      }`} />
+                      <span className="text-xs text-white truncate max-w-[120px]">
+                        {selectedRunnerId || 'Select runner'}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <ChevronDown className="w-3 h-3 text-gray-500" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-black border-white/10" align="start" side="top">
+              {availableRunners.length === 0 ? (
+                <div className="px-3 py-4 text-center">
+                  <Circle className="w-6 h-6 mx-auto mb-2 text-orange-400" />
+                  <p className="text-xs text-orange-300 font-medium">No Runners Connected</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Start a runner to begin building</p>
+                </div>
+              ) : (
+                availableRunners.map((runner) => {
+                  const isSelected = runner.runnerId === selectedRunnerId;
+                  const isHealthy = (Date.now() - runner.lastHeartbeat) < 30000;
 
-                return (
-                  <DropdownMenuItem
-                    key={runner.runnerId}
-                    onClick={() => setSelectedRunnerId(runner.runnerId)}
-                    className={`flex items-center gap-2 cursor-pointer ${
-                      isSelected ? 'bg-purple-500/20' : ''
-                    }`}
-                  >
-                    {isSelected ? (
-                      <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                    ) : (
-                      <Circle className="w-4 h-4 text-gray-600" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate text-white">{runner.runnerId}</p>
-                    </div>
-                    <div className={`w-2 h-2 rounded-full ${
-                      isHealthy ? 'bg-green-400' : 'bg-red-400'
-                    }`} />
-                  </DropdownMenuItem>
-                );
-              })
+                  return (
+                    <DropdownMenuItem
+                      key={runner.runnerId}
+                      onClick={() => setSelectedRunnerId(runner.runnerId)}
+                      className={`flex items-center gap-2 cursor-pointer ${
+                        isSelected ? 'bg-purple-500/20' : ''
+                      }`}
+                    >
+                      {isSelected ? (
+                        <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                      ) : (
+                        <Circle className="w-4 h-4 text-gray-600" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate text-white">{runner.runnerId}</p>
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${
+                        isHealthy ? 'bg-green-400' : 'bg-red-400'
+                      }`} />
+                    </DropdownMenuItem>
+                  );
+                })
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* Running Services Button - only show when authenticated */}
+        {canViewProjects && (
+          <button
+            onClick={onOpenProcessModal}
+            className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-gray-400" />
+              <span className="text-xs text-gray-300">Running Services</span>
+            </div>
+            {runningCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-400 rounded">
+                {runningCount}
+              </span>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Running Services Button */}
-        <button
-          onClick={onOpenProcessModal}
-          className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-300">Running Services</span>
-          </div>
-          {runningCount > 0 && (
-            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-400 rounded">
-              {runningCount}
-            </span>
-          )}
-        </button>
+          </button>
+        )}
       </SidebarFooter>
 
       <SidebarRail />

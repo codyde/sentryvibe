@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import type { RunnerEvent, StartBuildCommand, AutoFixStartedEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, generationSessions, serverOperations } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq, desc, and, inArray } from 'drizzle-orm';
+import { eq, desc, and, inArray, or, isNull } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
@@ -18,6 +18,7 @@ import {
   getRunCommand,
 } from '@sentryvibe/agent-core/lib/port-allocator';
 import type { StartDevServerCommand } from '@/shared/runner/messages';
+import { authenticateRunnerKey, extractRunnerKey, isLocalMode } from '@/lib/auth-helpers';
 
 // Track auto-fix attempts per project to prevent infinite loops
 const autoFixAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -28,18 +29,67 @@ const AUTO_FIX_COOLDOWN_MS = 60000; // 1 minute cooldown between auto-fix attemp
 const portRetryAttempts = new Map<string, number>();
 const MAX_PORT_RETRY_ATTEMPTS = 3;
 
-function ensureAuthorized(request: Request) {
+async function ensureAuthorized(request: Request): Promise<{ userId?: string } | false> {
+  // In local mode, always allow
+  if (isLocalMode()) {
+    return { userId: undefined };
+  }
+  
   const authHeader = request.headers.get('authorization');
+  
+  // First, check for user-scoped runner key (sv_xxx format)
+  const runnerKey = extractRunnerKey(request);
+  if (runnerKey) {
+    const auth = await authenticateRunnerKey(runnerKey);
+    if (auth) {
+      return { userId: auth.userId };
+    }
+    return false;
+  }
+  
+  // Fall back to shared secret (legacy/local mode)
   const expected = process.env.RUNNER_SHARED_SECRET;
-
   if (!expected) {
-    throw new Error('RUNNER_SHARED_SECRET is not configured');
+    console.warn('RUNNER_SHARED_SECRET is not configured and no runner key provided');
+    return false;
   }
 
   if (!authHeader?.startsWith('Bearer ') || authHeader.slice('Bearer '.length).trim() !== expected) {
     return false;
   }
-  return true;
+  
+  return { userId: undefined };
+}
+
+/**
+ * Verify that the authenticated user owns the project
+ * In local mode or with shared secret (no userId), allows access to all projects
+ * For user-scoped runner keys, verifies the project belongs to the user
+ */
+async function verifyProjectOwnership(projectId: string, userId: string | undefined): Promise<boolean> {
+  // In local mode or with shared secret, no ownership check needed
+  if (isLocalMode() || !userId) {
+    return true;
+  }
+
+  // Fetch the project and check ownership
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: { id: true, userId: true },
+  });
+
+  if (!project) {
+    // Project doesn't exist - let the operation fail naturally
+    return true;
+  }
+
+  // Allow if project has no owner (legacy) or user owns it
+  if (!project.userId || project.userId === userId) {
+    return true;
+  }
+
+  console.warn(`[events] Unauthorized: User ${userId} attempted to access project ${projectId} owned by ${project.userId}`);
+  return false;
 }
 
 /**
@@ -56,14 +106,22 @@ function emitProjectUpdateFromData(projectId: string, projectData: typeof projec
 
 export async function POST(request: Request) {
   try {
-    if (!ensureAuthorized(request)) {
+    const authResult = await ensureAuthorized(request);
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // authResult.userId contains the user ID if authenticated via runner key
 
     const event = (await request.json()) as RunnerEvent;
 
     if (!event.projectId) {
       return NextResponse.json({ ok: true });
+    }
+
+    // Verify the authenticated user owns this project
+    const hasAccess = await verifyProjectOwnership(event.projectId, authResult.userId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden: You do not own this project' }, { status: 403 });
     }
 
     // Note: Sentry's automatic HTTP instrumentation already created a span for this request

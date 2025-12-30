@@ -3,17 +3,43 @@ import * as Sentry from '@sentry/nextjs';
 import { Codex } from '@openai/codex-sdk';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, messages } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, or, isNull } from 'drizzle-orm';
 import type { AgentId } from '@sentryvibe/agent-core/types/agent';
 import { generateStructuredOutput } from '@/lib/anthropic-client';
 import { ProjectMetadataSchema } from '@/schemas/metadata';
+import { getSession, isLocalMode, getUserId } from '@/lib/auth-helpers';
 
 const CODEX_MODEL = 'gpt-5-codex';
 
 export async function GET() {
   try {
-    const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
-    return NextResponse.json({ projects: allProjects });
+    // In local mode, return all projects (no user filtering)
+    if (isLocalMode()) {
+      const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
+      return NextResponse.json({ projects: allProjects });
+    }
+
+    // In hosted mode, filter by user
+    const userId = await getUserId();
+    
+    if (!userId) {
+      // Not authenticated - return empty list
+      return NextResponse.json({ projects: [] });
+    }
+
+    // Return projects owned by user OR projects with no owner (legacy)
+    const userProjects = await db
+      .select()
+      .from(projects)
+      .where(
+        or(
+          eq(projects.userId, userId),
+          isNull(projects.userId)
+        )
+      )
+      .orderBy(projects.createdAt);
+    
+    return NextResponse.json({ projects: userProjects });
   } catch (error) {
     console.error('Error fetching projects:', error);
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
@@ -63,6 +89,20 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
+    // Check authentication (required for creating projects in hosted mode)
+    // In local mode, we don't associate projects with users (userId = null)
+    // This avoids foreign key violations since LOCAL_USER doesn't exist in the DB
+    const session = await getSession();
+    const userId = isLocalMode() ? null : (session?.user?.id ?? null);
+    
+    // In hosted mode, require authentication
+    if (!isLocalMode() && !userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     // Extract User-Agent for browser tracking
     const userAgent = request.headers.get('user-agent') || 'unknown';
     
@@ -217,6 +257,7 @@ export async function POST(request: Request) {
       status: 'pending',
       originalPrompt: prompt,
       tags: tags || null, // Store tags if provided
+      userId: userId, // Associate with authenticated user (null in local mode)
     }).returning();
 
     console.log(`✅ Project created: ${project.id}`);
