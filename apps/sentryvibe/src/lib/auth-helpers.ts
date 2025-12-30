@@ -1,4 +1,4 @@
-import { auth } from "./auth";
+import { getAuth } from "./auth";
 import { headers } from "next/headers";
 import { db } from "@sentryvibe/agent-core";
 import { projects, runnerKeys } from "@sentryvibe/agent-core/lib/db/schema";
@@ -46,7 +46,7 @@ export async function getSession() {
     return LOCAL_SESSION;
   }
 
-  const session = await auth.api.getSession({
+  const session = await getAuth().api.getSession({
     headers: await headers(),
   });
 

@@ -22,10 +22,51 @@ function getAuthSecret(): string {
   );
 }
 
-const SECRET = getAuthSecret();
+// Lazy-initialized auth instance
+// This prevents errors during Next.js build/page collection phases
+let _auth: ReturnType<typeof betterAuth> | null = null;
+
+function createAuth() {
+  return betterAuth({
+    secret: getAuthSecret(),
+    database: drizzleAdapter(db, {
+      provider: "pg",
+      schema: { users, sessions, accounts, verifications },
+      usePlural: true,
+    }),
+    // Let PostgreSQL generate UUIDs (our schema has defaultRandom())
+    advanced: {
+      database: {
+        generateId: false,
+      },
+    },
+    // Session configuration
+    session: {
+      expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+      updateAge: 60 * 60 * 24, // Update session every 24 hours
+      cookieCache: {
+        enabled: true,
+        maxAge: 60 * 5, // 5 minutes
+      },
+    },
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+      minPasswordLength: 8,
+      maxPasswordLength: 128,
+    },
+    trustedOrigins: [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ],
+  });
+}
 
 /**
- * Better-auth server configuration
+ * Get the better-auth instance (lazy initialized)
+ * 
+ * This is lazy to avoid errors during Next.js build phase when
+ * environment variables may not be available.
  * 
  * This configures authentication with:
  * - Email/password credentials
@@ -38,39 +79,33 @@ const SECRET = getAuthSecret();
  * 
  * We use `usePlural: true` since our tables are named `users`, `sessions`, etc.
  */
-export const auth = betterAuth({
-  secret: SECRET,
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    schema: { users, sessions, accounts, verifications },
-    usePlural: true,
-  }),
-  // Let PostgreSQL generate UUIDs (our schema has defaultRandom())
-  advanced: {
-    database: {
-      generateId: false,
-    },
-  },
-  // Session configuration
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
-    updateAge: 60 * 60 * 24, // Update session every 24 hours
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5, // 5 minutes
-    },
-  },
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: false,
-    minPasswordLength: 8,
-    maxPasswordLength: 128,
-  },
-  trustedOrigins: [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-  ],
-});
+export function getAuth() {
+  if (!_auth) {
+    _auth = createAuth();
+  }
+  return _auth;
+}
 
-export type Session = typeof auth.$Infer.Session;
-export type User = typeof auth.$Infer.Session.user;
+// Type exports for session/user
+export type Session = {
+  session: {
+    id: string;
+    userId: string;
+    expiresAt: Date;
+    token: string;
+    createdAt: Date;
+    updatedAt: Date;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  };
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    name: string;
+    image?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+};
+export type User = Session["user"];
