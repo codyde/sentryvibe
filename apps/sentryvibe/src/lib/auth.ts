@@ -35,6 +35,12 @@ export const auth = betterAuth({
     schema: { users, sessions, accounts, verifications },
     usePlural: true,
   }),
+  // Let PostgreSQL generate UUIDs (our schema has defaultRandom())
+  advanced: {
+    database: {
+      generateId: false,
+    },
+  },
   // Session configuration
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
