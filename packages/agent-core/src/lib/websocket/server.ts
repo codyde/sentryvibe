@@ -25,6 +25,10 @@ import { publishRunnerEvent } from '../runner/event-stream';
 // NOTE: processGlobalRunnerEvent removed - DB writes now happen via HTTP from runner
 import * as Sentry from '@sentry/node';
 import { buildLogger } from '../logging/build-logger';
+import { db } from '../db/client';
+import { runnerKeys } from '../db/schema';
+import { eq, and, isNull } from 'drizzle-orm';
+import { createHash } from 'crypto';
 
 interface ClientSubscription {
   ws: WebSocket;
@@ -61,6 +65,47 @@ interface BatchedUpdate {
 
 // Get shared secret from environment - read dynamically to support late binding
 const getSharedSecret = () => process.env.RUNNER_SHARED_SECRET;
+
+// Hash a runner key for lookup
+function hashRunnerKey(key: string): string {
+  return createHash('sha256').update(key).digest('hex');
+}
+
+// Validate a runner key against the database
+async function validateRunnerKey(key: string): Promise<boolean> {
+  if (!key || !key.startsWith('sv_')) {
+    return false;
+  }
+
+  const keyHash = hashRunnerKey(key);
+
+  try {
+    const results = await db
+      .select({ id: runnerKeys.id })
+      .from(runnerKeys)
+      .where(
+        and(
+          eq(runnerKeys.keyHash, keyHash),
+          isNull(runnerKeys.revokedAt)
+        )
+      )
+      .limit(1);
+
+    if (results.length > 0) {
+      // Update last used timestamp (fire and forget - ok for WS since it's long-lived)
+      db.update(runnerKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(runnerKeys.id, results[0].id))
+        .execute()
+        .catch(() => {});
+      return true;
+    }
+  } catch (error) {
+    console.error('[websocket] Error validating runner key:', error);
+  }
+
+  return false;
+}
 
 class BuildWebSocketServer {
   private wss: WebSocketServer | null = null;
@@ -228,18 +273,37 @@ class BuildWebSocketServer {
   /**
    * Handle new runner WebSocket connection
    */
-  private handleRunnerConnection(ws: WebSocket, req: any) {
+  private async handleRunnerConnection(ws: WebSocket, req: any) {
     // Authenticate runner via Bearer token
-    // Read secret dynamically - it may be set after module load
+    // Supports both shared secret and runner keys (sv_xxx)
     const sharedSecret = getSharedSecret();
-    const authHeader = req.headers['authorization'];
-    if (!sharedSecret) {
-      buildLogger.websocket.runnerAuthMissing();
-      ws.close(1008, 'Server misconfigured');
-      return;
+    const authHeader = req.headers['authorization'] as string | undefined;
+    
+    // Extract token from Authorization header
+    const token = authHeader?.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : authHeader;
+
+    // Validate authentication
+    let isAuthenticated = false;
+    
+    if (token) {
+      if (token.startsWith('sv_')) {
+        // Runner key authentication
+        isAuthenticated = await validateRunnerKey(token);
+      } else if (sharedSecret && token === sharedSecret) {
+        // Shared secret authentication (legacy)
+        isAuthenticated = true;
+      }
     }
 
-    if (!authHeader || authHeader !== `Bearer ${sharedSecret}`) {
+    if (!isAuthenticated) {
+      // Check if server is misconfigured (no shared secret and no DB for runner keys)
+      if (!sharedSecret) {
+        buildLogger.websocket.runnerAuthMissing();
+        ws.close(1008, 'Server misconfigured');
+        return;
+      }
       buildLogger.websocket.runnerAuthRejected();
       ws.close(1008, 'Unauthorized');
       return;
