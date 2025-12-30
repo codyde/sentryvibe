@@ -2697,19 +2697,21 @@ function HomeContent() {
                         </button>
                       </div>
 
-                      {/* Tag Input */}
-                      <div className="mt-4 px-2">
-                        <TagInput
-                          tags={appliedTags}
-                          onTagsChange={setAppliedTags}
-                          runnerOptions={availableRunners.map(r => ({
-                            value: r.runnerId,
-                            label: r.runnerId,
-                            description: `Runner: ${r.runnerId}`
-                          }))}
-                          prompt={input}
-                        />
-                      </div>
+                      {/* Tag Input - Only show when authenticated */}
+                      {isAuthenticated && (
+                        <div className="mt-4 px-2">
+                          <TagInput
+                            tags={appliedTags}
+                            onTagsChange={setAppliedTags}
+                            runnerOptions={availableRunners.map(r => ({
+                              value: r.runnerId,
+                              label: r.runnerId,
+                              description: `Runner: ${r.runnerId}`
+                            }))}
+                            prompt={input}
+                          />
+                        </div>
+                      )}
                     </form>
                   </div>
                 </motion.div>
