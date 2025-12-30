@@ -169,12 +169,18 @@ export async function authenticateRunnerKey(key: string): Promise<{
     return null;
   }
 
-  // Update last used timestamp (fire and forget)
-  db.update(runnerKeys)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(runnerKeys.id, runnerKey.id))
-    .execute()
-    .catch(() => {}); // Ignore errors
+  // Update last used timestamp
+  // We await this to ensure it completes in serverless environments
+  // but catch errors to avoid failing auth if the update fails
+  try {
+    await db.update(runnerKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(runnerKeys.id, runnerKey.id))
+      .execute();
+  } catch {
+    // Log but don't fail auth if timestamp update fails
+    console.warn(`[auth] Failed to update lastUsedAt for runner key ${runnerKey.id}`);
+  }
 
   return {
     userId: runnerKey.userId,
