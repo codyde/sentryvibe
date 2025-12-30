@@ -7,9 +7,27 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function Dialog({
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  // Handle open change and ensure body overflow is restored when closing
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    if (!open) {
+      // Ensure body overflow is restored when dialog closes
+      // This fixes a bug where scrollbar appears after canceling the modal
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+    onOpenChange?.(open);
+  }, [onOpenChange]);
+
+  return (
+    <DialogPrimitive.Root 
+      data-slot="dialog" 
+      onOpenChange={handleOpenChange}
+      {...props} 
+    />
+  )
 }
 
 function DialogTrigger({
