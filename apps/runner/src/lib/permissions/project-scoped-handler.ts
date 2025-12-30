@@ -1,11 +1,21 @@
 import { resolve, relative, isAbsolute } from 'path';
-import type { CanUseTool } from 'ai-sdk-provider-claude-code';
 
-// Define PermissionResult type since it's not exported from the provider
-type PermissionResult = {
-  behavior: 'allow' | 'deny' | 'askUser';
-  updatedInput?: any;
-};
+/**
+ * Permission result type compatible with both native SDK and community provider
+ * We define our own type to avoid version conflicts between packages
+ */
+type PermissionResult = 
+  | { behavior: 'allow'; updatedInput: Record<string, unknown> }
+  | { behavior: 'deny'; message: string; interrupt?: boolean };
+
+/**
+ * Permission handler function type compatible with both implementations
+ */
+type CanUseToolFn = (
+  toolName: string,
+  input: Record<string, unknown>,
+  options: { signal: AbortSignal; suggestions?: unknown }
+) => Promise<PermissionResult>;
 
 /**
  * Creates a permission handler that restricts Claude to a specific project directory
@@ -19,7 +29,7 @@ type PermissionResult = {
  * @param projectDirectory Absolute path to the project directory (e.g., /Users/codydearkland/sentryvibe-workspace/codyscoolnewapp)
  * @returns Permission handler function for use with Claude Agent SDK
  */
-export function createProjectScopedPermissionHandler(projectDirectory: string): CanUseTool {
+export function createProjectScopedPermissionHandler(projectDirectory: string): CanUseToolFn {
   const normalizedProjectDir = resolve(projectDirectory);
 
   return async (toolName, input, { signal, suggestions }) => {

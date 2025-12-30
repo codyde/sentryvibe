@@ -67,8 +67,9 @@ export async function GET(
     // CLEANUP: On reconnection, check for and finalize stuck builds
     // This runs every time a user reconnects/refreshes, providing natural cleanup
     // without requiring external cronjobs or scheduled tasks
+    // NOTE: 15 minutes of INACTIVITY (no events), not total build time
     try {
-      await cleanupStuckBuilds(5); // Finalize builds inactive for 5+ minutes
+      await cleanupStuckBuilds(15); // Finalize builds inactive for 15+ minutes
     } catch (cleanupError) {
       // Don't block the request if cleanup fails
       console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);

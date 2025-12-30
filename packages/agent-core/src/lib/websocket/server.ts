@@ -140,7 +140,10 @@ class BuildWebSocketServer {
         });
       } else {
         // Unknown path - destroy the socket
-        buildLogger.websocket.unknownUpgradePath(pathname);
+        // Only log non-root paths as warnings (root path is often probed by browsers/tools)
+        if (pathname && pathname !== '/') {
+          buildLogger.websocket.unknownUpgradePath(pathname);
+        }
         socket.destroy();
       }
     });

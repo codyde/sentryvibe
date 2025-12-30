@@ -23,6 +23,7 @@ interface ActiveBuildContext {
   claudeModelId?: string;
   unsubscribe: () => void;
   startedAt: Date;
+  lastActivityAt: Date; // Track last event received
   isFinalized: boolean;
   currentActiveTodoIndex: number;
 }
@@ -97,6 +98,7 @@ export function registerBuild(
   console.log(`[persistent-processor]    Agent: ${agentId}${claudeModelId ? ` (${claudeModelId})` : ''}`);
   console.log(`[persistent-processor]    NOTE: DB writes now via HTTP from runner`);
 
+  const now = new Date();
   const context: ActiveBuildContext = {
     commandId,
     sessionId,
@@ -105,7 +107,8 @@ export function registerBuild(
     agentId,
     claudeModelId,
     unsubscribe: () => {},
-    startedAt: new Date(),
+    startedAt: now,
+    lastActivityAt: now, // Initialize to now, will be updated on each event
     isFinalized: false,
     currentActiveTodoIndex: -1,
   };
@@ -114,6 +117,9 @@ export function registerBuild(
   // DB persistence is handled by HTTP endpoints
   const unsubscribe = addRunnerEventSubscriber(commandId, async (event: RunnerEvent) => {
     try {
+      // Update last activity timestamp on any event
+      context.lastActivityAt = new Date();
+      
       if (event.type === 'build-stream' && typeof event.data === 'string') {
         // Parse SSE data for WebSocket broadcasting
         const eventData = parseSSEEventData(event.data);
@@ -238,8 +244,12 @@ const STUCK_BUILD_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
  * NOTE: This is simplified - DB finalization now happens via HTTP
  *
  * Throttled to only run every 5 minutes to avoid excessive logging.
+ * 
+ * IMPORTANT: This checks time since LAST ACTIVITY, not time since start.
+ * A build that's been running for 30 minutes but received an event 1 minute ago
+ * is NOT stuck - it's still active.
  */
-export async function cleanupStuckBuilds(maxAgeMinutes = 30) {
+export async function cleanupStuckBuilds(maxInactiveMinutes = 30) {
   const now = Date.now();
   const lastCheck = global.__lastStuckBuildCheck ?? 0;
 
@@ -249,17 +259,20 @@ export async function cleanupStuckBuilds(maxAgeMinutes = 30) {
   }
 
   global.__lastStuckBuildCheck = now;
-  const maxAge = maxAgeMinutes * 60 * 1000;
+  const maxInactiveAge = maxInactiveMinutes * 60 * 1000;
 
   // Only log if there are active builds to check
   if (activeBuilds.size > 0) {
-    console.log(`[persistent-processor] 🔍 Checking ${activeBuilds.size} builds for stuck state (older than ${maxAgeMinutes} minutes)`);
+    console.log(`[persistent-processor] 🔍 Checking ${activeBuilds.size} builds for stuck state (inactive for ${maxInactiveMinutes}+ minutes)`);
   }
 
   for (const [commandId, context] of activeBuilds.entries()) {
-    const age = now - context.startedAt.getTime();
-    if (age > maxAge) {
-      console.log(`[persistent-processor] Found stuck build ${commandId}, age: ${Math.round(age / 1000 / 60)} minutes`);
+    // Check time since LAST ACTIVITY, not time since start
+    const timeSinceLastActivity = now - context.lastActivityAt.getTime();
+    const totalAge = now - context.startedAt.getTime();
+    
+    if (timeSinceLastActivity > maxInactiveAge) {
+      console.log(`[persistent-processor] Found stuck build ${commandId}, inactive for: ${Math.round(timeSinceLastActivity / 1000 / 60)} minutes (total age: ${Math.round(totalAge / 1000 / 60)} minutes)`);
       
       // Just clean up the tracking - DB finalization should have happened via HTTP
       if (!context.isFinalized) {

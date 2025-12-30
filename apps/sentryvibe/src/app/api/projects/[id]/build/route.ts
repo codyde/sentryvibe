@@ -99,8 +99,9 @@ export async function POST(
     // CLEANUP: Before starting new build, check for and finalize stuck builds
     // This ensures previous builds that didn't complete properly are finalized
     // Runs naturally when users start new builds, no cronjobs needed
+    // NOTE: 15 minutes of INACTIVITY (no events), not total build time
     try {
-      await cleanupStuckBuilds(5); // Finalize builds inactive for 5+ minutes
+      await cleanupStuckBuilds(15); // Finalize builds inactive for 15+ minutes
     } catch (cleanupError) {
       // Don't block the new build if cleanup fails
       console.error('[build-route] Cleanup failed (non-fatal):', cleanupError);
