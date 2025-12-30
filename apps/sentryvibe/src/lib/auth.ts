@@ -3,6 +3,23 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@sentryvibe/agent-core";
 import { users, sessions, accounts, verifications } from "@sentryvibe/agent-core/lib/db/schema";
 
+// Get trusted origins for CORS/auth
+function getTrustedOrigins(): string[] {
+  const origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://sentryvibe.app",
+  ];
+  
+  // Add custom origins from environment variable (comma-separated)
+  if (process.env.TRUSTED_ORIGINS) {
+    const customOrigins = process.env.TRUSTED_ORIGINS.split(",").map(o => o.trim());
+    origins.push(...customOrigins);
+  }
+  
+  return origins;
+}
+
 // Determine the auth secret based on environment
 function getAuthSecret(): string {
   // Use explicitly set secret if available
@@ -55,10 +72,7 @@ function createAuth() {
       minPasswordLength: 8,
       maxPasswordLength: 128,
     },
-    trustedOrigins: [
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-    ],
+    trustedOrigins: getTrustedOrigins(),
   });
 }
 
