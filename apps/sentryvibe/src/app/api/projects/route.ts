@@ -90,8 +90,10 @@ async function runCodexMetadataPrompt(promptText: string): Promise<string> {
 export async function POST(request: Request) {
   try {
     // Check authentication (required for creating projects in hosted mode)
+    // In local mode, we don't associate projects with users (userId = null)
+    // This avoids foreign key violations since LOCAL_USER doesn't exist in the DB
     const session = await getSession();
-    const userId = session?.user?.id ?? null;
+    const userId = isLocalMode() ? null : (session?.user?.id ?? null);
     
     // In hosted mode, require authentication
     if (!isLocalMode() && !userId) {
