@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import type { RunnerEvent, StartBuildCommand, AutoFixStartedEvent } from '@/shared/runner/messages';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, generationSessions, serverOperations } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq, desc, and, inArray } from 'drizzle-orm';
+import { eq, desc, and, inArray, or, isNull } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
@@ -62,6 +62,37 @@ async function ensureAuthorized(request: Request): Promise<{ userId?: string } |
 }
 
 /**
+ * Verify that the authenticated user owns the project
+ * In local mode or with shared secret (no userId), allows access to all projects
+ * For user-scoped runner keys, verifies the project belongs to the user
+ */
+async function verifyProjectOwnership(projectId: string, userId: string | undefined): Promise<boolean> {
+  // In local mode or with shared secret, no ownership check needed
+  if (isLocalMode() || !userId) {
+    return true;
+  }
+
+  // Fetch the project and check ownership
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: { id: true, userId: true },
+  });
+
+  if (!project) {
+    // Project doesn't exist - let the operation fail naturally
+    return true;
+  }
+
+  // Allow if project has no owner (legacy) or user owns it
+  if (!project.userId || project.userId === userId) {
+    return true;
+  }
+
+  console.warn(`[events] Unauthorized: User ${userId} attempted to access project ${projectId} owned by ${project.userId}`);
+  return false;
+}
+
+/**
  * Emit project update event to SSE streams
  * Provides instant updates without polling
  */
@@ -85,6 +116,12 @@ export async function POST(request: Request) {
 
     if (!event.projectId) {
       return NextResponse.json({ ok: true });
+    }
+
+    // Verify the authenticated user owns this project
+    const hasAccess = await verifyProjectOwnership(event.projectId, authResult.userId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden: You do not own this project' }, { status: 403 });
     }
 
     // Note: Sentry's automatic HTTP instrumentation already created a span for this request
