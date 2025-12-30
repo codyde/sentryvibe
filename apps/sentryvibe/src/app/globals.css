@@ -227,6 +227,14 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Fix for Radix Dialog scroll lock cleanup issue */
+  /* When dialog closes, ensure no leftover scroll-related styles */
+  body:not([data-scroll-locked]) {
+    overflow: unset !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+  }
 
   /* Sidebar styling */
   [data-sidebar="sidebar"] {
