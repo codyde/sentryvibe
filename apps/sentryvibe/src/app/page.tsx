@@ -60,6 +60,18 @@ import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
+import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 // Simplified message structure kept
 interface MessagePart {
   type: string;
@@ -205,6 +217,8 @@ function HomeContent() {
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
   const [devicePreset, setDevicePreset] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [chatPanelWidth, setChatPanelWidth] = useState(450);
+  const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'terminal'>('preview');
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const lastRefetchedBuildIdRef = useRef<string | null>(null);
   const freshBuildIdRef = useRef<string | null>(null); // Track fresh build to prevent stale state merging
@@ -2597,14 +2611,15 @@ function HomeContent() {
           />
         )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
-        {/* Top Header Bar with Project Name and Auth */}
-        <header className="flex h-12 shrink-0 items-center justify-between px-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            {/* Project name with status indicator */}
+        {/* Top Header Bar with Project Name, Preview Controls, and Auth */}
+        <TooltipProvider>
+        <header className="flex h-11 shrink-0 items-center px-3 border-b border-white/10 gap-2">
+          {/* Left: Project name with status */}
+          <div className="flex items-center gap-2 min-w-0">
             {currentProject && (
-              <div className="flex items-center gap-2">
+              <>
                 <div
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
                     currentProject.status === "pending"
                       ? "bg-[#7553FF]"
                       : currentProject.status === "in_progress"
@@ -2614,16 +2629,256 @@ function HomeContent() {
                       : "bg-[#FF45A8]"
                   }`}
                 />
-                <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                <span className="text-sm font-medium text-white truncate max-w-[180px]">
                   {currentProject.name}
                 </span>
-              </div>
+              </>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <AuthHeader />
-          </div>
+
+          {/* Tab Switcher - Only show when project selected */}
+          {currentProject && (
+            <>
+              <div className="w-px h-5 bg-white/10 mx-1" />
+              <div className="flex items-center bg-black/30 rounded-md p-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setActiveTab('preview')}
+                      className={`p-1.5 rounded transition-all ${
+                        activeTab === 'preview'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Monitor className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Preview</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setActiveTab('editor')}
+                      className={`p-1.5 rounded transition-all ${
+                        activeTab === 'editor'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Code className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Editor</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setActiveTab('terminal')}
+                      className={`p-1.5 rounded transition-all ${
+                        activeTab === 'terminal'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Terminal className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Terminal</TooltipContent>
+                </Tooltip>
+              </div>
+            </>
+          )}
+
+          {/* Selection Tool & Refresh - Only when server running and preview active */}
+          {currentProject?.devServerStatus === 'running' && activeTab === 'preview' && (
+            <>
+              <div className="w-px h-5 bg-white/10 mx-1" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setIsSelectionMode(!isSelectionMode)}
+                    className={`p-1.5 rounded-md transition-all ${
+                      isSelectionMode
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <MousePointer2 className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Select Element</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('refresh-preview'))}
+                    className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Refresh</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Center: URL Bar */}
+          {currentProject?.devServerStatus === 'running' && (
+            <HoverCard openDelay={200}>
+              <HoverCardTrigger asChild>
+                <div className="flex items-center gap-2 px-3 py-1 bg-black/30 border border-white/10 rounded-md hover:border-white/20 transition-colors cursor-default max-w-[350px]">
+                  <div className={`w-2 h-2 rounded-full shadow-lg flex-shrink-0 ${
+                    currentProject?.tunnelUrl
+                      ? 'bg-blue-400 shadow-blue-400/50'
+                      : 'bg-[#92DD00] shadow-[#92DD00]/50'
+                  }`} />
+                  <span className="text-xs font-mono text-gray-300 truncate flex-1">
+                    {currentProject?.tunnelUrl || `http://localhost:${currentProject?.devServerPort}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const url = currentProject?.tunnelUrl || `http://localhost:${currentProject?.devServerPort}`;
+                      navigator.clipboard.writeText(url);
+                    }}
+                    className="p-0.5 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                  >
+                    <Copy className="w-3 h-3 text-gray-400" />
+                  </button>
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-auto max-w-xl bg-gray-900 border-white/20" side="bottom">
+                <p className="text-xs font-mono text-gray-300 break-all">
+                  {currentProject?.tunnelUrl || `http://localhost:${currentProject?.devServerPort}`}
+                </p>
+              </HoverCardContent>
+            </HoverCard>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Device Size Presets */}
+          {currentProject?.devServerStatus === 'running' && activeTab === 'preview' && (
+            <div className="flex items-center bg-black/30 rounded-md p-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setDevicePreset('desktop')}
+                    className={`p-1.5 rounded transition-all ${
+                      devicePreset === 'desktop'
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Desktop</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setDevicePreset('tablet')}
+                    className={`p-1.5 rounded transition-all ${
+                      devicePreset === 'tablet'
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Tablet className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Tablet</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setDevicePreset('mobile')}
+                    className={`p-1.5 rounded transition-all ${
+                      devicePreset === 'mobile'
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Mobile</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Open in New Tab */}
+          {currentProject?.devServerStatus === 'running' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => window.open(currentProject?.tunnelUrl || `http://localhost:${currentProject?.devServerPort}`, '_blank')}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open in New Tab</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Server/Tunnel Controls */}
+          {currentProject?.runCommand && currentProject?.status === 'completed' && !(isCreatingProject || generationState?.isActive) && (
+            <>
+              <div className="w-px h-5 bg-white/10 mx-1" />
+              {currentProject.devServerStatus === 'running' ? (
+                <>
+                  {currentProject.tunnelUrl ? (
+                    <button
+                      onClick={stopTunnel}
+                      disabled={isStoppingTunnel}
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 rounded-md transition-colors disabled:opacity-50"
+                    >
+                      <Square className={`w-3 h-3 ${isStoppingTunnel ? 'animate-pulse' : ''}`} />
+                      Tunnel
+                    </button>
+                  ) : (
+                    <button
+                      onClick={startTunnel}
+                      disabled={isStartingTunnel}
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-md transition-colors disabled:opacity-50"
+                    >
+                      <Cloud className={`w-3 h-3 ${isStartingTunnel ? 'animate-pulse' : ''}`} />
+                      Tunnel
+                    </button>
+                  )}
+                  <button
+                    onClick={stopDevServer}
+                    disabled={isStoppingServer}
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    <Square className={`w-3 h-3 ${isStoppingServer ? 'animate-pulse' : ''}`} />
+                    Stop
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={startDevServer}
+                  disabled={currentProject.devServerStatus === 'starting' || isStartingServer}
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
+                >
+                  <Play className={`w-3 h-3 ${isStartingServer ? 'animate-pulse' : ''}`} />
+                  Start
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Auth */}
+          <div className="w-px h-5 bg-white/10 mx-1" />
+          <AuthHeader />
         </header>
+        </TooltipProvider>
         
         {runnerOnline === false && (
           <div className="bg-amber-500/20 border border-amber-400/40 text-amber-200 px-4 py-2 text-sm">
@@ -3283,7 +3538,10 @@ function HomeContent() {
                         isStoppingTunnel={isStoppingTunnel}
                         isBuildActive={isCreatingProject || generationState?.isActive || false}
                         devicePreset={devicePreset}
-                        onDevicePresetChange={setDevicePreset}
+                        activeTab={activeTab}
+                        onTabChange={setActiveTab}
+                        isSelectionModeEnabled={isSelectionMode}
+                        onSelectionModeChange={setIsSelectionMode}
                         onPortDetected={(port) => {
                           if (DEBUG_PAGE) console.log(
                             "Terminal detected port update:",
