@@ -1,6 +1,6 @@
 {
   "name": "sentryvibe-monorepo",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "description": "AI-powered project generation platform with Claude AI and remote runner architecture",
   "private": true,
   "packageManager": "pnpm@9.15.0",

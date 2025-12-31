@@ -2622,14 +2622,18 @@ function HomeContent() {
         {/* Top Header Bar - Logo, Breadcrumb, and Auth */}
         <header className="flex h-10 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            {/* Logo */}
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 p-1">
+            {/* Logo - Click to go home */}
+            <button
+              onClick={() => router.push('/')}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 p-1 hover:opacity-80 transition-opacity cursor-pointer"
+              title="Go to home"
+            >
               <img
                 src="/sentryglyph.png"
                 alt="SentryVibe"
                 className="h-full w-full object-contain"
               />
-            </div>
+            </button>
             {/* Breadcrumb */}
             {currentProject && (
               <>
