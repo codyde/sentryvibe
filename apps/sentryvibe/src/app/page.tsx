@@ -2611,25 +2611,37 @@ function HomeContent() {
           />
         )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
-        {/* Top Header Bar - Project Name and Auth only */}
+        {/* Top Header Bar - Logo, Breadcrumb, and Auth */}
         <header className="flex h-10 shrink-0 items-center justify-between px-4 my-1">
           <div className="flex items-center gap-2">
+            {/* Logo */}
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 p-1">
+              <img
+                src="/sentryglyph.png"
+                alt="SentryVibe"
+                className="h-full w-full object-contain"
+              />
+            </div>
+            {/* Breadcrumb */}
             {currentProject && (
               <>
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    currentProject.status === "pending"
-                      ? "bg-[#7553FF]"
-                      : currentProject.status === "in_progress"
-                      ? "bg-[#FFD00E] animate-pulse"
-                      : currentProject.status === "completed"
-                      ? "bg-[#92DD00]"
-                      : "bg-[#FF45A8]"
-                  }`}
-                />
-                <span className="text-sm font-medium text-white truncate max-w-[200px]">
-                  {currentProject.name}
-                </span>
+                <span className="text-gray-500">/</span>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      currentProject.status === "pending"
+                        ? "bg-[#7553FF]"
+                        : currentProject.status === "in_progress"
+                        ? "bg-[#FFD00E] animate-pulse"
+                        : currentProject.status === "completed"
+                        ? "bg-[#92DD00]"
+                        : "bg-[#FF45A8]"
+                    }`}
+                  />
+                  <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                    {currentProject.name}
+                  </span>
+                </div>
               </>
             )}
           </div>
@@ -2775,10 +2787,10 @@ function HomeContent() {
                       transition={{ duration: 0.5 }}
                       className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
                     >
-                      {/* Compact Project Info Header */}
+                      {/* Project Info Header with Tags */}
                       {currentProject && (
-                        <div className="border-b border-white/10 px-4 py-2">
-                          {/* Framework/Model tags - compact inline display */}
+                        <div className="border-b border-white/10 px-4 py-3">
+                          {/* Framework/Model tags - larger style with labels */}
                           {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
                             <div className="flex flex-wrap items-center gap-2">
                               {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
@@ -2787,11 +2799,12 @@ function HomeContent() {
                                 const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
                                 const modelLogo = modelValue ? getModelLogo(modelValue) : null;
                                 return (
-                                  <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-xs">
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
                                     {modelLogo && (
-                                      <img src={modelLogo} alt="model" className="w-3 h-3 object-contain" />
+                                      <img src={modelLogo} alt="model" className="w-4 h-4 object-contain" />
                                     )}
-                                    <span className="text-gray-400">
+                                    <span className="text-gray-400">model:</span>
+                                    <span className="text-gray-200">
                                       {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
                                     </span>
                                   </div>
@@ -2800,11 +2813,12 @@ function HomeContent() {
                               {currentProject.detectedFramework && (() => {
                                 const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
                                 return (
-                                  <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-xs">
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
                                     {frameworkLogo && (
-                                      <img src={frameworkLogo} alt="framework" className="w-3 h-3 object-contain" />
+                                      <img src={frameworkLogo} alt="framework" className="w-4 h-4 object-contain" />
                                     )}
-                                    <span className="text-gray-400">{currentProject.detectedFramework}</span>
+                                    <span className="text-gray-400">framework:</span>
+                                    <span className="text-gray-200">{currentProject.detectedFramework}</span>
                                   </div>
                                 );
                               })()}
