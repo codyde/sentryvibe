@@ -23,6 +23,7 @@ interface StartOptions {
   noTui?: boolean; // Disable TUI, use traditional logs
   dev?: boolean; // Use development mode (hot reload)
   rebuild?: boolean; // Rebuild services before starting
+  local?: boolean; // Enable local mode (default: true, use --no-local to disable)
 }
 
 /**
@@ -181,6 +182,10 @@ export async function startCommand(options: StartOptions) {
   // Register web app (now handles runner WebSocket connections directly)
   // Default to production mode unless --dev flag is present
   const webCommand = options.dev ? 'dev' : 'start';
+  
+  // Local mode is enabled by default, can be disabled with --no-local
+  const isLocalMode = options.local !== false;
+  
   // Build environment variables for the web app
   const webEnv: Record<string, string> = {
     PORT: String(webPort),
@@ -189,8 +194,8 @@ export async function startCommand(options: StartOptions) {
     RUNNER_ID: config.runner?.id || 'local',
     RUNNER_DEFAULT_ID: config.runner?.id || 'local',
     DATABASE_URL: config.databaseUrl,
-    // Enable local mode - bypasses authentication requirements
-    SENTRYVIBE_LOCAL_MODE: 'true',
+    // Enable local mode - bypasses authentication requirements (default: true)
+    SENTRYVIBE_LOCAL_MODE: isLocalMode ? 'true' : 'false',
   };
   
   serviceManager.register({

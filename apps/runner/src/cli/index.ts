@@ -134,6 +134,7 @@ program
   .option('-b, --broker-port <port>', 'Broker port (default: 4000)')
   .option('--dev', 'Use development mode (hot reload, slower performance)')
   .option('--rebuild', 'Rebuild services before starting')
+  .option('--no-local', 'Disable local mode (require authentication)')
   .action(async (options) => {
     try {
       const { startCommand } = await import('./commands/start.js');
@@ -165,6 +166,7 @@ program
   .option('-i, --runner-id <id>', 'Runner identifier')
   .option('-s, --secret <secret>', 'Shared secret for authentication')
   .option('-v, --verbose', 'Enable verbose logging')
+  .option('-l, --local', 'Enable local mode (bypasses authentication)')
   .action(async (options) => {
     try {
       const { runCommand } = await import('./commands/run.js');

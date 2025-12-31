@@ -32,6 +32,7 @@ interface RunOptions {
   runnerId?: string;
   secret?: string;
   verbose?: boolean;
+  local?: boolean; // Enable local mode (bypasses authentication)
 }
 
 export async function runCommand(options: RunOptions) {
@@ -41,6 +42,12 @@ export async function runCommand(options: RunOptions) {
     logger.info('Or provide all required options:');
     logger.info('  sentryvibe-cli run --ws-url <url> --url <api-url> --secret <secret>');
     process.exit(1);
+  }
+
+  // Set local mode environment variable if requested
+  if (options.local) {
+    process.env.SENTRYVIBE_LOCAL_MODE = 'true';
+    logger.info(chalk.yellow('Local mode enabled - authentication bypassed'));
   }
 
   // Build runner options from CLI flags or config

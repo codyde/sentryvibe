@@ -18,6 +18,7 @@ interface StartOptions {
   port?: string;
   dev?: boolean; // Use development mode (hot reload)
   rebuild?: boolean; // Rebuild services before starting
+  local?: boolean; // Enable local mode (default: true, use --no-local to disable)
 }
 
 interface ManagedProcess {
@@ -196,8 +197,8 @@ export async function startCommand(options: StartOptions) {
         WORKSPACE_ROOT: config.workspace,
         RUNNER_ID: config.runner?.id || 'local',
         RUNNER_DEFAULT_ID: config.runner?.id || 'local',
-        // Enable local mode - bypasses authentication requirements
-        SENTRYVIBE_LOCAL_MODE: 'true',
+        // Enable local mode - bypasses authentication requirements (default: true)
+        SENTRYVIBE_LOCAL_MODE: options.local !== false ? 'true' : 'false',
       },
     });
 
