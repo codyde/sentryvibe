@@ -10,6 +10,7 @@ import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
+import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
@@ -59,6 +60,18 @@ import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
+import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 // Simplified message structure kept
 interface MessagePart {
   type: string;
@@ -202,6 +215,10 @@ function HomeContent() {
   const [isStoppingServer, setIsStoppingServer] = useState(false);
   const [isStartingTunnel, setIsStartingTunnel] = useState(false);
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
+  const [devicePreset, setDevicePreset] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [chatPanelWidth, setChatPanelWidth] = useState(450);
+  const [activeTab, setActiveTab] = useState<'preview' | 'editor' | 'terminal'>('preview');
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const lastRefetchedBuildIdRef = useRef<string | null>(null);
   const freshBuildIdRef = useRef<string | null>(null); // Track fresh build to prevent stale state merging
@@ -302,28 +319,36 @@ function HomeContent() {
   // Subscribe to single project query for SSE updates
   const { data: projectFromQuery } = useProject(currentProject?.id);
 
-  // Sync query data back to currentProject when SSE updates arrive
+  // Use ref to track current project state without causing effect re-runs
+  const currentProjectRef = useRef(currentProject);
   useEffect(() => {
-    if (projectFromQuery && currentProject && projectFromQuery.id === currentProject.id) {
-      // Only update if data actually changed (prevent infinite loop)
-      if (projectFromQuery.detectedFramework !== currentProject.detectedFramework ||
-          projectFromQuery.devServerStatus !== currentProject.devServerStatus ||
-          projectFromQuery.devServerPort !== currentProject.devServerPort ||
-          projectFromQuery.tunnelUrl !== currentProject.tunnelUrl) {
+    currentProjectRef.current = currentProject;
+  }, [currentProject]);
+
+  // Sync query data back to currentProject when SSE updates arrive
+  // IMPORTANT: Only depend on projectFromQuery to avoid infinite loops
+  useEffect(() => {
+    const current = currentProjectRef.current;
+    if (projectFromQuery && current && projectFromQuery.id === current.id) {
+      // Only update if data actually changed (prevent unnecessary re-renders)
+      if (projectFromQuery.detectedFramework !== current.detectedFramework ||
+          projectFromQuery.devServerStatus !== current.devServerStatus ||
+          projectFromQuery.devServerPort !== current.devServerPort ||
+          projectFromQuery.tunnelUrl !== current.tunnelUrl) {
         console.log('[page] 🔄 Syncing project from SSE query update:', {
           detectedFramework: projectFromQuery.detectedFramework,
-          existingFramework: currentProject.detectedFramework,
+          existingFramework: current.detectedFramework,
           devServerStatus: projectFromQuery.devServerStatus,
         });
 
         // STICKY FRAMEWORK: Preserve existing framework if new value is null
-        const preservedFramework = projectFromQuery.detectedFramework || currentProject.detectedFramework;
+        const preservedFramework = projectFromQuery.detectedFramework || current.detectedFramework;
 
         console.log('[page] 🏷️ Framework update logic:', {
           incomingFramework: projectFromQuery.detectedFramework,
-          existingFramework: currentProject.detectedFramework,
+          existingFramework: current.detectedFramework,
           preservedFramework,
-          willUpdate: preservedFramework !== currentProject.detectedFramework,
+          willUpdate: preservedFramework !== current.detectedFramework,
         });
 
         setCurrentProject({
@@ -332,7 +357,7 @@ function HomeContent() {
         });
       }
     }
-  }, [projectFromQuery, currentProject]);
+  }, [projectFromQuery]); // Only depend on projectFromQuery - use ref for currentProject
 
   // Load messages from database when project changes
   const {
@@ -2593,15 +2618,42 @@ function HomeContent() {
             }}
           />
         )}
-        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
-        {/* Top Header Bar with Auth */}
-        <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/10">
+        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F] pt-2">
+        {/* Top Header Bar - Logo, Breadcrumb, and Auth */}
+        <header className="flex h-10 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            {/* Left side - can add breadcrumbs or title here later */}
+            {/* Logo */}
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 p-1">
+              <img
+                src="/sentryglyph.png"
+                alt="SentryVibe"
+                className="h-full w-full object-contain"
+              />
+            </div>
+            {/* Breadcrumb */}
+            {currentProject && (
+              <>
+                <span className="text-gray-500">/</span>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      currentProject.status === "pending"
+                        ? "bg-[#7553FF]"
+                        : currentProject.status === "in_progress"
+                        ? "bg-[#FFD00E] animate-pulse"
+                        : currentProject.status === "completed"
+                        ? "bg-[#92DD00]"
+                        : "bg-[#FF45A8]"
+                    }`}
+                  />
+                  <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                    {currentProject.name}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-4">
-            <AuthHeader />
-          </div>
+          <AuthHeader />
         </header>
         
         {runnerOnline === false && (
@@ -2727,148 +2779,83 @@ function HomeContent() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="flex-1 flex flex-col lg:flex-row gap-4 p-2 md:p-4 min-h-0 overflow-hidden"
+                  className="flex-1 flex flex-col lg:flex-row gap-4 p-2 min-h-0 overflow-hidden"
                 >
-                  {/* Left Panel - Chat (1/3 width on desktop, full width on mobile) */}
-                  <motion.div
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="w-full lg:w-1/3 flex flex-col min-w-0 min-h-0 h-[50vh] lg:h-full max-h-full"
+                  {/* Left Panel - Chat (resizable on desktop, full width on mobile) */}
+                  <ResizablePanel
+                    defaultWidth={chatPanelWidth}
+                    minWidth={280}
+                    maxWidth={600}
+                    onResize={setChatPanelWidth}
+                    className="flex flex-col min-h-0 h-[50vh] lg:h-full max-h-full w-full lg:w-auto"
                   >
-                    <div className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden">
-                      {/* Project Status Header */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5 }}
+                      className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
+                    >
+                      {/* Project Info Header with Tags */}
                       {currentProject && (
-                        <div className="border-b border-white/10 p-4">
-                          <div className="flex items-center gap-3 mb-2">
-                            {/* Status Indicator Circle - Sentry Colors */}
-                            <div className="relative group">
-                              <div
-                                className={`w-3 h-3 rounded-full ${
-                                  currentProject.status === "pending"
-                                    ? "bg-[#7553FF]" // Sentry Blurple
-                                    : currentProject.status === "in_progress"
-                                    ? "bg-[#FFD00E] animate-pulse shadow-lg shadow-[#FFD00E]/50" // Sentry Yellow
-                                    : currentProject.status === "completed"
-                                    ? "bg-[#92DD00] shadow-lg shadow-[#92DD00]/30" // Sentry Green
-                                    : "bg-[#FF45A8]" // Sentry Pink
-                                }`}
-                              />
-                              {/* Tooltip */}
-                              <div className="absolute left-0 top-6 hidden group-hover:block z-50">
-                                <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap border border-white/10">
-                                  {currentProject.status === "pending" &&
-                                    "Pending"}
-                                  {currentProject.status === "in_progress" &&
-                                    "Generating..."}
-                                  {currentProject.status === "completed" &&
-                                    "Completed"}
-                                  {currentProject.status === "failed" &&
-                                    "Failed"}
-                                </div>
-                              </div>
+                        <div className="border-b border-white/10 px-4 py-3">
+                          {/* Framework/Model tags - larger style with labels */}
+                          {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
+                                const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
+                                const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
+                                const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
+                                const modelLogo = modelValue ? getModelLogo(modelValue) : null;
+                                return (
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
+                                    {modelLogo && (
+                                      <img src={modelLogo} alt="model" className="w-4 h-4 object-contain" />
+                                    )}
+                                    <span className="text-gray-400">model:</span>
+                                    <span className="text-gray-200">
+                                      {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                              {currentProject.detectedFramework && (() => {
+                                const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
+                                return (
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
+                                    {frameworkLogo && (
+                                      <img src={frameworkLogo} alt="framework" className="w-4 h-4 object-contain" />
+                                    )}
+                                    <span className="text-gray-400">framework:</span>
+                                    <span className="text-gray-200">{currentProject.detectedFramework}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-
-                            <div className="flex-1">
-                              <h2 className="text-lg font-semibold">
-                                {currentProject.name}
-                              </h2>
-                              {currentProject.description && (
-                                <p className="text-sm text-gray-400">
-                                  {currentProject.description}
-                                </p>
-                              )}
-                              {/* Framework/Model tags - Direct render for immediate updates */}
-                              {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
-                                    const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
-                                    const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
-                                    const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
-                                    const modelLogo = modelValue ? getModelLogo(modelValue) : null;
-
-                                    return (
-                                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
-                                        {modelLogo && (
-                                          <img
-                                            src={modelLogo}
-                                            alt="model logo"
-                                            className="w-3.5 h-3.5 object-contain"
-                                          />
-                                        )}
-                                        <span className="text-gray-300">model:</span>
-                                        <span className="text-gray-200">
-                                          {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
-                                        </span>
-                                      </div>
-                                    );
-                                  })()}
-                                  {currentProject.detectedFramework && (() => {
-                                    const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
-                                    return (
-                                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
-                                        {frameworkLogo && (
-                                          <img
-                                            key={`framework-${currentProject.detectedFramework}`}
-                                            src={frameworkLogo}
-                                            alt="framework logo"
-                                            className="w-3.5 h-3.5 object-contain"
-                                            onLoad={() => console.log(`✅ [Framework Logo] Image loaded: ${frameworkLogo}`)}
-                                            onError={(e) => console.error(`❌ [Framework Logo] Image failed to load: ${frameworkLogo}`, e)}
-                                          />
-                                        )}
-                                        <span className="text-gray-300">framework:</span>
-                                        <span className="text-gray-200">{currentProject.detectedFramework}</span>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
+                          )}
                           {/* Error message and retry button */}
                           {currentProject.status === "failed" && (
-                            <div className="mt-3 p-3 bg-[#FF45A8]/10 border border-[#FF45A8]/30 rounded-lg">
-                              <div className="flex items-start justify-between gap-3">
+                            <div className="mt-2 p-2 bg-[#FF45A8]/10 border border-[#FF45A8]/30 rounded-lg">
+                              <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
-                                  <p className="text-sm font-medium text-[#FF45A8] mb-1">
-                                    Generation Failed
-                                  </p>
+                                  <p className="text-xs font-medium text-[#FF45A8]">Generation Failed</p>
                                   {currentProject.errorMessage && (
-                                    <p className="text-xs text-[#FF70BC]/80">
-                                      {currentProject.errorMessage}
-                                    </p>
+                                    <p className="text-xs text-[#FF70BC]/80 mt-0.5">{currentProject.errorMessage}</p>
                                   )}
                                 </div>
                                 <button
                                   onClick={async () => {
-                                    const promptToRetry =
-                                      currentProject.originalPrompt ||
-                                      currentProject.description;
+                                    const promptToRetry = currentProject.originalPrompt || currentProject.description;
                                     if (promptToRetry) {
-                                      await fetch(
-                                        `/api/projects/${currentProject.id}`,
-                                        {
-                                          method: "PATCH",
-                                          headers: {
-                                            "Content-Type": "application/json",
-                                          },
-                                          body: JSON.stringify({
-                                            status: "pending",
-                                            errorMessage: null,
-                                          }),
-                                        }
-                                      );
+                                      await fetch(`/api/projects/${currentProject.id}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ status: "pending", errorMessage: null }),
+                                      });
                                       refetch();
-                                      await startGeneration(
-                                        currentProject.id,
-                                        promptToRetry,
-                                        { isRetry: true }
-                                      );
+                                      await startGeneration(currentProject.id, promptToRetry, { isRetry: true });
                                     }
                                   }}
-                                  className="px-3 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
+                                  className="px-2 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
                                 >
                                   Retry
                                 </button>
@@ -2879,22 +2866,6 @@ function HomeContent() {
                       )}
 
                       {/* Unified View Header - Simple status bar */}
-                      {(generationState || conversationMessages.length > 0) &&
-                        !isCreatingProject && (
-                          <div className="border-b border-white/10 px-6 py-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-sm font-semibold text-white">
-                                Conversation
-                              </h3>
-                            </div>
-                            {conversationMessages.length > 0 && (
-                              <div className="text-xs text-gray-500">
-                                {conversationMessages.length} messages
-                              </div>
-                            )}
-                          </div>
-                        )}
-
                       <div
                         ref={scrollContainerRef}
                         className="flex-1 overflow-y-auto p-6 min-h-0"
@@ -3309,11 +3280,11 @@ function HomeContent() {
                           </div>
                         </form>
                       </div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  </ResizablePanel>
 
-                  {/* Right Panel - Tabbed Preview with Preview/Editor/Terminal tabs (2/3 width on desktop, full width on mobile) */}
-                  <div className="w-full lg:w-2/3 flex flex-col min-w-0 h-auto lg:h-full">
+                  {/* Right Panel - Tabbed Preview (fills remaining space) */}
+                  <div className="flex-1 flex flex-col min-w-0 h-auto lg:h-full">
                     {/* Tabbed Preview Panel - Full height */}
                     <div className="flex-1 min-h-0 h-[70vh] lg:h-full">
                       <TabbedPreview
@@ -3328,9 +3299,15 @@ function HomeContent() {
                         isStartingTunnel={isStartingTunnel}
                         isStoppingTunnel={isStoppingTunnel}
                         isBuildActive={isCreatingProject || generationState?.isActive || false}
+                        devicePreset={devicePreset}
+                        onDevicePresetChange={setDevicePreset}
+                        activeTab={activeTab}
+                        onTabChange={setActiveTab}
+                        isSelectionModeEnabled={isSelectionMode}
+                        onSelectionModeChange={setIsSelectionMode}
                         onPortDetected={(port) => {
                           if (DEBUG_PAGE) console.log(
-                            "🔍 Terminal detected port update:",
+                            "Terminal detected port update:",
                             port
                           );
                         }}

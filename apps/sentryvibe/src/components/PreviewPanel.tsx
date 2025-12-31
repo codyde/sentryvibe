@@ -17,6 +17,8 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 
+type DevicePreset = 'desktop' | 'tablet' | 'mobile';
+
 interface PreviewPanelProps {
   selectedProject?: string | null;
   onStartServer?: () => void;
@@ -28,19 +30,43 @@ interface PreviewPanelProps {
   isStartingTunnel?: boolean;
   isStoppingTunnel?: boolean;
   isBuildActive?: boolean;
+  devicePreset?: DevicePreset;
+  hideControls?: boolean;
+  isSelectionModeEnabled?: boolean;
+  onSelectionModeChange?: (enabled: boolean) => void;
 }
-
-type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
 const DEBUG_PREVIEW = false; // Set to true to enable verbose preview panel logging
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel, isBuildActive }: PreviewPanelProps) {
+export default function PreviewPanel({ 
+  selectedProject, 
+  onStartServer, 
+  onStopServer, 
+  onStartTunnel, 
+  onStopTunnel, 
+  isStartingServer, 
+  isStoppingServer, 
+  isStartingTunnel, 
+  isStoppingTunnel, 
+  isBuildActive,
+  devicePreset: externalDevicePreset,
+  isSelectionModeEnabled: externalSelectionMode,
+  onSelectionModeChange,
+  hideControls = false,
+}: PreviewPanelProps) {
   const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
-  const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
+  const [cacheBust, setCacheBust] = useState(0); // For forcing iframe reload
+  const [internalSelectionMode, setInternalSelectionMode] = useState(false);
+  // Use external selection mode if provided, otherwise use internal state
+  const isSelectionModeEnabled = externalSelectionMode ?? internalSelectionMode;
+  const setIsSelectionModeEnabled = onSelectionModeChange ?? setInternalSelectionMode;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
+  const [internalDevicePreset, setInternalDevicePreset] = useState<DevicePreset>('desktop');
+  // Use external device preset if provided, otherwise use internal state
+  const devicePreset = externalDevicePreset ?? internalDevicePreset;
+  const setDevicePreset = setInternalDevicePreset;
   const [isTunnelLoading, setIsTunnelLoading] = useState(false);
   const [dnsVerificationAttempt, setDnsVerificationAttempt] = useState<number>(0);
   const [dnsTroubleshooting, setDnsTroubleshooting] = useState(false);
@@ -328,7 +354,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   // Determine preview URL based on frontend location
   // - Local frontend: Use proxy (works with localhost runner)
   // - Remote frontend + tunnel: Use tunnel directly (proxy can't reach tunnel)
-  const computedPreviewUrl = canShowPreview
+  const basePreviewUrl = canShowPreview
     ? (frontendIsRemote && verifiedTunnelUrl
         ? verifiedTunnelUrl
         : `/api/projects/${currentProject.id}/proxy?path=/`)
@@ -336,12 +362,19 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
 
   // During follow-up builds, keep showing the last working preview URL
   // This prevents the loading animation from showing when server status temporarily changes
-  if (computedPreviewUrl) {
-    lastPreviewUrlRef.current = computedPreviewUrl;
+  if (basePreviewUrl) {
+    lastPreviewUrlRef.current = basePreviewUrl;
   }
   
   // Use last known preview URL during builds to keep iframe visible
-  const previewUrl = computedPreviewUrl || (isBuildActive ? lastPreviewUrlRef.current : '');
+  const baseUrl = basePreviewUrl || (isBuildActive ? lastPreviewUrlRef.current : '');
+  
+  // Add cache-bust parameter to force reload (bypass browser cache)
+  const previewUrl = baseUrl 
+    ? (baseUrl.includes('?') 
+        ? `${baseUrl}&_cb=${cacheBust}` 
+        : `${baseUrl}${cacheBust ? `?_cb=${cacheBust}` : ''}`)
+    : '';
 
   // Note on URL strategy:
   // - Local frontend: Always use proxy (fetches from localhost runner)
@@ -352,33 +385,42 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     setKey(prev => prev + 1);
+    setCacheBust(Date.now()); // Force new URL to bypass cache
     // Reset after iframe loads
     setTimeout(() => setIsRefreshing(false), 1000);
   }, []);
 
-  // Listen for refresh requests (e.g., after element changes complete)
+  // Listen for refresh requests (e.g., after element changes complete or from TabbedPreview header)
   useEffect(() => {
     const handleRefreshEvent = () => {
       handleRefresh();
     };
 
+    // Listen for both event names for compatibility
     window.addEventListener('refresh-iframe', handleRefreshEvent);
-    return () => window.removeEventListener('refresh-iframe', handleRefreshEvent);
+    window.addEventListener('refresh-preview', handleRefreshEvent);
+    return () => {
+      window.removeEventListener('refresh-iframe', handleRefreshEvent);
+      window.removeEventListener('refresh-preview', handleRefreshEvent);
+    };
   }, [handleRefresh]);
 
   // Track build state for auto-refresh on completion
-  // We DON'T auto-refresh anymore - HMR handles file changes automatically
-  // This prevents the distracting "Refreshing preview..." overlay during builds
-  // The user can manually refresh if needed using the refresh button
+  // NOTE: HMR doesn't work through the proxy (dynamic import() bypasses fetch interceptor)
+  // So we auto-refresh the iframe when the build completes
   const prevBuildActiveRef = useRef(isBuildActive);
   
   useEffect(() => {
-    // Just track state transitions for debugging, but don't auto-refresh
-    if (prevBuildActiveRef.current && !isBuildActive) {
-      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed - HMR will handle any file changes');
+    // Auto-refresh iframe when build completes
+    if (prevBuildActiveRef.current && !isBuildActive && previewUrl) {
+      if (DEBUG_PREVIEW) console.log('[PreviewPanel] Build completed - auto-refreshing iframe');
+      // Small delay to ensure all file writes are flushed
+      setTimeout(() => {
+        handleRefresh();
+      }, 500);
     }
     prevBuildActiveRef.current = isBuildActive;
-  }, [isBuildActive]);
+  }, [isBuildActive, previewUrl, handleRefresh]);
 
   const handleCopyUrl = async () => {
     // Copy the actual URL - prefer tunnel if available, otherwise localhost
@@ -431,6 +473,7 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
   }, [isSelectionModeEnabled]);
 
   // Handle element selection - create comment indicator at click position
+  // Defined before the message listener effect so it can be used as a dependency
   const handleElementSelected = useCallback((element: any, prompt: string) => {
     if (!element.clickPosition) {
       console.error('❌ No click position!');
@@ -482,6 +525,53 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
     if (DEBUG_PREVIEW) console.log('✅ Sent to chat system');
   }, [edits, removeEdit]);
 
+  // Listen for element selection messages from iframe
+  // This runs independently of the SelectionMode button component
+  // so it works even when hideControls={true}
+  const hasProcessedRef = useRef<Set<string>>(new Set());
+  
+  // Use refs to avoid re-subscribing to message events on every render
+  const handleElementSelectedRef = useRef(handleElementSelected);
+  const setIsSelectionModeEnabledRef = useRef(setIsSelectionModeEnabled);
+  
+  // Keep refs up to date
+  useEffect(() => {
+    handleElementSelectedRef.current = handleElementSelected;
+    setIsSelectionModeEnabledRef.current = setIsSelectionModeEnabled;
+  });
+  
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data.type === 'sentryvibe:element-selected') {
+        const element = e.data.data;
+        const elementKey = `${element.selector}-${element.clickPosition?.x}-${element.clickPosition?.y}`;
+
+        // Prevent duplicate processing of same click
+        if (hasProcessedRef.current.has(elementKey)) {
+          console.warn('⚠️ Duplicate selection detected, ignoring');
+          return;
+        }
+
+        hasProcessedRef.current.add(elementKey);
+
+        // Clear after 1 second (allow re-selecting same element after delay)
+        setTimeout(() => {
+          hasProcessedRef.current.delete(elementKey);
+        }, 1000);
+
+        if (DEBUG_PREVIEW) console.log('🎯 Processing element selection:', element);
+        // Call handleElementSelected via ref to avoid dependency issues
+        handleElementSelectedRef.current(element, '');
+        setIsSelectionModeEnabledRef.current(false); // Disable selection mode
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []); // Empty deps - subscribe once, use refs for latest callbacks
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 50 }}
@@ -489,8 +579,9 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       transition={{ duration: 0.5, delay: 0.1 }}
       className="h-full flex flex-col bg-[#1e1e1e] border border-[#3e3e3e] rounded-xl shadow-2xl overflow-hidden"
     >
-      {/* Browser-like chrome bar */}
-      <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
+      {/* Browser-like chrome bar - hidden when controls are in header */}
+      {!hideControls && (
+        <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
         {previewUrl ? (
           <>
             {/* Left controls */}
@@ -499,7 +590,6 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
               <SelectionMode
                 isEnabled={isSelectionModeEnabled}
                 onToggle={setIsSelectionModeEnabled}
-                onElementSelected={handleElementSelected}
               />
 
               {/* Refresh button */}
@@ -668,7 +758,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             </>
           )}
         </div>
-      </div>
+        </div>
+      )}
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl || isTunnelLoading || dnsTroubleshooting ? (
           <>
