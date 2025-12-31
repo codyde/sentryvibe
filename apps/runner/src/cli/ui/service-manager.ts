@@ -5,6 +5,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import EventEmitter from 'events';
+import { killProcessOnPort, killProcessTree } from '../utils/process-killer.js';
 
 export type ServiceName = 'web' | 'broker' | 'runner';
 export type ServiceStatus = 'stopped' | 'starting' | 'running' | 'error';
@@ -201,17 +202,32 @@ export class ServiceManager extends EventEmitter {
    */
   async stop(name: ServiceName, signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
     const service = this.services.get(name);
-    if (!service || !service.process) {
+    if (!service) {
       return;
     }
 
-    return new Promise((resolve) => {
-      const proc = service.process!;
+    const proc = service.process;
+    const port = service.config.port;
+    const pid = proc?.pid;
 
+    // If no process, just try to kill by port as cleanup
+    if (!proc) {
+      if (port) {
+        await killProcessOnPort(port);
+      }
+      return;
+    }
+
+    return new Promise(async (resolve) => {
       // Set timeout for force kill
-      const timeout = setTimeout(() => {
-        if (!proc.killed) {
-          proc.kill('SIGKILL');
+      const timeout = setTimeout(async () => {
+        // Try killing the process tree first
+        if (pid) {
+          await killProcessTree(pid, 'SIGKILL');
+        }
+        // Also kill by port as final fallback
+        if (port) {
+          await killProcessOnPort(port);
         }
         resolve();
       }, 2000);
@@ -221,7 +237,12 @@ export class ServiceManager extends EventEmitter {
         resolve();
       });
 
-      proc.kill(signal);
+      // First try graceful SIGTERM via process tree
+      if (pid) {
+        await killProcessTree(pid, signal);
+      } else {
+        proc.kill(signal);
+      }
     });
   }
 
@@ -232,8 +253,27 @@ export class ServiceManager extends EventEmitter {
     this.stopUpdates();
 
     const services = Array.from(this.services.keys()).reverse(); // Stop in reverse order
+    
+    // Collect all ports for final cleanup
+    const ports: number[] = [];
+    for (const name of services) {
+      const service = this.services.get(name);
+      if (service?.config.port) {
+        ports.push(service.config.port);
+      }
+    }
+    
+    // Stop each service
     for (const name of services) {
       await this.stop(name);
+    }
+
+    // Final port cleanup - ensure no zombie processes remain
+    // Small delay to let processes actually terminate
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    for (const port of ports) {
+      await killProcessOnPort(port);
     }
 
     this.emit('all:stopped');

@@ -14,7 +14,7 @@ export async function statusCommand() {
 
   if (!isInitialized) {
     logger.log('');
-    logger.warn('Run "sentryvibe-cli init" to initialize');
+    logger.warn('Run "sentryvibe init" to initialize');
     return;
   }
 
@@ -60,10 +60,11 @@ export async function statusCommand() {
   }
   logger.log('');
 
-  // Broker
-  logger.info(`${chalk.bold('Broker:')}`);
-  logger.log(`  URL: ${config.broker?.url || 'not set'}`);
-  logger.log(`  Secret: ${config.broker?.secret ? chalk.green('Set') : chalk.red('Not set')}`);
+  // Server
+  logger.info(`${chalk.bold('Server:')}`);
+  logger.log(`  WebSocket URL: ${config.server?.wsUrl || 'not set'}`);
+  logger.log(`  API URL: ${config.apiUrl || 'not set'}`);
+  logger.log(`  Secret: ${config.server?.secret ? chalk.green('Set') : chalk.red('Not set')}`);
   logger.log('');
 
   // Runner
@@ -87,12 +88,12 @@ export async function statusCommand() {
   // Next steps
   if (validation.valid) {
     logger.info('Ready to run! Use:');
-    logger.log(`  ${chalk.cyan('sentryvibe-cli run')}`);
-    logger.log(`  or just ${chalk.cyan('sentryvibe-cli')}`);
+    logger.log(`  ${chalk.cyan('sentryvibe run')}     - Start local full stack`);
+    logger.log(`  ${chalk.cyan('sentryvibe runner')} - Connect to remote server`);
   } else {
     logger.info('Fix configuration errors with:');
-    logger.log(`  ${chalk.cyan('sentryvibe-cli config set <key> <value>')}`);
-    logger.log(`  or ${chalk.cyan('sentryvibe-cli init')} to reconfigure`);
+    logger.log(`  ${chalk.cyan('sentryvibe config set <key> <value>')}`);
+    logger.log(`  or ${chalk.cyan('sentryvibe init')} to reconfigure`);
   }
   logger.log('');
 }

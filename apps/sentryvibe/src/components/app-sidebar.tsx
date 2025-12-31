@@ -189,8 +189,8 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
 
       {/* Footer - Runner Selector & Running Services */}
       <SidebarFooter className="border-t border-white/10 p-3 space-y-2">
-        {/* Runner Dropdown - only show when authenticated */}
-        {canViewProjects && (
+        {/* Runner Dropdown - only show when authenticated and NOT in local mode */}
+        {canViewProjects && !isLocalMode && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
