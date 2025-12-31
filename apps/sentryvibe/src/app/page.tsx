@@ -10,7 +10,6 @@ import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
-import { PreviewControls } from "@/components/PreviewControls";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
@@ -2598,7 +2597,7 @@ function HomeContent() {
           />
         )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
-        {/* Top Header Bar with Project Name, Preview Controls, and Auth */}
+        {/* Top Header Bar with Project Name and Auth */}
         <header className="flex h-12 shrink-0 items-center justify-between px-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             {/* Project name with status indicator */}
@@ -2622,23 +2621,6 @@ function HomeContent() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {/* Preview Controls in header */}
-            <PreviewControls
-              selectedProject={selectedProjectSlug}
-              onStartServer={startDevServer}
-              onStopServer={stopDevServer}
-              onStartTunnel={startTunnel}
-              onStopTunnel={stopTunnel}
-              isStartingServer={isStartingServer}
-              isStoppingServer={isStoppingServer}
-              isStartingTunnel={isStartingTunnel}
-              isStoppingTunnel={isStoppingTunnel}
-              isBuildActive={isCreatingProject || generationState?.isActive || false}
-              devicePreset={devicePreset}
-              onDevicePresetChange={setDevicePreset}
-              verifiedTunnelUrl={currentProject?.tunnelUrl}
-              actualPort={currentProject?.devServerPort}
-            />
             <AuthHeader />
           </div>
         </header>
@@ -3301,7 +3283,7 @@ function HomeContent() {
                         isStoppingTunnel={isStoppingTunnel}
                         isBuildActive={isCreatingProject || generationState?.isActive || false}
                         devicePreset={devicePreset}
-                        hideControls={true}
+                        onDevicePresetChange={setDevicePreset}
                         onPortDetected={(port) => {
                           if (DEBUG_PAGE) console.log(
                             "Terminal detected port update:",

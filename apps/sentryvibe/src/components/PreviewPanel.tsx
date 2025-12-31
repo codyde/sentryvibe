@@ -32,6 +32,8 @@ interface PreviewPanelProps {
   isBuildActive?: boolean;
   devicePreset?: DevicePreset;
   hideControls?: boolean;
+  isSelectionModeEnabled?: boolean;
+  onSelectionModeChange?: (enabled: boolean) => void;
 }
 
 const DEBUG_PREVIEW = false; // Set to true to enable verbose preview panel logging
@@ -48,11 +50,16 @@ export default function PreviewPanel({
   isStoppingTunnel, 
   isBuildActive,
   devicePreset: externalDevicePreset,
+  isSelectionModeEnabled: externalSelectionMode,
+  onSelectionModeChange,
   hideControls = false,
 }: PreviewPanelProps) {
   const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
-  const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
+  const [internalSelectionMode, setInternalSelectionMode] = useState(false);
+  // Use external selection mode if provided, otherwise use internal state
+  const isSelectionModeEnabled = externalSelectionMode ?? internalSelectionMode;
+  const setIsSelectionModeEnabled = onSelectionModeChange ?? setInternalSelectionMode;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [internalDevicePreset, setInternalDevicePreset] = useState<DevicePreset>('desktop');
