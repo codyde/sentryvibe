@@ -2771,7 +2771,7 @@ function HomeContent() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="flex-1 flex flex-col lg:flex-row gap-4 p-2 md:p-4 min-h-0 overflow-hidden"
+                  className="flex-1 flex flex-col lg:flex-row gap-4 p-2 min-h-0 overflow-hidden"
                 >
                   {/* Left Panel - Chat (resizable on desktop, full width on mobile) */}
                   <ResizablePanel
