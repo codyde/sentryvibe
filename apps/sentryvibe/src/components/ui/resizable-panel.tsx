@@ -22,13 +22,15 @@ export function ResizablePanel({
 }: ResizablePanelProps) {
   const [width, setWidth] = React.useState(defaultWidth);
   const [isResizing, setIsResizing] = React.useState(false);
-  const [isDesktop, setIsDesktop] = React.useState(false);
+  const [isDesktop, setIsDesktop] = React.useState<boolean | null>(null); // null = not yet determined (SSR)
+  const [hasMounted, setHasMounted] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const startXRef = React.useRef(0);
   const startWidthRef = React.useRef(0);
 
-  // Check if we're on desktop (lg breakpoint = 1024px)
+  // Check if we're on desktop (lg breakpoint = 1024px) - only after mount
   React.useEffect(() => {
+    setHasMounted(true);
     const checkDesktop = () => {
       setIsDesktop(window.innerWidth >= 1024);
     };
@@ -74,15 +76,18 @@ export function ResizablePanel({
     };
   }, [isResizing, minWidth, maxWidth, onResize]);
 
+  // Determine if we should apply desktop styles
+  const applyDesktopStyles = hasMounted && isDesktop;
+
   return (
     <div
       ref={panelRef}
       className={cn('relative', className)}
-      style={isDesktop ? { width: `${width}px`, flexShrink: 0 } : undefined}
+      style={applyDesktopStyles ? { width: `${width}px`, flexShrink: 0 } : undefined}
     >
       {children}
-      {/* Resize handle on the right edge - only show on desktop */}
-      {isDesktop && (
+      {/* Resize handle on the right edge - only show on desktop after mount */}
+      {applyDesktopStyles && (
         <div
           onMouseDown={handleMouseDown}
           className={cn(
