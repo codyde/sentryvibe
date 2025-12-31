@@ -2858,22 +2858,6 @@ function HomeContent() {
                       )}
 
                       {/* Unified View Header - Simple status bar */}
-                      {(generationState || conversationMessages.length > 0) &&
-                        !isCreatingProject && (
-                          <div className="border-b border-white/10 px-6 py-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-sm font-semibold text-white">
-                                Conversation
-                              </h3>
-                            </div>
-                            {conversationMessages.length > 0 && (
-                              <div className="text-xs text-gray-500">
-                                {conversationMessages.length} messages
-                              </div>
-                            )}
-                          </div>
-                        )}
-
                       <div
                         ref={scrollContainerRef}
                         className="flex-1 overflow-y-auto p-6 min-h-0"
