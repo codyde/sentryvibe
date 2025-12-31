@@ -540,13 +540,13 @@ export async function initCommand(options: InitOptions) {
       }
 
       const clonePath = getDefaultMonorepoPath();
-      const workspacePath = getDefaultWorkspace();
 
       try {
-        // Check if directory exists and clean up in -y mode
-        if (existsSync(clonePath) || existsSync(workspacePath)) {
+        // Check if repo directory exists and clean up in -y mode
+        // NOTE: We intentionally do NOT delete the workspace folder to preserve user projects
+        if (existsSync(clonePath)) {
           // Safety check: never delete the current working directory
-          if (isCurrentWorkingDirectory(clonePath) || isCurrentWorkingDirectory(workspacePath)) {
+          if (isCurrentWorkingDirectory(clonePath)) {
             throw new CLIError({
               code: 'CONFIG_INVALID',
               message: 'Cannot remove the current working directory',
@@ -557,7 +557,7 @@ export async function initCommand(options: InitOptions) {
             });
           }
 
-          s.start('Removing existing installation');
+          s.start('Removing existing sentryvibe installation (preserving workspace)');
 
           // Import rmSync for directory deletion
           const { rmSync } = await import('fs');
@@ -567,12 +567,9 @@ export async function initCommand(options: InitOptions) {
             safeRemoveDirectory(clonePath, rmSync);
           }
 
-          // Delete sentryvibe-workspace if it exists
-          if (existsSync(workspacePath)) {
-            safeRemoveDirectory(workspacePath, rmSync);
-          }
+          // IMPORTANT: Do NOT delete sentryvibe-workspace - it contains user projects!
 
-          s.stop(pc.green('✓') + ' Existing installation removed');
+          s.stop(pc.green('✓') + ' Existing installation removed (workspace preserved)');
         }
 
         // Clone
