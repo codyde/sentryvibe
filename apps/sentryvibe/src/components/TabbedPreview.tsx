@@ -350,44 +350,57 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                 {isServerRunning ? (
                   <>
                     {/* Tunnel toggle */}
-                    {currentProject.tunnelUrl ? (
-                      <button
-                        onClick={onStopTunnel}
-                        disabled={isStoppingTunnel}
-                        className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 rounded-md transition-colors disabled:opacity-50"
-                      >
-                        <Square className={cn('w-3 h-3', isStoppingTunnel && 'animate-pulse')} />
-                        Tunnel
-                      </button>
-                    ) : (
-                      <button
-                        onClick={onStartTunnel}
-                        disabled={isStartingTunnel}
-                        className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-md transition-colors disabled:opacity-50"
-                      >
-                        <Cloud className={cn('w-3 h-3', isStartingTunnel && 'animate-pulse')} />
-                        Tunnel
-                      </button>
-                    )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {currentProject.tunnelUrl ? (
+                          <button
+                            onClick={onStopTunnel}
+                            disabled={isStoppingTunnel}
+                            className="p-1.5 rounded-md text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 transition-all disabled:opacity-50"
+                          >
+                            <Cloud className={cn('w-4 h-4', isStoppingTunnel && 'animate-pulse')} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={onStartTunnel}
+                            disabled={isStartingTunnel}
+                            className="p-1.5 rounded-md text-gray-400 hover:text-blue-300 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                          >
+                            <Cloud className={cn('w-4 h-4', isStartingTunnel && 'animate-pulse')} />
+                          </button>
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {currentProject.tunnelUrl ? 'Stop Tunnel' : 'Start Tunnel'}
+                      </TooltipContent>
+                    </Tooltip>
                     {/* Stop Server */}
-                    <button
-                      onClick={onStopServer}
-                      disabled={isStoppingServer}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded-md transition-colors disabled:opacity-50"
-                    >
-                      <Square className={cn('w-3 h-3', isStoppingServer && 'animate-pulse')} />
-                      Stop
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={onStopServer}
+                          disabled={isStoppingServer}
+                          className="p-1.5 rounded-md text-[#FF45A8] hover:text-[#FF70BC] hover:bg-[#FF45A8]/20 transition-all disabled:opacity-50"
+                        >
+                          <Square className={cn('w-4 h-4', isStoppingServer && 'animate-pulse')} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Stop Server</TooltipContent>
+                    </Tooltip>
                   </>
                 ) : (
-                  <button
-                    onClick={onStartServer}
-                    disabled={currentProject.devServerStatus === 'starting' || isStartingServer}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-[#92DD00]/20 hover:bg-[#92DD00]/30 text-[#92DD00] border border-[#92DD00]/30 rounded-md transition-colors disabled:opacity-50"
-                  >
-                    <Play className={cn('w-3 h-3', isStartingServer && 'animate-pulse')} />
-                    Start
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={onStartServer}
+                        disabled={currentProject.devServerStatus === 'starting' || isStartingServer}
+                        className="p-1.5 rounded-md text-[#92DD00] hover:text-[#A8F000] hover:bg-[#92DD00]/20 transition-all disabled:opacity-50"
+                      >
+                        <Play className={cn('w-4 h-4', isStartingServer && 'animate-pulse')} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Start Server</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </>
