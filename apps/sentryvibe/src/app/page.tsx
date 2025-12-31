@@ -10,6 +10,8 @@ import "highlight.js/styles/github-dark.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import TabbedPreview from "@/components/TabbedPreview";
+import { PreviewControls } from "@/components/PreviewControls";
+import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
@@ -202,6 +204,8 @@ function HomeContent() {
   const [isStoppingServer, setIsStoppingServer] = useState(false);
   const [isStartingTunnel, setIsStartingTunnel] = useState(false);
   const [isStoppingTunnel, setIsStoppingTunnel] = useState(false);
+  const [devicePreset, setDevicePreset] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [chatPanelWidth, setChatPanelWidth] = useState(450);
   const generationStateRef = useRef<GenerationState | null>(generationState);
   const lastRefetchedBuildIdRef = useRef<string | null>(null);
   const freshBuildIdRef = useRef<string | null>(null); // Track fresh build to prevent stale state merging
@@ -2594,12 +2598,47 @@ function HomeContent() {
           />
         )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
-        {/* Top Header Bar with Auth */}
-        <header className="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            {/* Left side - can add breadcrumbs or title here later */}
+        {/* Top Header Bar with Project Name, Preview Controls, and Auth */}
+        <header className="flex h-12 shrink-0 items-center justify-between px-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            {/* Project name with status indicator */}
+            {currentProject && (
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    currentProject.status === "pending"
+                      ? "bg-[#7553FF]"
+                      : currentProject.status === "in_progress"
+                      ? "bg-[#FFD00E] animate-pulse"
+                      : currentProject.status === "completed"
+                      ? "bg-[#92DD00]"
+                      : "bg-[#FF45A8]"
+                  }`}
+                />
+                <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                  {currentProject.name}
+                </span>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Preview Controls in header */}
+            <PreviewControls
+              selectedProject={selectedProjectSlug}
+              onStartServer={startDevServer}
+              onStopServer={stopDevServer}
+              onStartTunnel={startTunnel}
+              onStopTunnel={stopTunnel}
+              isStartingServer={isStartingServer}
+              isStoppingServer={isStoppingServer}
+              isStartingTunnel={isStartingTunnel}
+              isStoppingTunnel={isStoppingTunnel}
+              isBuildActive={isCreatingProject || generationState?.isActive || false}
+              devicePreset={devicePreset}
+              onDevicePresetChange={setDevicePreset}
+              verifiedTunnelUrl={currentProject?.tunnelUrl}
+              actualPort={currentProject?.devServerPort}
+            />
             <AuthHeader />
           </div>
         </header>
@@ -2729,146 +2768,79 @@ function HomeContent() {
                   transition={{ duration: 0.3 }}
                   className="flex-1 flex flex-col lg:flex-row gap-4 p-2 md:p-4 min-h-0 overflow-hidden"
                 >
-                  {/* Left Panel - Chat (1/3 width on desktop, full width on mobile) */}
-                  <motion.div
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="w-full lg:w-1/3 flex flex-col min-w-0 min-h-0 h-[50vh] lg:h-full max-h-full"
+                  {/* Left Panel - Chat (resizable on desktop, full width on mobile) */}
+                  <ResizablePanel
+                    defaultWidth={chatPanelWidth}
+                    minWidth={280}
+                    maxWidth={600}
+                    onResize={setChatPanelWidth}
+                    className="flex flex-col min-h-0 h-[50vh] lg:h-full max-h-full w-full lg:w-auto"
                   >
-                    <div className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden">
-                      {/* Project Status Header */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5 }}
+                      className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
+                    >
+                      {/* Compact Project Info Header */}
                       {currentProject && (
-                        <div className="border-b border-white/10 p-4">
-                          <div className="flex items-center gap-3 mb-2">
-                            {/* Status Indicator Circle - Sentry Colors */}
-                            <div className="relative group">
-                              <div
-                                className={`w-3 h-3 rounded-full ${
-                                  currentProject.status === "pending"
-                                    ? "bg-[#7553FF]" // Sentry Blurple
-                                    : currentProject.status === "in_progress"
-                                    ? "bg-[#FFD00E] animate-pulse shadow-lg shadow-[#FFD00E]/50" // Sentry Yellow
-                                    : currentProject.status === "completed"
-                                    ? "bg-[#92DD00] shadow-lg shadow-[#92DD00]/30" // Sentry Green
-                                    : "bg-[#FF45A8]" // Sentry Pink
-                                }`}
-                              />
-                              {/* Tooltip */}
-                              <div className="absolute left-0 top-6 hidden group-hover:block z-50">
-                                <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap border border-white/10">
-                                  {currentProject.status === "pending" &&
-                                    "Pending"}
-                                  {currentProject.status === "in_progress" &&
-                                    "Generating..."}
-                                  {currentProject.status === "completed" &&
-                                    "Completed"}
-                                  {currentProject.status === "failed" &&
-                                    "Failed"}
-                                </div>
-                              </div>
+                        <div className="border-b border-white/10 px-4 py-2">
+                          {/* Framework/Model tags - compact inline display */}
+                          {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
+                                const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
+                                const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
+                                const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
+                                const modelLogo = modelValue ? getModelLogo(modelValue) : null;
+                                return (
+                                  <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-xs">
+                                    {modelLogo && (
+                                      <img src={modelLogo} alt="model" className="w-3 h-3 object-contain" />
+                                    )}
+                                    <span className="text-gray-400">
+                                      {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                              {currentProject.detectedFramework && (() => {
+                                const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
+                                return (
+                                  <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/50 rounded text-xs">
+                                    {frameworkLogo && (
+                                      <img src={frameworkLogo} alt="framework" className="w-3 h-3 object-contain" />
+                                    )}
+                                    <span className="text-gray-400">{currentProject.detectedFramework}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-
-                            <div className="flex-1">
-                              <h2 className="text-lg font-semibold">
-                                {currentProject.name}
-                              </h2>
-                              {currentProject.description && (
-                                <p className="text-sm text-gray-400">
-                                  {currentProject.description}
-                                </p>
-                              )}
-                              {/* Framework/Model tags - Direct render for immediate updates */}
-                              {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
-                                    const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
-                                    const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
-                                    const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
-                                    const modelLogo = modelValue ? getModelLogo(modelValue) : null;
-
-                                    return (
-                                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
-                                        {modelLogo && (
-                                          <img
-                                            src={modelLogo}
-                                            alt="model logo"
-                                            className="w-3.5 h-3.5 object-contain"
-                                          />
-                                        )}
-                                        <span className="text-gray-300">model:</span>
-                                        <span className="text-gray-200">
-                                          {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
-                                        </span>
-                                      </div>
-                                    );
-                                  })()}
-                                  {currentProject.detectedFramework && (() => {
-                                    const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
-                                    return (
-                                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
-                                        {frameworkLogo && (
-                                          <img
-                                            key={`framework-${currentProject.detectedFramework}`}
-                                            src={frameworkLogo}
-                                            alt="framework logo"
-                                            className="w-3.5 h-3.5 object-contain"
-                                            onLoad={() => console.log(`✅ [Framework Logo] Image loaded: ${frameworkLogo}`)}
-                                            onError={(e) => console.error(`❌ [Framework Logo] Image failed to load: ${frameworkLogo}`, e)}
-                                          />
-                                        )}
-                                        <span className="text-gray-300">framework:</span>
-                                        <span className="text-gray-200">{currentProject.detectedFramework}</span>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
+                          )}
                           {/* Error message and retry button */}
                           {currentProject.status === "failed" && (
-                            <div className="mt-3 p-3 bg-[#FF45A8]/10 border border-[#FF45A8]/30 rounded-lg">
-                              <div className="flex items-start justify-between gap-3">
+                            <div className="mt-2 p-2 bg-[#FF45A8]/10 border border-[#FF45A8]/30 rounded-lg">
+                              <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
-                                  <p className="text-sm font-medium text-[#FF45A8] mb-1">
-                                    Generation Failed
-                                  </p>
+                                  <p className="text-xs font-medium text-[#FF45A8]">Generation Failed</p>
                                   {currentProject.errorMessage && (
-                                    <p className="text-xs text-[#FF70BC]/80">
-                                      {currentProject.errorMessage}
-                                    </p>
+                                    <p className="text-xs text-[#FF70BC]/80 mt-0.5">{currentProject.errorMessage}</p>
                                   )}
                                 </div>
                                 <button
                                   onClick={async () => {
-                                    const promptToRetry =
-                                      currentProject.originalPrompt ||
-                                      currentProject.description;
+                                    const promptToRetry = currentProject.originalPrompt || currentProject.description;
                                     if (promptToRetry) {
-                                      await fetch(
-                                        `/api/projects/${currentProject.id}`,
-                                        {
-                                          method: "PATCH",
-                                          headers: {
-                                            "Content-Type": "application/json",
-                                          },
-                                          body: JSON.stringify({
-                                            status: "pending",
-                                            errorMessage: null,
-                                          }),
-                                        }
-                                      );
+                                      await fetch(`/api/projects/${currentProject.id}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ status: "pending", errorMessage: null }),
+                                      });
                                       refetch();
-                                      await startGeneration(
-                                        currentProject.id,
-                                        promptToRetry,
-                                        { isRetry: true }
-                                      );
+                                      await startGeneration(currentProject.id, promptToRetry, { isRetry: true });
                                     }
                                   }}
-                                  className="px-3 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
+                                  className="px-2 py-1 text-xs bg-[#FF45A8]/20 hover:bg-[#FF45A8]/30 text-[#FF45A8] border border-[#FF45A8]/30 rounded transition-colors"
                                 >
                                   Retry
                                 </button>
@@ -3309,11 +3281,11 @@ function HomeContent() {
                           </div>
                         </form>
                       </div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  </ResizablePanel>
 
-                  {/* Right Panel - Tabbed Preview with Preview/Editor/Terminal tabs (2/3 width on desktop, full width on mobile) */}
-                  <div className="w-full lg:w-2/3 flex flex-col min-w-0 h-auto lg:h-full">
+                  {/* Right Panel - Tabbed Preview (fills remaining space) */}
+                  <div className="flex-1 flex flex-col min-w-0 h-auto lg:h-full">
                     {/* Tabbed Preview Panel - Full height */}
                     <div className="flex-1 min-h-0 h-[70vh] lg:h-full">
                       <TabbedPreview
@@ -3328,9 +3300,11 @@ function HomeContent() {
                         isStartingTunnel={isStartingTunnel}
                         isStoppingTunnel={isStoppingTunnel}
                         isBuildActive={isCreatingProject || generationState?.isActive || false}
+                        devicePreset={devicePreset}
+                        hideControls={true}
                         onPortDetected={(port) => {
                           if (DEBUG_PAGE) console.log(
-                            "🔍 Terminal detected port update:",
+                            "Terminal detected port update:",
                             port
                           );
                         }}

@@ -17,6 +17,8 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 
+type DevicePreset = 'desktop' | 'tablet' | 'mobile';
+
 interface PreviewPanelProps {
   selectedProject?: string | null;
   onStartServer?: () => void;
@@ -28,19 +30,35 @@ interface PreviewPanelProps {
   isStartingTunnel?: boolean;
   isStoppingTunnel?: boolean;
   isBuildActive?: boolean;
+  devicePreset?: DevicePreset;
+  hideControls?: boolean;
 }
-
-type DevicePreset = 'desktop' | 'tablet' | 'mobile';
 
 const DEBUG_PREVIEW = false; // Set to true to enable verbose preview panel logging
 
-export default function PreviewPanel({ selectedProject, onStartServer, onStopServer, onStartTunnel, onStopTunnel, isStartingServer, isStoppingServer, isStartingTunnel, isStoppingTunnel, isBuildActive }: PreviewPanelProps) {
+export default function PreviewPanel({ 
+  selectedProject, 
+  onStartServer, 
+  onStopServer, 
+  onStartTunnel, 
+  onStopTunnel, 
+  isStartingServer, 
+  isStoppingServer, 
+  isStartingTunnel, 
+  isStoppingTunnel, 
+  isBuildActive,
+  devicePreset: externalDevicePreset,
+  hideControls = false,
+}: PreviewPanelProps) {
   const { projects, refetch } = useProjects();
   const [key, setKey] = useState(0);
   const [isSelectionModeEnabled, setIsSelectionModeEnabled] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [devicePreset, setDevicePreset] = useState<DevicePreset>('desktop');
+  const [internalDevicePreset, setInternalDevicePreset] = useState<DevicePreset>('desktop');
+  // Use external device preset if provided, otherwise use internal state
+  const devicePreset = externalDevicePreset ?? internalDevicePreset;
+  const setDevicePreset = setInternalDevicePreset;
   const [isTunnelLoading, setIsTunnelLoading] = useState(false);
   const [dnsVerificationAttempt, setDnsVerificationAttempt] = useState<number>(0);
   const [dnsTroubleshooting, setDnsTroubleshooting] = useState(false);
@@ -489,8 +507,9 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
       transition={{ duration: 0.5, delay: 0.1 }}
       className="h-full flex flex-col bg-[#1e1e1e] border border-[#3e3e3e] rounded-xl shadow-2xl overflow-hidden"
     >
-      {/* Browser-like chrome bar */}
-      <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
+      {/* Browser-like chrome bar - hidden when controls are in header */}
+      {!hideControls && (
+        <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
         {previewUrl ? (
           <>
             {/* Left controls */}
@@ -668,7 +687,8 @@ export default function PreviewPanel({ selectedProject, onStartServer, onStopSer
             </>
           )}
         </div>
-      </div>
+        </div>
+      )}
       <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
         {previewUrl || isTunnelLoading || dnsTroubleshooting ? (
           <>
