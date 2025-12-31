@@ -3294,6 +3294,7 @@ function HomeContent() {
                         isStoppingTunnel={isStoppingTunnel}
                         isBuildActive={isCreatingProject || generationState?.isActive || false}
                         devicePreset={devicePreset}
+                        onDevicePresetChange={setDevicePreset}
                         activeTab={activeTab}
                         onTabChange={setActiveTab}
                         isSelectionModeEnabled={isSelectionMode}
