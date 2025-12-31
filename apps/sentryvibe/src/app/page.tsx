@@ -2612,7 +2612,7 @@ function HomeContent() {
         )}
         <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
         {/* Top Header Bar - Project Name and Auth only */}
-        <header className="flex h-11 shrink-0 items-center justify-between px-4 border-b border-white/10">
+        <header className="flex h-12 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             {currentProject && (
               <>

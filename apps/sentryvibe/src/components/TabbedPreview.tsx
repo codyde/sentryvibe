@@ -122,7 +122,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
         className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
       >
         {/* Header Bar */}
-        <div className="border-b border-white/10 flex items-center px-2 py-1.5 gap-1">
+        <div className="flex items-center px-3 py-2 gap-2">
           {/* Tab Switcher */}
           <div className="flex items-center bg-black/30 rounded-md p-0.5">
             <Tooltip>
