@@ -2610,9 +2610,9 @@ function HomeContent() {
             }}
           />
         )}
-        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F]">
+        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F] pt-2">
         {/* Top Header Bar - Logo, Breadcrumb, and Auth */}
-        <header className="flex h-10 shrink-0 items-center justify-between px-4 my-1">
+        <header className="flex h-10 shrink-0 items-center justify-between px-4 mb-1">
           <div className="flex items-center gap-2">
             {/* Logo */}
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 p-1">
