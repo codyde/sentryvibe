@@ -319,28 +319,36 @@ function HomeContent() {
   // Subscribe to single project query for SSE updates
   const { data: projectFromQuery } = useProject(currentProject?.id);
 
-  // Sync query data back to currentProject when SSE updates arrive
+  // Use ref to track current project state without causing effect re-runs
+  const currentProjectRef = useRef(currentProject);
   useEffect(() => {
-    if (projectFromQuery && currentProject && projectFromQuery.id === currentProject.id) {
-      // Only update if data actually changed (prevent infinite loop)
-      if (projectFromQuery.detectedFramework !== currentProject.detectedFramework ||
-          projectFromQuery.devServerStatus !== currentProject.devServerStatus ||
-          projectFromQuery.devServerPort !== currentProject.devServerPort ||
-          projectFromQuery.tunnelUrl !== currentProject.tunnelUrl) {
+    currentProjectRef.current = currentProject;
+  }, [currentProject]);
+
+  // Sync query data back to currentProject when SSE updates arrive
+  // IMPORTANT: Only depend on projectFromQuery to avoid infinite loops
+  useEffect(() => {
+    const current = currentProjectRef.current;
+    if (projectFromQuery && current && projectFromQuery.id === current.id) {
+      // Only update if data actually changed (prevent unnecessary re-renders)
+      if (projectFromQuery.detectedFramework !== current.detectedFramework ||
+          projectFromQuery.devServerStatus !== current.devServerStatus ||
+          projectFromQuery.devServerPort !== current.devServerPort ||
+          projectFromQuery.tunnelUrl !== current.tunnelUrl) {
         console.log('[page] 🔄 Syncing project from SSE query update:', {
           detectedFramework: projectFromQuery.detectedFramework,
-          existingFramework: currentProject.detectedFramework,
+          existingFramework: current.detectedFramework,
           devServerStatus: projectFromQuery.devServerStatus,
         });
 
         // STICKY FRAMEWORK: Preserve existing framework if new value is null
-        const preservedFramework = projectFromQuery.detectedFramework || currentProject.detectedFramework;
+        const preservedFramework = projectFromQuery.detectedFramework || current.detectedFramework;
 
         console.log('[page] 🏷️ Framework update logic:', {
           incomingFramework: projectFromQuery.detectedFramework,
-          existingFramework: currentProject.detectedFramework,
+          existingFramework: current.detectedFramework,
           preservedFramework,
-          willUpdate: preservedFramework !== currentProject.detectedFramework,
+          willUpdate: preservedFramework !== current.detectedFramework,
         });
 
         setCurrentProject({
@@ -349,7 +357,7 @@ function HomeContent() {
         });
       }
     }
-  }, [projectFromQuery, currentProject]);
+  }, [projectFromQuery]); // Only depend on projectFromQuery - use ref for currentProject
 
   // Load messages from database when project changes
   const {

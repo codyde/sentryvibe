@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
 import { MousePointer2 } from 'lucide-react';
 import {
   HoverCard,
@@ -8,71 +7,17 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 
-interface SelectedElement {
-  selector: string;
-  tagName: string;
-  className: string;
-  id: string;
-  textContent: string;
-  innerHTML: string;
-  attributes: Record<string, string>;
-  boundingRect: {
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-  };
-  computedStyles: {
-    backgroundColor: string;
-    color: string;
-    fontSize: string;
-    fontFamily: string;
-  };
-}
-
 interface SelectionModeProps {
   isEnabled: boolean;
   onToggle: (enabled: boolean) => void;
-  onElementSelected: (element: SelectedElement, prompt: string) => void;
 }
 
-export default function SelectionMode({ isEnabled, onToggle, onElementSelected }: SelectionModeProps) {
-  const hasProcessedRef = useRef<Set<string>>(new Set());
-
-  // Listen for element selection from iframe
-  useEffect(() => {
-    const handleMessage = (e: MessageEvent) => {
-
-      if (e.data.type === 'sentryvibe:element-selected') {
-        const element = e.data.data;
-        const elementKey = `${element.selector}-${element.clickPosition?.x}-${element.clickPosition?.y}`;
-
-        // Prevent duplicate processing of same click
-        if (hasProcessedRef.current.has(elementKey)) {
-          console.warn('⚠️ Duplicate selection detected, ignoring');
-          return;
-        }
-
-        hasProcessedRef.current.add(elementKey);
-
-        // Clear after 1 second (allow re-selecting same element after delay)
-        setTimeout(() => {
-          hasProcessedRef.current.delete(elementKey);
-        }, 1000);
-
-        console.log('🎯 Processing element selection:', element);
-        // Immediately create comment window (no modal)
-        onElementSelected(element, '');
-        onToggle(false); // Disable selection mode
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [onToggle, onElementSelected]);
-
+/**
+ * SelectionMode is now a pure UI component (just the toggle button).
+ * The message listener for element selection has been moved to PreviewPanel
+ * so it works regardless of whether this button is rendered (hideControls={true/false}).
+ */
+export default function SelectionMode({ isEnabled, onToggle }: SelectionModeProps) {
   return (
     <HoverCard openDelay={300}>
       <HoverCardTrigger asChild>
