@@ -23,11 +23,26 @@ import {
 import { eq, and, sql } from 'drizzle-orm';
 import { buildWebSocketServer } from '@sentryvibe/agent-core/lib/websocket/server';
 import * as Sentry from '@sentry/nextjs';
+import { authenticateRunnerKey, extractRunnerKey, isLocalMode } from '@/lib/auth-helpers';
 
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
 
-function ensureAuthorized(request: Request): boolean {
+async function ensureAuthorized(request: Request): Promise<boolean> {
+  // In local mode, always allow
+  if (isLocalMode()) {
+    return true;
+  }
+  
   const authHeader = request.headers.get('authorization');
+  
+  // First, check for user-scoped runner key (sv_xxx format)
+  const runnerKey = extractRunnerKey(request);
+  if (runnerKey) {
+    const auth = await authenticateRunnerKey(runnerKey);
+    return auth !== null;
+  }
+  
+  // Fall back to shared secret (legacy/local mode)
   if (!SHARED_SECRET || !authHeader || authHeader !== `Bearer ${SHARED_SECRET}`) {
     return false;
   }
@@ -92,7 +107,7 @@ const startedSessions = global.__httpStartedSessions ?? new Set();
 global.__httpStartedSessions = startedSessions;
 
 export async function POST(request: Request) {
-  if (!ensureAuthorized(request)) {
+  if (!(await ensureAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
