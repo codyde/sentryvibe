@@ -77,9 +77,9 @@ const program = new Command();
 
 program
   .name('sentryvibe')
-  .description('SentryVibe CLI - Start full stack or runner only')
+  .description('SentryVibe CLI - AI App Builder')
   .version(packageJson.version)
-  .option('--runner', 'Start runner only (skip web app and broker)')
+  .option('--runner', 'Start runner only (connect to remote server)')
   .option('--debug', 'Enable debug mode with verbose error output')
   .hook('preAction', (thisCommand) => {
     // Enable debug mode if --debug flag is present
@@ -109,13 +109,12 @@ program
 // Import commands
 program
   .command('init')
-  .description('Initialize workspace and configuration')
+  .description('Initialize workspace and configuration for local development')
   .option('--workspace <path>', 'Set workspace directory')
-  .option('--broker <url>', 'Set broker WebSocket URL')
-  .option('--url <url>', 'Set API base URL (default: http://localhost:3000)')
+  .option('--url <url>', 'Set server URL (default: http://localhost:3000)')
   .option('--secret <secret>', 'Set shared secret')
   .option('--branch <branch>', 'Git branch to clone (default: main)')
-  .option('--database [value]', 'Database setup: "neondb" (auto-setup), connection string, or omit to auto-setup in -y mode')
+  .option('--database [value]', 'Database setup: connection string, or omit to auto-setup Neon in -y mode')
   .option('-y, --yes', 'Accept all defaults (non-interactive mode)')
   .option('--non-interactive', 'Use defaults without prompts (alias for -y)')
   .action(async (options) => {
@@ -129,10 +128,9 @@ program
 
 program
   .command('run')
-  .description('Start the full stack (web app + broker + runner)')
+  .description('Start the full stack locally (web app + runner)')
   .option('-p, --port <port>', 'Web app port (default: 3000)')
-  .option('-b, --broker-port <port>', 'Broker port (default: 4000)')
-  .option('--dev', 'Use development mode (hot reload, slower performance)')
+  .option('--dev', 'Use development mode (hot reload, slower startup)')
   .option('--rebuild', 'Rebuild services before starting')
   .option('--no-local', 'Disable local mode (require authentication)')
   .action(async (options) => {
@@ -159,12 +157,12 @@ program
 
 program
   .command('runner')
-  .description('Start runner only (connect to existing broker)')
-  .option('-b, --broker <url>', 'Broker WebSocket URL')
-  .option('-u, --url <url>', 'API base URL (e.g., https://sentryvibe.up.railway.app)')
-  .option('-w, --workspace <path>', 'Workspace directory path')
-  .option('-i, --runner-id <id>', 'Runner identifier')
-  .option('-s, --secret <secret>', 'Shared secret for authentication')
+  .description('Start runner only (connect to SentryVibe server)')
+  .option('-u, --url <url>', 'SentryVibe server URL (default: https://sentryvibe.up.railway.app)')
+  .option('-w, --workspace <path>', 'Workspace directory (default: ~/sentryvibe-workspace)')
+  .option('-i, --runner-id <id>', 'Runner identifier (default: system username)')
+  .option('-s, --secret <secret>', 'Shared secret for authentication (required)')
+  .option('-b, --broker <url>', 'WebSocket URL override (advanced, inferred from --url)')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-l, --local', 'Enable local mode (bypasses authentication)')
   .action(async (options) => {

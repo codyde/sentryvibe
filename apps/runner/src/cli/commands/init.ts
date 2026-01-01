@@ -91,8 +91,6 @@ function getDefaultMonorepoPath(): string {
 
 interface InitOptions {
   workspace?: string;
-  wsUrl?: string; // New: WebSocket URL for direct connection
-  broker?: string; // Legacy: still supported for backward compatibility
   url?: string;
   secret?: string;
   branch?: string;
@@ -344,7 +342,7 @@ export async function initCommand(options: InitOptions) {
       const wsUrl = await p.text({
         message: 'Server WebSocket URL',
         placeholder: 'ws://localhost:3000/ws/runner',
-        defaultValue: options.wsUrl || options.broker || 'ws://localhost:3000/ws/runner',
+        defaultValue: 'ws://localhost:3000/ws/runner',
       });
 
       if (p.isCancel(wsUrl)) {
@@ -671,7 +669,11 @@ export async function initCommand(options: InitOptions) {
         configManager.set('databaseUrl', databaseUrl);
       }
       configManager.set('apiUrl', normalizeUrl(options.url || 'http://localhost:3000'));
-      const wsUrl = options.wsUrl || options.broker || 'ws://localhost:3000/ws/runner';
+      // Derive WebSocket URL from the API URL
+      const apiUrlNormalized = normalizeUrl(options.url || 'http://localhost:3000');
+      const wsProtocol = apiUrlNormalized.startsWith('https://') ? 'wss://' : 'ws://';
+      const hostPath = apiUrlNormalized.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const wsUrl = `${wsProtocol}${hostPath}/ws/runner`;
       configManager.set('server', {
         wsUrl: wsUrl,
         secret: generatedSecret,
@@ -760,12 +762,12 @@ export async function initCommand(options: InitOptions) {
     p.outro(pc.green('✨ SentryVibe is ready!'));
 
     // Show config summary
-    const wsUrlDisplay = options.wsUrl || options.broker || 'ws://localhost:3000/ws/runner';
+    const apiUrlDisplay = normalizeUrl(options.url || 'http://localhost:3000');
     const configSummary = [
       '',
       pc.bold('Configuration:'),
       `  Workspace:  ${pc.cyan(workspace)}`,
-      `  Server:     ${pc.cyan(wsUrlDisplay)}`,
+      `  Server:     ${pc.cyan(apiUrlDisplay)}`,
       `  Runner ID:  ${pc.cyan('local')}`,
     ];
 

@@ -9,6 +9,7 @@ import { TAG_DEFINITIONS, TagDefinition, TagOption } from '@sentryvibe/agent-cor
 import { ColorPickerTag } from './ColorPickerTag';
 import { BrandThemePreview } from './BrandThemePreview';
 import { FrameworkPreview } from './FrameworkPreview';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TagDropdownProps {
   open: boolean;
@@ -35,15 +36,20 @@ export function TagDropdown({
   children,
   existingTagKey
 }: TagDropdownProps) {
+  const { isLocalMode } = useAuth();
+  
   // Get tag definitions with runner options injected
+  // In local mode, hide the runner tag since it's fixed to 'local'
   // MUST be defined before getInitialView() to avoid TDZ error
   const getTagDefinitions = () => {
-    return TAG_DEFINITIONS.map(def => {
-      if (def.key === 'runner') {
-        return { ...def, options: runnerOptions };
-      }
-      return def;
-    });
+    return TAG_DEFINITIONS
+      .filter(def => !(isLocalMode && def.key === 'runner')) // Hide runner tag in local mode
+      .map(def => {
+        if (def.key === 'runner') {
+          return { ...def, options: runnerOptions };
+        }
+        return def;
+      });
   };
 
   const getInitialView = (): ViewState[] => {
