@@ -106,10 +106,13 @@ function emitProjectUpdateFromData(projectId: string, projectData: typeof projec
 
 export async function POST(request: Request) {
   try {
+    console.log(`[events] POST request received, checking auth...`);
     const authResult = await ensureAuthorized(request);
     if (!authResult) {
+      console.log(`[events] Auth failed, returning 401`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    console.log(`[events] Auth successful, userId=${authResult.userId}`);
     // authResult.userId contains the user ID if authenticated via runner key
 
     const event = (await request.json()) as RunnerEvent;

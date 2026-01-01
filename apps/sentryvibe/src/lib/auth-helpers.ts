@@ -153,10 +153,12 @@ export async function authenticateRunnerKey(key: string): Promise<{
   }
 
   if (!key || !key.startsWith("sv_")) {
+    console.log(`[auth] authenticateRunnerKey: invalid key format (prefix: ${key?.substring(0, 6)}...)`);
     return null;
   }
 
   const keyHash = hashRunnerKey(key);
+  console.log(`[auth] authenticateRunnerKey: looking up key hash ${keyHash.substring(0, 12)}...`);
 
   const runnerKey = await db.query.runnerKeys.findFirst({
     where: and(
@@ -166,8 +168,11 @@ export async function authenticateRunnerKey(key: string): Promise<{
   });
 
   if (!runnerKey) {
+    console.log(`[auth] authenticateRunnerKey: key not found in database`);
     return null;
   }
+  
+  console.log(`[auth] authenticateRunnerKey: key found, userId=${runnerKey.userId}`);
 
   // Update last used timestamp
   // We await this to ensure it completes in serverless environments
