@@ -77,6 +77,7 @@ export interface RunnerOptions {
   workspace?: string;
   heartbeatInterval?: number;
   silent?: boolean; // Suppress console output (for TUI mode)
+  onEvent?: (event: RunnerEvent) => void; // Callback for TUI to receive events
 }
 
 let isSilentMode = false;
@@ -84,14 +85,46 @@ let isSilentMode = false;
 // Build logging can be controlled separately
 const DEBUG_BUILD = process.env.DEBUG_BUILD === "1" || false;
 
+// Module-level event callback for TUI integration
+let tuiEventCallback: ((event: RunnerEvent) => void) | null = null;
+
+/**
+ * Emit a log event to TUI (if callback is registered)
+ */
+function emitLogEvent(message: string, service: 'runner' | 'build' = 'runner') {
+  if (tuiEventCallback) {
+    tuiEventCallback({
+      type: 'log-chunk',
+      stream: 'stdout',
+      data: message,
+      cursor: randomUUID(),
+      timestamp: new Date().toISOString(),
+    } as RunnerEvent);
+  }
+}
+
 const log = (...args: unknown[]) => {
-  // Always log with [runner] prefix for TUI routing
-  console.log("[runner]", ...args);
+  const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  
+  // Console output (respects silent mode)
+  if (!isSilentMode) {
+    console.log("[runner]", ...args);
+  }
+  
+  // Always emit to TUI callback
+  emitLogEvent(`[runner] ${message}`, 'runner');
 };
 
 const buildLog = (...args: unknown[]) => {
-  // Always log build events (removed silent mode check)
-  console.log("[runner] [build]", ...args);
+  const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  
+  // Console output (respects silent mode)
+  if (!isSilentMode) {
+    console.log("[runner] [build]", ...args);
+  }
+  
+  // Always emit to TUI callback
+  emitLogEvent(`[build] ${message}`, 'build');
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
@@ -1032,6 +1065,9 @@ function startPeriodicHealthChecks(
 export async function startRunner(options: RunnerOptions = {}) {
   // Set silent mode if requested (for TUI)
   isSilentMode = options.silent || false;
+  
+  // Register TUI event callback for log events
+  tuiEventCallback = options.onEvent || null;
 
   // Also set silent mode for all modules
   if (isSilentMode) {
@@ -1434,6 +1470,16 @@ export async function startRunner(options: RunnerOptions = {}) {
   }
 
   function sendEvent(event: RunnerEvent) {
+    // Always emit to TUI callback regardless of socket state
+    if (options.onEvent) {
+      try {
+        options.onEvent(event);
+      } catch (err) {
+        // Don't let TUI callback errors affect the runner
+        console.error('[runner] TUI callback error:', err);
+      }
+    }
+
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       log(
         `[runner] Cannot send event ${event.type}: WebSocket not connected (state: ${socket?.readyState})`

@@ -4,6 +4,8 @@ import { join } from 'path';
 import { logger } from '../utils/logger.js';
 import { configManager } from '../utils/config-manager.js';
 import { startRunner } from '../../index.js';
+import { createANSIRenderer, getTUIStateManager, processRunnerEvent } from '../tui/index.js';
+import type { RunnerEvent } from '@sentryvibe/agent-core/shared/runner/messages';
 
 // Default public SentryVibe instance
 const DEFAULT_URL = 'https://sentryvibe.up.railway.app';
@@ -63,6 +65,7 @@ interface RunOptions {
   secret?: string;
   verbose?: boolean;
   local?: boolean; // Enable local mode (bypasses authentication)
+  tui?: boolean; // Enable TUI mode (default: true)
 }
 
 export async function runCommand(options: RunOptions) {
@@ -71,6 +74,9 @@ export async function runCommand(options: RunOptions) {
     process.env.SENTRYVIBE_LOCAL_MODE = 'true';
     logger.info(chalk.yellow('Local mode enabled - authentication bypassed'));
   }
+
+  // TUI mode is enabled by default, can be disabled with --no-tui
+  const useTUI = options.tui !== false;
 
   // Build runner options from CLI flags or smart defaults
   // NOTE: For the `runner` command, we intentionally ignore local config values
@@ -95,16 +101,8 @@ export async function runCommand(options: RunOptions) {
   // Resolve secret: CLI flag > config (required)
   const sharedSecret = options.secret || configManager.getSecret();
 
-  const runnerOptions = {
-    wsUrl,
-    apiUrl,
-    sharedSecret,
-    runnerId,
-    workspace,
-  };
-
   // Validate required options - only secret is truly required
-  if (!runnerOptions.sharedSecret) {
+  if (!sharedSecret) {
     logger.error('Shared secret is required');
     logger.info('');
     logger.info('Get a runner key from your SentryVibe dashboard, or provide via:');
@@ -115,28 +113,127 @@ export async function runCommand(options: RunOptions) {
     process.exit(1);
   }
 
-  // Display startup info
-  logger.section('Starting SentryVibe Runner');
-  logger.info(`Server: ${chalk.cyan(runnerOptions.wsUrl)}`);
-  logger.info(`API URL: ${chalk.cyan(runnerOptions.apiUrl)}`);
-  logger.info(`Runner ID: ${chalk.cyan(runnerOptions.runnerId)}`);
-  logger.info(`Workspace: ${chalk.cyan(runnerOptions.workspace)}`);
-  logger.log('');
+  // If TUI mode is disabled, use traditional logging
+  if (!useTUI) {
+    logger.section('Starting SentryVibe Runner');
+    logger.info(`Server: ${chalk.cyan(wsUrl)}`);
+    logger.info(`API URL: ${chalk.cyan(apiUrl)}`);
+    logger.info(`Runner ID: ${chalk.cyan(runnerId)}`);
+    logger.info(`Workspace: ${chalk.cyan(workspace)}`);
+    logger.log('');
 
-  if (options.verbose) {
-    logger.debug('Verbose logging enabled');
-    logger.debug(`Full options: ${JSON.stringify(runnerOptions, null, 2)}`);
+    if (options.verbose) {
+      logger.debug('Verbose logging enabled');
+      logger.debug(`Full options: ${JSON.stringify({ wsUrl, apiUrl, runnerId, workspace }, null, 2)}`);
+    }
+
+    try {
+      startRunner({
+        wsUrl,
+        apiUrl,
+        sharedSecret,
+        runnerId,
+        workspace,
+        silent: false,
+      });
+    } catch (error) {
+      logger.error('Failed to start runner:');
+      logger.error(error instanceof Error ? error.message : 'Unknown error');
+      if (error instanceof Error && error.stack) {
+        logger.debug(error.stack);
+      }
+      process.exit(1);
+    }
+    return;
   }
 
+  // TUI mode - initialize the ANSI renderer
+  let tuiRenderer: Awaited<ReturnType<typeof createANSIRenderer>> | null = null;
+  let shutdownRunner: (() => Promise<void>) | null = null;
+
   try {
-    // Start the runner
-    startRunner(runnerOptions);
+    // Get the TUI state manager
+    const stateManager = getTUIStateManager();
+    
+    // Set initial state - show we're starting up
+    stateManager.setConnected(false);
+    stateManager.addLog({
+      service: 'system',
+      level: 'info',
+      message: `Connecting to ${wsUrl}...`,
+    });
+    stateManager.addLog({
+      service: 'system',
+      level: 'info',
+      message: `Runner ID: ${runnerId}`,
+    });
+    stateManager.addLog({
+      service: 'system',
+      level: 'info',
+      message: `Workspace: ${workspace}`,
+    });
+
+    // Create and start the TUI renderer
+    tuiRenderer = await createANSIRenderer({
+      onQuit: async () => {
+        // Graceful shutdown
+        if (shutdownRunner) {
+          stateManager.addLog({
+            service: 'system',
+            level: 'info',
+            message: 'Shutting down runner...',
+          });
+          await shutdownRunner();
+        }
+        process.exit(0);
+      },
+    });
+
+    // Event handler that processes runner events for the TUI
+    const handleRunnerEvent = (event: RunnerEvent) => {
+      // Process the event for TUI state updates
+      processRunnerEvent(event);
+      
+      // Update connection state based on event type
+      if (event.type === 'runner-status') {
+        stateManager.setConnected(true);
+      }
+    };
+
+    // Start the runner with TUI event callback
+    shutdownRunner = await startRunner({
+      wsUrl,
+      apiUrl,
+      sharedSecret,
+      runnerId,
+      workspace,
+      silent: true, // Suppress console.log output in TUI mode
+      onEvent: handleRunnerEvent,
+    });
+
   } catch (error) {
-    logger.error('Failed to start runner:');
-    logger.error(error instanceof Error ? error.message : 'Unknown error');
-    if (error instanceof Error && error.stack) {
-      logger.debug(error.stack);
+    // If TUI fails to start, fall back to traditional mode
+    if (tuiRenderer) {
+      await tuiRenderer.stop();
     }
-    process.exit(1);
+    
+    logger.error('Failed to start TUI, falling back to traditional mode');
+    logger.error(error instanceof Error ? error.message : 'Unknown error');
+    
+    // Retry without TUI
+    try {
+      startRunner({
+        wsUrl,
+        apiUrl,
+        sharedSecret,
+        runnerId,
+        workspace,
+        silent: false,
+      });
+    } catch (retryError) {
+      logger.error('Failed to start runner:');
+      logger.error(retryError instanceof Error ? retryError.message : 'Unknown error');
+      process.exit(1);
+    }
   }
 }

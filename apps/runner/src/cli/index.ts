@@ -165,6 +165,7 @@ program
   .option('-b, --broker <url>', 'WebSocket URL override (advanced, inferred from --url)')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-l, --local', 'Enable local mode (bypasses authentication)')
+  .option('--no-tui', 'Disable TUI dashboard, use traditional logging')
   .action(async (options) => {
     try {
       const { runCommand } = await import('./commands/run.js');

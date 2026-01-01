@@ -1,0 +1,647 @@
+/**
+ * OpenTUI Renderer
+ * Main entry point for the TUI dashboard using OpenTUI
+ */
+
+import {
+  createCliRenderer,
+  BoxRenderable,
+  TextRenderable,
+  GroupRenderable,
+  type CliRenderer,
+  type KeyEvent,
+  RGBA,
+} from '@opentui/core';
+import { getTUIStateManager, type TUIStateManager } from './state.js';
+import type { TUIState, ViewMode, RawLogEntry } from './types.js';
+import { Colors, ToolIcons, StatusIcons } from './types.js';
+import { renderHelpScreen } from './components/Footer.js';
+
+export interface TUIRendererOptions {
+  onQuit?: () => void;
+}
+
+export class TUIRenderer {
+  private renderer: CliRenderer | null = null;
+  private stateManager: TUIStateManager;
+  private options: TUIRendererOptions;
+  private isRunning = false;
+  private renderScheduled = false;
+
+  // Renderable references for updates
+  private headerGroup: GroupRenderable | null = null;
+  private contentGroup: GroupRenderable | null = null;
+  private footerGroup: GroupRenderable | null = null;
+
+  constructor(options: TUIRendererOptions = {}) {
+    this.options = options;
+    this.stateManager = getTUIStateManager();
+  }
+
+  async start(): Promise<void> {
+    if (this.isRunning) return;
+
+    try {
+      this.renderer = await createCliRenderer({
+        targetFps: 30,
+      });
+
+      this.isRunning = true;
+      this.setupKeyboardHandlers();
+      this.setupStateListeners();
+      this.buildUI();
+      this.renderer.start();
+    } catch (error) {
+      console.error('Failed to start TUI renderer:', error);
+      throw error;
+    }
+  }
+
+  async stop(): Promise<void> {
+    if (!this.isRunning || !this.renderer) return;
+
+    this.isRunning = false;
+    this.renderer.stop();
+    this.renderer = null;
+  }
+
+  private setupKeyboardHandlers(): void {
+    if (!this.renderer) return;
+
+    this.renderer.keyInput.on('keypress', (key: KeyEvent) => {
+      const state = this.stateManager.getState();
+
+      // Handle search mode input
+      if (state.isSearching) {
+        if (key.name === 'escape') {
+          this.stateManager.setSearching(false);
+        } else if (key.name === 'return') {
+          this.stateManager.setSearching(false);
+        } else if (key.name === 'backspace') {
+          const query = state.searchQuery;
+          this.stateManager.setSearchQuery(query.slice(0, -1));
+        } else if (key.sequence && key.sequence.length === 1 && !key.ctrl) {
+          this.stateManager.setSearchQuery(state.searchQuery + key.sequence);
+        }
+        return;
+      }
+
+      // Global shortcuts
+      if (key.name === 'q' || (key.ctrl && key.name === 'c')) {
+        this.handleQuit();
+        return;
+      }
+
+      // View mode shortcuts
+      switch (key.name) {
+        case 'a':
+          this.stateManager.setViewMode('activity');
+          break;
+        case 't':
+          this.stateManager.setViewMode('todos');
+          break;
+        case 'r':
+          this.stateManager.setViewMode('raw');
+          break;
+        case 'escape':
+          if (state.viewMode === 'help') {
+            this.stateManager.setViewMode('activity');
+          }
+          break;
+        case 'up':
+        case 'k':
+          this.stateManager.scrollUp();
+          break;
+        case 'down':
+        case 'j':
+          this.stateManager.scrollDown();
+          break;
+        case 'pageup':
+          this.stateManager.scrollUp(10);
+          break;
+        case 'pagedown':
+          this.stateManager.scrollDown(10);
+          break;
+        case 'g':
+          if (key.shift) {
+            this.stateManager.scrollToBottom();
+          } else {
+            this.stateManager.scrollToTop();
+          }
+          break;
+        case '/':
+          this.stateManager.setSearching(true);
+          break;
+      }
+
+      // Handle '?' for help (shift+/)
+      if (key.sequence === '?') {
+        this.stateManager.setViewMode('help');
+      }
+    });
+  }
+
+  private setupStateListeners(): void {
+    this.stateManager.on('state-changed', () => {
+      this.scheduleRender();
+    });
+  }
+
+  private scheduleRender(): void {
+    if (this.renderScheduled) return;
+    this.renderScheduled = true;
+
+    // Use requestAnimationFrame equivalent for terminal
+    setImmediate(() => {
+      this.renderScheduled = false;
+      this.updateUI();
+    });
+  }
+
+  private handleQuit(): void {
+    this.stop();
+    this.options.onQuit?.();
+  }
+
+  private buildUI(): void {
+    if (!this.renderer) return;
+
+    const state = this.stateManager.getState();
+
+    // Create main layout container
+    const mainContainer = new GroupRenderable(this.renderer, {
+      id: 'main',
+      flexDirection: 'column',
+      width: '100%',
+      height: '100%',
+    });
+
+    // Header section
+    this.headerGroup = this.createHeader(state);
+    mainContainer.add(this.headerGroup);
+
+    // Content section (flexible height)
+    this.contentGroup = this.createContent(state);
+    mainContainer.add(this.contentGroup);
+
+    // Footer section
+    this.footerGroup = this.createFooter(state);
+    mainContainer.add(this.footerGroup);
+
+    this.renderer.root.add(mainContainer);
+  }
+
+  private updateUI(): void {
+    if (!this.renderer) return;
+
+    const state = this.stateManager.getState();
+
+    // Rebuild the entire UI (OpenTUI handles diffing)
+    this.renderer.root.removeAll();
+    this.buildUI();
+  }
+
+  private createHeader(state: TUIState): GroupRenderable {
+    const header = new GroupRenderable(this.renderer!, {
+      id: 'header',
+      flexDirection: 'column',
+      width: '100%',
+      paddingLeft: 1,
+      paddingRight: 1,
+    });
+
+    // Title row
+    const titleRow = new GroupRenderable(this.renderer!, {
+      id: 'header-title',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      width: '100%',
+    });
+
+    const logo = new TextRenderable(this.renderer!, {
+      id: 'logo',
+      content: ' SentryVibe Runner',
+      fg: Colors.primary,
+    });
+
+    const connectionStatus = new TextRenderable(this.renderer!, {
+      id: 'connection',
+      content: state.isConnected ? ' Connected' : ' Disconnected',
+      fg: state.isConnected ? Colors.success : Colors.error,
+    });
+
+    titleRow.add(logo);
+    titleRow.add(connectionStatus);
+    header.add(titleRow);
+
+    // Session info row
+    if (state.session) {
+      const sessionRow = new GroupRenderable(this.renderer!, {
+        id: 'session-row',
+        flexDirection: 'row',
+        width: '100%',
+        marginTop: 1,
+      });
+
+      const projectText = new TextRenderable(this.renderer!, {
+        id: 'project',
+        content: `Project: ${state.session.projectName}`,
+        fg: Colors.text,
+      });
+
+      const statusColors: Record<string, string> = {
+        idle: Colors.textDim,
+        connecting: Colors.warning,
+        planning: Colors.info,
+        building: Colors.primary,
+        completed: Colors.success,
+        failed: Colors.error,
+      };
+
+      const statusText = new TextRenderable(this.renderer!, {
+        id: 'status',
+        content: ` [${state.session.status.toUpperCase()}]`,
+        fg: statusColors[state.session.status] || Colors.textDim,
+      });
+
+      sessionRow.add(projectText);
+      sessionRow.add(statusText);
+      header.add(sessionRow);
+    }
+
+    // Separator
+    const separator = new TextRenderable(this.renderer!, {
+      id: 'separator',
+      content: '─'.repeat(100),
+      fg: Colors.border,
+      marginTop: 1,
+    });
+    header.add(separator);
+
+    return header;
+  }
+
+  private createContent(state: TUIState): GroupRenderable {
+    const content = new GroupRenderable(this.renderer!, {
+      id: 'content',
+      flexDirection: 'column',
+      flexGrow: 1,
+      width: '100%',
+      paddingLeft: 1,
+      paddingRight: 1,
+      marginTop: 1,
+    });
+
+    switch (state.viewMode) {
+      case 'help':
+        this.addHelpContent(content);
+        break;
+      case 'todos':
+        this.addTodosContent(content, state);
+        break;
+      case 'raw':
+        this.addRawLogsContent(content, state);
+        break;
+      case 'activity':
+      default:
+        this.addActivityContent(content, state);
+        break;
+    }
+
+    return content;
+  }
+
+  private addActivityContent(container: GroupRenderable, state: TUIState): void {
+    // Current action highlight
+    if (state.currentAction) {
+      const currentBox = new BoxRenderable(this.renderer!, {
+        id: 'current-action-box',
+        width: '100%',
+        borderStyle: 'single',
+        borderColor: Colors.primary,
+        paddingLeft: 1,
+        paddingRight: 1,
+      });
+
+      const icon = ToolIcons[state.currentAction.name] || ToolIcons.default;
+      const currentText = new TextRenderable(this.renderer!, {
+        id: 'current-action',
+        content: `${icon} ${state.currentAction.name}: ${state.currentAction.description}`,
+        fg: Colors.text,
+      });
+
+      currentBox.add(currentText);
+      container.add(currentBox);
+    }
+
+    // Activity title
+    const title = new TextRenderable(this.renderer!, {
+      id: 'activity-title',
+      content: 'ACTIVITY',
+      fg: Colors.primary,
+      marginTop: 1,
+    });
+    container.add(title);
+
+    // Activity items
+    const actions = state.actions.slice(state.scrollOffset, state.scrollOffset + 20);
+    
+    if (actions.length === 0) {
+      const emptyText = new TextRenderable(this.renderer!, {
+        id: 'empty-activity',
+        content: 'No activity yet...',
+        fg: Colors.textDim,
+        marginTop: 1,
+      });
+      container.add(emptyText);
+    } else {
+      for (let i = 0; i < actions.length; i++) {
+        const action = actions[i];
+        const icon = ToolIcons[action.name] || ToolIcons.default;
+        const statusIcon = StatusIcons[action.status] || StatusIcons.pending;
+        const time = action.timestamp.toLocaleTimeString('en-US', { hour12: false });
+        const duration = action.duration ? ` (${action.duration}ms)` : '';
+
+        const actionRow = new GroupRenderable(this.renderer!, {
+          id: `action-${i}`,
+          flexDirection: 'row',
+          width: '100%',
+        });
+
+        const timeText = new TextRenderable(this.renderer!, {
+          id: `action-time-${i}`,
+          content: `${time} `,
+          fg: Colors.textMuted,
+        });
+
+        const statusText = new TextRenderable(this.renderer!, {
+          id: `action-status-${i}`,
+          content: `${statusIcon} `,
+          fg: action.status === 'success' ? Colors.success 
+            : action.status === 'error' ? Colors.error 
+            : Colors.warning,
+        });
+
+        const contentText = new TextRenderable(this.renderer!, {
+          id: `action-content-${i}`,
+          content: `${icon} ${action.name}: ${action.description}${duration}`,
+          fg: Colors.text,
+        });
+
+        actionRow.add(timeText);
+        actionRow.add(statusText);
+        actionRow.add(contentText);
+        container.add(actionRow);
+      }
+    }
+  }
+
+  private addTodosContent(container: GroupRenderable, state: TUIState): void {
+    // Title with progress
+    const completed = state.todos.filter(t => t.status === 'completed').length;
+    const total = state.todos.length;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    const titleRow = new GroupRenderable(this.renderer!, {
+      id: 'todos-title-row',
+      flexDirection: 'row',
+      width: '100%',
+    });
+
+    const title = new TextRenderable(this.renderer!, {
+      id: 'todos-title',
+      content: 'TASKS ',
+      fg: Colors.primary,
+    });
+
+    const progress = new TextRenderable(this.renderer!, {
+      id: 'todos-progress',
+      content: `[${completed}/${total}] ${percentage}%`,
+      fg: Colors.textDim,
+    });
+
+    titleRow.add(title);
+    titleRow.add(progress);
+    container.add(titleRow);
+
+    // Progress bar
+    const barWidth = 40;
+    const filled = Math.round((percentage / 100) * barWidth);
+    const progressBar = new TextRenderable(this.renderer!, {
+      id: 'progress-bar',
+      content: `[${'█'.repeat(filled)}${'░'.repeat(barWidth - filled)}]`,
+      fg: Colors.success,
+      marginTop: 1,
+    });
+    container.add(progressBar);
+
+    // Todo items
+    if (state.todos.length === 0) {
+      const emptyText = new TextRenderable(this.renderer!, {
+        id: 'empty-todos',
+        content: 'No tasks yet...',
+        fg: Colors.textDim,
+        marginTop: 1,
+      });
+      container.add(emptyText);
+    } else {
+      for (let i = 0; i < state.todos.length; i++) {
+        const todo = state.todos[i];
+        const isActive = i === state.activeTodoIndex;
+        const statusIcon = StatusIcons[todo.status] || StatusIcons.pending;
+
+        const todoRow = new GroupRenderable(this.renderer!, {
+          id: `todo-${i}`,
+          flexDirection: 'row',
+          width: '100%',
+          marginTop: i === 0 ? 1 : 0,
+        });
+
+        const prefix = new TextRenderable(this.renderer!, {
+          id: `todo-prefix-${i}`,
+          content: isActive ? '→ ' : '  ',
+          fg: isActive ? Colors.primary : Colors.textDim,
+        });
+
+        const icon = new TextRenderable(this.renderer!, {
+          id: `todo-icon-${i}`,
+          content: `${statusIcon} `,
+          fg: todo.status === 'completed' ? Colors.success 
+            : todo.status === 'in_progress' ? Colors.primary 
+            : todo.status === 'failed' ? Colors.error 
+            : Colors.textDim,
+        });
+
+        const content = new TextRenderable(this.renderer!, {
+          id: `todo-content-${i}`,
+          content: todo.content,
+          fg: isActive ? Colors.text : Colors.textDim,
+        });
+
+        todoRow.add(prefix);
+        todoRow.add(icon);
+        todoRow.add(content);
+        container.add(todoRow);
+      }
+    }
+  }
+
+  private addRawLogsContent(container: GroupRenderable, state: TUIState): void {
+    const title = new TextRenderable(this.renderer!, {
+      id: 'raw-title',
+      content: 'RAW LOGS',
+      fg: Colors.primary,
+    });
+    container.add(title);
+
+    const logs = state.rawLogs.slice(state.scrollOffset, state.scrollOffset + 25);
+
+    if (logs.length === 0) {
+      const emptyText = new TextRenderable(this.renderer!, {
+        id: 'empty-logs',
+        content: 'No logs yet...',
+        fg: Colors.textDim,
+        marginTop: 1,
+      });
+      container.add(emptyText);
+    } else {
+      for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+        const time = log.timestamp.toLocaleTimeString('en-US', { hour12: false });
+
+        const logRow = new GroupRenderable(this.renderer!, {
+          id: `log-${i}`,
+          flexDirection: 'row',
+          width: '100%',
+        });
+
+        const timeText = new TextRenderable(this.renderer!, {
+          id: `log-time-${i}`,
+          content: `${time} `,
+          fg: Colors.textMuted,
+        });
+
+        const levelColors: Record<string, string> = {
+          info: Colors.info,
+          warn: Colors.warning,
+          error: Colors.error,
+          debug: Colors.textDim,
+        };
+
+        const levelText = new TextRenderable(this.renderer!, {
+          id: `log-level-${i}`,
+          content: `[${log.level.toUpperCase()}] `,
+          fg: levelColors[log.level] || Colors.textDim,
+        });
+
+        const messageText = new TextRenderable(this.renderer!, {
+          id: `log-message-${i}`,
+          content: log.message,
+          fg: Colors.text,
+        });
+
+        logRow.add(timeText);
+        logRow.add(levelText);
+        logRow.add(messageText);
+        container.add(logRow);
+      }
+    }
+  }
+
+  private addHelpContent(container: GroupRenderable): void {
+    const helpLines = renderHelpScreen();
+    
+    for (let i = 0; i < helpLines.length; i++) {
+      const line = new TextRenderable(this.renderer!, {
+        id: `help-line-${i}`,
+        content: helpLines[i],
+        fg: Colors.text,
+      });
+      container.add(line);
+    }
+  }
+
+  private createFooter(state: TUIState): GroupRenderable {
+    const footer = new GroupRenderable(this.renderer!, {
+      id: 'footer',
+      flexDirection: 'column',
+      width: '100%',
+      paddingLeft: 1,
+      paddingRight: 1,
+    });
+
+    // Separator
+    const separator = new TextRenderable(this.renderer!, {
+      id: 'footer-separator',
+      content: '─'.repeat(100),
+      fg: Colors.border,
+    });
+    footer.add(separator);
+
+    // Shortcuts or search input
+    if (state.isSearching) {
+      const searchRow = new GroupRenderable(this.renderer!, {
+        id: 'search-row',
+        flexDirection: 'row',
+        width: '100%',
+      });
+
+      const searchPrompt = new TextRenderable(this.renderer!, {
+        id: 'search-prompt',
+        content: '/ ',
+        fg: Colors.primary,
+      });
+
+      const searchInput = new TextRenderable(this.renderer!, {
+        id: 'search-input',
+        content: `${state.searchQuery}█`,
+        fg: Colors.text,
+      });
+
+      const searchHint = new TextRenderable(this.renderer!, {
+        id: 'search-hint',
+        content: ' (Enter to search, Esc to cancel)',
+        fg: Colors.textMuted,
+      });
+
+      searchRow.add(searchPrompt);
+      searchRow.add(searchInput);
+      searchRow.add(searchHint);
+      footer.add(searchRow);
+    } else {
+      const shortcuts = this.getShortcutsForView(state.viewMode);
+      const shortcutsText = new TextRenderable(this.renderer!, {
+        id: 'shortcuts',
+        content: shortcuts,
+        fg: Colors.textDim,
+      });
+      footer.add(shortcutsText);
+    }
+
+    return footer;
+  }
+
+  private getShortcutsForView(viewMode: ViewMode): string {
+    const common = '[q] quit';
+    
+    switch (viewMode) {
+      case 'activity':
+        return `[t] todos  [r] raw  [/] search  [↑↓] scroll  [g/G] top/end  [?] help  ${common}`;
+      case 'todos':
+        return `[a] activity  [r] raw  [↑↓] scroll  [?] help  ${common}`;
+      case 'raw':
+        return `[a] activity  [t] todos  [/] search  [↑↓] scroll  [?] help  ${common}`;
+      case 'help':
+        return `[Esc] back  ${common}`;
+      default:
+        return common;
+    }
+  }
+}
+
+// Factory function
+export async function createTUIRenderer(options?: TUIRendererOptions): Promise<TUIRenderer> {
+  const renderer = new TUIRenderer(options);
+  await renderer.start();
+  return renderer;
+}
