@@ -72,21 +72,25 @@ export async function runCommand(options: RunOptions) {
     logger.info(chalk.yellow('Local mode enabled - authentication bypassed'));
   }
 
-  // Build runner options from CLI flags, config, or smart defaults
-  const config = configManager.get();
+  // Build runner options from CLI flags or smart defaults
+  // NOTE: For the `runner` command, we intentionally ignore local config values
+  // and default to the public SentryVibe instance. This command is specifically
+  // for connecting to remote servers, not local development.
+  // Users can still override with CLI flags if needed.
   
-  // Resolve API URL: CLI flag > config > default public instance
-  const apiUrl = normalizeUrl(options.url || config.apiUrl || DEFAULT_URL);
+  // Resolve API URL: CLI flag > default public instance (ignore config)
+  const apiUrl = normalizeUrl(options.url || DEFAULT_URL);
   
-  // Resolve WebSocket URL: CLI broker flag > config > derive from API URL
-  // The broker flag is legacy but still supported for backward compatibility
-  const wsUrl = options.broker || configManager.getWsUrl() || deriveWsUrl(apiUrl);
+  // Resolve WebSocket URL: CLI broker flag > derive from API URL (ignore config)
+  const wsUrl = options.broker || deriveWsUrl(apiUrl);
   
   // Resolve workspace: CLI flag > config > default ~/sentryvibe-workspace
+  // (workspace from config is fine since it's user's preference for where projects go)
+  const config = configManager.get();
   const workspace = options.workspace || config.workspace || DEFAULT_WORKSPACE;
   
-  // Resolve runner ID: CLI flag > config > system username
-  const runnerId = options.runnerId || config.runner?.id || getSystemUsername();
+  // Resolve runner ID: CLI flag > system username (ignore config 'local' default)
+  const runnerId = options.runnerId || getSystemUsername();
   
   // Resolve secret: CLI flag > config (required)
   const sharedSecret = options.secret || configManager.getSecret();
