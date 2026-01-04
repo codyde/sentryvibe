@@ -273,61 +273,127 @@ export class TUIStateManager extends EventEmitter {
     this.emit('state-changed', this.state);
   }
 
-  // Helper to format tool descriptions
+  // Helper to format tool descriptions with more detail
   private formatToolDescription(name: string, input?: unknown): string {
     if (!input) return '';
     
     const inp = input as Record<string, unknown>;
     
     switch (name) {
-      case 'Read':
-        return this.truncatePath(inp.filePath as string);
-      case 'Write':
-        return this.truncatePath(inp.filePath as string);
-      case 'Edit':
-        return this.truncatePath(inp.filePath as string);
-      case 'Bash':
-        return this.truncateCommand(inp.command as string);
-      case 'Glob':
-        return inp.pattern as string || '';
-      case 'Grep':
-        return `"${inp.pattern}" in ${inp.include || '*'}`;
-      case 'Task':
-        return inp.description as string || '';
-      case 'TodoWrite':
-        const todos = inp.todos as Array<{ content: string }>;
-        return `${todos?.length || 0} tasks`;
-      case 'WebFetch':
-        return this.truncateUrl(inp.url as string);
+      case 'Read': {
+        const filePath = this.formatFilePath(inp.filePath as string);
+        const limit = inp.limit as number | undefined;
+        const offset = inp.offset as number | undefined;
+        let detail = filePath;
+        if (offset || limit) {
+          detail += ` (lines ${offset || 0}-${(offset || 0) + (limit || 2000)})`;
+        }
+        return detail;
+      }
+      case 'Write': {
+        const filePath = this.formatFilePath(inp.filePath as string);
+        const content = inp.content as string | undefined;
+        const size = content ? `${content.length} chars` : '';
+        return `${filePath} ${size}`;
+      }
+      case 'Edit': {
+        const filePath = this.formatFilePath(inp.filePath as string);
+        const oldStr = inp.oldString as string | undefined;
+        const replaceAll = inp.replaceAll as boolean | undefined;
+        let detail = filePath;
+        if (replaceAll) {
+          detail += ' (replace all)';
+        } else if (oldStr) {
+          const preview = oldStr.length > 30 ? oldStr.slice(0, 27) + '...' : oldStr;
+          detail += ` "${preview}"`;
+        }
+        return detail;
+      }
+      case 'Bash': {
+        const cmd = inp.command as string;
+        const workdir = inp.workdir as string | undefined;
+        let detail = this.truncateCommand(cmd, 60);
+        if (workdir) {
+          detail += ` in ${this.getLastPathSegment(workdir)}`;
+        }
+        return detail;
+      }
+      case 'Glob': {
+        const pattern = inp.pattern as string || '';
+        const path = inp.path as string | undefined;
+        return path ? `${pattern} in ${this.getLastPathSegment(path)}` : pattern;
+      }
+      case 'Grep': {
+        const pattern = inp.pattern as string || '';
+        const include = inp.include as string | undefined;
+        const path = inp.path as string | undefined;
+        let detail = `"${pattern.length > 20 ? pattern.slice(0, 17) + '...' : pattern}"`;
+        if (include) detail += ` in ${include}`;
+        if (path) detail += ` (${this.getLastPathSegment(path)})`;
+        return detail;
+      }
+      case 'Task': {
+        const desc = inp.description as string || '';
+        const prompt = inp.prompt as string | undefined;
+        if (prompt && prompt.length > 40) {
+          return desc || prompt.slice(0, 37) + '...';
+        }
+        return desc || prompt || '';
+      }
+      case 'TodoWrite': {
+        const todos = inp.todos as Array<{ content: string; status: string }>;
+        if (!todos || !Array.isArray(todos)) return '';
+        const completed = todos.filter(t => t.status === 'completed').length;
+        const inProgress = todos.filter(t => t.status === 'in_progress').length;
+        const pending = todos.filter(t => t.status === 'pending').length;
+        return `${todos.length} tasks (${completed}✓ ${inProgress}→ ${pending}○)`;
+      }
+      case 'TodoRead':
+        return 'reading task list';
+      case 'WebFetch': {
+        const url = inp.url as string;
+        return this.formatUrl(url);
+      }
       default:
+        // Try to extract something useful
+        if (inp.filePath) return this.formatFilePath(inp.filePath as string);
+        if (inp.command) return this.truncateCommand(inp.command as string, 40);
+        if (inp.description) return inp.description as string;
         return '';
     }
   }
 
-  private truncatePath(path: string | undefined): string {
+  private formatFilePath(path: string | undefined): string {
     if (!path) return '';
-    // Show just the filename or last 2 path segments
+    // Show last 3 path segments for more context
     const parts = path.split('/');
-    if (parts.length <= 2) return path;
-    return '.../' + parts.slice(-2).join('/');
+    if (parts.length <= 3) return path;
+    return '.../' + parts.slice(-3).join('/');
   }
 
-  private truncateCommand(cmd: string | undefined): string {
+  private getLastPathSegment(path: string | undefined): string {
+    if (!path) return '';
+    const parts = path.split('/').filter(Boolean);
+    return parts[parts.length - 1] || path;
+  }
+
+  private truncateCommand(cmd: string | undefined, maxLen = 50): string {
     if (!cmd) return '';
     // First line only, truncated
-    const firstLine = cmd.split('\n')[0];
-    return firstLine.length > 50 ? firstLine.slice(0, 47) + '...' : firstLine;
+    const firstLine = cmd.split('\n')[0].trim();
+    return firstLine.length > maxLen ? firstLine.slice(0, maxLen - 3) + '...' : firstLine;
   }
 
-  private truncateUrl(url: string | undefined): string {
+  private formatUrl(url: string | undefined): string {
     if (!url) return '';
     try {
       const parsed = new URL(url);
-      return parsed.hostname + (parsed.pathname.length > 20 
-        ? parsed.pathname.slice(0, 17) + '...' 
-        : parsed.pathname);
+      const path = parsed.pathname.length > 25 
+        ? parsed.pathname.slice(0, 22) + '...' 
+        : parsed.pathname;
+      return `${parsed.hostname}${path}`;
     } catch {
-      return url.slice(0, 40);
+      return url.length > 40 ? url.slice(0, 37) + '...' : url;
     }
   }
 }
