@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
  * Prepare package.json for publishing
- * Replaces file: dependencies with npm versions so the package can be installed globally
+ * 
+ * This script:
+ * 1. Replaces file: dependencies with npm versions (for Sentry/vendor packages)
+ * 2. REMOVES @sentryvibe/agent-core from dependencies (it's bundled by tsup)
+ * 
  * The vendor files are still included, and postinstall will replace npm versions with vendor versions
  */
 import { readFileSync, writeFileSync } from 'fs';
@@ -13,11 +17,9 @@ const __dirname = dirname(__filename);
 const packageJsonPath = join(__dirname, '../package.json');
 
 console.log('Preparing package.json for release...');
+console.log('');
 
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-const agentCorePackageJson = JSON.parse(
-  readFileSync(join(__dirname, '../../../packages/agent-core/package.json'), 'utf-8'),
-);
 
 // Replace file: dependencies with npm versions
 const replacements = {
@@ -38,33 +40,29 @@ for (const [pkg, version] of Object.entries(replacements)) {
   }
 }
 
-const agentCoreVersion = agentCorePackageJson.version;
-const desiredAgentCoreVersion = `^${agentCoreVersion}`;
-const currentAgentCore = packageJson.dependencies['@sentryvibe/agent-core'];
-
-if (!currentAgentCore || currentAgentCore !== desiredAgentCoreVersion) {
-  console.log(
-    `  Setting @sentryvibe/agent-core: ${currentAgentCore ?? '<<missing>>'} → ${desiredAgentCoreVersion}`,
-  );
-  packageJson.dependencies['@sentryvibe/agent-core'] = desiredAgentCoreVersion;
+// REMOVE @sentryvibe/agent-core - it's now bundled into dist/ by tsup
+// This eliminates the npm 404 error since the package doesn't exist on npm
+if (packageJson.dependencies['@sentryvibe/agent-core']) {
+  console.log(`  Removing @sentryvibe/agent-core (bundled by tsup)`);
+  delete packageJson.dependencies['@sentryvibe/agent-core'];
   modified = true;
 }
 
-const existingBundled = new Set(packageJson.bundledDependencies ?? []);
-if (!existingBundled.has('@sentryvibe/agent-core')) {
-  existingBundled.add('@sentryvibe/agent-core');
-  packageJson.bundledDependencies = Array.from(existingBundled);
-  console.log('  Ensured @sentryvibe/agent-core is included in bundledDependencies');
+// Remove bundledDependencies if it exists (no longer needed)
+if (packageJson.bundledDependencies) {
+  console.log(`  Removing bundledDependencies (agent-core is inlined, not bundled)`);
+  delete packageJson.bundledDependencies;
   modified = true;
 }
 
 if (modified) {
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
+  console.log('');
   console.log('✓ package.json updated for release');
   console.log('');
   console.log('Note: This modifies package.json. After publishing, run:');
   console.log('  git checkout apps/runner/package.json');
-  console.log('  to restore file: dependencies for local development');
+  console.log('  to restore workspace:* dependency for local development');
 } else {
-  console.log('✓ package.json already has npm versions');
+  console.log('✓ package.json already prepared for release');
 }

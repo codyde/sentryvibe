@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // IMPORTANT: Ensure vendor packages are extracted before any imports
 // pnpm postinstall doesn't always run reliably for global installs from URLs
+//
+// NOTE: @sentryvibe/agent-core is bundled directly into dist/ by tsup,
+// so we don't need to check for it. But vendor packages (Sentry, etc.) still
+// need to be installed from the vendor/ tarballs.
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -9,22 +13,40 @@ import { execFileSync } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Find the package root by looking for package.json
+// This works regardless of where the bundled code ends up (dist/, dist/cli/, etc.)
+function findPackageRoot(startDir: string): string {
+  let dir = startDir;
+  for (let i = 0; i < 5; i++) { // Max 5 levels up
+    if (existsSync(join(dir, 'package.json'))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break; // Reached filesystem root
+    dir = parent;
+  }
+  return startDir; // Fallback to start dir
+}
+
+const packageRoot = findPackageRoot(__dirname);
+
 // Check if running in development mode (linked via pnpm/npm link)
 // Skip vendor install if we're in the monorepo - dependencies are handled by pnpm
-const isLinkedDevelopment = __dirname.includes('/sentryvibe/apps/runner/dist');
+const isLinkedDevelopment = packageRoot.includes('/sentryvibe/apps/runner');
 
 // Only run vendor install for production global installs
 if (!isLinkedDevelopment) {
-  // Check if agent-core is missing and extract from vendor if needed
-  const nodeModulesDir = resolve(__dirname, "../../");
-  const agentCorePath = join(nodeModulesDir, "@sentryvibe", "agent-core");
+  // Check if Sentry packages are missing and extract from vendor if needed
+  // (agent-core is bundled by tsup, but Sentry packages come from vendor tarballs)
+  const nodeModulesDir = dirname(packageRoot); // Go up from package to node_modules/@sentryvibe
+  const sentryNodePath = join(nodeModulesDir, "..", "@sentry", "node");
 
-  if (!existsSync(agentCorePath)) {
+  if (!existsSync(sentryNodePath)) {
     // Silently initialize vendor packages in background
     try {
-      const installScript = resolve(__dirname, "../../scripts/install-vendor.js");
+      const installScript = join(packageRoot, "scripts/install-vendor.js");
       execFileSync("node", [installScript], {
-        cwd: resolve(__dirname, "../.."),
+        cwd: packageRoot,
         stdio: "pipe" // Silent mode - output only shown if VERBOSE=1
       });
     } catch (error) {
@@ -45,7 +67,7 @@ import { setupShutdownHandler } from './utils/shutdown-handler.js';
 
 // Get package.json for version info
 const packageJson = JSON.parse(
-  readFileSync(join(__dirname, '../../package.json'), 'utf-8')
+  readFileSync(join(packageRoot, 'package.json'), 'utf-8')
 );
 
 // Setup global error handlers for uncaught errors
