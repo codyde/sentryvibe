@@ -1,5 +1,5 @@
-import { spawn, ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
+import { spawn, ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { buildLogger } from './logging/build-logger';
 
 interface DevServerProcess {

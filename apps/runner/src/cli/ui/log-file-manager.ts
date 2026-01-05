@@ -3,8 +3,8 @@
  * Writes logs to a file for TUI to read periodically
  */
 
-import { createWriteStream, WriteStream, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { createWriteStream, WriteStream, mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 export class LogFileManager {
   private logFile: string;

@@ -3,8 +3,8 @@
  * Useful for rebuilding while services are already running
  */
 
-import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { configManager } from '../utils/config-manager.js';

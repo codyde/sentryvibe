@@ -1,6 +1,6 @@
-import { readFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Get the directory where this module is located
 const __filename = fileURLToPath(import.meta.url);

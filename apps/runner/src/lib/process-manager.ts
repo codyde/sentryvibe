@@ -1,9 +1,9 @@
-import { spawn, ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { createServer } from 'net';
+import { spawn, ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
-import { join } from 'path';
+import { join } from 'node:path';
 
 // Silent mode for TUI
 let isSilentMode = false;

@@ -1,7 +1,7 @@
-import { spawn, execFileSync } from 'child_process';
-import { readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { spawn, execFileSync } from 'node:child_process';
+import { readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { logger } from './logger.js';
 import { spinner } from './spinner.js';
 import { prompts } from './prompts.js';

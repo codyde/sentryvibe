@@ -3,8 +3,8 @@
  * Writes to /logs directory for easy tail -f monitoring
  */
 
-import { appendFileSync, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 const LOGS_DIR = join(process.cwd(), 'logs');
 const RUNNER_LOG = join(LOGS_DIR, 'runner.log');

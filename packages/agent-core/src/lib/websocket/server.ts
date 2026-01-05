@@ -28,7 +28,7 @@ import { buildLogger } from '../logging/build-logger';
 import { db } from '../db/client';
 import { runnerKeys } from '../db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 interface ClientSubscription {
   ws: WebSocket;

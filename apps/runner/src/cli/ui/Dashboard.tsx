@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
-import { readFile } from 'fs/promises';
+import { readFile } from 'node:fs/promises';
 import { ServiceManager, ServiceState } from './service-manager.js';
 import { Banner } from './components/Banner.js';
 import { StatusBox } from './components/StatusBox.js';

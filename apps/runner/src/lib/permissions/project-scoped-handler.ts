@@ -1,4 +1,4 @@
-import { resolve, relative, isAbsolute } from 'path';
+import { resolve, relative, isAbsolute } from 'node:path';
 
 /**
  * Permission result type compatible with both native SDK and community provider

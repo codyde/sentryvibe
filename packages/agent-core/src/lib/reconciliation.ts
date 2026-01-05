@@ -1,7 +1,7 @@
 import { db } from './db/client';
 import { projects } from './db/schema';
-import { readdir, stat } from 'fs/promises';
-import { join } from 'path';
+import { readdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { getWorkspaceRoot } from './workspace';
 
 export interface ReconciliationResult {

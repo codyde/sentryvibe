@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
-import { platform, arch } from 'os';
-import { existsSync, mkdirSync, chmodSync } from 'fs';
-import { resolve } from 'path';
+import { execSync } from 'node:child_process';
+import { platform, arch } from 'node:os';
+import { existsSync, mkdirSync, chmodSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const CLOUDFLARED_GITHUB = 'https://github.com/cloudflare/cloudflared/releases/latest/download';
 

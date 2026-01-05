@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { homedir, userInfo } from 'os';
-import { join } from 'path';
+import { homedir, userInfo } from 'node:os';
+import { join } from 'node:path';
 import { logger } from '../utils/logger.js';
 import { configManager } from '../utils/config-manager.js';
 import { startRunner } from '../../index.js';

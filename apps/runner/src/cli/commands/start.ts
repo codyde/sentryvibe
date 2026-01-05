@@ -3,8 +3,8 @@
  * Provides beautiful real-time monitoring of all services
  */
 
-import { existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render } from 'ink';
 import React from 'react';
 import * as p from '@clack/prompts';

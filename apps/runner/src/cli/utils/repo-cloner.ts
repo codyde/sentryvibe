@@ -1,7 +1,7 @@
 import { simpleGit } from 'simple-git';
-import { existsSync } from 'fs';
-import { mkdir } from 'fs/promises';
-import { join } from 'path';
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { logger } from './logger.js';
 import { spinner } from './spinner.js';
 

@@ -13,7 +13,7 @@
 
 import { query, type SDKMessage, type Options } from '@anthropic-ai/claude-agent-sdk';
 import * as Sentry from '@sentry/node';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { createProjectScopedPermissionHandler } from './permissions/project-scoped-handler.js';
 import {
   CLAUDE_SYSTEM_PROMPT,

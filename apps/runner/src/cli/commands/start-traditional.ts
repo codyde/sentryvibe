@@ -3,9 +3,9 @@
  * Starts the full stack: Web App + Runner (no broker - runner connects directly)
  */
 
-import { spawn, ChildProcess } from 'child_process';
-import { existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { spawn, ChildProcess } from 'node:child_process';
+import { existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { configManager } from '../utils/config-manager.js';

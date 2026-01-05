@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync } from 'fs';
-import path from 'path';
+import { existsSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
 import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
 

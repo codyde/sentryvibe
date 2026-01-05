@@ -1,9 +1,9 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import type { Template } from './config';
-import { join } from 'path';
+import { join } from 'node:path';
 import { getWorkspaceRoot } from '../workspace';
 
 const execAsync = promisify(exec);

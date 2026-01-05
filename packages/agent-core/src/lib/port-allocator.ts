@@ -1,10 +1,10 @@
 import { db } from './db/client';
 import { portAllocations } from './db/schema';
 import { and, eq, isNull, sql, isNotNull, lt } from 'drizzle-orm';
-import { createServer } from 'net';
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { createServer } from 'node:net';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { buildLogger } from './logging/build-logger';
 
 interface ReservePortParams {

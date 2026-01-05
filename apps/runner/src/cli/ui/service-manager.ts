@@ -3,8 +3,8 @@
  * Provides state updates for TUI dashboard
  */
 
-import { spawn, ChildProcess } from 'child_process';
-import EventEmitter from 'events';
+import { spawn, ChildProcess } from 'node:child_process';
+import EventEmitter from 'node:events';
 import { killProcessOnPort, killProcessTree } from '../utils/process-killer.js';
 
 export type ServiceName = 'web' | 'broker' | 'runner';

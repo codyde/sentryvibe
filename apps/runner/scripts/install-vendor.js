@@ -15,24 +15,30 @@ const packageRoot = path.join(__dirname, '..');
 const vendorDir = path.join(packageRoot, 'vendor');
 
 // Detect the correct node_modules location for both npm and pnpm
-// In pnpm global installs: packageRoot is .../node_modules/@sentryvibe/runner-cli/
-// We need to go up to the shared node_modules: .../node_modules/
-// In npm: similar structure but may vary, so we check both locations
+// The vendor packages MUST be installed in the same node_modules tree as the runner-cli
+// to ensure proper Node.js module resolution. npm may create empty placeholder directories
+// in nested node_modules, so we need to install there to override them.
 function findNodeModules() {
-  // Try going up two levels (works for pnpm: @sentryvibe/runner-cli -> @sentryvibe -> node_modules)
-  const pnpmStyle = path.join(packageRoot, '..', '..');
+  // Local node_modules inside the package (npm style for bundled deps)
+  const localNodeModules = path.join(packageRoot, 'node_modules');
 
-  // Try one level up (packageRoot/node_modules)
-  const npmStyle = path.join(packageRoot, 'node_modules');
+  // Parent node_modules (pnpm global style: @sentryvibe/runner-cli -> @sentryvibe -> node_modules)
+  const parentNodeModules = path.join(packageRoot, '..', '..');
 
-  // Check if pnpmStyle has @sentryvibe directory (indicates it's the shared node_modules)
-  if (existsSync(path.join(pnpmStyle, '@sentryvibe')) ||
-      existsSync(path.join(pnpmStyle, '@sentry'))) {
-    return pnpmStyle;
+  // Always prefer local node_modules if it exists - this ensures vendor packages
+  // are in the same resolution tree as the runner-cli package
+  if (existsSync(localNodeModules)) {
+    return localNodeModules;
   }
 
-  // Fall back to npm style
-  return npmStyle;
+  // Fall back to parent for pnpm global installs where there's no local node_modules
+  if (existsSync(path.join(parentNodeModules, '@sentryvibe')) ||
+      existsSync(path.join(parentNodeModules, '@sentry'))) {
+    return parentNodeModules;
+  }
+
+  // Default to local (will be created)
+  return localNodeModules;
 }
 
 const nodeModules = findNodeModules();

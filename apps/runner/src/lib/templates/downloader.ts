@@ -1,7 +1,7 @@
-import { existsSync } from 'fs';
-import { readFile, writeFile, rm } from 'fs/promises';
+import { existsSync } from 'node:fs';
+import { readFile, writeFile, rm } from 'node:fs/promises';
 import type { Template } from './config.js';
-import { join } from 'path';
+import { join } from 'node:path';
 import { getWorkspaceRoot } from '../workspace.js';
 import { simpleGit } from 'simple-git';
 

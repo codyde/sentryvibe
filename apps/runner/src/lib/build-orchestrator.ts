@@ -3,9 +3,9 @@
  * This replicates the functionality from the old /api/projects/[id]/generate route
  */
 
-import { existsSync } from 'fs';
-import { readdir } from 'fs/promises';
-import { join } from 'path';
+import { existsSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { selectTemplateFromPrompt, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';

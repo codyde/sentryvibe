@@ -1,6 +1,6 @@
 import inquirer from 'inquirer';
-import { homedir } from 'os';
-import { join } from 'path';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export interface InitPromptAnswers {
   workspace: string;

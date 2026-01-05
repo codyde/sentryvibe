@@ -1,5 +1,5 @@
-import { resolve } from 'path';
-import { existsSync } from 'fs';
+import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 
 /**
  * Get the workspace root directory for the runner.

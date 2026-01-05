@@ -3,11 +3,11 @@
  * Provides beautiful interactive setup or completely automated installation
  */
 
-import { mkdir, realpath, writeFile } from 'fs/promises';
-import { existsSync, realpathSync } from 'fs';
-import { homedir } from 'os';
-import { join, resolve } from 'path';
-import { randomBytes } from 'crypto';
+import { mkdir, realpath, writeFile } from 'node:fs/promises';
+import { existsSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { configManager } from '../utils/config-manager.js';

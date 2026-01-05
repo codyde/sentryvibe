@@ -5,10 +5,10 @@
 // NOTE: @sentryvibe/agent-core is bundled directly into dist/ by tsup,
 // so we don't need to check for it. But vendor packages (Sentry, etc.) still
 // need to be installed from the vendor/ tarballs.
-import { existsSync, readFileSync } from 'fs';
-import { join, dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
-import { execFileSync } from 'child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

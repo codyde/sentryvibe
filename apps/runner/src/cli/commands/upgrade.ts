@@ -3,9 +3,9 @@
  * Preserves configuration and user data while replacing application code
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, copyFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { execSync } from 'child_process';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, copyFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { execSync } from 'node:child_process';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { CLIError, errors } from '../utils/cli-error.js';

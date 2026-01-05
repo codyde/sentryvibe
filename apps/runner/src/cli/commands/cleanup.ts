@@ -1,6 +1,6 @@
-import { rm, readdir, stat } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { rm, readdir, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
 import { prompts } from '../utils/prompts.js';

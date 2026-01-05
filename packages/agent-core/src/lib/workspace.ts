@@ -1,4 +1,4 @@
-import { mkdirSync } from 'fs';
+import { mkdirSync } from 'node:fs';
 
 let cachedRoot: string | null = null;
 
