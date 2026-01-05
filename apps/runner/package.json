@@ -44,7 +44,8 @@
     "postinstall": "node scripts/install-vendor.js",
     "dev": "RUNNER_WS_URL=ws://localhost:3000/ws/runner tsx --import ./src/instrument.ts src/index.ts",
     "dev:cli": "tsx --import ./src/instrument.ts src/cli/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup",
+    "build:tsc": "tsc -p tsconfig.json",
     "start": "RUNNER_WS_URL=ws://localhost:3000/ws/runner node --import ./dist/instrument.js dist/index.js",
     "cli": "node --import ./dist/instrument.js dist/cli/index.js"
   },
@@ -90,6 +91,7 @@
     "@types/react": "^19",
     "@types/update-notifier": "^6.0.8",
     "@types/ws": "^8.5.10",
+    "tsup": "^8.5.1",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3"
   }
