@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/agent-core",
-  "version": "0.18.3",
+  "version": "0.18.4",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -8,167 +8,167 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
     },
     "./client": {
       "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+      "default": "./dist/client.js"
     },
     "./server": {
       "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
+      "default": "./dist/server.js"
     },
     "./lib/agents": {
       "types": "./dist/lib/agents/index.d.ts",
-      "import": "./dist/lib/agents/index.js"
+      "default": "./dist/lib/agents/index.js"
     },
     "./lib/agents/codex/events": {
       "types": "./dist/lib/agents/codex/events.d.ts",
-      "import": "./dist/lib/agents/codex/events.js"
+      "default": "./dist/lib/agents/codex/events.js"
     },
     "./lib/build-helpers": {
       "types": "./dist/lib/build-helpers.d.ts",
-      "import": "./dist/lib/build-helpers.js"
+      "default": "./dist/lib/build-helpers.js"
     },
     "./lib/claude/tools": {
       "types": "./dist/lib/claude/tools.d.ts",
-      "import": "./dist/lib/claude/tools.js"
+      "default": "./dist/lib/claude/tools.js"
     },
     "./lib/db/client": {
       "types": "./dist/lib/db/client.d.ts",
-      "import": "./dist/lib/db/client.js"
+      "default": "./dist/lib/db/client.js"
     },
     "./lib/db/schema": {
       "types": "./dist/lib/db/schema.d.ts",
-      "import": "./dist/lib/db/schema.js"
+      "default": "./dist/lib/db/schema.js"
     },
     "./lib/db/migrate": {
       "types": "./dist/lib/db/migrate.d.ts",
-      "import": "./dist/lib/db/migrate.js"
+      "default": "./dist/lib/db/migrate.js"
     },
     "./lib/generation-persistence": {
       "types": "./dist/lib/generation-persistence.d.ts",
-      "import": "./dist/lib/generation-persistence.js"
+      "default": "./dist/lib/generation-persistence.js"
     },
     "./lib/icon-mapper": {
       "types": "./dist/lib/icon-mapper.d.ts",
-      "import": "./dist/lib/icon-mapper.js"
+      "default": "./dist/lib/icon-mapper.js"
     },
     "./lib/logging/build-logger": {
       "types": "./dist/lib/logging/build-logger.d.ts",
-      "import": "./dist/lib/logging/build-logger.js"
+      "default": "./dist/lib/logging/build-logger.js"
     },
     "./lib/port-allocator": {
       "types": "./dist/lib/port-allocator.d.ts",
-      "import": "./dist/lib/port-allocator.js"
+      "default": "./dist/lib/port-allocator.js"
     },
     "./lib/process-manager": {
       "types": "./dist/lib/process-manager.d.ts",
-      "import": "./dist/lib/process-manager.js"
+      "default": "./dist/lib/process-manager.js"
     },
     "./lib/prompts": {
       "types": "./dist/lib/prompts.d.ts",
-      "import": "./dist/lib/prompts.js"
+      "default": "./dist/lib/prompts.js"
     },
     "./lib/reconciliation": {
       "types": "./dist/lib/reconciliation.d.ts",
-      "import": "./dist/lib/reconciliation.js"
+      "default": "./dist/lib/reconciliation.js"
     },
     "./lib/runner/broker-state": {
       "types": "./dist/lib/runner/broker-state.d.ts",
-      "import": "./dist/lib/runner/broker-state.js"
+      "default": "./dist/lib/runner/broker-state.js"
     },
     "./lib/runner/event-stream": {
       "types": "./dist/lib/runner/event-stream.d.ts",
-      "import": "./dist/lib/runner/event-stream.js"
+      "default": "./dist/lib/runner/event-stream.js"
     },
     "./lib/runner/log-store": {
       "types": "./dist/lib/runner/log-store.d.ts",
-      "import": "./dist/lib/runner/log-store.js"
+      "default": "./dist/lib/runner/log-store.js"
     },
     "./lib/runner/persistent-event-processor": {
       "types": "./dist/lib/runner/persistent-event-processor.d.ts",
-      "import": "./dist/lib/runner/persistent-event-processor.js"
+      "default": "./dist/lib/runner/persistent-event-processor.js"
     },
     "./lib/selection/injector": {
       "types": "./dist/lib/selection/injector.d.ts",
-      "import": "./dist/lib/selection/injector.js"
+      "default": "./dist/lib/selection/injector.js"
     },
     "./lib/stale-projects": {
       "types": "./dist/lib/stale-projects.d.ts",
-      "import": "./dist/lib/stale-projects.js"
+      "default": "./dist/lib/stale-projects.js"
     },
     "./lib/startup-cleanup": {
       "types": "./dist/lib/startup-cleanup.d.ts",
-      "import": "./dist/lib/startup-cleanup.js"
+      "default": "./dist/lib/startup-cleanup.js"
     },
     "./lib/tags/model-parser": {
       "types": "./dist/lib/tags/model-parser.d.ts",
-      "import": "./dist/lib/tags/model-parser.js"
+      "default": "./dist/lib/tags/model-parser.js"
     },
     "./lib/tags/resolver": {
       "types": "./dist/lib/tags/resolver.d.ts",
-      "import": "./dist/lib/tags/resolver.js"
+      "default": "./dist/lib/tags/resolver.js"
     },
     "./lib/tags/serialization": {
       "types": "./dist/lib/tags/serialization.d.ts",
-      "import": "./dist/lib/tags/serialization.js"
+      "default": "./dist/lib/tags/serialization.js"
     },
     "./lib/templates/config": {
       "types": "./dist/lib/templates/config.d.ts",
-      "import": "./dist/lib/templates/config.js"
+      "default": "./dist/lib/templates/config.js"
     },
     "./lib/templates/config.server": {
       "types": "./dist/lib/templates/config.server.d.ts",
-      "import": "./dist/lib/templates/config.server.js"
+      "default": "./dist/lib/templates/config.server.js"
     },
     "./lib/templates/downloader": {
       "types": "./dist/lib/templates/downloader.d.ts",
-      "import": "./dist/lib/templates/downloader.js"
+      "default": "./dist/lib/templates/downloader.js"
     },
     "./lib/utils": {
       "types": "./dist/lib/utils.d.ts",
-      "import": "./dist/lib/utils.js"
+      "default": "./dist/lib/utils.js"
     },
     "./lib/websocket/server": {
       "types": "./dist/lib/websocket/server.d.ts",
-      "import": "./dist/lib/websocket/server.js"
+      "default": "./dist/lib/websocket/server.js"
     },
     "./lib/workspace": {
       "types": "./dist/lib/workspace.d.ts",
-      "import": "./dist/lib/workspace.js"
+      "default": "./dist/lib/workspace.js"
     },
     "./shared/runner/messages": {
       "types": "./dist/shared/runner/messages.d.ts",
-      "import": "./dist/shared/runner/messages.js"
+      "default": "./dist/shared/runner/messages.js"
     },
     "./types/agent": {
       "types": "./dist/types/agent.d.ts",
-      "import": "./dist/types/agent.js"
+      "default": "./dist/types/agent.js"
     },
     "./types/build": {
       "types": "./dist/types/build.d.ts",
-      "import": "./dist/types/build.js"
+      "default": "./dist/types/build.js"
     },
     "./types/design": {
       "types": "./dist/types/design.d.ts",
-      "import": "./dist/types/design.js"
+      "default": "./dist/types/design.js"
     },
     "./types/generation": {
       "types": "./dist/types/generation.d.ts",
-      "import": "./dist/types/generation.js"
+      "default": "./dist/types/generation.js"
     },
     "./types/project": {
       "types": "./dist/types/project.d.ts",
-      "import": "./dist/types/project.js"
+      "default": "./dist/types/project.js"
     },
     "./types/tags": {
       "types": "./dist/types/tags.d.ts",
-      "import": "./dist/types/tags.js"
+      "default": "./dist/types/tags.js"
     },
     "./config/tags": {
       "types": "./dist/config/tags.d.ts",
-      "import": "./dist/config/tags.js"
+      "default": "./dist/config/tags.js"
     }
   },
   "files": [
