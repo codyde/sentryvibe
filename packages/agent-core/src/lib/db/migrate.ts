@@ -2,14 +2,16 @@
  * Database migration utilities for PostgreSQL
  */
 
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import pg from 'pg';
+
+const { Pool } = pg;
+
 /**
  * Run migrations for PostgreSQL using drizzle-kit
  */
 export async function runMigrations(migrationsFolder: string = './drizzle') {
-  const { drizzle } = require('drizzle-orm/node-postgres');
-  const { migrate } = require('drizzle-orm/node-postgres/migrator');
-  const { Pool } = require('pg');
-
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
@@ -39,11 +41,4 @@ export async function runMigrations(migrationsFolder: string = './drizzle') {
   } finally {
     await pool.end();
   }
-}
-
-// Run migrations if this file is executed directly
-if (typeof require !== 'undefined' && require.main === module) {
-  runMigrations()
-    .then(() => process.exit(0))
-    .catch(() => process.exit(1));
 }
