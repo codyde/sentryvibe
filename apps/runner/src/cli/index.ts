@@ -79,16 +79,22 @@ export const shutdownHandler = setupShutdownHandler({
   verbose: true,
 });
 
-// Display splash screen banner
-displayBanner();
+// Check if we're running init with -y flag (TUI mode) - skip banner if so
+const args = process.argv.slice(2);
+const isInitWithYes = args[0] === 'init' && (args.includes('-y') || args.includes('--yes') || args.includes('--non-interactive'));
 
-// Check for updates with custom message
+// Display splash screen banner (skip for TUI init mode)
+if (!isInitWithYes) {
+  displayBanner();
+}
+
+// Check for updates with custom message (skip for TUI init mode)
 const notifier = updateNotifier({
   pkg: packageJson,
   updateCheckInterval: 1000 * 60 * 60 * 24 // Check once per day
 });
 
-if (notifier.update) {
+if (notifier.update && !isInitWithYes) {
   console.log();
   console.log(`  Update available: ${notifier.update.current} → ${notifier.update.latest}`);
   console.log(`  Run: sentryvibe upgrade`);
