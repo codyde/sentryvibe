@@ -80,9 +80,9 @@ export class ConsoleInterceptor {
   }
 
   /**
-   * Get the log file path
+   * Get the log file path (null if logging is disabled)
    */
-  getLogFilePath(): string {
+  getLogFilePath(): string | null {
     return this.logFileManager.getLogFilePath();
   }
 

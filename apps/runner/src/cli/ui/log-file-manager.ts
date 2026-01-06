@@ -1,31 +1,47 @@
 /**
  * Log File Manager
  * Writes logs to a file for TUI to read periodically
+ * Only active when DEBUG_LOGS=1 environment variable is set
  */
 
 import { createWriteStream, WriteStream, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export class LogFileManager {
-  private logFile: string;
+  private logFile: string | null = null;
   private writeStream: WriteStream | null = null;
+  private enabled: boolean;
 
   constructor() {
-    // Create logs directory if it doesn't exist
-    const logsDir = join(process.cwd(), 'logs');
-    if (!existsSync(logsDir)) {
-      mkdirSync(logsDir, { recursive: true });
-    }
+    // Only enable log file creation when DEBUG_LOGS=1
+    this.enabled = process.env.DEBUG_LOGS === '1';
 
-    // Create log file with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    this.logFile = join(logsDir, `sentryvibe-${timestamp}.log`);
+    if (this.enabled) {
+      // Create logs directory if it doesn't exist
+      const logsDir = join(process.cwd(), 'logs');
+      if (!existsSync(logsDir)) {
+        mkdirSync(logsDir, { recursive: true });
+      }
+
+      // Create log file with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      this.logFile = join(logsDir, `sentryvibe-${timestamp}.log`);
+    }
+  }
+
+  /**
+   * Check if logging is enabled
+   */
+  isEnabled(): boolean {
+    return this.enabled;
   }
 
   /**
    * Start writing to log file
    */
   start(): void {
+    if (!this.enabled || !this.logFile) return;
+
     this.writeStream = createWriteStream(this.logFile, { flags: 'a' });
     // Write a startup marker
     this.writeStream.write(`[${new Date().toISOString()}] [system] [stdout] === Log file started ===\n`);
@@ -50,9 +66,9 @@ export class LogFileManager {
   }
 
   /**
-   * Get the log file path
+   * Get the log file path (null if logging is disabled)
    */
-  getLogFilePath(): string {
+  getLogFilePath(): string | null {
     return this.logFile;
   }
 
