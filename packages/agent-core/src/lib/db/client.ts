@@ -1,7 +1,12 @@
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres/driver.js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+import * as schema from './schema.js';
+
+const { Pool } = pg;
 
 // Database client type (PostgreSQL only)
-export type DatabaseClient = NodePgDatabase<any>;
+export type DatabaseClient = NodePgDatabase<typeof schema>;
 
 declare global {
   var __db: DatabaseClient | undefined;
@@ -10,11 +15,7 @@ declare global {
 /**
  * Create a PostgreSQL database client
  */
-function createPostgresClient(): NodePgDatabase<any> {
-  const { drizzle } = require('drizzle-orm/node-postgres');
-  const { Pool } = require('pg');
-  const schemaModule = require('./schema');
-
+function createPostgresClient(): DatabaseClient {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
@@ -32,7 +33,7 @@ function createPostgresClient(): NodePgDatabase<any> {
       : { rejectUnauthorized: false },
   });
 
-  const client = drizzle(pool, { schema: schemaModule });
+  const client = drizzle(pool, { schema });
   return client;
 }
 
@@ -69,7 +70,7 @@ export function resetDatabase(): void {
 /**
  * Synchronous database client - lazy loads on first access
  */
-export const db = new Proxy({} as NodePgDatabase<any>, {
+export const db = new Proxy({} as DatabaseClient, {
   get(_target, prop) {
     if (!global.__db) {
       global.__db = createPostgresClient();

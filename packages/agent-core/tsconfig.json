@@ -5,7 +5,10 @@
     "outDir": "dist",
     "declaration": true,
     "emitDeclarationOnly": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2022"
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]

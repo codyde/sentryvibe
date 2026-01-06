@@ -1,53 +1,102 @@
 {
   "name": "@sentryvibe/agent-core",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "private": true,
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
     "./client": {
       "types": "./dist/client.d.ts",
-      "default": "./dist/client.js"
+      "import": "./dist/client.js"
     },
     "./server": {
       "types": "./dist/server.d.ts",
-      "default": "./dist/server.js"
+      "import": "./dist/server.js"
     },
     "./lib/agents": {
       "types": "./dist/lib/agents/index.d.ts",
-      "default": "./dist/lib/agents/index.js"
+      "import": "./dist/lib/agents/index.js"
     },
     "./lib/runner/broker-state": {
       "types": "./dist/lib/runner/broker-state.d.ts",
-      "default": "./dist/lib/runner/broker-state.js"
+      "import": "./dist/lib/runner/broker-state.js"
     },
     "./lib/runner/event-stream": {
       "types": "./dist/lib/runner/event-stream.d.ts",
-      "default": "./dist/lib/runner/event-stream.js"
+      "import": "./dist/lib/runner/event-stream.js"
+    },
+    "./lib/runner/log-store": {
+      "types": "./dist/lib/runner/log-store.d.ts",
+      "import": "./dist/lib/runner/log-store.js"
+    },
+    "./lib/logging/build-logger": {
+      "types": "./dist/lib/logging/build-logger.d.ts",
+      "import": "./dist/lib/logging/build-logger.js"
+    },
+    "./lib/db/client": {
+      "types": "./dist/lib/db/client.d.ts",
+      "import": "./dist/lib/db/client.js"
+    },
+    "./lib/db/schema": {
+      "types": "./dist/lib/db/schema.d.ts",
+      "import": "./dist/lib/db/schema.js"
+    },
+    "./lib/port-allocator": {
+      "types": "./dist/lib/port-allocator.d.ts",
+      "import": "./dist/lib/port-allocator.js"
+    },
+    "./lib/process-manager": {
+      "types": "./dist/lib/process-manager.d.ts",
+      "import": "./dist/lib/process-manager.js"
+    },
+    "./lib/workspace": {
+      "types": "./dist/lib/workspace.d.ts",
+      "import": "./dist/lib/workspace.js"
+    },
+    "./lib/websocket/server": {
+      "types": "./dist/lib/websocket/server.d.ts",
+      "import": "./dist/lib/websocket/server.js"
+    },
+    "./lib/templates/config": {
+      "types": "./dist/lib/templates/config.d.ts",
+      "import": "./dist/lib/templates/config.js"
+    },
+    "./lib/templates/config.server": {
+      "types": "./dist/lib/templates/config.server.d.ts",
+      "import": "./dist/lib/templates/config.server.js"
+    },
+    "./lib/claude/tools": {
+      "types": "./dist/lib/claude/tools.d.ts",
+      "import": "./dist/lib/claude/tools.js"
+    },
+    "./lib/prompts": {
+      "types": "./dist/lib/prompts.d.ts",
+      "import": "./dist/lib/prompts.js"
     },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
-      "default": "./dist/lib/*.js"
+      "import": "./dist/lib/*.js"
     },
     "./shared/runner/messages": {
       "types": "./dist/shared/runner/messages.d.ts",
-      "default": "./dist/shared/runner/messages.js"
+      "import": "./dist/shared/runner/messages.js"
     },
     "./shared/*": {
       "types": "./dist/shared/*.d.ts",
-      "default": "./dist/shared/*.js"
+      "import": "./dist/shared/*.js"
     },
     "./types/*": {
       "types": "./dist/types/*.d.ts",
-      "default": "./dist/types/*.js"
+      "import": "./dist/types/*.js"
     },
     "./config/*": {
       "types": "./dist/config/*.d.ts",
-      "default": "./dist/config/*.js"
+      "import": "./dist/config/*.js"
     }
   },
   "files": [
@@ -68,12 +117,14 @@
     "zod": "^3.25.76"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup",
+    "build:tsc": "tsc -p tsconfig.json",
     "prepare": "pnpm run build",
     "prepack": "pnpm run build"
   },
   "devDependencies": {
     "@types/ws": "^8.5.10",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   }
 }

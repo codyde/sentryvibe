@@ -9,19 +9,22 @@ export default defineConfig({
   format: ['esm'],
   target: 'node20',
   platform: 'node',
-  splitting: true, // Allow code splitting for shared chunks
+  splitting: true,
   sourcemap: true,
   clean: true,
-  dts: false, // No need for declaration files in CLI distribution
+  dts: false,
   
   // Bundle @sentryvibe/agent-core into the output
-  // This eliminates the npm dependency that doesn't exist
+  // agent-core is now ESM, so bundling works cleanly without CJS shims
   noExternal: [
     '@sentryvibe/agent-core',
   ],
   
   // Keep all other dependencies external - they'll be installed from npm
   external: [
+    // Node.js built-ins (use node: protocol for ESM)
+    /^node:/,
+    
     // Vendor packages (installed from local tarballs)
     '@sentry/core',
     '@sentry/node',
@@ -35,7 +38,9 @@ export default defineConfig({
     '@clack/prompts',
     '@openai/codex-sdk',
     'ai',
+    'better-auth',
     'chalk',
+    'clsx',
     'commander',
     'conf',
     'dotenv',
@@ -48,31 +53,23 @@ export default defineConfig({
     'ink-text-input',
     'inquirer',
     'jsonc-parser',
+    'lucide-react',
     'ora',
     'pg',
     'picocolors',
     'react',
+    'server-only',
     'simple-git',
+    'tailwind-merge',
     'update-notifier',
     'ws',
     'zod',
     'zod-to-json-schema',
-    
-    // Node built-ins are handled by the plugin above
   ],
   
-  // Handle dynamic imports properly
   treeshake: true,
   
-  // Banner to preserve shebang for CLI
   banner: {
-    js: '// Bundled with tsup - @sentryvibe/agent-core is inlined',
-  },
-  
-  esbuildOptions(options) {
-    // Ensure proper handling of __dirname/__filename in ESM
-    options.define = {
-      ...options.define,
-    };
+    js: '// SentryVibe Runner CLI - @sentryvibe/agent-core bundled as ESM',
   },
 });
