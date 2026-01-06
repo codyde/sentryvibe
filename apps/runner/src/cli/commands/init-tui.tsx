@@ -106,17 +106,50 @@ export async function initTUICommand(options: InitOptions): Promise<void> {
     // Wait a moment for user to see completion
     await sleep(1500);
     
-    // Clear and show simple completion message
+    // Clear and prompt user
     console.clear();
     console.log('\n  ✨ SentryVibe is ready!\n');
-    console.log('  Run:  sentryvibe run');
-    console.log('  Open: http://localhost:3000\n');
+    
+    // Ask if they want to start the server
+    const shouldStart = await promptToStart();
+    
+    if (shouldStart) {
+      console.log('\n  Starting SentryVibe...\n');
+      // Import and run the run command
+      const { runCommand } = await import('./run.js');
+      await runCommand({});
+    } else {
+      console.log('\n  To start SentryVibe later, run:\n');
+      console.log('    sentryvibe run\n');
+      console.log('  Then open: http://localhost:3000\n');
+    }
     
   } catch (error) {
     // Error was already displayed in TUI
     console.log('\n');
     process.exit(1);
   }
+}
+
+/**
+ * Prompt user to start the server
+ */
+async function promptToStart(): Promise<boolean> {
+  const readline = await import('node:readline');
+  
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question('  Start SentryVibe now? (Y/n) ', (answer) => {
+      rl.close();
+      const normalized = answer.trim().toLowerCase();
+      // Default to yes if empty or starts with 'y'
+      resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
+    });
+  });
 }
 
 /**
