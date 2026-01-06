@@ -18,6 +18,8 @@ interface TaskListProps {
 
 /**
  * Animated task list with spinner for running tasks
+ * All items are left-aligned with consistent formatting:
+ * 
  * ✓  Repository cloned
  * ✓  Dependencies installed
  * ⠋  Building packages...
@@ -65,11 +67,16 @@ export function TaskList({ tasks }: TaskListProps) {
     }
   };
 
+  // Find the longest label to ensure consistent width
+  const maxLabelLength = Math.max(...tasks.map(t => t.label.length));
+  // Fixed width for task list (symbol + spacing + label)
+  const taskWidth = maxLabelLength + 4; // 1 for symbol, 2 for spacing, 1 buffer
+
   return (
-    <Box flexDirection="column" alignItems="center">
+    <Box flexDirection="column" alignItems="flex-start" width={taskWidth}>
       {tasks.map(task => (
         <Box key={task.id} flexDirection="column" alignItems="flex-start">
-          {/* Main task line */}
+          {/* Main task line - fixed format: "✓  Label" */}
           <Box>
             <Text color={getStatusColor(task.status)}>
               {getStatusSymbol(task.status)}
@@ -81,18 +88,18 @@ export function TaskList({ tasks }: TaskListProps) {
           
           {/* Detail line (if present and task is running or failed) */}
           {task.detail && (task.status === 'running' || task.status === 'failed') && (
-            <Box marginLeft={3}>
+            <Box>
               <Text color={colors.dimGray}>
-                {symbols.treeConnector} {task.detail}
+                {'   '}{symbols.treeConnector} {task.detail}
               </Text>
             </Box>
           )}
           
           {/* Error message (if failed) */}
           {task.error && task.status === 'failed' && (
-            <Box marginLeft={3}>
+            <Box>
               <Text color={colors.error}>
-                {symbols.treeConnector} {task.error}
+                {'   '}{symbols.treeConnector} {task.error}
               </Text>
             </Box>
           )}

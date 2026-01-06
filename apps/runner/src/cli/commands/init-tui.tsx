@@ -103,23 +103,26 @@ export async function initTUICommand(options: InitOptions): Promise<void> {
       },
     });
 
-    // Wait a moment for user to see completion
-    await sleep(1500);
+    // Wait a moment for user to see completion screen
+    await sleep(1000);
     
-    // Clear and prompt user
-    console.clear();
-    console.log('\n  ✨ SentryVibe is ready!\n');
+    // Print some newlines to separate from TUI, then prompt
+    // The TUI completion screen stays visible above
+    console.log('\n');
     
     // Ask if they want to start the server
     const shouldStart = await promptToStart();
     
     if (shouldStart) {
+      console.clear();
       console.log('\n  Starting SentryVibe...\n');
       // Import and run the run command
       const { runCommand } = await import('./run.js');
       await runCommand({});
     } else {
-      console.log('\n  To start SentryVibe later, run:\n');
+      console.clear();
+      console.log('\n  ✨ SentryVibe is ready!\n');
+      console.log('  To start later, run:\n');
       console.log('    sentryvibe run\n');
       console.log('  Then open: http://localhost:3000\n');
     }
@@ -304,12 +307,12 @@ async function executeInitFlow(
   try {
     if (isConnectionString) {
       databaseUrl = dbOption as string;
-      await pushDatabaseSchema(monorepoPath!, databaseUrl);
+      await pushDatabaseSchema(monorepoPath!, databaseUrl, true); // silent mode
     } else {
       // Default: setup Neon database
-      databaseUrl = await setupDatabase(monorepoPath!) || undefined;
+      databaseUrl = await setupDatabase(monorepoPath!, true) || undefined; // silent mode
       if (databaseUrl) {
-        await pushDatabaseSchema(monorepoPath!, databaseUrl);
+        await pushDatabaseSchema(monorepoPath!, databaseUrl, true); // silent mode
       }
     }
     completeTask('database');
