@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/runner-cli",
-  "version": "0.19.8",
+  "version": "0.19.9",
   "description": "SentryVibe Runner CLI - Execute AI-powered builds locally",
   "private": false,
   "type": "module",
@@ -44,7 +44,7 @@
     "postinstall": "node scripts/install-vendor.js",
     "dev": "RUNNER_WS_URL=ws://localhost:3000/ws/runner tsx --import ./src/instrument.ts src/index.ts",
     "dev:cli": "tsx --import ./src/instrument.ts src/cli/index.ts",
-    "build": "tsup",
+    "build": "tsup && node scripts/fix-node-imports.js",
     "build:tsc": "tsc -p tsconfig.json",
     "start": "RUNNER_WS_URL=ws://localhost:3000/ws/runner node --import ./dist/instrument.js dist/index.js",
     "cli": "node --import ./dist/instrument.js dist/cli/index.js"
