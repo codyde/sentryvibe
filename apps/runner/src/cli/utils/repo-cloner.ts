@@ -13,7 +13,6 @@ export interface CloneOptions {
   targetPath?: string;
   branch?: string;
   silent?: boolean; // Suppress all console output (for TUI mode)
-  onProgress?: (progress: string) => void; // Callback for progress updates (TUI mode)
 }
 
 /**
@@ -24,7 +23,6 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
   const targetPath = options.targetPath || DEFAULT_CLONE_PATH;
   const branch = options.branch || 'main';
   const silent = options.silent || false;
-  const onProgress = options.onProgress;
 
   if (!silent) {
     logger.info(`Repository: ${repoUrl}`);
@@ -61,22 +59,6 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
       targetPath,
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    // Git progress goes to stderr
-    proc.stderr?.on('data', (data) => {
-      const text = data.toString().trim();
-      if (onProgress && text) {
-        // Parse git progress output to extract meaningful messages
-        // Examples: "Receiving objects:  50% (100/200)"
-        //           "Resolving deltas:  25% (10/40)"
-        const progressMatch = text.match(/(Receiving objects|Resolving deltas|Counting objects|Compressing objects):\s*(\d+)%/);
-        if (progressMatch) {
-          onProgress(`${progressMatch[1]}: ${progressMatch[2]}%`);
-        } else if (text.includes('Cloning into')) {
-          onProgress('Connecting to GitHub...');
-        }
-      }
     });
 
     proc.on('close', (code) => {

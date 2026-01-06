@@ -33,8 +33,6 @@ export interface InitCallbacks {
   skipTask: (taskId: string) => void;
   // Update task label
   updateTaskLabel: (taskId: string, label: string) => void;
-  // Update task detail (for progress updates)
-  updateTaskDetail: (taskId: string, detail: string) => void;
   // Error handling
   setError: (message: string, suggestions: string[]) => void;
 }
@@ -68,9 +66,6 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
       },
       updateTaskLabel: (taskId: string, label: string) => {
         flow.setTaskStatus(taskId, flow.state.tasks.find(t => t.id === taskId)?.status || 'pending');
-      },
-      updateTaskDetail: (taskId: string, detail: string) => {
-        flow.setTaskStatus(taskId, 'running', detail);
       },
       setError: flow.setError,
     };
