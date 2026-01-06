@@ -1,7 +1,7 @@
 /**
  * Log File Manager
  * Writes logs to a file for TUI to read periodically
- * Only active when DEBUG_LOGS=1 environment variable is set
+ * Only active when DEBUG=true environment variable is set
  */
 
 import { createWriteStream, WriteStream, mkdirSync, existsSync } from 'node:fs';
@@ -13,8 +13,8 @@ export class LogFileManager {
   private enabled: boolean;
 
   constructor() {
-    // Only enable log file creation when DEBUG_LOGS=1
-    this.enabled = process.env.DEBUG_LOGS === '1';
+    // Only enable log file creation when DEBUG=true
+    this.enabled = process.env.DEBUG === 'true';
 
     if (this.enabled) {
       // Create logs directory if it doesn't exist

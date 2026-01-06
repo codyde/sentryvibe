@@ -15,7 +15,7 @@ interface DashboardProps {
   serviceManager: ServiceManager;
   apiUrl: string;
   webPort: number;
-  logFilePath: string | null; // null when DEBUG_LOGS is not set
+  logFilePath: string | null; // null when DEBUG is not set
 }
 
 type ViewMode = 'dashboard' | 'help';
@@ -82,7 +82,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
 
   // Poll log file every 3 seconds (only if logging is enabled)
   useEffect(() => {
-    // Skip if log file path is not set (DEBUG_LOGS not enabled)
+    // Skip if log file path is not set (DEBUG not enabled)
     if (!logFilePath) return;
 
     let lastLineCount = 0;
