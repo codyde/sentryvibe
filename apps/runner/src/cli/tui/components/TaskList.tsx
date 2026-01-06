@@ -67,29 +67,21 @@ export function TaskList({ tasks }: TaskListProps) {
     }
   };
 
-  // Find the longest label to ensure consistent width
-  const maxLabelLength = Math.max(...tasks.map(t => t.label.length));
-  // Fixed width for task list (symbol + spacing + label)
-  const taskWidth = maxLabelLength + 4; // 1 for symbol, 2 for spacing, 1 buffer
-
   return (
-    <Box flexDirection="column" alignItems="flex-start" width={taskWidth}>
+    <Box flexDirection="column" alignItems="flex-start">
       {tasks.map(task => (
         <Box key={task.id} flexDirection="column" alignItems="flex-start">
-          {/* Main task line - fixed format: "✓  Label" */}
-          <Box>
-            <Text color={getStatusColor(task.status)}>
-              {getStatusSymbol(task.status)}
-            </Text>
-            <Text color={task.status === 'pending' ? colors.dimGray : colors.white}>
-              {'  '}{task.label}
+          {/* Main task line - fixed format: "✓  Label" - use wrap="truncate" to prevent wrapping */}
+          <Box width={50}>
+            <Text color={getStatusColor(task.status)} wrap="truncate">
+              {getStatusSymbol(task.status)}{'  '}{task.label}
             </Text>
           </Box>
           
           {/* Detail line (if present and task is running or failed) */}
           {task.detail && (task.status === 'running' || task.status === 'failed') && (
-            <Box>
-              <Text color={colors.dimGray}>
+            <Box width={50}>
+              <Text color={colors.dimGray} wrap="truncate">
                 {'   '}{symbols.treeConnector} {task.detail}
               </Text>
             </Box>
@@ -97,8 +89,8 @@ export function TaskList({ tasks }: TaskListProps) {
           
           {/* Error message (if failed) */}
           {task.error && task.status === 'failed' && (
-            <Box>
-              <Text color={colors.error}>
+            <Box width={50}>
+              <Text color={colors.error} wrap="truncate">
                 {'   '}{symbols.treeConnector} {task.error}
               </Text>
             </Box>

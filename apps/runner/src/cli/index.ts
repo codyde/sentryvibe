@@ -79,22 +79,24 @@ export const shutdownHandler = setupShutdownHandler({
   verbose: true,
 });
 
-// Check if we're running init with -y flag (TUI mode) - skip banner if so
+// Check if we're running in TUI mode - skip banner if so
 const args = process.argv.slice(2);
 const isInitWithYes = args[0] === 'init' && (args.includes('-y') || args.includes('--yes') || args.includes('--non-interactive'));
+const isNoArgs = args.length === 0 || (args.length === 1 && args[0] === '--debug');
+const isTUIMode = isInitWithYes || isNoArgs;
 
-// Display splash screen banner (skip for TUI init mode)
-if (!isInitWithYes) {
+// Display splash screen banner (skip for TUI modes)
+if (!isTUIMode) {
   displayBanner();
 }
 
-// Check for updates with custom message (skip for TUI init mode)
+// Check for updates with custom message (skip for TUI modes)
 const notifier = updateNotifier({
   pkg: packageJson,
   updateCheckInterval: 1000 * 60 * 60 * 24 // Check once per day
 });
 
-if (notifier.update && !isInitWithYes) {
+if (notifier.update && !isTUIMode) {
   console.log();
   console.log(`  Update available: ${notifier.update.current} → ${notifier.update.latest}`);
   console.log(`  Run: sentryvibe upgrade`);
@@ -121,13 +123,13 @@ program
     try {
       // Default action when no subcommand is provided
       if (options.runner) {
-        // Start runner only
+        // Start runner only (legacy flag)
         const { runCommand } = await import('./commands/run.js');
         await runCommand({});
       } else {
-        // Start full stack
-        const { startCommand } = await import('./commands/start.js');
-        await startCommand({});
+        // Show TUI main menu
+        const { mainTUICommand } = await import('./commands/main-tui.js');
+        await mainTUICommand();
       }
     } catch (error) {
       globalErrorHandler.handle(error as Error);
