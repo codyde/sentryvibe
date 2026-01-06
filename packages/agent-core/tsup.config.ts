@@ -9,9 +9,11 @@ export default defineConfig({
     
     // Lib exports (for deep imports like @sentryvibe/agent-core/lib/agents)
     'lib/agents/index': 'src/lib/agents/index.ts',
+    'lib/agents/codex/events': 'src/lib/agents/codex/events.ts',
     'lib/runner/broker-state': 'src/lib/runner/broker-state.ts',
     'lib/runner/event-stream': 'src/lib/runner/event-stream.ts',
     'lib/runner/log-store': 'src/lib/runner/log-store.ts',
+    'lib/runner/persistent-event-processor': 'src/lib/runner/persistent-event-processor.ts',
     'lib/logging/build-logger': 'src/lib/logging/build-logger.ts',
     'lib/db/client': 'src/lib/db/client.ts',
     'lib/db/schema': 'src/lib/db/schema.ts',

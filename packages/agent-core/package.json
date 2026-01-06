@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/agent-core",
-  "version": "0.18.2",
+  "version": "0.18.3",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -22,6 +22,58 @@
       "types": "./dist/lib/agents/index.d.ts",
       "import": "./dist/lib/agents/index.js"
     },
+    "./lib/agents/codex/events": {
+      "types": "./dist/lib/agents/codex/events.d.ts",
+      "import": "./dist/lib/agents/codex/events.js"
+    },
+    "./lib/build-helpers": {
+      "types": "./dist/lib/build-helpers.d.ts",
+      "import": "./dist/lib/build-helpers.js"
+    },
+    "./lib/claude/tools": {
+      "types": "./dist/lib/claude/tools.d.ts",
+      "import": "./dist/lib/claude/tools.js"
+    },
+    "./lib/db/client": {
+      "types": "./dist/lib/db/client.d.ts",
+      "import": "./dist/lib/db/client.js"
+    },
+    "./lib/db/schema": {
+      "types": "./dist/lib/db/schema.d.ts",
+      "import": "./dist/lib/db/schema.js"
+    },
+    "./lib/db/migrate": {
+      "types": "./dist/lib/db/migrate.d.ts",
+      "import": "./dist/lib/db/migrate.js"
+    },
+    "./lib/generation-persistence": {
+      "types": "./dist/lib/generation-persistence.d.ts",
+      "import": "./dist/lib/generation-persistence.js"
+    },
+    "./lib/icon-mapper": {
+      "types": "./dist/lib/icon-mapper.d.ts",
+      "import": "./dist/lib/icon-mapper.js"
+    },
+    "./lib/logging/build-logger": {
+      "types": "./dist/lib/logging/build-logger.d.ts",
+      "import": "./dist/lib/logging/build-logger.js"
+    },
+    "./lib/port-allocator": {
+      "types": "./dist/lib/port-allocator.d.ts",
+      "import": "./dist/lib/port-allocator.js"
+    },
+    "./lib/process-manager": {
+      "types": "./dist/lib/process-manager.d.ts",
+      "import": "./dist/lib/process-manager.js"
+    },
+    "./lib/prompts": {
+      "types": "./dist/lib/prompts.d.ts",
+      "import": "./dist/lib/prompts.js"
+    },
+    "./lib/reconciliation": {
+      "types": "./dist/lib/reconciliation.d.ts",
+      "import": "./dist/lib/reconciliation.js"
+    },
     "./lib/runner/broker-state": {
       "types": "./dist/lib/runner/broker-state.d.ts",
       "import": "./dist/lib/runner/broker-state.js"
@@ -34,33 +86,33 @@
       "types": "./dist/lib/runner/log-store.d.ts",
       "import": "./dist/lib/runner/log-store.js"
     },
-    "./lib/logging/build-logger": {
-      "types": "./dist/lib/logging/build-logger.d.ts",
-      "import": "./dist/lib/logging/build-logger.js"
+    "./lib/runner/persistent-event-processor": {
+      "types": "./dist/lib/runner/persistent-event-processor.d.ts",
+      "import": "./dist/lib/runner/persistent-event-processor.js"
     },
-    "./lib/db/client": {
-      "types": "./dist/lib/db/client.d.ts",
-      "import": "./dist/lib/db/client.js"
+    "./lib/selection/injector": {
+      "types": "./dist/lib/selection/injector.d.ts",
+      "import": "./dist/lib/selection/injector.js"
     },
-    "./lib/db/schema": {
-      "types": "./dist/lib/db/schema.d.ts",
-      "import": "./dist/lib/db/schema.js"
+    "./lib/stale-projects": {
+      "types": "./dist/lib/stale-projects.d.ts",
+      "import": "./dist/lib/stale-projects.js"
     },
-    "./lib/port-allocator": {
-      "types": "./dist/lib/port-allocator.d.ts",
-      "import": "./dist/lib/port-allocator.js"
+    "./lib/startup-cleanup": {
+      "types": "./dist/lib/startup-cleanup.d.ts",
+      "import": "./dist/lib/startup-cleanup.js"
     },
-    "./lib/process-manager": {
-      "types": "./dist/lib/process-manager.d.ts",
-      "import": "./dist/lib/process-manager.js"
+    "./lib/tags/model-parser": {
+      "types": "./dist/lib/tags/model-parser.d.ts",
+      "import": "./dist/lib/tags/model-parser.js"
     },
-    "./lib/workspace": {
-      "types": "./dist/lib/workspace.d.ts",
-      "import": "./dist/lib/workspace.js"
+    "./lib/tags/resolver": {
+      "types": "./dist/lib/tags/resolver.d.ts",
+      "import": "./dist/lib/tags/resolver.js"
     },
-    "./lib/websocket/server": {
-      "types": "./dist/lib/websocket/server.d.ts",
-      "import": "./dist/lib/websocket/server.js"
+    "./lib/tags/serialization": {
+      "types": "./dist/lib/tags/serialization.d.ts",
+      "import": "./dist/lib/tags/serialization.js"
     },
     "./lib/templates/config": {
       "types": "./dist/lib/templates/config.d.ts",
@@ -70,33 +122,53 @@
       "types": "./dist/lib/templates/config.server.d.ts",
       "import": "./dist/lib/templates/config.server.js"
     },
-    "./lib/claude/tools": {
-      "types": "./dist/lib/claude/tools.d.ts",
-      "import": "./dist/lib/claude/tools.js"
+    "./lib/templates/downloader": {
+      "types": "./dist/lib/templates/downloader.d.ts",
+      "import": "./dist/lib/templates/downloader.js"
     },
-    "./lib/prompts": {
-      "types": "./dist/lib/prompts.d.ts",
-      "import": "./dist/lib/prompts.js"
+    "./lib/utils": {
+      "types": "./dist/lib/utils.d.ts",
+      "import": "./dist/lib/utils.js"
     },
-    "./lib/*": {
-      "types": "./dist/lib/*.d.ts",
-      "import": "./dist/lib/*.js"
+    "./lib/websocket/server": {
+      "types": "./dist/lib/websocket/server.d.ts",
+      "import": "./dist/lib/websocket/server.js"
+    },
+    "./lib/workspace": {
+      "types": "./dist/lib/workspace.d.ts",
+      "import": "./dist/lib/workspace.js"
     },
     "./shared/runner/messages": {
       "types": "./dist/shared/runner/messages.d.ts",
       "import": "./dist/shared/runner/messages.js"
     },
-    "./shared/*": {
-      "types": "./dist/shared/*.d.ts",
-      "import": "./dist/shared/*.js"
+    "./types/agent": {
+      "types": "./dist/types/agent.d.ts",
+      "import": "./dist/types/agent.js"
     },
-    "./types/*": {
-      "types": "./dist/types/*.d.ts",
-      "import": "./dist/types/*.js"
+    "./types/build": {
+      "types": "./dist/types/build.d.ts",
+      "import": "./dist/types/build.js"
     },
-    "./config/*": {
-      "types": "./dist/config/*.d.ts",
-      "import": "./dist/config/*.js"
+    "./types/design": {
+      "types": "./dist/types/design.d.ts",
+      "import": "./dist/types/design.js"
+    },
+    "./types/generation": {
+      "types": "./dist/types/generation.d.ts",
+      "import": "./dist/types/generation.js"
+    },
+    "./types/project": {
+      "types": "./dist/types/project.d.ts",
+      "import": "./dist/types/project.js"
+    },
+    "./types/tags": {
+      "types": "./dist/types/tags.d.ts",
+      "import": "./dist/types/tags.js"
+    },
+    "./config/tags": {
+      "types": "./dist/config/tags.d.ts",
+      "import": "./dist/config/tags.js"
     }
   },
   "files": [

@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/runner-cli",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "SentryVibe Runner CLI - Execute AI-powered builds locally",
   "private": false,
   "type": "module",
