@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Box, useApp, useStdout } from 'ink';
-import { Banner, ProgressStepper, TaskList, ConfigSummary, NextSteps, ErrorSummary } from '../components/index.js';
+import { Box, Text, useApp, useStdout } from 'ink';
+import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary } from '../components/index.js';
 import { useInitFlow } from '../hooks/index.js';
 import type { ConfigItem } from '../components/ConfigSummary.js';
+import type { StreamTask } from '../components/TaskStream.js';
+import { colors, symbols } from '../theme.js';
 
 export interface InitConfig {
   workspace: string;
@@ -31,12 +33,15 @@ export interface InitCallbacks {
   skipTask: (taskId: string) => void;
   // Update task label
   updateTaskLabel: (taskId: string, label: string) => void;
+  // Update task detail (for progress updates)
+  updateTaskDetail: (taskId: string, detail: string) => void;
   // Error handling
   setError: (message: string, suggestions: string[]) => void;
 }
 
 /**
  * Main init screen - fullscreen centered TUI
+ * Shows progress stepper with tasks appearing under the active step
  */
 export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
   const { exit } = useApp();
@@ -46,7 +51,7 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
   
   // Calculate vertical centering
   const terminalHeight = stdout?.rows || 24;
-  const contentHeight = 20; // Approximate content height
+  const contentHeight = 20;
   const topPadding = Math.max(0, Math.floor((terminalHeight - contentHeight) / 3));
 
   // Run init flow
@@ -59,11 +64,13 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
       completeTask: flow.completeTask,
       failTask: flow.failTask,
       skipTask: (taskId: string) => {
-        // Remove task from the list by setting it as completed but we'll filter it out
         flow.setTaskStatus(taskId, 'completed');
       },
       updateTaskLabel: (taskId: string, label: string) => {
         flow.setTaskStatus(taskId, flow.state.tasks.find(t => t.id === taskId)?.status || 'pending');
+      },
+      updateTaskDetail: (taskId: string, detail: string) => {
+        flow.setTaskStatus(taskId, 'running', detail);
       },
       setError: flow.setError,
     };
@@ -94,11 +101,19 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
         if (onError) {
           onError(error);
         }
-        // Don't exit immediately - let the error display
       });
-  }, []); // Only run once on mount
+  }, []);
 
   const { state } = flow;
+  
+  // Get tasks for current step only, mapped to StreamTask format
+  const currentStepTasks: StreamTask[] = flow.getActiveStepTasks().map(task => ({
+    id: task.id,
+    label: task.label,
+    status: task.status,
+    detail: task.detail,
+    error: task.error,
+  }));
 
   return (
     <Box flexDirection="column" alignItems="center" paddingTop={topPadding}>
@@ -108,14 +123,16 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
       {/* Spacer */}
       <Box marginTop={2} />
       
-      {/* Progress Stepper */}
+      {/* Progress Stepper (just dots and labels) */}
       <ProgressStepper steps={state.steps} />
       
-      {/* Spacer */}
-      <Box marginTop={2} />
-      
-      {/* Task List */}
-      <TaskList tasks={state.tasks} />
+      {/* Task Stream - shows current step's tasks with typewriter effect */}
+      {!state.isComplete && !state.error && (
+        <TaskStream 
+          stepId={state.phase}
+          tasks={currentStepTasks}
+        />
+      )}
       
       {/* Error Display */}
       {state.error && (
@@ -124,13 +141,28 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
         </Box>
       )}
       
-      {/* Completion Display */}
+      {/* Completion Display - show summary of all completed tasks */}
       {state.isComplete && !state.error && (
-        <>
-          <Box marginTop={2} />
+        <Box marginTop={2} flexDirection="column" alignItems="center">
+          {/* Success message */}
+          <Text color={colors.success} bold>
+            {symbols.check} Setup complete!
+          </Text>
+          
+          {/* Completed tasks summary */}
+          <Box marginTop={1} flexDirection="column">
+            {state.tasks.filter(t => t.status === 'completed').map(task => (
+              <Box key={task.id}>
+                <Text color={colors.success}>{symbols.check}</Text>
+                <Text color={colors.gray}> {task.label}</Text>
+              </Box>
+            ))}
+          </Box>
+          
+          <Box marginTop={1} />
           <ConfigSummary items={state.config} />
           <NextSteps command="sentryvibe run" url="http://localhost:3000" />
-        </>
+        </Box>
       )}
     </Box>
   );

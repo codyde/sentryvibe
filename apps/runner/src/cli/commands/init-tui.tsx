@@ -162,7 +162,7 @@ async function executeInitFlow(
   options: InitOptions,
   callbacks: InitCallbacks
 ): Promise<InitConfig> {
-  const { activateStep, completeStep, failStep, startTask, completeTask, failTask, setError } = callbacks;
+  const { activateStep, completeStep, failStep, startTask, completeTask, failTask, updateTaskDetail, setError } = callbacks;
 
   let monorepoPath: string | undefined;
   let databaseUrl: string | undefined;
@@ -228,11 +228,15 @@ async function executeInitFlow(
 
     try {
       // Clone repository
-      startTask('clone', 'Cloning from GitHub...');
+      startTask('clone', 'Connecting to GitHub...');
       monorepoPath = await cloneRepository({
         targetPath: clonePath,
         branch: options.branch || 'main',
         silent: true, // Suppress console output in TUI mode
+        onProgress: (progress) => {
+          // Update task detail with git progress
+          updateTaskDetail('clone', progress);
+        },
       });
       completeTask('clone');
       await sleep(layout.taskCompletionDelay);

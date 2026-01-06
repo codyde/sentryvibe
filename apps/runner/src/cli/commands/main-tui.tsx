@@ -1,11 +1,150 @@
 /**
  * Main TUI entry point - shown when running `sentryvibe` without arguments
- * Provides a menu to Initialize, Start Runner, or Exit
+ * Implements a multi-screen flow: Mode Select -> Local/Runner Mode -> Config/Start
  */
 
+import { useState } from 'react';
 import { render } from 'ink';
-import { MainMenuScreen, type MenuAction } from '../tui/screens/index.js';
+import { userInfo } from 'node:os';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import {
+  ModeSelectScreen,
+  LocalModeScreen,
+  RunnerModeScreen,
+  ConfigFormScreen,
+  type ModeSelection,
+  type LocalAction,
+  type RunnerConfig,
+  type InitFormConfig,
+} from '../tui/screens/index.js';
 import { configManager } from '../utils/config-manager.js';
+
+/**
+ * Screen state machine types
+ */
+type Screen =
+  | { type: 'mode-select' }
+  | { type: 'local-mode' }
+  | { type: 'runner-mode' }
+  | { type: 'config-form' };
+
+interface AppState {
+  screen: Screen;
+  isInitialized: boolean;
+  existingKey: string;
+  existingRunnerId: string;
+  existingWorkspace: string;
+}
+
+/**
+ * Main TUI App component with screen navigation
+ */
+function App({ 
+  initialState, 
+  onExit, 
+  onRunnerStart, 
+  onLocalStart, 
+  onInitStart 
+}: {
+  initialState: AppState;
+  onExit: () => void;
+  onRunnerStart: (config: RunnerConfig) => void;
+  onLocalStart: () => void;
+  onInitStart: (config: InitFormConfig) => void;
+}) {
+  const [state, setState] = useState<AppState>(initialState);
+
+  // Screen navigation handlers
+  const navigateTo = (screen: Screen) => {
+    setState(prev => ({ ...prev, screen }));
+  };
+
+  // Mode Select handlers
+  const handleModeSelect = (mode: ModeSelection) => {
+    if (mode === 'local') {
+      navigateTo({ type: 'local-mode' });
+    } else {
+      navigateTo({ type: 'runner-mode' });
+    }
+  };
+
+  // Local Mode handlers
+  const handleLocalAction = (action: LocalAction) => {
+    if (action === 'init') {
+      navigateTo({ type: 'config-form' });
+    } else if (action === 'start') {
+      onLocalStart();
+    }
+  };
+
+  // Runner Mode handler
+  const handleRunnerStart = (config: RunnerConfig) => {
+    onRunnerStart(config);
+  };
+
+  // Config Form handler
+  const handleConfigSubmit = (config: InitFormConfig) => {
+    onInitStart(config);
+  };
+
+  // Render current screen
+  switch (state.screen.type) {
+    case 'mode-select':
+      return (
+        <ModeSelectScreen
+          onSelect={handleModeSelect}
+          onEscape={onExit}
+        />
+      );
+
+    case 'local-mode':
+      return (
+        <LocalModeScreen
+          isInitialized={state.isInitialized}
+          onSelect={handleLocalAction}
+          onEscape={() => navigateTo({ type: 'mode-select' })}
+        />
+      );
+
+    case 'runner-mode':
+      return (
+        <RunnerModeScreen
+          initialKey={state.existingKey}
+          initialRunnerId={state.existingRunnerId}
+          onStart={handleRunnerStart}
+          onEscape={() => navigateTo({ type: 'mode-select' })}
+        />
+      );
+
+    case 'config-form':
+      return (
+        <ConfigFormScreen
+          initialConfig={{
+            branch: 'main',
+            workspace: state.existingWorkspace || join(homedir(), 'sentryvibe-workspace'),
+            useNeon: true,
+          }}
+          onSubmit={handleConfigSubmit}
+          onEscape={() => navigateTo({ type: 'local-mode' })}
+        />
+      );
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Get system username for default runner ID
+ */
+function getSystemUsername(): string {
+  try {
+    return userInfo().username;
+  } catch {
+    return process.env.USER || process.env.USERNAME || 'runner';
+  }
+}
 
 /**
  * Run the main TUI menu
@@ -15,17 +154,43 @@ export async function mainTUICommand(): Promise<void> {
   console.clear();
 
   const isInitialized = configManager.isInitialized();
-  const hasRunnerKey = !!configManager.getSecret();
+  const existingKey = configManager.getSecret() || '';
+  const config = configManager.get();
+  const existingRunnerId = config.runner?.id || getSystemUsername();
+  const existingWorkspace = config.workspace || '';
+
+  const initialState: AppState = {
+    screen: { type: 'mode-select' },
+    isInitialized,
+    existingKey,
+    existingRunnerId,
+    existingWorkspace,
+  };
 
   return new Promise((resolve, reject) => {
-    let selectedAction: MenuAction | null = null;
+    let exitReason: 'exit' | 'runner-start' | 'local-start' | 'init-start' | null = null;
+    let runnerConfig: RunnerConfig | null = null;
+    let initConfig: InitFormConfig | null = null;
 
     const { unmount, waitUntilExit } = render(
-      <MainMenuScreen
-        isInitialized={isInitialized}
-        hasRunnerKey={hasRunnerKey}
-        onSelect={(action) => {
-          selectedAction = action;
+      <App
+        initialState={initialState}
+        onExit={() => {
+          exitReason = 'exit';
+          unmount();
+        }}
+        onRunnerStart={(config) => {
+          exitReason = 'runner-start';
+          runnerConfig = config;
+          unmount();
+        }}
+        onLocalStart={() => {
+          exitReason = 'local-start';
+          unmount();
+        }}
+        onInitStart={(config) => {
+          exitReason = 'init-start';
+          initConfig = config;
           unmount();
         }}
       />,
@@ -35,40 +200,37 @@ export async function mainTUICommand(): Promise<void> {
     );
 
     waitUntilExit().then(async () => {
-      if (!selectedAction) {
+      if (!exitReason) {
         // User pressed Ctrl+C
         console.clear();
         process.exit(0);
       }
 
-      switch (selectedAction) {
-        case 'init':
-          // Run init with TUI mode
-          console.clear();
-          const { initTUICommand } = await import('./init-tui.js');
-          await initTUICommand({ yes: true });
-          break;
-
-        case 'start':
-          if (!isInitialized) {
-            // Not initialized, run init first
-            console.clear();
-            console.log('\n  SentryVibe is not initialized yet.\n');
-            console.log('  Running initialization...\n');
-            await sleep(1000);
-            const { initTUICommand: initCmd } = await import('./init-tui.js');
-            await initCmd({ yes: true });
-          } else {
-            // Start the runner
-            console.clear();
-            await startRunnerWithPrompt();
-          }
-          break;
-
+      switch (exitReason) {
         case 'exit':
           console.clear();
           console.log('\n  Goodbye!\n');
           process.exit(0);
+          break;
+
+        case 'runner-start':
+          if (runnerConfig) {
+            console.clear();
+            await startRunner(runnerConfig);
+          }
+          break;
+
+        case 'local-start':
+          console.clear();
+          await startLocalMode();
+          break;
+
+        case 'init-start':
+          if (initConfig) {
+            // Clear screen with ANSI codes to ensure clean slate
+            process.stdout.write('\x1b[2J\x1b[H');
+            await runInitialization(initConfig);
+          }
           break;
       }
 
@@ -78,87 +240,68 @@ export async function mainTUICommand(): Promise<void> {
 }
 
 /**
- * Sleep utility
+ * Start runner mode (connects to remote server)
  */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Start the runner, prompting for key if needed
- */
-async function startRunnerWithPrompt(): Promise<void> {
-  const currentSecret = configManager.getSecret();
-  const hasKey = currentSecret && currentSecret !== 'dev-secret';
-
-  if (hasKey) {
-    // Has a key, ask if they want to use it or enter a new one
-    const useExisting = await promptKeyChoice(currentSecret);
-    
-    if (useExisting) {
-      console.log('\n  Starting SentryVibe with existing configuration...\n');
-    } else {
-      // Get new key
-      const newKey = await promptForKey();
-      if (newKey) {
-        configManager.set('server', {
-          ...configManager.get('server'),
-          secret: newKey,
-        });
-        console.log('\n  Key updated. Starting SentryVibe...\n');
-      } else {
-        console.log('\n  Cancelled.\n');
-        return;
-      }
-    }
+async function startRunner(config: RunnerConfig): Promise<void> {
+  // Save the key to config for future use
+  if (config.key) {
+    const serverConfig = configManager.get('server') || {};
+    configManager.set('server', {
+      ...serverConfig,
+      secret: config.key,
+    });
   }
 
-  // Start the runner
+  console.log('\n  Starting SentryVibe Runner...\n');
+  console.log(`  Runner ID: ${config.runnerId}`);
+  console.log('  Connecting to remote server...\n');
+
   const { runCommand } = await import('./run.js');
-  await runCommand({});
-}
-
-/**
- * Prompt user to choose existing key or enter new one
- */
-async function promptKeyChoice(existingKey: string): Promise<boolean> {
-  const readline = await import('node:readline');
-  
-  // Mask the key for display
-  const maskedKey = existingKey.substring(0, 8) + '...' + existingKey.substring(existingKey.length - 4);
-  
-  console.log(`\n  Current runner key: ${maskedKey}\n`);
-  
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question('  Use existing key? (Y/n) ', (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
-      resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
-    });
+  await runCommand({
+    secret: config.key,
+    runnerId: config.runnerId,
   });
 }
 
 /**
- * Prompt user to enter a new key
+ * Start local mode (full stack)
  */
-async function promptForKey(): Promise<string | null> {
-  const readline = await import('node:readline');
-  
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+async function startLocalMode(): Promise<void> {
+  console.log('\n  Starting SentryVibe in Local Mode...\n');
 
-  return new Promise((resolve) => {
-    rl.question('  Enter new runner key: ', (answer) => {
-      rl.close();
-      const key = answer.trim();
-      resolve(key || null);
-    });
-  });
+  const { startCommand } = await import('./start.js');
+  await startCommand({});
+}
+
+/**
+ * Run initialization with form config
+ */
+async function runInitialization(config: InitFormConfig): Promise<void> {
+  // Expand ~ in workspace path
+  const workspace = config.workspace.startsWith('~')
+    ? config.workspace.replace('~', homedir())
+    : config.workspace;
+
+  const { initTUICommand } = await import('./init-tui.js');
+  
+  // Build options based on form input
+  const options: {
+    workspace: string;
+    branch: string;
+    database?: string | boolean;
+    yes: boolean;
+  } = {
+    workspace,
+    branch: config.branch,
+    yes: true,
+  };
+
+  // Handle database option
+  if (config.useNeon) {
+    options.database = true; // Use Neon auto-setup
+  } else if (config.databaseUrl) {
+    options.database = config.databaseUrl; // Custom connection string
+  }
+
+  await initTUICommand(options);
 }

@@ -1,9 +1,24 @@
 import { useState, useCallback } from 'react';
-import type { Step, StepStatus } from '../components/ProgressStepper.js';
-import type { Task, TaskStatus } from '../components/TaskList.js';
+import type { StepStatus } from '../components/ProgressStepper.js';
+import type { TaskStatus } from '../components/TaskList.js';
 import type { ConfigItem } from '../components/ConfigSummary.js';
 
 export type InitPhase = 'repo' | 'build' | 'database' | 'ready';
+
+export interface Task {
+  id: string;
+  label: string;
+  status: TaskStatus;
+  detail?: string;
+  error?: string;
+  stepId: string; // Which step this task belongs to
+}
+
+export interface Step {
+  id: string;
+  label: string;
+  status: StepStatus;
+}
 
 export interface InitState {
   phase: InitPhase;
@@ -18,18 +33,20 @@ export interface InitState {
 }
 
 const INITIAL_STEPS: Step[] = [
-  { id: 'repo', label: 'Repo', status: 'pending' },
+  { id: 'repo', label: 'Clone', status: 'pending' },
   { id: 'build', label: 'Build', status: 'pending' },
-  { id: 'database', label: 'Database', status: 'pending' },
-  { id: 'ready', label: 'Ready', status: 'pending' },
+  { id: 'database', label: 'Configure', status: 'pending' },
+  { id: 'ready', label: 'Finish', status: 'pending' },
 ];
 
+// Tasks now have a stepId to associate them with a step
 const INITIAL_TASKS: Task[] = [
-  { id: 'clone', label: 'Repository cloned', status: 'pending' },
-  { id: 'deps', label: 'Dependencies installed', status: 'pending' },
-  { id: 'build', label: 'Packages built', status: 'pending' },
-  { id: 'database', label: 'Database configured', status: 'pending' },
-  { id: 'config', label: 'Configuration saved', status: 'pending' },
+  { id: 'clone', label: 'Cloning repository', status: 'pending', stepId: 'repo' },
+  { id: 'deps', label: 'Installing dependencies', status: 'pending', stepId: 'build' },
+  { id: 'build', label: 'Building packages', status: 'pending', stepId: 'build' },
+  { id: 'database', label: 'Configuring database', status: 'pending', stepId: 'database' },
+  { id: 'config', label: 'Saving configuration', status: 'pending', stepId: 'ready' },
+  { id: 'services', label: 'Building services', status: 'pending', stepId: 'ready' },
 ];
 
 export interface UseInitFlowReturn {
@@ -44,6 +61,10 @@ export interface UseInitFlowReturn {
   startTask: (taskId: string, detail?: string) => void;
   completeTask: (taskId: string) => void;
   failTask: (taskId: string, error: string) => void;
+  // Helper to get tasks for a specific step
+  getTasksForStep: (stepId: string) => Task[];
+  // Helper to get currently active tasks (running or just completed in current phase)
+  getActiveStepTasks: () => Task[];
   // Config management
   setConfig: (items: ConfigItem[]) => void;
   // Error management
@@ -120,6 +141,16 @@ export function useInitFlow(): UseInitFlowReturn {
     }));
   }, []);
 
+  // Get tasks for a specific step
+  const getTasksForStep = useCallback((stepId: string): Task[] => {
+    return state.tasks.filter(task => task.stepId === stepId);
+  }, [state.tasks]);
+
+  // Get tasks for the currently active step
+  const getActiveStepTasks = useCallback((): Task[] => {
+    return state.tasks.filter(task => task.stepId === state.phase);
+  }, [state.tasks, state.phase]);
+
   // Config management
   const setConfig = useCallback((items: ConfigItem[]) => {
     setState(prev => ({
@@ -175,6 +206,8 @@ export function useInitFlow(): UseInitFlowReturn {
     startTask,
     completeTask,
     failTask,
+    getTasksForStep,
+    getActiveStepTasks,
     setConfig,
     setError,
     clearError,

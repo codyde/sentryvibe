@@ -83,7 +83,8 @@ export const shutdownHandler = setupShutdownHandler({
 const args = process.argv.slice(2);
 const isInitWithYes = args[0] === 'init' && (args.includes('-y') || args.includes('--yes') || args.includes('--non-interactive'));
 const isNoArgs = args.length === 0 || (args.length === 1 && args[0] === '--debug');
-const isTUIMode = isInitWithYes || isNoArgs;
+const isRunCommand = args[0] === 'run'; // `sentryvibe run` uses TUI Dashboard
+const isTUIMode = isInitWithYes || isNoArgs || isRunCommand;
 
 // Display splash screen banner (skip for TUI modes)
 if (!isTUIMode) {

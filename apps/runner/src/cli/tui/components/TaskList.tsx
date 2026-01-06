@@ -67,31 +67,32 @@ export function TaskList({ tasks }: TaskListProps) {
     }
   };
 
+  // Use the same width as ProgressStepper for alignment
   return (
-    <Box flexDirection="column" alignItems="flex-start">
+    <Box flexDirection="column" width={layout.progressWidth}>
       {tasks.map(task => (
-        <Box key={task.id} flexDirection="column" alignItems="flex-start">
-          {/* Main task line - fixed format: "✓  Label" - use wrap="truncate" to prevent wrapping */}
-          <Box width={50}>
-            <Text color={getStatusColor(task.status)} wrap="truncate">
+        <Box key={task.id} flexDirection="column">
+          {/* Main task line - fixed format: "✓  Label" */}
+          <Box>
+            <Text color={getStatusColor(task.status)}>
               {getStatusSymbol(task.status)}{'  '}{task.label}
             </Text>
           </Box>
           
           {/* Detail line (if present and task is running or failed) */}
           {task.detail && (task.status === 'running' || task.status === 'failed') && (
-            <Box width={50}>
-              <Text color={colors.dimGray} wrap="truncate">
-                {'   '}{symbols.treeConnector} {task.detail}
+            <Box paddingLeft={3}>
+              <Text color={colors.dimGray}>
+                {symbols.treeConnector} {task.detail}
               </Text>
             </Box>
           )}
           
           {/* Error message (if failed) */}
           {task.error && task.status === 'failed' && (
-            <Box width={50}>
-              <Text color={colors.error} wrap="truncate">
-                {'   '}{symbols.treeConnector} {task.error}
+            <Box paddingLeft={3}>
+              <Text color={colors.error}>
+                {symbols.treeConnector} {task.error}
               </Text>
             </Box>
           )}

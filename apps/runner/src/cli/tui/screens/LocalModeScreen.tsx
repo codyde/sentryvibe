@@ -1,20 +1,20 @@
-import { useState } from 'react';
-import { Box, Text, useApp, useStdout } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { Banner, Menu, type MenuItem } from '../components/index.js';
 import { colors } from '../theme.js';
 
-export type MenuAction = 'init' | 'start' | 'exit';
+export type LocalAction = 'init' | 'start';
 
-export interface MainMenuScreenProps {
+export interface LocalModeScreenProps {
   isInitialized: boolean;
-  hasRunnerKey: boolean;
-  onSelect: (action: MenuAction) => void;
+  onSelect: (action: LocalAction) => void;
+  onEscape: () => void;
 }
 
 /**
- * Main menu screen - shown when running `sentryvibe` without args
+ * Local mode options screen
+ * Shows Initialize/Reinitialize and Start options based on config state
  */
-export function MainMenuScreen({ isInitialized, hasRunnerKey, onSelect }: MainMenuScreenProps) {
+export function LocalModeScreen({ isInitialized, onSelect, onEscape }: LocalModeScreenProps) {
   const { stdout } = useStdout();
   
   // Calculate vertical centering
@@ -22,7 +22,14 @@ export function MainMenuScreen({ isInitialized, hasRunnerKey, onSelect }: MainMe
   const contentHeight = 16;
   const topPadding = Math.max(0, Math.floor((terminalHeight - contentHeight) / 3));
 
-  // Build menu items based on state
+  // Handle escape key
+  useInput((input, key) => {
+    if (key.escape) {
+      onEscape();
+    }
+  });
+
+  // Build menu items based on initialization state
   const menuItems: MenuItem[] = [];
   
   if (!isInitialized) {
@@ -37,21 +44,15 @@ export function MainMenuScreen({ isInitialized, hasRunnerKey, onSelect }: MainMe
       label: 'Reinitialize SentryVibe',
       description: 'Reset and reconfigure',
     });
+    menuItems.push({
+      id: 'start',
+      label: 'Start SentryVibe',
+      description: 'Launch the full stack',
+    });
   }
 
-  menuItems.push({
-    id: 'start',
-    label: 'Start SentryVibe',
-    description: isInitialized ? 'Launch the full stack' : 'Requires initialization first',
-  });
-
-  menuItems.push({
-    id: 'exit',
-    label: 'Exit',
-  });
-
   const handleSelect = (item: MenuItem) => {
-    onSelect(item.id as MenuAction);
+    onSelect(item.id as LocalAction);
   };
 
   return (
@@ -60,7 +61,13 @@ export function MainMenuScreen({ isInitialized, hasRunnerKey, onSelect }: MainMe
       <Banner />
       
       {/* Spacer */}
-      <Box marginTop={2} />
+      <Box marginTop={1} />
+      
+      {/* Title */}
+      <Text color={colors.cyan} bold>Local Mode</Text>
+      
+      {/* Spacer */}
+      <Box marginTop={1} />
       
       {/* Status indicator */}
       {isInitialized ? (
@@ -80,7 +87,7 @@ export function MainMenuScreen({ isInitialized, hasRunnerKey, onSelect }: MainMe
       
       {/* Help text */}
       <Text color={colors.dimGray}>
-        Use ↑↓ arrows to navigate, Enter to select
+        Use up/down arrows to navigate, Enter to select, Esc to go back
       </Text>
     </Box>
   );

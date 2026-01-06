@@ -43,4 +43,8 @@ export const layout = {
   spinnerInterval: 120, // ms between spinner frames
   taskCompletionDelay: 400, // ms to pause after task completion
   stepTransitionDelay: 300, // ms between step transitions
+  
+  // Shared width for progress stepper and task list (keeps them aligned)
+  // ProgressStepper: 4 cells * 10 chars + 3 connectors * 7 chars = 61 chars
+  progressWidth: 61,
 };

@@ -10,14 +10,24 @@ export interface Step {
   status: StepStatus;
 }
 
+// Keep for backwards compatibility
+export interface StepTask {
+  id: string;
+  label: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  detail?: string;
+  error?: string;
+}
+
 interface ProgressStepperProps {
   steps: Step[];
 }
 
 /**
- * Horizontal progress stepper with connected dots
- * ● ─────── ● ─────── ○ ─────── ○
- * Repo     Build    Database   Ready
+ * Horizontal progress stepper - just the dots and labels
+ * 
+ *     ●───────────●───────────○───────────○
+ *   Setup      Install    Database    Finalize
  */
 export function ProgressStepper({ steps }: ProgressStepperProps) {
   const getStepColor = (status: StepStatus): string => {
@@ -45,7 +55,9 @@ export function ProgressStepper({ steps }: ProgressStepperProps) {
     }
   };
 
-  const connector = ` ${symbols.horizontalLine.repeat(7)} `;
+  // Cell and connector sizing
+  const cellWidth = 10;
+  const connectorWidth = 7;
 
   return (
     <Box flexDirection="column" alignItems="center">
@@ -53,39 +65,37 @@ export function ProgressStepper({ steps }: ProgressStepperProps) {
       <Box>
         {steps.map((step, index) => (
           <Fragment key={step.id}>
-            <Text color={getStepColor(step.status)}>
-              {getStepSymbol(step.status)}
-            </Text>
+            <Box width={cellWidth} justifyContent="center">
+              <Text color={getStepColor(step.status)}>
+                {getStepSymbol(step.status)}
+              </Text>
+            </Box>
             {index < steps.length - 1 && (
-              <Text color={colors.dimGray}>{connector}</Text>
+              <Text color={colors.dimGray}>
+                {symbols.horizontalLine.repeat(connectorWidth)}
+              </Text>
             )}
           </Fragment>
         ))}
       </Box>
       
       {/* Labels row */}
-      <Box marginTop={0}>
-        {steps.map((step, index) => {
-          // Calculate padding to center labels under dots
-          const labelWidth = 9; // Fixed width for consistent spacing
-          const paddedLabel = step.label.padStart(
-            Math.floor((labelWidth + step.label.length) / 2)
-          ).padEnd(labelWidth);
-          
-          return (
-            <Fragment key={step.id}>
+      <Box>
+        {steps.map((step, index) => (
+          <Fragment key={step.id}>
+            <Box width={cellWidth} justifyContent="center">
               <Text 
                 color={step.status === 'pending' ? colors.dimGray : colors.gray}
                 dimColor={step.status === 'pending'}
               >
-                {paddedLabel}
+                {step.label}
               </Text>
-              {index < steps.length - 1 && (
-                <Text>{''.padEnd(connector.length - labelWidth + 1)}</Text>
-              )}
-            </Fragment>
-          );
-        })}
+            </Box>
+            {index < steps.length - 1 && (
+              <Box width={connectorWidth} />
+            )}
+          </Fragment>
+        ))}
       </Box>
     </Box>
   );
