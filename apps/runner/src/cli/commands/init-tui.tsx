@@ -196,6 +196,7 @@ async function executeInitFlow(
       monorepoPath = await cloneRepository({
         targetPath: clonePath,
         branch: options.branch || 'main',
+        silent: true, // Suppress console output in TUI mode
       });
       completeTask('clone');
       await sleep(layout.taskCompletionDelay);
@@ -223,7 +224,7 @@ async function executeInitFlow(
   // Install dependencies
   startTask('deps', 'Running pnpm install...');
   try {
-    await installDependencies(monorepoPath!);
+    await installDependencies(monorepoPath!, true); // silent mode
     completeTask('deps');
     await sleep(layout.taskCompletionDelay);
   } catch (error) {
@@ -239,7 +240,7 @@ async function executeInitFlow(
   // Build packages
   startTask('build', '@sentryvibe/agent-core');
   try {
-    await buildAgentCore(monorepoPath!);
+    await buildAgentCore(monorepoPath!, true); // silent mode
     completeTask('build');
     await sleep(layout.taskCompletionDelay);
   } catch (error) {
