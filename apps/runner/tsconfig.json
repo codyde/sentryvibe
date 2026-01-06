@@ -10,8 +10,8 @@
     "rootDir": "src",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false,
-    "jsx": "react"
+    "jsx": "react-jsx"
   },
-  "include": ["src"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }
