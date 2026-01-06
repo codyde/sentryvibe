@@ -70,7 +70,7 @@ export async function downloadTemplateWithGit(
     if (process.env.DEBUG_BUILD === '1') console.log(`✅ Template cloned successfully`);
 
     // Verify files were actually downloaded
-    const { readdir } = await import('fs/promises');
+    const { readdir } = await import('node:fs/promises');
     const downloadedFiles = await readdir(targetPath);
     if (process.env.DEBUG_BUILD === '1') console.log(`   Downloaded ${downloadedFiles.length} files/directories`);
     if (process.env.DEBUG_BUILD === '1') console.log(`   Files: ${downloadedFiles.slice(0, 10).join(', ')}${downloadedFiles.length > 10 ? '...' : ''}`);

@@ -2103,7 +2103,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             );
 
             // Strategy 2: Fall back to fs.rm with maxRetries option
-            const { rm } = await import("fs/promises");
+            const { rm } = await import("node:fs/promises");
             await rm(projectPath, {
               recursive: true,
               force: true,
@@ -2150,7 +2150,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             throw new Error("Invalid file path - outside project directory");
           }
 
-          const { readFile, stat } = await import("fs/promises");
+          const { readFile, stat } = await import("node:fs/promises");
           const stats = await stat(fullPath);
           const content = await readFile(fullPath, "utf-8");
 
@@ -2193,7 +2193,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             throw new Error("Invalid file path - outside project directory");
           }
 
-          const { writeFile } = await import("fs/promises");
+          const { writeFile } = await import("node:fs/promises");
           await writeFile(fullPath, content, "utf-8");
 
           console.log(
@@ -2232,7 +2232,7 @@ export async function startRunner(options: RunnerOptions = {}) {
             throw new Error("Invalid path - outside project directory");
           }
 
-          const { readdir, stat } = await import("fs/promises");
+          const { readdir, stat } = await import("node:fs/promises");
           const entries = await readdir(targetPath);
 
           const files = await Promise.all(
