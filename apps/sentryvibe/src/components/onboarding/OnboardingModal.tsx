@@ -27,33 +27,36 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
   const { availableRunners } = useRunner();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // If a runner connects while modal is open, jump to complete step
   // But not if we're forcing step one (testing mode)
   useEffect(() => {
-    if (!forceStartAtStepOne && availableRunners.length > 0 && currentStep < 4) {
+    if (!forceStartAtStepOne && availableRunners.length > 0 && currentStep < 4 && hasInitialized) {
       setCurrentStep(4);
     }
-  }, [availableRunners, currentStep, forceStartAtStepOne]);
+  }, [availableRunners, currentStep, forceStartAtStepOne, hasInitialized]);
 
-  // Reset state when modal opens
+  // Reset state only when modal first opens (not on every dependency change)
   useEffect(() => {
-    if (open) {
+    if (open && !hasInitialized) {
       // If forcing step one (testing), always start at 1
       if (forceStartAtStepOne) {
         setCurrentStep(1);
         setCreatedKey(null);
-        return;
-      }
-      // If runners are already connected, start at complete
-      if (availableRunners.length > 0) {
+      } else if (availableRunners.length > 0) {
+        // If runners are already connected, start at complete
         setCurrentStep(4);
       } else {
         setCurrentStep(1);
       }
+      setHasInitialized(true);
+    } else if (!open) {
+      // Reset initialization flag when modal closes
+      setHasInitialized(false);
       setCreatedKey(null);
     }
-  }, [open, availableRunners, forceStartAtStepOne]);
+  }, [open, availableRunners.length, forceStartAtStepOne, hasInitialized]);
 
   const handleSkip = () => {
     onOpenChange(false);
