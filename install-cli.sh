@@ -2,7 +2,7 @@
 set -e
 
 # SentryVibe CLI Installation Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
+# Usage: curl -fsSL https://sentryvibe.app/install | bash
 
 # Colors
 RED='\033[0;31m'
