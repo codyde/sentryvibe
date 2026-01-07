@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AnimatePresence } from "framer-motion";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { useRunner } from "@/contexts/RunnerContext";
+import { StepProgress } from "./StepProgress";
 import { InstallStep } from "./steps/InstallStep";
 import { CreateKeyStep } from "./steps/CreateKeyStep";
 import { ConnectStep } from "./steps/ConnectStep";
@@ -82,71 +82,54 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
     onOpenChange(false);
   };
 
-  const stepTitles: Record<Step, string> = {
-    1: "Install the CLI",
-    2: "Create a Key",
-    3: "Connect Runner",
-    4: "Ready to Build",
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-zinc-950 border-zinc-800">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl text-white">
-              {stepTitles[currentStep]}
-            </DialogTitle>
-            <div className="flex items-center gap-1">
-              {([1, 2, 3, 4] as Step[]).map((step) => (
-                <div
-                  key={step}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    step === currentStep
-                      ? "bg-purple-500"
-                      : step < currentStep
-                      ? "bg-purple-500/50"
-                      : "bg-zinc-700"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-xl bg-zinc-950 border-zinc-800 p-0 gap-0 overflow-hidden">
+        {/* Header with progress */}
+        <div className="p-6 pb-4 border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950">
+          <StepProgress currentStep={currentStep} />
+        </div>
 
-        <div className="mt-4">
-          {currentStep === 1 && (
-            <InstallStep
-              onNext={() => setCurrentStep(2)}
-              onSkip={handleSkip}
-            />
-          )}
+        {/* Content */}
+        <div className="p-6 min-h-[400px]">
+          <AnimatePresence mode="wait">
+            {currentStep === 1 && (
+              <InstallStep
+                key="install"
+                onNext={() => setCurrentStep(2)}
+                onSkip={handleSkip}
+              />
+            )}
 
-          {currentStep === 2 && (
-            <CreateKeyStep
-              onNext={(key) => {
-                setCreatedKey(key);
-                setCurrentStep(3);
-              }}
-              onBack={() => setCurrentStep(1)}
-            />
-          )}
+            {currentStep === 2 && (
+              <CreateKeyStep
+                key="create-key"
+                onNext={(key) => {
+                  setCreatedKey(key);
+                  setCurrentStep(3);
+                }}
+                onBack={() => setCurrentStep(1)}
+              />
+            )}
 
-          {currentStep === 3 && (
-            <ConnectStep
-              runnerKey={createdKey || "<your-key>"}
-              onNext={() => setCurrentStep(4)}
-              onBack={() => setCurrentStep(2)}
-              onSkip={handleSkip}
-            />
-          )}
+            {currentStep === 3 && (
+              <ConnectStep
+                key="connect"
+                runnerKey={createdKey || "<your-key>"}
+                onNext={() => setCurrentStep(4)}
+                onBack={() => setCurrentStep(2)}
+                onSkip={handleSkip}
+              />
+            )}
 
-          {currentStep === 4 && (
-            <CompleteStep 
-              onComplete={handleComplete} 
-              onBack={forceStartAtStepOne ? () => setCurrentStep(3) : undefined}
-            />
-          )}
+            {currentStep === 4 && (
+              <CompleteStep 
+                key="complete"
+                onComplete={handleComplete} 
+                onBack={forceStartAtStepOne ? () => setCurrentStep(3) : undefined}
+              />
+            )}
+          </AnimatePresence>
         </div>
       </DialogContent>
     </Dialog>

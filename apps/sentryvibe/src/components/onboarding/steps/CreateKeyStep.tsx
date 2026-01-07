@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Key, ArrowRight, ArrowLeft, Loader2, AlertCircle, Check } from "lucide-react";
+import { ArrowRight, ArrowLeft, Loader2, AlertCircle, Check, Shield } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CodeBlock } from "../CodeBlock";
+import { TerminalCodeBlock } from "../TerminalCodeBlock";
 
 interface CreateKeyStepProps {
   onNext: (key: string) => void;
@@ -53,142 +54,187 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
     try {
       await navigator.clipboard.writeText(createdKey);
       setHasCopied(true);
-      // Brief delay to show the copied feedback
       setTimeout(() => {
         onNext(createdKey);
       }, 300);
     } catch (err) {
       console.error("Failed to copy:", err);
-      // Still proceed even if copy fails
       onNext(createdKey);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-purple-500/10 rounded-lg">
-          <Key className="w-5 h-5 text-purple-400" />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold text-white">Create a Runner Key</h3>
-          <p className="text-sm text-zinc-400">Generate a key to authenticate your runner</p>
-        </div>
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Hero section */}
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-bold text-white">
+          Create a runner key
+        </h2>
+        <p className="text-zinc-400">
+          This key authenticates your runner with SentryVibe
+        </p>
       </div>
 
-      {!createdKey ? (
-        <>
-          {/* Create key form */}
-          <form onSubmit={handleCreateKey} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="keyName" className="text-sm font-medium text-zinc-300">
-                Key name
-              </label>
-              <Input
-                id="keyName"
-                type="text"
-                placeholder="e.g., My MacBook Pro"
-                value={keyName}
-                onChange={(e) => setKeyName(e.target.value)}
-                className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
-                disabled={isCreating}
-              />
-              <p className="text-xs text-zinc-500">
-                A friendly name to identify this runner in the dashboard
-              </p>
-            </div>
-
-            {/* Error message */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                <p className="text-sm text-red-400">{error}</p>
+      <AnimatePresence mode="wait">
+        {!createdKey ? (
+          <motion.div
+            key="create-form"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Create key form */}
+            <form onSubmit={handleCreateKey} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="keyName" className="text-sm font-medium text-zinc-300">
+                  Give your runner a name
+                </label>
+                <Input
+                  id="keyName"
+                  type="text"
+                  placeholder="e.g., My MacBook Pro"
+                  value={keyName}
+                  onChange={(e) => setKeyName(e.target.value)}
+                  className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 h-12 text-base"
+                  disabled={isCreating}
+                  autoFocus
+                />
+                <p className="text-xs text-zinc-500">
+                  This helps you identify the runner in your dashboard
+                </p>
               </div>
-            )}
 
-            <Button
-              type="submit"
-              disabled={isCreating || !keyName.trim()}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating key...
-                </>
-              ) : (
-                <>
-                  <Key className="w-4 h-4 mr-2" />
-                  Create Key
-                </>
-              )}
-            </Button>
-          </form>
+              {/* Error message */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div 
+                    className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <p className="text-sm text-red-400">{error}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="text-zinc-500 hover:text-zinc-300"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* Key created success */}
-          <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg space-y-3">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-green-400" />
-              <span className="text-sm font-medium text-green-400">
-                Key created successfully!
-              </span>
+              <Button
+                type="submit"
+                disabled={isCreating || !keyName.trim()}
+                className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-base font-medium"
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Creating key...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-5 h-5 mr-2" />
+                    Generate Key
+                  </>
+                )}
+              </Button>
+            </form>
+
+            {/* Actions */}
+            <div className="flex items-center justify-start pt-4">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="text-zinc-500 hover:text-zinc-300"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
             </div>
-            <CodeBlock code={createdKey} />
-            <p className="text-xs text-amber-400/90 flex items-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              Copy this key now - it won&apos;t be shown again!
-            </p>
-          </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="key-created"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-4"
+          >
+            {/* Success animation */}
+            <motion.div 
+              className="flex justify-center"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            >
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                <Check className="w-8 h-8 text-white" />
+              </div>
+            </motion.div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="text-zinc-500 hover:text-zinc-300"
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-white">Key created!</h3>
+              <p className="text-sm text-zinc-400 mt-1">Copy this key - you won&apos;t see it again</p>
+            </div>
+
+            {/* Key display */}
+            <TerminalCodeBlock 
+              code={createdKey} 
+              title="Your Runner Key"
+              showPrompt={false}
+            />
+
+            {/* Warning */}
+            <motion.div 
+              className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCopyAndNext}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-            >
-              {hasCopied ? (
-                <>
-                  <Check className="w-4 h-4 mr-2" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  I&apos;ve copied it
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              )}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-300">
+                Save this key somewhere safe. For security reasons, it won&apos;t be displayed again.
+              </p>
+            </motion.div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="text-zinc-500 hover:text-zinc-300"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCopyAndNext}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6"
+              >
+                {hasCopied ? (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    Copy & Continue
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
