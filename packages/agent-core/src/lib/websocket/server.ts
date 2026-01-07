@@ -613,7 +613,9 @@ class BuildWebSocketServer {
     client.hmrConnections.add(connectionId);
 
     // Initiate HMR connection through proxy manager
+    // IMPORTANT: Pass the connectionId from frontend to maintain correlation
     hmrProxyManager.connect(
+      connectionId,
       targetRunnerId,
       client.projectId,
       port,

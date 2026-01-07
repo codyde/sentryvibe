@@ -52,9 +52,11 @@ class HmrProxyManager {
   /**
    * Initiate an HMR connection through the runner
    * 
+   * @param connectionId - Connection ID from frontend (must be preserved for message correlation)
    * @returns connectionId to track this connection
    */
   connect(
+    connectionId: string,
     runnerId: string,
     projectId: string,
     port: number,
@@ -66,7 +68,8 @@ class HmrProxyManager {
       onError?: (error: string) => void;
     }
   ): string {
-    const connectionId = randomUUID();
+    // Use the connectionId from the frontend - DO NOT generate a new one
+    // This is critical for message correlation
 
     // Check if runner is connected
     if (!buildWebSocketServer.isRunnerConnected(runnerId)) {

@@ -107,8 +107,8 @@ export async function POST(
       });
     }
 
-    // Forward POST request with body
-    const body = await req.text();
+    // Forward POST request with body - use arrayBuffer to preserve binary data
+    const bodyBuffer = await req.arrayBuffer();
     let response: Response;
     
     if (useWsProxy && proj.runnerId && proj.devServerPort) {
@@ -123,7 +123,7 @@ export async function POST(
           'Content-Type': req.headers.get('content-type') || 'application/json',
           'Accept': req.headers.get('accept') || '*/*'
         },
-        body ? Buffer.from(body) : undefined
+        bodyBuffer.byteLength > 0 ? Buffer.from(bodyBuffer) : undefined
       );
     } else {
       // Direct fetch to target URL
@@ -132,7 +132,7 @@ export async function POST(
         headers: {
           'Content-Type': req.headers.get('content-type') || 'application/json',
         },
-        body: body,
+        body: bodyBuffer,
       });
     }
 
