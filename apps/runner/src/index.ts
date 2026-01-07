@@ -43,6 +43,7 @@ import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
+import { hmrProxyManager } from "./lib/hmr-proxy-manager.js";
 
 globalThis.AI_SDK_LOG_WARNINGS = false;
 
@@ -2957,6 +2958,30 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         }
         break;
       }
+      case "hmr-connect": {
+        // Connect to local HMR WebSocket server
+        const { connectionId, port, protocol } = command.payload;
+        log(`🔥 HMR connect request: ${connectionId} → localhost:${port}`);
+        
+        hmrProxyManager.connect(connectionId, port, command.projectId, protocol);
+        break;
+      }
+      case "hmr-message": {
+        // Forward message to HMR server
+        const { connectionId, message } = command.payload;
+        const sent = hmrProxyManager.send(connectionId, message);
+        if (!sent) {
+          log(`⚠️ HMR message failed to send: connection ${connectionId} not ready`);
+        }
+        break;
+      }
+      case "hmr-disconnect": {
+        // Disconnect from HMR server
+        const { connectionId } = command.payload;
+        log(`🔥 HMR disconnect: ${connectionId}`);
+        hmrProxyManager.disconnect(connectionId);
+        break;
+      }
       default:
         assertNever(command as never);
     }
@@ -2986,6 +3011,45 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
     }
     heartbeatTimer = setInterval(() => publishStatus(), HEARTBEAT_INTERVAL_MS);
   }
+
+  // Set up HMR proxy callbacks to forward HMR events through the main WebSocket
+  hmrProxyManager.setCallbacks({
+    onConnected: (connectionId) => {
+      log(`🔥 HMR connected: ${connectionId}`);
+      sendEvent({
+        type: "hmr-connected",
+        ...buildEventBase(),
+        connectionId,
+      });
+    },
+    onMessage: (connectionId, message) => {
+      sendEvent({
+        type: "hmr-message",
+        ...buildEventBase(),
+        connectionId,
+        message,
+      });
+    },
+    onDisconnected: (connectionId, code, reason) => {
+      log(`🔥 HMR disconnected: ${connectionId} (${code}: ${reason})`);
+      sendEvent({
+        type: "hmr-disconnected",
+        ...buildEventBase(),
+        connectionId,
+        code,
+        reason,
+      });
+    },
+    onError: (connectionId, error) => {
+      log(`🔥 HMR error: ${connectionId} - ${error}`);
+      sendEvent({
+        type: "hmr-error",
+        ...buildEventBase(),
+        connectionId,
+        error,
+      });
+    },
+  });
 
   function cleanupSocket() {
     if (socket) {

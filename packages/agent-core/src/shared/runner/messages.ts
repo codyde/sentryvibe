@@ -17,7 +17,10 @@ export type RunnerCommandType =
   | 'read-file'
   | 'write-file'
   | 'list-files'
-  | 'http-proxy-request';
+  | 'http-proxy-request'
+  | 'hmr-connect'
+  | 'hmr-message'
+  | 'hmr-disconnect';
 
 export type RunnerEventType =
   | 'ack'
@@ -43,6 +46,10 @@ export type RunnerEventType =
   | 'http-proxy-response'
   | 'http-proxy-chunk'
   | 'http-proxy-error'
+  | 'hmr-connected'
+  | 'hmr-message'
+  | 'hmr-disconnected'
+  | 'hmr-error'
   | 'error';
 
 export interface BaseCommand {
@@ -175,6 +182,31 @@ export interface HttpProxyRequestCommand extends BaseCommand {
   };
 }
 
+// HMR Proxy Commands - for proxying Vite/webpack HMR WebSocket through our connection
+export interface HmrConnectCommand extends BaseCommand {
+  type: 'hmr-connect';
+  payload: {
+    connectionId: string;
+    port: number;
+    protocol?: string; // e.g., 'vite-hmr'
+  };
+}
+
+export interface HmrMessageCommand extends BaseCommand {
+  type: 'hmr-message';
+  payload: {
+    connectionId: string;
+    message: string; // JSON stringified HMR payload
+  };
+}
+
+export interface HmrDisconnectCommand extends BaseCommand {
+  type: 'hmr-disconnect';
+  payload: {
+    connectionId: string;
+  };
+}
+
 export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
@@ -187,7 +219,10 @@ export type RunnerCommand =
   | ReadFileCommand
   | WriteFileCommand
   | ListFilesCommand
-  | HttpProxyRequestCommand;
+  | HttpProxyRequestCommand
+  | HmrConnectCommand
+  | HmrMessageCommand
+  | HmrDisconnectCommand;
 
 export interface BaseEvent {
   type: RunnerEventType;
@@ -383,6 +418,31 @@ export interface HttpProxyErrorEvent extends BaseEvent {
   statusCode?: number;
 }
 
+// HMR Proxy Events - for forwarding HMR messages from dev server to browser
+export interface HmrConnectedEvent extends BaseEvent {
+  type: 'hmr-connected';
+  connectionId: string;
+}
+
+export interface HmrMessageEvent extends BaseEvent {
+  type: 'hmr-message';
+  connectionId: string;
+  message: string; // JSON stringified HMR payload from Vite/webpack
+}
+
+export interface HmrDisconnectedEvent extends BaseEvent {
+  type: 'hmr-disconnected';
+  connectionId: string;
+  code?: number;
+  reason?: string;
+}
+
+export interface HmrErrorEvent extends BaseEvent {
+  type: 'hmr-error';
+  connectionId: string;
+  error: string;
+}
+
 export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
@@ -407,6 +467,10 @@ export type RunnerEvent =
   | HttpProxyResponseEvent
   | HttpProxyChunkEvent
   | HttpProxyErrorEvent
+  | HmrConnectedEvent
+  | HmrMessageEvent
+  | HmrDisconnectedEvent
+  | HmrErrorEvent
   | ErrorEvent;
 
 export type RunnerMessage = RunnerCommand | RunnerEvent;
@@ -424,6 +488,9 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'write-file',
   'list-files',
   'http-proxy-request',
+  'hmr-connect',
+  'hmr-message',
+  'hmr-disconnect',
 ];
 
 export const isRunnerCommand = (message: RunnerMessage): message is RunnerCommand =>

@@ -8,6 +8,7 @@ import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
+import { useHmrProxy } from '@/hooks/useHmrProxy';
 import BuildingAppSkeleton from './BuildingAppSkeleton';
 import { ServerRestartProgress } from './ServerRestartProgress';
 import { ServerRestarting, TunnelConnecting } from './StatusAnimations';
@@ -88,6 +89,15 @@ export default function PreviewPanel({
 
   // Port comes from database (pre-allocated in start route)
   const actualPort = currentProject?.devServerPort;
+  
+  // HMR Proxy - tunnels Vite HMR WebSocket through our WS connection
+  // Only enabled when using WS proxy mode (remote frontend without Cloudflare tunnel)
+  useHmrProxy({
+    projectId: currentProject?.id || '',
+    runnerId: currentProject?.runnerId || undefined,
+    enabled: USE_WS_PROXY && !!currentProject?.id && currentProject?.devServerStatus === 'running',
+    iframeRef: iframeRef as React.RefObject<HTMLIFrameElement>,
+  });
 
   // Track SSE connection health
   const [isSSEConnected, setIsSSEConnected] = useState(false);

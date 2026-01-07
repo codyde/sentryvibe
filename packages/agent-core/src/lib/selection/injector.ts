@@ -3,6 +3,12 @@
  * This runs in the iframe's context and communicates with parent via postMessage
  */
 
+import { HMR_PROXY_SCRIPT } from './hmr-proxy-script';
+
+// Check if WebSocket proxy is enabled (from env or parent window)
+const USE_WS_PROXY = typeof window !== 'undefined' && 
+  (window as any).__SENTRYVIBE_USE_WS_PROXY === true;
+
 export const SELECTION_SCRIPT = `
 (function() {
 
@@ -450,8 +456,14 @@ export const SELECTION_SCRIPT = `
 
 /**
  * Inject selection script into iframe
+ * @param iframe - The iframe element to inject into
+ * @param options - Optional configuration
+ * @param options.enableHmrProxy - If true, also inject HMR proxy script for WebSocket tunneling
  */
-export function injectSelectionScript(iframe: HTMLIFrameElement): boolean {
+export function injectSelectionScript(
+  iframe: HTMLIFrameElement,
+  options?: { enableHmrProxy?: boolean }
+): boolean {
   try {
     const iframeWindow = iframe.contentWindow;
     if (!iframeWindow) {
@@ -471,7 +483,24 @@ export function injectSelectionScript(iframe: HTMLIFrameElement): boolean {
       return true;
     }
 
-    // Create and inject script element
+    // Inject HMR proxy script FIRST (if enabled) - before any other scripts run
+    // This ensures WebSocket is overridden before Vite's client script loads
+    if (options?.enableHmrProxy) {
+      if (!iframeDoc.getElementById('__sentryvibe-hmr-proxy-script')) {
+        const hmrScript = iframeDoc.createElement('script');
+        hmrScript.id = '__sentryvibe-hmr-proxy-script';
+        hmrScript.textContent = HMR_PROXY_SCRIPT;
+        // Inject at HEAD start to run before other scripts
+        if (iframeDoc.head) {
+          iframeDoc.head.insertBefore(hmrScript, iframeDoc.head.firstChild);
+        } else if (iframeDoc.body) {
+          iframeDoc.body.insertBefore(hmrScript, iframeDoc.body.firstChild);
+        }
+        console.log('✅ HMR proxy script injected into iframe');
+      }
+    }
+
+    // Create and inject selection script element
     const script = iframeDoc.createElement('script');
     script.id = '__sentryvibe-selection-script';
     script.textContent = SELECTION_SCRIPT;
@@ -484,6 +513,11 @@ export function injectSelectionScript(iframe: HTMLIFrameElement): boolean {
     return false;
   }
 }
+
+/**
+ * Re-export HMR_PROXY_SCRIPT for direct use if needed
+ */
+export { HMR_PROXY_SCRIPT } from './hmr-proxy-script';
 
 /**
  * Toggle selection mode in iframe
