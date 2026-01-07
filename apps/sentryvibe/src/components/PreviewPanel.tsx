@@ -8,6 +8,7 @@ import SelectionMode from './SelectionMode';
 import ElementComment from './ElementComment';
 import { toggleSelectionMode } from '@sentryvibe/agent-core/lib/selection/injector';
 import { useElementEdits } from '@/hooks/useElementEdits';
+import { useHmrProxy } from '@/hooks/useHmrProxy';
 import BuildingAppSkeleton from './BuildingAppSkeleton';
 import { ServerRestartProgress } from './ServerRestartProgress';
 import { ServerRestarting, TunnelConnecting } from './StatusAnimations';
@@ -18,6 +19,9 @@ import {
 } from '@/components/ui/hover-card';
 
 type DevicePreset = 'desktop' | 'tablet' | 'mobile';
+
+// Check if WebSocket proxy is enabled (tunnels through WS instead of Cloudflare)
+const USE_WS_PROXY = process.env.NEXT_PUBLIC_USE_WS_PROXY === 'true';
 
 interface PreviewPanelProps {
   selectedProject?: string | null;
@@ -85,6 +89,16 @@ export default function PreviewPanel({
 
   // Port comes from database (pre-allocated in start route)
   const actualPort = currentProject?.devServerPort;
+  
+  // HMR Proxy - tunnels Vite HMR WebSocket through our WS connection
+  // Only enabled when using WS proxy mode (remote frontend without Cloudflare tunnel)
+  useHmrProxy({
+    projectId: currentProject?.id || '',
+    runnerId: currentProject?.runnerId || undefined,
+    devServerPort: actualPort || 5173,
+    enabled: USE_WS_PROXY && !!currentProject?.id && currentProject?.devServerStatus === 'running',
+    iframeRef: iframeRef as React.RefObject<HTMLIFrameElement>,
+  });
 
   // Track SSE connection health
   const [isSSEConnected, setIsSSEConnected] = useState(false);
@@ -321,10 +335,13 @@ export default function PreviewPanel({
     // - Server just started
     // - No tunnel exists
     // - Haven't already auto-started for this server session
-    if (needsTunnel && onStartTunnel && !isStartingTunnel && !hasAutoStartedTunnel.current) {
+    // - WebSocket proxy is NOT enabled (if WS proxy is on, we don't need Cloudflare tunnel)
+    if (needsTunnel && onStartTunnel && !isStartingTunnel && !hasAutoStartedTunnel.current && !USE_WS_PROXY) {
       console.log('🔗 Remote frontend detected - auto-creating tunnel...');
       hasAutoStartedTunnel.current = true;
       onStartTunnel();
+    } else if (needsTunnel && USE_WS_PROXY) {
+      console.log('🔗 WebSocket proxy enabled - skipping Cloudflare tunnel');
     }
   }, [needsTunnel, onStartTunnel, isStartingTunnel, currentProject?.devServerStatus]);
 
@@ -332,11 +349,11 @@ export default function PreviewPanel({
   // Proxy will intelligently route to tunnel (remote) or localhost (local)
   // This ensures selection mode works in all scenarios
 
-  // For remote frontend: Only show preview if tunnel exists OR is being created
+  // For remote frontend: Only show preview if tunnel exists OR is being created OR WS proxy enabled
   // For local frontend: Always show (can access localhost)
   const canShowPreview = actualPort && currentProject?.devServerStatus === 'running' && currentProject?.id &&
-    (!frontendIsRemote || currentProject?.tunnelUrl || isTunnelLoading);
-    // Show if: Local frontend (always) OR tunnel exists OR tunnel being created
+    (!frontendIsRemote || currentProject?.tunnelUrl || isTunnelLoading || USE_WS_PROXY);
+    // Show if: Local frontend (always) OR tunnel exists OR tunnel being created OR WS proxy enabled
 
   // Debug logging
   if (DEBUG_PREVIEW && currentProject?.devServerStatus === 'running') {

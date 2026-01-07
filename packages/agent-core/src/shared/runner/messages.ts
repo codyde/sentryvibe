@@ -16,7 +16,11 @@ export type RunnerCommandType =
   | 'delete-project-files'
   | 'read-file'
   | 'write-file'
-  | 'list-files';
+  | 'list-files'
+  | 'http-proxy-request'
+  | 'hmr-connect'
+  | 'hmr-message'
+  | 'hmr-disconnect';
 
 export type RunnerEventType =
   | 'ack'
@@ -39,6 +43,13 @@ export type RunnerEventType =
   | 'file-list'
   | 'dev-server-error'
   | 'autofix-started'
+  | 'http-proxy-response'
+  | 'http-proxy-chunk'
+  | 'http-proxy-error'
+  | 'hmr-connected'
+  | 'hmr-message'
+  | 'hmr-disconnected'
+  | 'hmr-error'
   | 'error';
 
 export interface BaseCommand {
@@ -159,6 +170,43 @@ export interface ListFilesCommand extends BaseCommand {
   };
 }
 
+export interface HttpProxyRequestCommand extends BaseCommand {
+  type: 'http-proxy-request';
+  payload: {
+    requestId: string;
+    method: string;
+    path: string;
+    headers: Record<string, string>;
+    body?: string | null; // Base64 encoded for binary
+    port: number; // Target dev server port
+  };
+}
+
+// HMR Proxy Commands - for proxying Vite/webpack HMR WebSocket through our connection
+export interface HmrConnectCommand extends BaseCommand {
+  type: 'hmr-connect';
+  payload: {
+    connectionId: string;
+    port: number;
+    protocol?: string; // e.g., 'vite-hmr'
+  };
+}
+
+export interface HmrMessageCommand extends BaseCommand {
+  type: 'hmr-message';
+  payload: {
+    connectionId: string;
+    message: string; // JSON stringified HMR payload
+  };
+}
+
+export interface HmrDisconnectCommand extends BaseCommand {
+  type: 'hmr-disconnect';
+  payload: {
+    connectionId: string;
+  };
+}
+
 export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
@@ -170,7 +218,11 @@ export type RunnerCommand =
   | DeleteProjectFilesCommand
   | ReadFileCommand
   | WriteFileCommand
-  | ListFilesCommand;
+  | ListFilesCommand
+  | HttpProxyRequestCommand
+  | HmrConnectCommand
+  | HmrMessageCommand
+  | HmrDisconnectCommand;
 
 export interface BaseEvent {
   type: RunnerEventType;
@@ -343,6 +395,54 @@ export interface AutoFixStartedEvent extends BaseEvent {
   maxAttempts: number;
 }
 
+export interface HttpProxyResponseEvent extends BaseEvent {
+  type: 'http-proxy-response';
+  requestId: string;
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: string; // Base64 encoded, for small responses sent in one message
+  isChunked?: boolean; // If true, body will be sent via HttpProxyChunkEvent
+}
+
+export interface HttpProxyChunkEvent extends BaseEvent {
+  type: 'http-proxy-chunk';
+  requestId: string;
+  chunk: string; // Base64 encoded chunk
+  isFinal: boolean;
+}
+
+export interface HttpProxyErrorEvent extends BaseEvent {
+  type: 'http-proxy-error';
+  requestId: string;
+  error: string;
+  statusCode?: number;
+}
+
+// HMR Proxy Events - for forwarding HMR messages from dev server to browser
+export interface HmrConnectedEvent extends BaseEvent {
+  type: 'hmr-connected';
+  connectionId: string;
+}
+
+export interface HmrMessageEvent extends BaseEvent {
+  type: 'hmr-message';
+  connectionId: string;
+  message: string; // JSON stringified HMR payload from Vite/webpack
+}
+
+export interface HmrDisconnectedEvent extends BaseEvent {
+  type: 'hmr-disconnected';
+  connectionId: string;
+  code?: number;
+  reason?: string;
+}
+
+export interface HmrErrorEvent extends BaseEvent {
+  type: 'hmr-error';
+  connectionId: string;
+  error: string;
+}
+
 export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
@@ -364,6 +464,13 @@ export type RunnerEvent =
   | FileListEvent
   | DevServerErrorEvent
   | AutoFixStartedEvent
+  | HttpProxyResponseEvent
+  | HttpProxyChunkEvent
+  | HttpProxyErrorEvent
+  | HmrConnectedEvent
+  | HmrMessageEvent
+  | HmrDisconnectedEvent
+  | HmrErrorEvent
   | ErrorEvent;
 
 export type RunnerMessage = RunnerCommand | RunnerEvent;
@@ -380,6 +487,10 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'read-file',
   'write-file',
   'list-files',
+  'http-proxy-request',
+  'hmr-connect',
+  'hmr-message',
+  'hmr-disconnect',
 ];
 
 export const isRunnerCommand = (message: RunnerMessage): message is RunnerCommand =>

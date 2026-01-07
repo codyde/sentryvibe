@@ -29,12 +29,15 @@ import { db } from '../db/client';
 import { runnerKeys } from '../db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
+import { httpProxyManager } from './http-proxy-manager';
+import { hmrProxyManager } from './hmr-proxy-manager';
 
 interface ClientSubscription {
   ws: WebSocket;
   projectId: string;
   sessionId?: string;
   lastHeartbeat: number;
+  hmrConnections?: Set<string>; // Track HMR connections owned by this client
 }
 
 interface RunnerConnection {
@@ -256,6 +259,15 @@ class BuildWebSocketServer {
     // Handle client disconnect
     ws.on('close', () => {
       buildLogger.websocket.clientDisconnected(clientId);
+      
+      // Clean up any HMR connections owned by this client
+      const client = this.clients.get(clientId);
+      if (client?.hmrConnections) {
+        for (const connectionId of client.hmrConnections) {
+          hmrProxyManager.disconnect(connectionId);
+        }
+      }
+      
       this.clients.delete(clientId);
     });
 
@@ -379,6 +391,12 @@ class BuildWebSocketServer {
         clearInterval(conn.pingInterval);
       }
       this.runnerConnections.delete(runnerId);
+      
+      // Cancel any pending HTTP proxy requests for this runner
+      httpProxyManager.cancelRequestsForRunner(runnerId);
+      
+      // Disconnect any HMR connections for this runner
+      hmrProxyManager.disconnectRunner(runnerId);
 
       Sentry.addBreadcrumb({
         category: 'websocket',
@@ -411,6 +429,18 @@ class BuildWebSocketServer {
    * NOTE: Database writes now happen via HTTP from the runner (/api/runner-events, /api/build-events)
    */
   private async processRunnerEvent(event: RunnerEvent) {
+    // Check if this is an HTTP proxy event - handle specially
+    if (httpProxyManager.processEvent(event)) {
+      // HTTP proxy events are handled internally, don't broadcast
+      return;
+    }
+    
+    // Check if this is an HMR proxy event - handle specially
+    if (hmrProxyManager.processEvent(event)) {
+      // HMR proxy events are handled by the manager which calls our callbacks
+      return;
+    }
+    
     // Publish event to internal event stream
     // This triggers persistent-event-processor for WebSocket broadcasts
     // DB writes are handled by HTTP endpoints called directly from runner
@@ -518,7 +548,7 @@ class BuildWebSocketServer {
   }
 
   /**
-   * Handle messages from client (heartbeat, resubscribe, etc.)
+   * Handle messages from client (heartbeat, resubscribe, HMR, etc.)
    */
   private handleClientMessage(clientId: string, message: any) {
     const client = this.clients.get(clientId);
@@ -541,7 +571,116 @@ class BuildWebSocketServer {
         // Client requesting current state (on reconnect)
         this.sendCurrentState(client);
         break;
+      
+      // HMR Proxy Messages from frontend iframe
+      case 'hmr-connect':
+        this.handleHmrConnect(clientId, client, message);
+        break;
+      
+      case 'hmr-send':
+        this.handleHmrSend(message);
+        break;
+      
+      case 'hmr-disconnect':
+        this.handleHmrDisconnect(clientId, client, message);
+        break;
     }
+  }
+
+  /**
+   * Handle HMR connect request from frontend
+   */
+  private handleHmrConnect(clientId: string, client: ClientSubscription, message: any) {
+    const { connectionId, port, protocol, runnerId } = message;
+    
+    // Use project's runnerId if not specified
+    const targetRunnerId = runnerId || this.getRunnerIdForProject(client.projectId);
+    if (!targetRunnerId) {
+      this.sendMessage(client.ws, {
+        type: 'hmr-error',
+        connectionId,
+        error: 'No runner available for project',
+      });
+      return;
+    }
+
+
+
+    // Track this connection on the client
+    if (!client.hmrConnections) {
+      client.hmrConnections = new Set();
+    }
+    client.hmrConnections.add(connectionId);
+
+    // Initiate HMR connection through proxy manager
+    // IMPORTANT: Pass the connectionId from frontend to maintain correlation
+    hmrProxyManager.connect(
+      connectionId,
+      targetRunnerId,
+      client.projectId,
+      port,
+      protocol,
+      {
+        onConnected: () => {
+          this.sendMessage(client.ws, {
+            type: 'hmr-connected',
+            connectionId,
+          });
+        },
+        onMessage: (msg: string) => {
+          this.sendMessage(client.ws, {
+            type: 'hmr-message',
+            connectionId,
+            message: msg,
+          });
+        },
+        onDisconnected: (code?: number, reason?: string) => {
+          client.hmrConnections?.delete(connectionId);
+          this.sendMessage(client.ws, {
+            type: 'hmr-closed',
+            connectionId,
+            code,
+            reason,
+          });
+        },
+        onError: (error: string) => {
+          client.hmrConnections?.delete(connectionId);
+          this.sendMessage(client.ws, {
+            type: 'hmr-error',
+            connectionId,
+            error,
+          });
+        },
+      }
+    );
+  }
+
+  /**
+   * Handle HMR send request from frontend
+   */
+  private handleHmrSend(message: any) {
+    const { connectionId, message: hmrMessage } = message;
+    hmrProxyManager.send(connectionId, hmrMessage);
+  }
+
+  /**
+   * Handle HMR disconnect request from frontend
+   */
+  private handleHmrDisconnect(clientId: string, client: ClientSubscription, message: any) {
+    const { connectionId } = message;
+    client.hmrConnections?.delete(connectionId);
+    hmrProxyManager.disconnect(connectionId);
+  }
+
+  /**
+   * Get the runner ID for a project (looks up from connected runners)
+   * In a multi-runner setup, this would query the database
+   */
+  private getRunnerIdForProject(projectId: string): string | null {
+    // For now, return the first connected runner
+    // TODO: Implement proper project->runner mapping via database lookup
+    const runners = this.listRunnerConnections();
+    return runners.length > 0 ? runners[0].runnerId : null;
   }
 
   /**
@@ -758,20 +897,9 @@ class BuildWebSocketServer {
       timestamp: Date.now(),
     });
 
-    const allClients = Array.from(this.clients.values());
-    const subscriberCount = allClients.filter(
+    buildLogger.websocket.broadcastBuildComplete(projectId, sessionId, Array.from(this.clients.values()).filter(
       client => client.projectId === projectId
-    ).length;
-    
-    // Debug: Log all connected clients and their projectIds
-    console.log(`[WebSocket] 📡 Broadcasting build-complete for project ${projectId}`);
-    console.log(`[WebSocket]    Total clients connected: ${allClients.length}`);
-    console.log(`[WebSocket]    Subscribers for this project: ${subscriberCount}`);
-    if (allClients.length > 0 && subscriberCount === 0) {
-      console.log(`[WebSocket]    ⚠️ WARNING: No subscribers! Client projectIds: ${allClients.map(c => c.projectId).join(', ')}`);
-    }
-    
-    buildLogger.websocket.broadcastBuildComplete(projectId, sessionId, subscriberCount);
+    ).length);
 
     // Terminal event - flush immediately
     this.flushBatch(key);
@@ -803,8 +931,6 @@ class BuildWebSocketServer {
 
     if (subscribers.length === 0) {
       // No subscribers, clear batch
-      console.log(`[WebSocket] ⚠️ flushBatch: No subscribers for ${projectId}, dropping ${updates.length} updates`);
-      console.log(`[WebSocket]    Update types: ${updates.map(u => u.type).join(', ')}`);
       this.pendingUpdates.delete(key);
       return;
     }

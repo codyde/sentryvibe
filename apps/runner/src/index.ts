@@ -43,6 +43,7 @@ import { orchestrateBuild } from "./lib/build-orchestrator.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
+import { hmrProxyManager } from "./lib/hmr-proxy-manager.js";
 
 globalThis.AI_SDK_LOG_WARNINGS = false;
 
@@ -2864,6 +2865,117 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         }
         break;
       }
+      case "http-proxy-request": {
+        // HTTP proxy request - fetch from local dev server and return response
+        try {
+          const { requestId, method, path: reqPath, headers, body, port } = command.payload;
+          
+          log(`🔀 HTTP proxy request: ${method} ${reqPath} → localhost:${port}`);
+          
+          // Build the target URL
+          const targetUrl = `http://localhost:${port}${reqPath}`;
+          
+          // Decode body if present
+          const requestBody = body ? Buffer.from(body, 'base64') : undefined;
+          
+          // Fetch from dev server
+          const response = await fetch(targetUrl, {
+            method,
+            headers: {
+              ...headers,
+              // Remove hop-by-hop headers
+              'host': `localhost:${port}`,
+            },
+            body: requestBody,
+            // Don't follow redirects - let the client handle them
+            redirect: 'manual',
+          });
+          
+          // Get response headers
+          const responseHeaders: Record<string, string> = {};
+          response.headers.forEach((value, key) => {
+            // Skip hop-by-hop headers
+            if (!['transfer-encoding', 'connection', 'keep-alive'].includes(key.toLowerCase())) {
+              responseHeaders[key] = value;
+            }
+          });
+          
+          // Get response body
+          const responseBody = Buffer.from(await response.arrayBuffer());
+          
+          // Determine if we need to chunk the response
+          const shouldChunk = responseBody.length > 1024 * 1024; // 1MB threshold
+          
+          if (shouldChunk) {
+            // Send initial response with headers only
+            sendEvent({
+              type: "http-proxy-response",
+              ...buildEventBase(command.projectId, command.id),
+              requestId,
+              statusCode: response.status,
+              headers: responseHeaders,
+              isChunked: true,
+            });
+            
+            // Send body in chunks
+            const chunkSize = 64 * 1024; // 64KB chunks
+            for (let i = 0; i < responseBody.length; i += chunkSize) {
+              const chunk = responseBody.slice(i, i + chunkSize);
+              const isFinal = i + chunkSize >= responseBody.length;
+              
+              sendEvent({
+                type: "http-proxy-chunk",
+                ...buildEventBase(command.projectId, command.id),
+                requestId,
+                chunk: chunk.toString('base64'),
+                isFinal,
+              });
+            }
+          } else {
+            // Send complete response in one message
+            sendEvent({
+              type: "http-proxy-response",
+              ...buildEventBase(command.projectId, command.id),
+              requestId,
+              statusCode: response.status,
+              headers: responseHeaders,
+              body: responseBody.toString('base64'),
+              isChunked: false,
+            });
+          }
+          
+          log(`✅ HTTP proxy response: ${response.status} (${responseBody.length} bytes)`);
+          
+        } catch (error) {
+          console.error("[runner] ❌ HTTP proxy request failed:", error);
+          sendEvent({
+            type: "http-proxy-error",
+            ...buildEventBase(command.projectId, command.id),
+            requestId: command.payload.requestId,
+            error: error instanceof Error ? error.message : "HTTP proxy request failed",
+            statusCode: 502, // Bad Gateway
+          });
+        }
+        break;
+      }
+      case "hmr-connect": {
+        // Connect to local HMR WebSocket server
+        const { connectionId, port, protocol } = command.payload;
+        hmrProxyManager.connect(connectionId, port, command.projectId, protocol);
+        break;
+      }
+      case "hmr-message": {
+        // Forward message to HMR server
+        const { connectionId, message } = command.payload;
+        hmrProxyManager.send(connectionId, message);
+        break;
+      }
+      case "hmr-disconnect": {
+        // Disconnect from HMR server
+        const { connectionId } = command.payload;
+        hmrProxyManager.disconnect(connectionId);
+        break;
+      }
       default:
         assertNever(command as never);
     }
@@ -2893,6 +3005,43 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
     }
     heartbeatTimer = setInterval(() => publishStatus(), HEARTBEAT_INTERVAL_MS);
   }
+
+  // Set up HMR proxy callbacks to forward HMR events through the main WebSocket
+  hmrProxyManager.setCallbacks({
+    onConnected: (connectionId) => {
+      sendEvent({
+        type: "hmr-connected",
+        ...buildEventBase(),
+        connectionId,
+      });
+    },
+    onMessage: (connectionId, message) => {
+      sendEvent({
+        type: "hmr-message",
+        ...buildEventBase(),
+        connectionId,
+        message,
+      });
+    },
+    onDisconnected: (connectionId, code, reason) => {
+      sendEvent({
+        type: "hmr-disconnected",
+        ...buildEventBase(),
+        connectionId,
+        code,
+        reason,
+      });
+    },
+    onError: (connectionId, error) => {
+      console.warn(`[hmr-proxy] HMR error: ${connectionId} - ${error}`);
+      sendEvent({
+        type: "hmr-error",
+        ...buildEventBase(),
+        connectionId,
+        error,
+      });
+    },
+  });
 
   function cleanupSocket() {
     if (socket) {
