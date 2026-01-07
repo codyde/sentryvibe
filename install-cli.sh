@@ -93,31 +93,19 @@ fi
 
 echo -e "${GREEN}✓${NC} Node.js $(node --version) detected"
 
-# Check for pnpm (preferred) - install if missing
-if command -v pnpm &> /dev/null; then
-    PKG_MANAGER="pnpm"
-    echo -e "${GREEN}✓${NC} pnpm $(pnpm --version) detected"
+# Check for package managers
+# Prefer npm for global installs as it handles large packages more reliably
+# (pnpm can OOM on packages like @openai/codex-sdk which is 255MB)
+if command -v npm &> /dev/null; then
+    PKG_MANAGER="npm"
+    echo -e "${GREEN}✓${NC} npm $(npm --version) detected"
 else
-    echo -e "${YELLOW}!${NC} pnpm not found, installing..."
-    
-    if command -v npm &> /dev/null; then
-        echo -e "${BLUE}📦 Installing pnpm globally via npm...${NC}"
-        if npm install -g pnpm; then
-            PKG_MANAGER="pnpm"
-            echo -e "${GREEN}✓${NC} pnpm $(pnpm --version) installed"
-        else
-            echo -e "${YELLOW}!${NC} Failed to install pnpm, falling back to npm"
-            PKG_MANAGER="npm"
-            echo -e "${GREEN}✓${NC} npm $(npm --version) detected"
-        fi
-    else
-        echo -e "${RED}✖ npm not found, cannot install pnpm${NC}"
-        echo ""
-        echo "Please install Node.js which includes npm:"
-        echo "  https://nodejs.org/"
-        echo ""
-        exit 1
-    fi
+    echo -e "${RED}✖ npm not found${NC}"
+    echo ""
+    echo "Please install Node.js which includes npm:"
+    echo "  https://nodejs.org/"
+    echo ""
+    exit 1
 fi
 
 echo ""
@@ -158,12 +146,12 @@ echo "   Source: ${DOWNLOAD_URL}"
 echo "   Package Manager: ${PKG_MANAGER}"
 echo ""
 
-# Install with chosen package manager
-if [ "$PKG_MANAGER" = "pnpm" ]; then
-    pnpm add -g "$DOWNLOAD_URL"
-else
-    npm install -g "$DOWNLOAD_URL"
-fi
+# Install with npm
+# Set NODE_OPTIONS to increase heap size for large dependencies (codex-sdk is 255MB)
+# This helps prevent OOM errors during installation
+export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=8192"
+
+npm install -g "$DOWNLOAD_URL"
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -218,10 +206,10 @@ else
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo "Try manual installation:"
-    echo "  ${PKG_MANAGER} install -g ${DOWNLOAD_URL}"
+    echo "  npm install -g ${DOWNLOAD_URL}"
     echo ""
     echo "Or install from npm registry:"
-    echo "  ${PKG_MANAGER} install -g @sentryvibe/runner-cli"
+    echo "  npm install -g @sentryvibe/runner-cli"
     echo ""
     echo "Common issues:"
     echo "  • Network connectivity problems"
