@@ -1,10 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-// Get the directory where this module is located
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { join } from 'node:path';
 
 export interface Template {
   id: string;
@@ -46,6 +41,15 @@ export interface TemplateConfig {
 let cachedConfig: TemplateConfig | null = null;
 
 /**
+ * Get the configured templates path from environment variable
+ * This is set by setTemplatesPath() in agent-core
+ */
+function getTemplatesPath(): string {
+  const path = process.env.TEMPLATES_JSON_PATH ?? join(process.cwd(), 'templates.json');
+  return path;
+}
+
+/**
  * Load template configuration from templates.json
  */
 export async function loadTemplateConfig(): Promise<TemplateConfig> {
@@ -53,10 +57,7 @@ export async function loadTemplateConfig(): Promise<TemplateConfig> {
     return cachedConfig;
   }
 
-  // templates.json is in apps/runner/ directory
-  // In compiled code: dist/lib/templates/config.js -> need to go up to dist/../templates.json
-  // Which is: dist/lib/templates -> ../../.. -> apps/runner, then templates.json
-  const configPath = join(__dirname, '../../../templates.json');
+  const configPath = getTemplatesPath();
   const content = await readFile(configPath, 'utf-8');
   cachedConfig = JSON.parse(content) as TemplateConfig;
 
