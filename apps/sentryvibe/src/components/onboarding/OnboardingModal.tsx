@@ -37,26 +37,32 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
     }
   }, [availableRunners, currentStep, forceStartAtStepOne, hasInitialized]);
 
-  // Reset state only when modal first opens (not on every dependency change)
+  // Initialize state when modal first opens
+  // Preserve createdKey and currentStep when modal is closed and reopened
+  // so users don't lose progress if they accidentally close the modal
   useEffect(() => {
     if (open && !hasInitialized) {
-      // If forcing step one (testing), always start at 1
+      // If forcing step one (testing), always start at 1 and reset key
       if (forceStartAtStepOne) {
         setCurrentStep(1);
         setCreatedKey(null);
+      } else if (createdKey) {
+        // User has a key from previous session - resume where they left off
+        // Don't reset their progress
       } else if (availableRunners.length > 0) {
-        // If runners are already connected, start at complete
+        // If runners are already connected and no existing progress, start at complete
         setCurrentStep(4);
       } else {
+        // Fresh start
         setCurrentStep(1);
       }
       setHasInitialized(true);
     } else if (!open) {
-      // Reset initialization flag when modal closes
+      // Only reset initialization flag when modal closes
+      // Keep createdKey and currentStep so user can resume
       setHasInitialized(false);
-      setCreatedKey(null);
     }
-  }, [open, availableRunners.length, forceStartAtStepOne, hasInitialized]);
+  }, [open, availableRunners.length, forceStartAtStepOne, hasInitialized, createdKey]);
 
   const handleSkip = () => {
     onOpenChange(false);
@@ -69,6 +75,9 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
     } catch (error) {
       console.error("Failed to mark onboarding complete:", error);
     }
+    // Reset state on successful completion
+    setCurrentStep(1);
+    setCreatedKey(null);
     onComplete();
     onOpenChange(false);
   };
