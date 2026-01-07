@@ -56,6 +56,11 @@ export function AuthProvider({ children, isLocalMode = false }: AuthProviderProp
 
   // Fetch onboarding status when authenticated
   const fetchOnboardingStatus = useCallback(async () => {
+    // Ensure we're on the client side before accessing localStorage
+    if (typeof window === "undefined") {
+      return;
+    }
+
     if (isLocalMode) {
       // In local mode, check localStorage for onboarding status
       const stored = localStorage.getItem("sentryvibe-local-onboarding-complete");

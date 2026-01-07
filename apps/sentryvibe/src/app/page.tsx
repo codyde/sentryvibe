@@ -649,10 +649,19 @@ function HomeContent() {
 
   // Onboarding modal trigger logic
   // Show onboarding for:
+  // - Force flag: ?forceHostedOnboarding=true always shows hosted modal
   // - Local mode: if not completed onboarding
   // - Hosted mode: if not completed onboarding OR no runners connected
+  const forceHostedOnboarding = searchParams?.get('forceHostedOnboarding') === 'true';
+  
   useEffect(() => {
     if (!isMounted) return;
+    
+    // If force flag is present, always show immediately (bypass all checks)
+    if (forceHostedOnboarding) {
+      setShowOnboarding(true);
+      return;
+    }
     
     // Don't show onboarding if auth/onboarding status is still loading
     // This prevents a race condition where hasCompletedOnboarding is false
@@ -674,7 +683,7 @@ function HomeContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isMounted, isLocalMode, hasCompletedOnboarding, availableRunners.length, isAuthenticated, isAuthLoading]);
+  }, [isMounted, isLocalMode, hasCompletedOnboarding, availableRunners.length, isAuthenticated, isAuthLoading, forceHostedOnboarding]);
 
   // Load tags from existing project or initialize defaults for new project
   useEffect(() => {
@@ -2543,7 +2552,8 @@ function HomeContent() {
       {LoginModal}
       
       {/* Onboarding Modal - shown for new users */}
-      {isLocalMode ? (
+      {/* Debug: Add ?forceHostedOnboarding=true to URL to test SaaS modal in local mode */}
+      {isLocalMode && !forceHostedOnboarding ? (
         <LocalModeOnboarding
           open={showOnboarding}
           onOpenChange={setShowOnboarding}
