@@ -95,6 +95,7 @@ export default function PreviewPanel({
   useHmrProxy({
     projectId: currentProject?.id || '',
     runnerId: currentProject?.runnerId || undefined,
+    devServerPort: actualPort || 5173,
     enabled: USE_WS_PROXY && !!currentProject?.id && currentProject?.devServerStatus === 'running',
     iframeRef: iframeRef as React.RefObject<HTMLIFrameElement>,
   });

@@ -16,6 +16,7 @@ import { useEffect, useRef, useCallback } from 'react';
 interface UseHmrProxyOptions {
   projectId: string;
   runnerId?: string;
+  devServerPort?: number;
   enabled?: boolean;
   iframeRef: React.RefObject<HTMLIFrameElement>;
 }
@@ -31,12 +32,14 @@ const DEBUG = false;
 export function useHmrProxy({
   projectId,
   runnerId,
+  devServerPort = 5173,
   enabled = true,
   iframeRef,
 }: UseHmrProxyOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const activeConnectionsRef = useRef<Map<string, HmrConnection>>(new Map());
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const iframeReadyRef = useRef(false);
 
   /**
    * Send message to iframe
@@ -138,7 +141,10 @@ export function useHmrProxy({
         handleHmrDisconnect(event.data);
         break;
       case 'sentryvibe:hmr:ready':
-        if (DEBUG) console.log('[useHmrProxy] Iframe HMR script ready');
+        if (DEBUG) console.log('[useHmrProxy] Iframe HMR script ready, sending port config:', devServerPort);
+        iframeReadyRef.current = true;
+        // Send the dev server port to the iframe
+        sendToIframe('sentryvibe:hmr:config', { port: devServerPort });
         break;
     }
   }, [iframeRef, handleHmrConnect, handleHmrSend, handleHmrDisconnect]);
@@ -248,6 +254,7 @@ export function useHmrProxy({
     
     return () => {
       window.removeEventListener('message', handleIframeMessage);
+      iframeReadyRef.current = false;
       
       // Clear reconnect timeout
       if (reconnectTimeoutRef.current) {
@@ -271,6 +278,16 @@ export function useHmrProxy({
       activeConnectionsRef.current.clear();
     };
   }, [enabled, connect, handleIframeMessage, sendToIframe]);
+
+  /**
+   * Send port config to iframe when port changes
+   */
+  useEffect(() => {
+    if (enabled && iframeReadyRef.current && devServerPort) {
+      if (DEBUG) console.log('[useHmrProxy] Port changed, sending config:', devServerPort);
+      sendToIframe('sentryvibe:hmr:config', { port: devServerPort });
+    }
+  }, [enabled, devServerPort, sendToIframe]);
 
   return {
     activeConnections: activeConnectionsRef.current.size,

@@ -34,6 +34,13 @@ export const HMR_PROXY_SCRIPT = `
   
   // Track active fake WebSocket connections
   const activeConnections = new Map();
+  
+  // Dev server port - set by parent via postMessage
+  // null means we haven't received config yet
+  let devServerPort = null;
+  
+  // Queue of connections waiting for port config
+  const pendingConnections = [];
 
   /**
    * FakeWebSocket - Mimics WebSocket API but uses postMessage
@@ -75,13 +82,28 @@ export const HMR_PROXY_SCRIPT = `
     }
     
     _requestConnect() {
-      // Extract port from URL
-      let port = 5173; // Default Vite port
-      try {
-        const urlObj = new URL(this.url);
-        port = parseInt(urlObj.port, 10) || (urlObj.protocol === 'wss:' ? 443 : 80);
-      } catch (e) {
-        console.warn('[HMR Proxy] Failed to parse URL:', this.url, e);
+      // Try to get port: first from parent config, then from URL
+      let port = devServerPort;
+      
+      if (port === null) {
+        // Try to extract from URL
+        try {
+          const urlObj = new URL(this.url);
+          const urlPort = parseInt(urlObj.port, 10);
+          // Only use URL port if it's a valid dev server port (not 80/443)
+          if (urlPort && urlPort !== 80 && urlPort !== 443) {
+            port = urlPort;
+          }
+        } catch (e) {}
+      }
+      
+      // If we still don't have a valid port, HMR is disabled
+      if (port === null || port === 80 || port === 443) {
+        console.warn('[HMR Proxy] Cannot determine dev server port - HMR disabled. URL:', this.url);
+        console.warn('[HMR Proxy] To enable HMR, ensure the dev server port is properly configured.');
+        // Queue for later in case parent sends config
+        pendingConnections.push(this);
+        return;
       }
       
       console.log('[HMR Proxy] Requesting connection to port:', port);
@@ -260,15 +282,33 @@ export const HMR_PROXY_SCRIPT = `
   window.WebSocket = ProxiedWebSocket;
   
   /**
-   * Listen for messages from parent window (HMR events)
+   * Listen for messages from parent window (HMR events and config)
    */
   window.addEventListener('message', function(event) {
     // Only handle messages from parent
     if (event.source !== window.parent) return;
     
-    const { type, connectionId, message, code, reason, error } = event.data || {};
+    const { type, connectionId, message, code, reason, error, port } = event.data || {};
     
     if (!type || !type.startsWith('sentryvibe:hmr:')) return;
+    
+    // Handle config message to set dev server port
+    if (type === 'sentryvibe:hmr:config') {
+      if (port && typeof port === 'number') {
+        devServerPort = port;
+        console.log('[HMR Proxy] Dev server port set to:', devServerPort);
+        
+        // Process any queued connections
+        if (pendingConnections.length > 0) {
+          console.log('[HMR Proxy] Processing', pendingConnections.length, 'queued connections');
+          while (pendingConnections.length > 0) {
+            const conn = pendingConnections.shift();
+            conn._requestConnect();
+          }
+        }
+      }
+      return;
+    }
     
     const conn = activeConnections.get(connectionId);
     if (!conn) {
