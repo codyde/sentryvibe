@@ -31,11 +31,13 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
 
   // If a runner connects while modal is open, jump to complete step
   // But not if we're forcing step one (testing mode)
+  // Use availableRunners.length instead of availableRunners to avoid re-running
+  // when heartbeat polling updates the runner objects' lastHeartbeat timestamps
   useEffect(() => {
     if (!forceStartAtStepOne && availableRunners.length > 0 && currentStep < 4 && hasInitialized) {
       setCurrentStep(4);
     }
-  }, [availableRunners, currentStep, forceStartAtStepOne, hasInitialized]);
+  }, [availableRunners.length, currentStep, forceStartAtStepOne, hasInitialized]);
 
   // Initialize state when modal first opens
   // Preserve createdKey and currentStep when modal is closed and reopened
@@ -71,15 +73,20 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
   const handleComplete = async () => {
     // Mark onboarding as complete
     try {
-      await fetch("/api/user/onboarding", { method: "POST" });
+      const response = await fetch("/api/user/onboarding", { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      // Reset state on successful completion
+      setCurrentStep(1);
+      setCreatedKey(null);
+      onComplete();
+      onOpenChange(false);
     } catch (error) {
       console.error("Failed to mark onboarding complete:", error);
+      // Don't update client state if server update failed
+      // This keeps UI in sync with database
     }
-    // Reset state on successful completion
-    setCurrentStep(1);
-    setCreatedKey(null);
-    onComplete();
-    onOpenChange(false);
   };
 
   return (

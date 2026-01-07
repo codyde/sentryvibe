@@ -650,8 +650,8 @@ function HomeContent() {
   // Onboarding modal trigger logic
   // Show onboarding for:
   // - Force flag: ?forceHostedOnboarding=true always shows hosted modal
-  // - Local mode: if not completed onboarding
-  // - Hosted mode: if not completed onboarding OR no runners connected
+  // - Users who haven't completed onboarding (both local and hosted mode)
+  // Users who completed onboarding can use the "Setup Guide" button if runners disconnect
   const forceHostedOnboarding = searchParams?.get('forceHostedOnboarding') === 'true';
   
   useEffect(() => {
@@ -672,9 +672,9 @@ function HomeContent() {
     if (!isAuthenticated && !isLocalMode) return;
     
     // Determine if we should show onboarding
-    const shouldShow = isLocalMode
-      ? !hasCompletedOnboarding
-      : !hasCompletedOnboarding || availableRunners.length === 0;
+    // Only show for users who haven't completed onboarding
+    // Users who completed onboarding can use the "Setup Guide" button if runners disconnect
+    const shouldShow = !hasCompletedOnboarding;
     
     if (shouldShow) {
       // Small delay to let the page settle
@@ -683,7 +683,7 @@ function HomeContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isMounted, isLocalMode, hasCompletedOnboarding, availableRunners.length, isAuthenticated, isAuthLoading, forceHostedOnboarding]);
+  }, [isMounted, isLocalMode, hasCompletedOnboarding, isAuthenticated, isAuthLoading, forceHostedOnboarding]);
 
   // Load tags from existing project or initialize defaults for new project
   useEffect(() => {
