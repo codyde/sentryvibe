@@ -22,6 +22,7 @@ export interface RunnerConfig {
   };
   runner: {
     id: string; // This runner's ID and default ID for web app in local mode
+    lastRunnerId?: string; // Last used runner ID (for runner mode)
     reconnectAttempts?: number;
     heartbeatInterval?: number;
   };

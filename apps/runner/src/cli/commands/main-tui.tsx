@@ -186,7 +186,8 @@ export async function mainTUICommand(): Promise<void> {
   const isInitialized = configManager.isInitialized();
   const existingKey = configManager.getSecret() || '';
   const config = configManager.get();
-  const existingRunnerId = config.runner?.id || getSystemUsername();
+  // Use lastRunnerId if available, otherwise fall back to system username
+  const existingRunnerId = config.runner?.lastRunnerId || getSystemUsername();
   const existingWorkspace = config.workspace || '';
 
   const initialState: AppState = {
@@ -279,6 +280,15 @@ async function startRunner(config: RunnerConfig): Promise<void> {
     configManager.set('server', {
       ...serverConfig,
       secret: config.key,
+    });
+  }
+
+  // Save the runner ID to config for future use
+  if (config.runnerId) {
+    const runnerConf = configManager.get('runner') || {};
+    configManager.set('runner', {
+      ...runnerConf,
+      lastRunnerId: config.runnerId,
     });
   }
 
