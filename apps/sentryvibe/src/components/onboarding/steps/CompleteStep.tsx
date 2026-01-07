@@ -1,14 +1,15 @@
 "use client";
 
-import { Sparkles, CheckCircle2, ArrowRight, Server, Cloud, Cpu } from "lucide-react";
+import { Sparkles, CheckCircle2, ArrowRight, ArrowLeft, Server, Cloud, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRunner } from "@/contexts/RunnerContext";
 
 interface CompleteStepProps {
   onComplete: () => void;
+  onBack?: () => void;
 }
 
-export function CompleteStep({ onComplete }: CompleteStepProps) {
+export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
   const { availableRunners } = useRunner();
   const connectedRunner = availableRunners[0];
 
@@ -102,12 +103,24 @@ export function CompleteStep({ onComplete }: CompleteStepProps) {
         </div>
       </div>
 
-      {/* Action */}
-      <div className="pt-2">
+      {/* Actions */}
+      <div className="flex items-center justify-between pt-2">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="text-zinc-500 hover:text-zinc-300"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+        )}
         <Button
           type="button"
           onClick={onComplete}
-          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+          className={`bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white ${!onBack ? 'w-full' : ''}`}
         >
           Start Building
           <ArrowRight className="w-4 h-4 ml-2" />

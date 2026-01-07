@@ -2570,6 +2570,7 @@ function HomeContent() {
             setHasCompletedOnboarding(true);
             setShowOnboarding(false);
           }}
+          forceStartAtStepOne={forceHostedOnboarding}
         />
       )}
       

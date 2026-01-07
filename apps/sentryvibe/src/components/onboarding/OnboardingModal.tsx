@@ -19,23 +19,32 @@ interface OnboardingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete: () => void;
+  /** Force start at step 1, ignoring runner connection status (for testing) */
+  forceStartAtStepOne?: boolean;
 }
 
-export function OnboardingModal({ open, onOpenChange, onComplete }: OnboardingModalProps) {
+export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtStepOne = false }: OnboardingModalProps) {
   const { availableRunners } = useRunner();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
 
   // If a runner connects while modal is open, jump to complete step
+  // But not if we're forcing step one (testing mode)
   useEffect(() => {
-    if (availableRunners.length > 0 && currentStep < 4) {
+    if (!forceStartAtStepOne && availableRunners.length > 0 && currentStep < 4) {
       setCurrentStep(4);
     }
-  }, [availableRunners, currentStep]);
+  }, [availableRunners, currentStep, forceStartAtStepOne]);
 
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
+      // If forcing step one (testing), always start at 1
+      if (forceStartAtStepOne) {
+        setCurrentStep(1);
+        setCreatedKey(null);
+        return;
+      }
       // If runners are already connected, start at complete
       if (availableRunners.length > 0) {
         setCurrentStep(4);
@@ -44,7 +53,7 @@ export function OnboardingModal({ open, onOpenChange, onComplete }: OnboardingMo
       }
       setCreatedKey(null);
     }
-  }, [open, availableRunners]);
+  }, [open, availableRunners, forceStartAtStepOne]);
 
   const handleSkip = () => {
     onOpenChange(false);
@@ -111,9 +120,9 @@ export function OnboardingModal({ open, onOpenChange, onComplete }: OnboardingMo
             />
           )}
 
-          {currentStep === 3 && createdKey && (
+          {currentStep === 3 && (
             <ConnectStep
-              runnerKey={createdKey}
+              runnerKey={createdKey || "<your-key>"}
               onNext={() => setCurrentStep(4)}
               onBack={() => setCurrentStep(2)}
               onSkip={handleSkip}
@@ -121,7 +130,10 @@ export function OnboardingModal({ open, onOpenChange, onComplete }: OnboardingMo
           )}
 
           {currentStep === 4 && (
-            <CompleteStep onComplete={handleComplete} />
+            <CompleteStep 
+              onComplete={handleComplete} 
+              onBack={forceStartAtStepOne ? () => setCurrentStep(3) : undefined}
+            />
           )}
         </div>
       </DialogContent>
