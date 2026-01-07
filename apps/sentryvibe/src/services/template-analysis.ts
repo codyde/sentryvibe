@@ -324,7 +324,7 @@ Selection Guidelines:
 - **react-vite**: Simple SPAs, prototypes, basic UIs (default for unclear requests)
 - **nextjs-fullstack**: Full-stack apps needing auth, database, API routes, SSR
 - **template_tanstackstart**: TanStack Start foundation with Router/Query + Tailwind for customizable full-stack builds
-- **vite-react-node**: SPAs with separate backend, real-time apps, WebSocket
+
 - **astro-static**: Blogs, documentation, landing pages, marketing sites
 
 CRITICAL INSTRUCTIONS:

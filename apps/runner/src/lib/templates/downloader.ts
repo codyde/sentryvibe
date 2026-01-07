@@ -102,7 +102,7 @@ export async function downloadTemplateWithGit(
     // Ensure vite.config has PORT env var support for Vite-based projects
     await ensureVitePortConfig(targetPath);
 
-    // Handle multi-package projects (like vite-react-node with client/server)
+    // Handle multi-package projects with client/server subdirectories
     const clientPkgPath = join(targetPath, 'client', 'package.json');
     const serverPkgPath = join(targetPath, 'server', 'package.json');
 

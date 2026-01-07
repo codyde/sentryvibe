@@ -56,7 +56,7 @@ export async function downloadTemplate(
     // Update package.json name(s)
     await updatePackageName(targetPath, projectName);
 
-    // Handle multi-package projects (like vite-react-node with client/server)
+    // Handle multi-package projects with client/server subdirectories
     const clientPkgPath = join(targetPath, 'client', 'package.json');
     const serverPkgPath = join(targetPath, 'server', 'package.json');
 

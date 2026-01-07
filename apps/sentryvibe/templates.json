@@ -61,7 +61,7 @@
       },
 
       "ai": {
-        "systemPromptAddition": "This is a simple React + Vite project - the default for basic applications.\n\n**Key Patterns:**\n- Pure client-side React application\n- No backend or API needed\n- Fast development with Vite HMR\n- TypeScript for type safety\n- Tailwind CSS for styling\n\n**Directory Structure:**\n- src/ - React components and logic\n- src/components/ - Reusable components\n- src/App.tsx - Main application component\n\n**When to use:**\n- Simple UIs without server-side logic\n- Prototypes and demos\n- Learning projects\n- Any basic React application\n\n**When NOT to use:**\n- Need authentication or database (use Next.js)\n- Need separate backend API (use Vite + React + Node)\n- Need static site generation (use Astro)",
+        "systemPromptAddition": "This is a simple React + Vite project - the default for basic applications.\n\n**Key Patterns:**\n- Pure client-side React application\n- No backend or API needed\n- Fast development with Vite HMR\n- TypeScript for type safety\n- Tailwind CSS for styling\n\n**Directory Structure:**\n- src/ - React components and logic\n- src/components/ - Reusable components\n- src/App.tsx - Main application component\n\n**When to use:**\n- Simple UIs without server-side logic\n- Prototypes and demos\n- Learning projects\n- Any basic React application\n\n**When NOT to use:**\n- Need authentication or database (use Next.js)\n- Need static site generation (use Astro)",
 
         "includedFeatures": [
           "React 18 with TypeScript",
@@ -216,78 +216,6 @@
           "Tailwind CSS configured out of the box",
           "pnpm workspace setup with Vite dev tooling",
           "Ready-to-extend server actions and loaders"
-        ]
-      }
-    },
-
-    {
-      "id": "vite-react-node",
-      "name": "Vite + React + Node.js",
-      "description": "Fast React SPA with separate Node.js/Express backend",
-      "repository": "github:codyde/template-reactnode",
-      "branch": "main",
-
-      "selection": {
-        "keywords": [
-          "vite",
-          "react",
-          "spa",
-          "single-page",
-          "node",
-          "nodejs",
-          "express",
-          "api",
-          "backend",
-          "rest",
-          "restful",
-          "client-server",
-          "websocket",
-          "real-time"
-        ],
-        "useCases": [
-          "Single-page applications with separate API",
-          "React frontends with Express backends",
-          "Projects requiring clear frontend/backend separation",
-          "Real-time applications with WebSocket support",
-          "Prototypes and MVPs needing quick setup",
-          "Mobile-first web applications"
-        ],
-        "examples": [
-          "Build a chat application",
-          "Create a weather dashboard",
-          "Make a recipe finder app",
-          "Build a task tracking tool",
-          "Create a note-taking app with search"
-        ]
-      },
-
-      "tech": {
-        "framework": "vite",
-        "version": "5.x",
-        "language": "typescript",
-        "styling": "tailwind",
-        "packageManager": "pnpm",
-        "nodeVersion": ">=20.0.0"
-      },
-
-      "setup": {
-        "defaultPort": 5173,
-        "installCommand": "pnpm install && cd server && pnpm install",
-        "devCommand": "pnpm dev",
-        "buildCommand": "pnpm build"
-      },
-
-      "ai": {
-        "systemPromptAddition": "This project has two separate parts:\n\n**client/** - Vite React frontend\n- Runs on port 5173\n- TypeScript + React + Tailwind\n- Vite proxy configured for /api routes\n\n**server/** - Node.js Express backend\n- Runs on port 3001\n- Express with CORS and JSON middleware\n- API routes in server/routes/\n\n**Development workflow:**\n1. Install deps in both: cd {projectName} && pnpm install && cd server && pnpm install\n2. Run dev script from root: pnpm dev (starts both frontend and backend)\n3. Frontend calls backend via /api proxy\n\n**API calls from frontend:**\n```typescript\nconst response = await fetch('/api/data')\nconst data = await response.json()\n```",
-
-        "includedFeatures": [
-          "Vite React app with TypeScript and Hot Module Replacement",
-          "Express API server with CORS configured",
-          "Proxy configuration for /api routes in development",
-          "Example API endpoints (GET, POST)",
-          "Sample React components and routing",
-          "Tailwind CSS configured in client",
-          "Concurrent dev script to run both servers"
         ]
       }
     },
