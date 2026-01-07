@@ -130,6 +130,10 @@
       "types": "./dist/lib/utils.d.ts",
       "default": "./dist/lib/utils.js"
     },
+    "./lib/websocket": {
+      "types": "./dist/lib/websocket/index.d.ts",
+      "default": "./dist/lib/websocket/index.js"
+    },
     "./lib/websocket/server": {
       "types": "./dist/lib/websocket/server.d.ts",
       "default": "./dist/lib/websocket/server.js"

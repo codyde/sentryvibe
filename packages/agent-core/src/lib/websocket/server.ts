@@ -29,6 +29,7 @@ import { db } from '../db/client';
 import { runnerKeys } from '../db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
+import { httpProxyManager } from './http-proxy-manager';
 
 interface ClientSubscription {
   ws: WebSocket;
@@ -379,6 +380,9 @@ class BuildWebSocketServer {
         clearInterval(conn.pingInterval);
       }
       this.runnerConnections.delete(runnerId);
+      
+      // Cancel any pending HTTP proxy requests for this runner
+      httpProxyManager.cancelRequestsForRunner(runnerId);
 
       Sentry.addBreadcrumb({
         category: 'websocket',
@@ -411,6 +415,12 @@ class BuildWebSocketServer {
    * NOTE: Database writes now happen via HTTP from the runner (/api/runner-events, /api/build-events)
    */
   private async processRunnerEvent(event: RunnerEvent) {
+    // Check if this is an HTTP proxy event - handle specially
+    if (httpProxyManager.processEvent(event)) {
+      // HTTP proxy events are handled internally, don't broadcast
+      return;
+    }
+    
     // Publish event to internal event stream
     // This triggers persistent-event-processor for WebSocket broadcasts
     // DB writes are handled by HTTP endpoints called directly from runner

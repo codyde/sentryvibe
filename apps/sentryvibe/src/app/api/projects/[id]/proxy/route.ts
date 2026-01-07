@@ -3,6 +3,39 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { SELECTION_SCRIPT } from '@sentryvibe/agent-core/lib/selection/injector';
+import { httpProxyManager, buildWebSocketServer } from '@sentryvibe/agent-core/lib/websocket';
+
+// Feature flag for WebSocket proxy (can be controlled via env var)
+// When enabled, uses WebSocket tunnel instead of Cloudflare tunnel for remote access
+const USE_WS_PROXY = process.env.USE_WS_PROXY === 'true';
+
+/**
+ * Fetch via WebSocket proxy (HTTP-over-WebSocket)
+ * Used when frontend is remote and USE_WS_PROXY is enabled
+ */
+async function fetchViaWsProxy(
+  runnerId: string,
+  projectId: string, 
+  port: number,
+  path: string,
+  method: string = 'GET',
+  headers: Record<string, string> = {},
+  body?: Buffer
+): Promise<Response> {
+  const result = await httpProxyManager.proxyRequest(runnerId, projectId, port, {
+    method,
+    path,
+    headers,
+    body,
+  });
+  
+  // Convert proxy result to Response object
+  // Convert Buffer to Uint8Array for Response constructor
+  return new Response(new Uint8Array(result.body), {
+    status: result.statusCode,
+    headers: result.headers,
+  });
+}
 
 /**
  * Simple, robust proxy for dev servers
@@ -118,18 +151,32 @@ export async function GET(
     const frontendIsLocal = requestHost.includes('localhost') || requestHost.includes('127.0.0.1');
 
     let targetUrl: string;
+    let useWsProxy = false;
 
     if (frontendIsLocal) {
       // User accessing frontend via localhost (e.g., http://localhost:3000)
       // This means frontend and runner are on the SAME machine
       // Proxy can directly access runner's localhost
       targetUrl = `http://localhost:${proj.devServerPort}${path}`;
+    } else if (USE_WS_PROXY && proj.runnerId && buildWebSocketServer.isRunnerConnected(proj.runnerId)) {
+      // WebSocket proxy enabled and runner is connected
+      // Use HTTP-over-WebSocket to reach the dev server
+      console.log(`[proxy] Frontend accessed via ${requestHost} - using WebSocket proxy to runner ${proj.runnerId}`);
+      useWsProxy = true;
+      targetUrl = ''; // Not used when useWsProxy is true
     } else if (proj.tunnelUrl) {
       // User accessing frontend via remote URL (e.g., sentryvibe.up.railway.app)
       // Frontend and runner are on DIFFERENT machines
       // Proxy must use tunnel to reach runner
       targetUrl = `${proj.tunnelUrl}${path}`;
       console.log(`[proxy] Frontend accessed via ${requestHost} - using tunnel ${proj.tunnelUrl}`);
+    } else if (USE_WS_PROXY && proj.runnerId) {
+      // WebSocket proxy enabled but runner not connected - wait
+      console.warn(`[proxy] Remote access via ${requestHost} - waiting for runner ${proj.runnerId} to connect`);
+      return new NextResponse(
+        'Waiting for runner connection...',
+        { status: 202, headers: { 'X-Tunnel-Status': 'pending', 'X-Proxy-Mode': 'websocket' } }
+      );
     } else {
       // Frontend accessed remotely but no tunnel exists yet
       // Return a special status that frontend can detect and handle gracefully
@@ -141,10 +188,23 @@ export async function GET(
     }
     let response: Response;
     try {
-      response = await fetch(targetUrl, {
-        // Add timeout to prevent hanging on failed imports
-        signal: AbortSignal.timeout(30000), // 30 second timeout
-      });
+      if (useWsProxy && proj.runnerId && proj.devServerPort) {
+        // Use WebSocket proxy
+        response = await fetchViaWsProxy(
+          proj.runnerId,
+          id,
+          proj.devServerPort,
+          path,
+          'GET',
+          { 'Accept': req.headers.get('accept') || '*/*' }
+        );
+      } else {
+        // Direct fetch to target URL
+        response = await fetch(targetUrl, {
+          // Add timeout to prevent hanging on failed imports
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        });
+      }
     } catch (error) {
       // Handle network errors and failed dynamic imports gracefully
       if (error instanceof Error && error.name === 'AbortError') {

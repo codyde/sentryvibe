@@ -23,6 +23,7 @@ export default defineConfig({
     'lib/workspace': 'src/lib/workspace.ts',
     'lib/websocket/index': 'src/lib/websocket/index.ts',
     'lib/websocket/server': 'src/lib/websocket/server.ts',
+    'lib/websocket/http-proxy-manager': 'src/lib/websocket/http-proxy-manager.ts',
     'lib/templates/config': 'src/lib/templates/config.ts',
     'lib/templates/config.server': 'src/lib/templates/config.server.ts',
     'lib/templates/downloader': 'src/lib/templates/downloader.ts',

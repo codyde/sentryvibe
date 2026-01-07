@@ -16,7 +16,8 @@ export type RunnerCommandType =
   | 'delete-project-files'
   | 'read-file'
   | 'write-file'
-  | 'list-files';
+  | 'list-files'
+  | 'http-proxy-request';
 
 export type RunnerEventType =
   | 'ack'
@@ -39,6 +40,9 @@ export type RunnerEventType =
   | 'file-list'
   | 'dev-server-error'
   | 'autofix-started'
+  | 'http-proxy-response'
+  | 'http-proxy-chunk'
+  | 'http-proxy-error'
   | 'error';
 
 export interface BaseCommand {
@@ -159,6 +163,18 @@ export interface ListFilesCommand extends BaseCommand {
   };
 }
 
+export interface HttpProxyRequestCommand extends BaseCommand {
+  type: 'http-proxy-request';
+  payload: {
+    requestId: string;
+    method: string;
+    path: string;
+    headers: Record<string, string>;
+    body?: string | null; // Base64 encoded for binary
+    port: number; // Target dev server port
+  };
+}
+
 export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
@@ -170,7 +186,8 @@ export type RunnerCommand =
   | DeleteProjectFilesCommand
   | ReadFileCommand
   | WriteFileCommand
-  | ListFilesCommand;
+  | ListFilesCommand
+  | HttpProxyRequestCommand;
 
 export interface BaseEvent {
   type: RunnerEventType;
@@ -343,6 +360,29 @@ export interface AutoFixStartedEvent extends BaseEvent {
   maxAttempts: number;
 }
 
+export interface HttpProxyResponseEvent extends BaseEvent {
+  type: 'http-proxy-response';
+  requestId: string;
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: string; // Base64 encoded, for small responses sent in one message
+  isChunked?: boolean; // If true, body will be sent via HttpProxyChunkEvent
+}
+
+export interface HttpProxyChunkEvent extends BaseEvent {
+  type: 'http-proxy-chunk';
+  requestId: string;
+  chunk: string; // Base64 encoded chunk
+  isFinal: boolean;
+}
+
+export interface HttpProxyErrorEvent extends BaseEvent {
+  type: 'http-proxy-error';
+  requestId: string;
+  error: string;
+  statusCode?: number;
+}
+
 export type RunnerEvent =
   | AckEvent
   | LogChunkEvent
@@ -364,6 +404,9 @@ export type RunnerEvent =
   | FileListEvent
   | DevServerErrorEvent
   | AutoFixStartedEvent
+  | HttpProxyResponseEvent
+  | HttpProxyChunkEvent
+  | HttpProxyErrorEvent
   | ErrorEvent;
 
 export type RunnerMessage = RunnerCommand | RunnerEvent;
@@ -380,6 +423,7 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'read-file',
   'write-file',
   'list-files',
+  'http-proxy-request',
 ];
 
 export const isRunnerCommand = (message: RunnerMessage): message is RunnerCommand =>
