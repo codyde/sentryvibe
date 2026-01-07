@@ -7,7 +7,8 @@ import { httpProxyManager, buildWebSocketServer } from '@sentryvibe/agent-core/l
 
 // Feature flag for WebSocket proxy (can be controlled via env var)
 // When enabled, uses WebSocket tunnel instead of Cloudflare tunnel for remote access
-const USE_WS_PROXY = process.env.USE_WS_PROXY === 'true';
+// Check both server-side and NEXT_PUBLIC_ versions for flexibility
+const USE_WS_PROXY = process.env.USE_WS_PROXY === 'true' || process.env.NEXT_PUBLIC_USE_WS_PROXY === 'true';
 
 /**
  * Fetch via WebSocket proxy (HTTP-over-WebSocket)
