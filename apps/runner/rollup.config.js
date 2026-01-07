@@ -38,12 +38,12 @@ const external = [
   'url',
   'util',
   
-  // Vendor packages (installed from local tarballs)
-  '@sentry/core',
-  '@sentry/node',
-  '@sentry/node-core',
-  '@sentry/nextjs',
-  'ai-sdk-provider-claude-code',
+  // Vendor packages - these are BUNDLED (not external) so the custom SDK ships with the CLI
+  // '@sentry/core',       // bundled - custom SDK with AI integrations
+  // '@sentry/node',       // bundled - custom SDK with AI integrations
+  // '@sentry/node-core',  // bundled - custom SDK with AI integrations
+  // '@sentry/nextjs',     // bundled - custom SDK with AI integrations
+  // 'ai-sdk-provider-claude-code',  // bundled - custom provider
   
   // NPM dependencies
   '@ai-sdk/openai',
