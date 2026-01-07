@@ -185,7 +185,7 @@ function HomeContent() {
   const { requireAuth, LoginModal, isAuthenticated } = useAuthGate();
   
   // Auth context for onboarding
-  const { isLocalMode, hasCompletedOnboarding, setHasCompletedOnboarding } = useAuth();
+  const { isLocalMode, hasCompletedOnboarding, setHasCompletedOnboarding, isLoading: isAuthLoading } = useAuth();
   
   // Onboarding modal state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -654,7 +654,12 @@ function HomeContent() {
   useEffect(() => {
     if (!isMounted) return;
     
-    // Don't show onboarding if auth is still loading
+    // Don't show onboarding if auth/onboarding status is still loading
+    // This prevents a race condition where hasCompletedOnboarding is false
+    // simply because the API hasn't responded yet
+    if (isAuthLoading) return;
+    
+    // Don't show onboarding if not authenticated (hosted mode only)
     if (!isAuthenticated && !isLocalMode) return;
     
     // Determine if we should show onboarding
@@ -669,7 +674,7 @@ function HomeContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isMounted, isLocalMode, hasCompletedOnboarding, availableRunners.length, isAuthenticated]);
+  }, [isMounted, isLocalMode, hasCompletedOnboarding, availableRunners.length, isAuthenticated, isAuthLoading]);
 
   // Load tags from existing project or initialize defaults for new project
   useEffect(() => {
