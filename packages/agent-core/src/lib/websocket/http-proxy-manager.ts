@@ -251,5 +251,19 @@ class HttpProxyManager {
   }
 }
 
+// Use globalThis to ensure true singleton across module reloads
+// This is necessary because Next.js may load the module multiple times
+const globalKey = '__httpProxyManager__';
+
+function getOrCreateManager(): HttpProxyManager {
+  if (!(globalThis as any)[globalKey]) {
+    console.log('[http-proxy] Creating new HttpProxyManager singleton');
+    (globalThis as any)[globalKey] = new HttpProxyManager();
+  } else {
+    console.log('[http-proxy] Using existing HttpProxyManager singleton');
+  }
+  return (globalThis as any)[globalKey];
+}
+
 // Singleton instance
-export const httpProxyManager = new HttpProxyManager();
+export const httpProxyManager = getOrCreateManager();
