@@ -26,6 +26,15 @@ export function setTemplatesPath(path: string): void {
 function getTemplatesPath(): string {
   // Priority: module-level path > env var > cwd fallback
   const path = configuredPath ?? process.env.TEMPLATES_JSON_PATH ?? join(process.cwd(), 'templates.json');
+  
+  // Debug logging to help trace template loading issues
+  if (process.env.DEBUG_TEMPLATES === '1') {
+    console.log('[templates] getTemplatesPath called:');
+    console.log(`  configuredPath: ${configuredPath}`);
+    console.log(`  env.TEMPLATES_JSON_PATH: ${process.env.TEMPLATES_JSON_PATH}`);
+    console.log(`  resolved path: ${path}`);
+  }
+  
   return path;
 }
 
