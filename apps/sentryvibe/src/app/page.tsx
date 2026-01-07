@@ -513,11 +513,6 @@ function HomeContent() {
       (state) => !state.isActive && ((state.todos && state.todos.length > 0) || state.buildSummary)
     );
 
-    console.log('[serverBuilds] Loaded from database:', {
-      count: builds.length,
-      buildIds: builds.map(b => ({ id: b.id, source: b.source, todos: b.todos?.length, hasSummary: !!b.buildSummary })),
-    });
-
     return builds;
   }, [sessionStates]);
 
@@ -525,14 +520,6 @@ function HomeContent() {
   // BUG FIX: Prevent same build from appearing in BOTH active section AND history
   const buildHistory = useMemo(() => {
     const builds = [...serverBuilds];
-
-    console.log('🔍 [buildHistory] Building history from:', {
-      serverBuildsCount: serverBuilds.length,
-      serverBuildIds: serverBuilds.map(b => b.id),
-      hasLocalGenerationState: !!generationState,
-      localBuildId: generationState?.id,
-      localIsActive: generationState?.isActive,
-    });
 
     // Include builds that have todos OR have a summary (element edits may complete without todos)
     const hasContent = generationState && 
@@ -543,21 +530,8 @@ function HomeContent() {
       hasContent &&
       !builds.some((build) => build.id === generationState.id)
     ) {
-      console.log('➕ [buildHistory] Adding LOCAL completed build to history:', {
-        buildId: generationState.id,
-        source: generationState.source || 'unknown',
-        todos: generationState.todos?.length || 0,
-        hasSummary: !!generationState.buildSummary,
-      });
       builds.unshift({ ...generationState, source: generationState.source || 'local' });
-    } else if (generationState && !generationState.isActive) {
-      console.log('⏭️ [buildHistory] Skipping local build (already in server builds or no content):', generationState.id);
     }
-
-    console.log('✅ [buildHistory] Final history:', {
-      totalBuilds: builds.length,
-      buildIds: builds.map(b => ({ id: b.id, source: b.source })),
-    });
 
     return builds;
   }, [serverBuilds, generationState]);
@@ -706,31 +680,14 @@ function HomeContent() {
   //   5. This effect merges server updates into local state
   useEffect(() => {
     if (wsState) {
-      console.log('🔌 WebSocket state update:', {
-        isConnected: wsConnected,
-        hasState: !!wsState,
-        buildId: wsState.id,
-        todosLength: wsState.todos?.length,
-        isActive: wsState.isActive,
-        hasBuildSummary: !!wsState.buildSummary,
-        buildSummaryLength: wsState.buildSummary?.length,
-        freshBuildId: freshBuildIdRef.current,
-      });
-      
       // GUARD: If we just started a fresh build, ignore stale WebSocket state
       // until we receive updates for the new build
       if (freshBuildIdRef.current && wsState.id !== freshBuildIdRef.current) {
-        console.log('🛡️ [Fresh Build Guard] Ignoring stale WebSocket state:', {
-          freshBuildId: freshBuildIdRef.current,
-          wsStateBuildId: wsState.id,
-          wsStateTodosLength: wsState.todos?.length,
-        });
         return; // Skip this update - it's from an old build
       }
       
       // Clear the fresh build guard once we receive matching state from server
       if (freshBuildIdRef.current && wsState.id === freshBuildIdRef.current) {
-        console.log('✅ [Fresh Build Guard] Received matching state, clearing guard');
         freshBuildIdRef.current = null;
       }
       
@@ -3033,18 +2990,6 @@ function HomeContent() {
 
                               // Get the sorted build history (oldest first for display)
                               const sortedBuildHistory = [...buildHistory].reverse();
-                              
-                              console.log('📋 Rendering conversation with builds:', {
-                                buildHistoryLength: buildHistory.length,
-                                sortedBuildHistoryLength: sortedBuildHistory.length,
-                                builds: sortedBuildHistory.map(b => ({
-                                  id: b.id?.slice(0, 8),
-                                  isActive: b.isActive,
-                                  hasSummary: !!b.buildSummary,
-                                  summaryLength: b.buildSummary?.length,
-                                  todosCount: b.todos?.length,
-                                })),
-                              });
                               
                               return (
                                 <div className="space-y-6 px-1">

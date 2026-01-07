@@ -340,8 +340,6 @@ export default function PreviewPanel({
       console.log('🔗 Remote frontend detected - auto-creating tunnel...');
       hasAutoStartedTunnel.current = true;
       onStartTunnel();
-    } else if (needsTunnel && USE_WS_PROXY) {
-      console.log('🔗 WebSocket proxy enabled - skipping Cloudflare tunnel');
     }
   }, [needsTunnel, onStartTunnel, isStartingTunnel, currentProject?.devServerStatus]);
 
