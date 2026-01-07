@@ -14,15 +14,17 @@ The SentryVibe Runner is a command-line tool that executes AI-powered project bu
 
 ## Installation
 
-### From npm (Published Package)
+### Quick Install (Recommended)
 
 ```bash
-# Global installation
-npm install -g @sentryvibe/runner-cli
+# Install via curl
+curl -fsSL https://sentryvibe.app/install | bash
 
 # Verify installation
-sentryvibe-cli --version
+sentryvibe --version
 ```
+
+This installs the SentryVibe CLI globally on your machine.
 
 ### From Source (Development)
 
@@ -88,7 +90,7 @@ Before you begin, ensure you have:
 #### 1. Install the CLI
 
 ```bash
-npm install -g @sentryvibe/runner-cli
+curl -fsSL https://sentryvibe.app/install | bash
 ```
 
 #### 2. Initialize Your Runner

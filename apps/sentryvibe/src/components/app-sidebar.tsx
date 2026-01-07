@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Server, ChevronDown, CheckCircle2, Circle, Activity, Lock } from "lucide-react"
+import { Plus, Server, ChevronDown, CheckCircle2, Circle, Activity, Lock, BookOpen } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { useRunner } from "@/contexts/RunnerContext"
 import { useAuth } from "@/contexts/AuthContext"
@@ -26,12 +26,13 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onOpenProcessModal: () => void;
   onRenameProject: (project: { id: string; name: string }) => void;
   onDeleteProject: (project: { id: string; name: string; slug: string }) => void;
+  onOpenOnboarding?: () => void;
 }
 
-export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProject, ...props }: AppSidebarProps) {
+export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProject, onOpenOnboarding, ...props }: AppSidebarProps) {
   const { projects, isLoading } = useProjects();
   const { selectedRunnerId, setSelectedRunnerId, availableRunners, isLoading: runnersLoading } = useRunner();
-  const { isAuthenticated, isLocalMode } = useAuth();
+  const { isAuthenticated, isLocalMode, hasCompletedOnboarding } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentProjectSlug = searchParams?.get('project') ?? null;
@@ -269,6 +270,24 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               </span>
             )}
           </button>
+        )}
+
+        {/* Setup Guide Button - always show when authenticated */}
+        {canViewProjects && onOpenOnboarding && (
+            <button
+              onClick={onOpenOnboarding}
+              className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border border-purple-500/30 rounded-lg transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-purple-400" />
+                <span className="text-xs text-purple-300 font-medium">Setup Guide</span>
+              </div>
+              {!isLocalMode && availableRunners.length === 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-orange-500/20 text-orange-400 rounded">
+                  Action needed
+                </span>
+              )}
+            </button>
         )}
       </SidebarFooter>
 

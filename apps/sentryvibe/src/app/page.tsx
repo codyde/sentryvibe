@@ -60,6 +60,8 @@ import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
+import { useAuth } from "@/contexts/AuthContext";
+import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -181,6 +183,12 @@ function HomeContent() {
   
   // Auth gate for protected actions
   const { requireAuth, LoginModal, isAuthenticated } = useAuthGate();
+  
+  // Auth context for onboarding
+  const { isLocalMode, hasCompletedOnboarding, setHasCompletedOnboarding, isLoading: isAuthLoading } = useAuth();
+  
+  // Onboarding modal state
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   const [input, setInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<MessagePart[]>([]);
@@ -638,6 +646,44 @@ function HomeContent() {
       setActiveView(stored);
     }
   }, []);
+
+  // Onboarding modal trigger logic
+  // Show onboarding for:
+  // - Force flag: ?forceHostedOnboarding=true always shows hosted modal
+  // - Users who haven't completed onboarding (both local and hosted mode)
+  // Users who completed onboarding can use the "Setup Guide" button if runners disconnect
+  const forceHostedOnboarding = searchParams?.get('forceHostedOnboarding') === 'true';
+  
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    // If force flag is present, always show immediately (bypass all checks)
+    if (forceHostedOnboarding) {
+      setShowOnboarding(true);
+      return;
+    }
+    
+    // Don't show onboarding if auth/onboarding status is still loading
+    // This prevents a race condition where hasCompletedOnboarding is false
+    // simply because the API hasn't responded yet
+    if (isAuthLoading) return;
+    
+    // Don't show onboarding if not authenticated (hosted mode only)
+    if (!isAuthenticated && !isLocalMode) return;
+    
+    // Determine if we should show onboarding
+    // Only show for users who haven't completed onboarding
+    // Users who completed onboarding can use the "Setup Guide" button if runners disconnect
+    const shouldShow = !hasCompletedOnboarding;
+    
+    if (shouldShow) {
+      // Small delay to let the page settle
+      const timer = setTimeout(() => {
+        setShowOnboarding(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isMounted, isLocalMode, hasCompletedOnboarding, isAuthenticated, isAuthLoading, forceHostedOnboarding]);
 
   // Load tags from existing project or initialize defaults for new project
   useEffect(() => {
@@ -2505,6 +2551,29 @@ function HomeContent() {
       {/* Login Modal - shown when auth is required */}
       {LoginModal}
       
+      {/* Onboarding Modal - shown for new users */}
+      {/* Debug: Add ?forceHostedOnboarding=true to URL to test SaaS modal in local mode */}
+      {isLocalMode && !forceHostedOnboarding ? (
+        <LocalModeOnboarding
+          open={showOnboarding}
+          onOpenChange={setShowOnboarding}
+          onComplete={() => {
+            setHasCompletedOnboarding(true);
+            setShowOnboarding(false);
+          }}
+        />
+      ) : (
+        <OnboardingModal
+          open={showOnboarding}
+          onOpenChange={setShowOnboarding}
+          onComplete={() => {
+            setHasCompletedOnboarding(true);
+            setShowOnboarding(false);
+          }}
+          forceStartAtStepOne={forceHostedOnboarding}
+        />
+      )}
+      
       {/* WebSocket Connection Status Indicator */}
       {isGenerating && (
         <WebSocketStatus
@@ -2520,6 +2589,7 @@ function HomeContent() {
           onOpenProcessModal={() => setShowProcessModal(true)}
           onRenameProject={setRenamingProject}
           onDeleteProject={setDeletingProject}
+          onOpenOnboarding={() => setShowOnboarding(true)}
         />
         <ProcessManagerModal
           isOpen={showProcessModal}

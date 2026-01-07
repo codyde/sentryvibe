@@ -26,42 +26,98 @@ echo ""
 echo -e "${BLUE}                        CLI Installer${NC}"
 echo ""
 
+# Function to load nvm
+load_nvm() {
+    export NVM_DIR="${HOME}/.nvm"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        . "$NVM_DIR/nvm.sh"
+        return 0
+    elif [ -s "/usr/local/opt/nvm/nvm.sh" ]; then
+        . "/usr/local/opt/nvm/nvm.sh"
+        return 0
+    elif [ -s "/opt/homebrew/opt/nvm/nvm.sh" ]; then
+        . "/opt/homebrew/opt/nvm/nvm.sh"
+        return 0
+    fi
+    return 1
+}
+
 # Check for Node.js
+NEED_NODE_INSTALL=false
+NEED_NODE_UPGRADE=false
+
 if ! command -v node &> /dev/null; then
-    echo -e "${RED}✖ Node.js not found${NC}"
-    echo ""
-    echo "Please install Node.js 20+ first:"
-    echo "  https://nodejs.org/"
-    echo ""
-    exit 1
+    NEED_NODE_INSTALL=true
+    echo -e "${YELLOW}!${NC} Node.js not found"
+else
+    NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$NODE_VERSION" -lt 20 ]; then
+        NEED_NODE_UPGRADE=true
+        echo -e "${YELLOW}!${NC} Node.js 20+ required (you have $(node --version))"
+    fi
 fi
 
-NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo -e "${RED}✖ Node.js 20+ required (you have $(node --version))${NC}"
-    echo ""
-    echo "Please upgrade Node.js:"
-    echo "  https://nodejs.org/"
-    echo ""
-    exit 1
+# If Node.js needs to be installed or upgraded, try using nvm
+if [ "$NEED_NODE_INSTALL" = true ] || [ "$NEED_NODE_UPGRADE" = true ]; then
+    echo -e "${BLUE}📦 Attempting to install Node.js 20 via nvm...${NC}"
+    
+    # Try to load nvm
+    if load_nvm && command -v nvm &> /dev/null; then
+        echo -e "${GREEN}✓${NC} nvm detected"
+        
+        # Install Node.js 20
+        echo -e "${BLUE}  Installing Node.js 20...${NC}"
+        if nvm install 20 && nvm use 20; then
+            echo -e "${GREEN}✓${NC} Node.js 20 installed via nvm"
+        else
+            echo -e "${RED}✖ Failed to install Node.js 20 via nvm${NC}"
+            echo ""
+            echo "Please install Node.js 20+ manually:"
+            echo "  nvm install 20"
+            echo "  nvm use 20"
+            echo ""
+            exit 1
+        fi
+    else
+        echo -e "${RED}✖ nvm not found${NC}"
+        echo ""
+        echo "Please install nvm first, then run this script again:"
+        echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash"
+        echo ""
+        echo "Or install Node.js 20+ directly:"
+        echo "  https://nodejs.org/"
+        echo ""
+        exit 1
+    fi
 fi
 
 echo -e "${GREEN}✓${NC} Node.js $(node --version) detected"
 
-# Check for pnpm (preferred) or npm
+# Check for pnpm (preferred) - install if missing
 if command -v pnpm &> /dev/null; then
     PKG_MANAGER="pnpm"
     echo -e "${GREEN}✓${NC} pnpm $(pnpm --version) detected"
-elif command -v npm &> /dev/null; then
-    PKG_MANAGER="npm"
-    echo -e "${GREEN}✓${NC} npm $(npm --version) detected"
 else
-    echo -e "${RED}✖ Neither pnpm nor npm found${NC}"
-    echo ""
-    echo "Please install pnpm (recommended):"
-    echo "  npm install -g pnpm"
-    echo ""
-    exit 1
+    echo -e "${YELLOW}!${NC} pnpm not found, installing..."
+    
+    if command -v npm &> /dev/null; then
+        echo -e "${BLUE}📦 Installing pnpm globally via npm...${NC}"
+        if npm install -g pnpm; then
+            PKG_MANAGER="pnpm"
+            echo -e "${GREEN}✓${NC} pnpm $(pnpm --version) installed"
+        else
+            echo -e "${YELLOW}!${NC} Failed to install pnpm, falling back to npm"
+            PKG_MANAGER="npm"
+            echo -e "${GREEN}✓${NC} npm $(npm --version) detected"
+        fi
+    else
+        echo -e "${RED}✖ npm not found, cannot install pnpm${NC}"
+        echo ""
+        echo "Please install Node.js which includes npm:"
+        echo "  https://nodejs.org/"
+        echo ""
+        exit 1
+    fi
 fi
 
 echo ""
