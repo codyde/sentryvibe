@@ -51,11 +51,13 @@ export async function clearDatabaseUrlFromEnv(monorepoPath: string): Promise<voi
  * Run neondb setup to create a database and get the connection string
  * Returns the DATABASE_URL if successful
  */
-export async function setupDatabase(monorepoPath: string): Promise<string | null> {
+export async function setupDatabase(monorepoPath: string, silent: boolean = false): Promise<string | null> {
   // Clear any stale DATABASE_URL first
   await clearDatabaseUrlFromEnv(monorepoPath);
 
-  spinner.start('Setting up Neon PostgreSQL database...');
+  if (!silent) {
+    spinner.start('Setting up Neon PostgreSQL database...');
+  }
 
   return new Promise((resolve) => {
     const proc = spawn('npx', ['neondb', '-y'], {
@@ -86,8 +88,8 @@ export async function setupDatabase(monorepoPath: string): Promise<string | null
 
     proc.stderr?.on('data', (data) => {
       const text = data.toString();
-      // Only log actual errors
-      if (text.includes('error') || text.includes('Error')) {
+      // Only log actual errors (and only if not silent)
+      if (!silent && (text.includes('error') || text.includes('Error'))) {
         logger.debug(text.trim());
       }
     });
@@ -99,26 +101,36 @@ export async function setupDatabase(monorepoPath: string): Promise<string | null
 
         if (urlFromEnv) {
           databaseUrl = urlFromEnv;
-          spinner.succeed('Database created successfully');
+          if (!silent) {
+            spinner.succeed('Database created successfully');
+          }
           resolve(databaseUrl);
         } else if (databaseUrl) {
           // Fallback to what we parsed from output
-          spinner.succeed('Database created successfully');
+          if (!silent) {
+            spinner.succeed('Database created successfully');
+          }
           resolve(databaseUrl);
         } else {
-          spinner.warn('Database command completed but DATABASE_URL not found');
-          logger.info('Check .env file in monorepo root for DATABASE_URL');
+          if (!silent) {
+            spinner.warn('Database command completed but DATABASE_URL not found');
+            logger.info('Check .env file in monorepo root for DATABASE_URL');
+          }
           resolve(null);
         }
       } else {
-        spinner.fail('Failed to create database');
+        if (!silent) {
+          spinner.fail('Failed to create database');
+        }
         resolve(null);
       }
     });
 
     proc.on('error', (error) => {
-      spinner.fail('Failed to run neondb');
-      logger.error(`Error: ${error.message}`);
+      if (!silent) {
+        spinner.fail('Failed to run neondb');
+        logger.error(`Error: ${error.message}`);
+      }
       resolve(null);
     });
   });
@@ -147,7 +159,7 @@ export async function isNeondbAvailable(): Promise<boolean> {
 /**
  * Push database schema using drizzle-kit
  */
-export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: string): Promise<boolean> {
+export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: string, silent: boolean = false): Promise<boolean> {
   const { join } = await import('path');
   const { existsSync } = await import('fs');
 
@@ -156,16 +168,22 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
 
   // Verify paths exist
   if (!existsSync(sentryvibeAppPath)) {
-    logger.error(`Directory not found: ${sentryvibeAppPath}`);
+    if (!silent) {
+      logger.error(`Directory not found: ${sentryvibeAppPath}`);
+    }
     return false;
   }
 
   if (!existsSync(configPath)) {
-    logger.error(`Drizzle config not found: ${configPath}`);
+    if (!silent) {
+      logger.error(`Drizzle config not found: ${configPath}`);
+    }
     return false;
   }
 
-  spinner.start('Ensuring sentryvibe dependencies are installed...');
+  if (!silent) {
+    spinner.start('Ensuring sentryvibe dependencies are installed...');
+  }
 
   try {
     execFileSync('pnpm', ['install'], {
@@ -176,12 +194,18 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
       cwd: monorepoPath,
       stdio: 'pipe',
     });
-    spinner.succeed('Dependencies ready');
+    if (!silent) {
+      spinner.succeed('Dependencies ready');
+    }
   } catch (error) {
-    spinner.warn('Dependency installation failed, trying schema push anyway');
+    if (!silent) {
+      spinner.warn('Dependency installation failed, trying schema push anyway');
+    }
   }
 
-  spinner.start('Initializing database schema (this may take a moment)...');
+  if (!silent) {
+    spinner.start('Initializing database schema (this may take a moment)...');
+  }
 
   return new Promise((resolve) => {
     const proc = spawn('npx', ['drizzle-kit', 'push', '--config=drizzle.config.ts'], {
@@ -207,24 +231,30 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
 
     proc.on('exit', (code) => {
       if (code === 0) {
-        spinner.succeed('Database schema initialized successfully');
+        if (!silent) {
+          spinner.succeed('Database schema initialized successfully');
+        }
         resolve(true);
       } else {
-        spinner.fail('Failed to push database schema');
-        // Show all output when it fails so user can see what went wrong
-        if (allOutput.trim()) {
-          logger.log(''); // Blank line
-          logger.log('Output from drizzle-kit push:');
-          logger.log(allOutput.trim());
-          logger.log(''); // Blank line
+        if (!silent) {
+          spinner.fail('Failed to push database schema');
+          // Show all output when it fails so user can see what went wrong
+          if (allOutput.trim()) {
+            logger.log(''); // Blank line
+            logger.log('Output from drizzle-kit push:');
+            logger.log(allOutput.trim());
+            logger.log(''); // Blank line
+          }
         }
         resolve(false);
       }
     });
 
     proc.on('error', (error) => {
-      spinner.fail('Failed to run drizzle-kit');
-      logger.error(`Error: ${error.message}`);
+      if (!silent) {
+        spinner.fail('Failed to run drizzle-kit');
+        logger.error(`Error: ${error.message}`);
+      }
       resolve(false);
     });
   });

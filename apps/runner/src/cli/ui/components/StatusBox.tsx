@@ -1,9 +1,23 @@
 /**
- * StatusBox Component - Consolidated service status display
+ * StatusBox Component - Centered service status display
+ * Matches the init TUI style with fixed width box
  */
 
 import React from 'react';
 import { Box, Text } from 'ink';
+
+// Theme colors
+const colors = {
+  cyan: '#06b6d4',
+  success: '#22c55e',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  dimGray: '#4b5563',
+  white: '#ffffff',
+};
+
+// Match the stepper width from init TUI
+const BOX_WIDTH = 61;
 
 interface ServiceState {
   name: string;
@@ -17,107 +31,85 @@ interface ServiceState {
 
 interface StatusBoxProps {
   services: ServiceState[];
-  tunnelUrl: string | null;
 }
 
-function getStatusIndicator(status: string): { symbol: string; color: string } {
+function getStatusIndicator(status: string): { statusSymbol: string; statusColor: string } {
   switch (status) {
     case 'running':
-      return { symbol: '⬤', color: 'green' };
+      return { statusSymbol: '✓', statusColor: colors.success };
     case 'starting':
-      return { symbol: '◐', color: 'yellow' };
+      return { statusSymbol: '◐', statusColor: colors.warning };
     case 'error':
-      return { symbol: '✗', color: 'red' };
+      return { statusSymbol: '✗', statusColor: colors.error };
     default:
-      return { symbol: '○', color: 'gray' };
+      return { statusSymbol: '○', statusColor: colors.dimGray };
   }
 }
 
-export function StatusBox({ services, tunnelUrl }: StatusBoxProps) {
-  const runningCount = services.filter(s => s.status === 'running').length;
-  const totalCount = services.length;
-
+export function StatusBox({ services }: StatusBoxProps) {
   const webService = services.find(s => s.name === 'web');
   const brokerService = services.find(s => s.name === 'broker');
   const runnerService = services.find(s => s.name === 'runner');
 
+  // Build content lines
+  const lines: Array<{ label: string; value: string; valueColor: string; statusColor: string; statusSymbol: string }> = [];
+  
+  if (webService) {
+    lines.push({
+      label: 'Web',
+      value: webService.status === 'running' && webService.port 
+        ? `http://localhost:${webService.port}` 
+        : webService.status,
+      valueColor: webService.status === 'running' ? colors.cyan : colors.dimGray,
+      ...getStatusIndicator(webService.status),
+    });
+  }
+  
+  if (brokerService) {
+    lines.push({
+      label: 'Broker',
+      value: brokerService.status === 'running' && brokerService.port 
+        ? `ws://localhost:${brokerService.port}` 
+        : brokerService.status,
+      valueColor: brokerService.status === 'running' ? colors.success : colors.dimGray,
+      ...getStatusIndicator(brokerService.status),
+    });
+  }
+  
+  if (runnerService) {
+    lines.push({
+      label: 'Runner',
+      value: runnerService.status === 'running' ? 'Active' : runnerService.status,
+      valueColor: runnerService.status === 'running' ? colors.white : colors.dimGray,
+      ...getStatusIndicator(runnerService.status),
+    });
+  }
+
   return (
-    <Box
-      borderStyle="single"
-      borderColor="cyan"
-      paddingX={2}
-      paddingY={1}
-      flexDirection="column"
-    >
-      {/* Overall Status */}
-      <Box marginBottom={1}>
-        <Text bold>
-          {runningCount === totalCount ? (
-            <Text color="green">⬤ {runningCount}/{totalCount} services running</Text>
-          ) : (
-            <Text color="yellow">◐ {runningCount}/{totalCount} services running</Text>
-          )}
-        </Text>
-      </Box>
-
-      {/* Web Service */}
-      {webService && (
-        <Box>
-          <Text color={getStatusIndicator(webService.status).color}>
-            {getStatusIndicator(webService.status).symbol}
-          </Text>
-          <Text> </Text>
-          <Text bold>Web:</Text>
-          <Text> </Text>
-          {webService.status === 'running' && webService.port ? (
-            <Text color="blue">http://localhost:{webService.port}</Text>
-          ) : (
-            <Text dimColor>{webService.status}</Text>
-          )}
-        </Box>
-      )}
-
-      {/* Broker Service */}
-      {brokerService && (
-        <Box>
-          <Text color={getStatusIndicator(brokerService.status).color}>
-            {getStatusIndicator(brokerService.status).symbol}
-          </Text>
-          <Text> </Text>
-          <Text bold>Broker:</Text>
-          <Text> </Text>
-          {brokerService.status === 'running' && brokerService.port ? (
-            <Text color="green">ws://localhost:{brokerService.port}</Text>
-          ) : (
-            <Text dimColor>{brokerService.status}</Text>
-          )}
-        </Box>
-      )}
-
-      {/* Runner Service */}
-      {runnerService && (
-        <Box>
-          <Text color={getStatusIndicator(runnerService.status).color}>
-            {getStatusIndicator(runnerService.status).symbol}
-          </Text>
-          <Text> </Text>
-          <Text bold>Runner:</Text>
-          <Text> </Text>
-          <Text dimColor>
-            {runnerService.status === 'running' ? 'Active' : runnerService.status}
-          </Text>
-        </Box>
-      )}
-
-      {/* Tunnel Status */}
-      <Box marginTop={1}>
-        <Text bold>Tunnel:</Text>
-        <Text> </Text>
-        {tunnelUrl ? (
-          <Text color="magenta">{tunnelUrl}</Text>
-        ) : (
-          <Text dimColor>inactive (press 't' to create)</Text>
-        )}
+    <Box flexDirection="column" alignItems="center" marginTop={1}>
+      <Box flexDirection="column" width={BOX_WIDTH}>
+        {/* Top border */}
+        <Text color={colors.dimGray}>┌{'─'.repeat(BOX_WIDTH - 2)}┐</Text>
+        
+        {/* Content lines */}
+        {lines.map((line, index) => {
+          const content = `${line.statusSymbol} ${line.label}: ${line.value}`;
+          const paddingNeeded = Math.max(0, BOX_WIDTH - 4 - content.length);
+          
+          return (
+            <Box key={index}>
+              <Text color={colors.dimGray}>│ </Text>
+              <Text color={line.statusColor}>{line.statusSymbol}</Text>
+              <Text color={colors.white}> {line.label}: </Text>
+              <Text color={line.valueColor}>{line.value}</Text>
+              <Text>{' '.repeat(paddingNeeded)}</Text>
+              <Text color={colors.dimGray}> │</Text>
+            </Box>
+          );
+        })}
+        
+        {/* Bottom border */}
+        <Text color={colors.dimGray}>└{'─'.repeat(BOX_WIDTH - 2)}┘</Text>
       </Box>
     </Box>
   );

@@ -1,6 +1,8 @@
 /**
  * Enhanced init command with @clack/prompts and friction-free -y mode
  * Provides beautiful interactive setup or completely automated installation
+ * 
+ * For -y mode: Uses a beautiful centered TUI with animated progress
  */
 
 import { mkdir, realpath, writeFile } from 'node:fs/promises';
@@ -24,6 +26,7 @@ import {
   connectManualDatabase
 } from '../utils/database-setup.js';
 import { CLIError, errors } from '../utils/cli-error.js';
+import { initTUICommand } from './init-tui.js';
 
 /**
  * Generate a secure random secret
@@ -102,6 +105,16 @@ interface InitOptions {
 export async function initCommand(options: InitOptions) {
   const isNonInteractive = options.nonInteractive || options.yes;
 
+  // ========================================
+  // NON-INTERACTIVE MODE: Use beautiful TUI
+  // ========================================
+  if (isNonInteractive) {
+    return initTUICommand(options);
+  }
+
+  // ========================================
+  // INTERACTIVE MODE (Beautiful @clack/prompts)
+  // ========================================
   // Handle Ctrl+C gracefully
   const handleCancel = () => {
     p.cancel('Setup cancelled');
@@ -109,10 +122,7 @@ export async function initCommand(options: InitOptions) {
   };
 
   try {
-    // ========================================
-    // INTERACTIVE MODE (Beautiful @clack/prompts)
-    // ========================================
-    if (!isNonInteractive) {
+    {
       // Keep banner visible - don't clear screen
       console.log(); // Just add spacing
 
@@ -500,296 +510,10 @@ export async function initCommand(options: InitOptions) {
 
       return;
     }
-
-    // ========================================
-    // NON-INTERACTIVE MODE (-y flag)
-    // ZERO PROMPTS, FRICTION-FREE
-    // ========================================
-
-    const s = p.spinner();
-
-    // Step 1: Check/reset config
-    if (configManager.isInitialized()) {
-      configManager.reset();
-    }
-
-    // Step 2: Check for monorepo
-    s.start('Checking for SentryVibe repository');
-    const repoCheck = await isInsideMonorepo();
-    let monorepoPath: string | undefined;
-
-    if (repoCheck.inside && repoCheck.root) {
-      s.stop(pc.green('✓') + ' Repository found');
-      monorepoPath = repoCheck.root;
-    } else {
-      s.stop('Repository not found');
-
-      // Auto-clone in -y mode
-      const hasPnpm = await isPnpmInstalled();
-      if (!hasPnpm) {
-        throw new CLIError({
-          code: 'DEPENDENCIES_INSTALL_FAILED',
-          message: 'pnpm is not installed',
-          suggestions: [
-            'Install pnpm: npm install -g pnpm',
-            'Or visit: https://pnpm.io/installation',
-          ],
-        });
-      }
-
-      const clonePath = getDefaultMonorepoPath();
-
-      try {
-        // Check if repo directory exists and clean up in -y mode
-        // NOTE: We intentionally do NOT delete the workspace folder to preserve user projects
-        if (existsSync(clonePath)) {
-          // Safety check: never delete the current working directory
-          if (isCurrentWorkingDirectory(clonePath)) {
-            throw new CLIError({
-              code: 'CONFIG_INVALID',
-              message: 'Cannot remove the current working directory',
-              suggestions: [
-                'Run sentryvibe init from a different directory (e.g., your home directory)',
-                'Or manually remove the existing installation first',
-              ],
-            });
-          }
-
-          s.start('Removing existing sentryvibe installation (preserving workspace)');
-
-          // Import rmSync for directory deletion
-          const { rmSync } = await import('fs');
-
-          // Delete sentryvibe repo if it exists
-          if (existsSync(clonePath)) {
-            safeRemoveDirectory(clonePath, rmSync);
-          }
-
-          // IMPORTANT: Do NOT delete sentryvibe-workspace - it contains user projects!
-
-          s.stop(pc.green('✓') + ' Existing installation removed (workspace preserved)');
-        }
-
-        // Clone
-        s.start('Cloning repository from GitHub');
-        monorepoPath = await cloneRepository({
-          targetPath: clonePath,
-          branch: options.branch || 'main',
-        });
-        s.stop(pc.green('✓') + ' Repository cloned');
-
-        // Install dependencies
-        s.start('Installing dependencies');
-        await installDependencies(monorepoPath);
-        s.stop(pc.green('✓') + ' Dependencies installed');
-
-        // Build agent-core
-        s.start('Building packages');
-        await buildAgentCore(monorepoPath);
-        s.stop(pc.green('✓') + ' Packages built');
-
-        // NOTE: We don't build here anymore - we build AFTER database setup
-        // so that the .env.local file can include the database URL
-      } catch (error) {
-        throw new CLIError({
-          code: 'MONOREPO_CLONE_FAILED',
-          message: 'Failed to setup repository',
-          cause: error instanceof Error ? error : new Error(String(error)),
-          suggestions: [
-            'Check your internet connection',
-            'Verify git is installed: git --version',
-            'Try interactive mode: sentryvibe init (without -y)',
-          ],
-        });
-      }
-    }
-
-    // Step 3: Create workspace
-    const workspace = options.workspace || getDefaultWorkspace();
-
-    s.start('Creating workspace directory');
-    try {
-      if (!existsSync(workspace)) {
-        await mkdir(workspace, { recursive: true });
-      }
-      s.stop(pc.green('✓') + ` Workspace ready: ${pc.dim(workspace)}`);
-    } catch (error) {
-      throw errors.workspaceNotFound(workspace);
-    }
-
-    // Step 4: Setup database (default to Neon in -y mode)
-    let databaseUrl: string | undefined;
-
-    if (monorepoPath) {
-      const dbOption = options.database;
-
-      // Determine what to do:
-      // - undefined: setup Neon (default)
-      // - connection string (starts with postgres:// or postgresql://): use directly
-      const isConnectionString = typeof dbOption === 'string' &&
-        (dbOption.startsWith('postgres://') || dbOption.startsWith('postgresql://'));
-
-      if (isConnectionString) {
-        // Use provided connection string directly
-        s.start('Configuring database');
-        databaseUrl = dbOption as string;
-        try {
-          await pushDatabaseSchema(monorepoPath, databaseUrl);
-          s.stop(pc.green('✓') + ' Database configured');
-        } catch (error) {
-          s.stop(pc.yellow('⚠') + ' Schema push failed (you can retry later)');
-        }
-      } else {
-        // Default: setup Neon database
-        s.start('Setting up Neon database');
-        try {
-          databaseUrl = await setupDatabase(monorepoPath) || undefined;
-          if (databaseUrl) {
-            await pushDatabaseSchema(monorepoPath, databaseUrl);
-            s.stop(pc.green('✓') + ' Database configured');
-          } else {
-            s.stop(pc.yellow('⚠') + ' Database setup skipped');
-          }
-        } catch (error) {
-          s.stop(pc.yellow('⚠') + ' Database setup failed (you can add it later)');
-        }
-      }
-    }
-
-    // Step 5: Save configuration
-    const generatedSecret = options.secret || generateSecret();
-
-    s.start('Saving configuration');
-    try {
-      configManager.set('workspace', workspace);
-      if (monorepoPath) {
-        configManager.set('monorepoPath', monorepoPath);
-      }
-      if (databaseUrl) {
-        configManager.set('databaseUrl', databaseUrl);
-      }
-      configManager.set('apiUrl', normalizeUrl(options.url || 'http://localhost:3000'));
-      // Derive WebSocket URL from the API URL
-      const apiUrlNormalized = normalizeUrl(options.url || 'http://localhost:3000');
-      const wsProtocol = apiUrlNormalized.startsWith('https://') ? 'wss://' : 'ws://';
-      const hostPath = apiUrlNormalized.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      const wsUrl = `${wsProtocol}${hostPath}/ws/runner`;
-      configManager.set('server', {
-        wsUrl: wsUrl,
-        secret: generatedSecret,
-      });
-      configManager.set('runner', {
-        id: 'local',
-        reconnectAttempts: 5,
-        heartbeatInterval: 15000,
-      });
-      configManager.set('tunnel', {
-        provider: 'cloudflare',
-        autoCreate: true,
-      });
-
-      s.stop(pc.green('✓') + ' Configuration saved');
-    } catch (error) {
-      throw new CLIError({
-        code: 'CONFIG_INVALID',
-        message: 'Failed to save configuration',
-        cause: error instanceof Error ? error : new Error(String(error)),
-      });
-    }
-
-    // Step 6: Create .env.local and build (if we have a monorepo)
-    if (monorepoPath) {
-      // Create .env.local BEFORE building so Next.js picks up local mode
-      s.start('Creating environment configuration');
-      const envLocalPath = join(monorepoPath, 'apps', 'sentryvibe', '.env.local');
-      const envContent = [
-        '# Auto-generated by sentryvibe CLI - DO NOT EDIT',
-        `# Generated at: ${new Date().toISOString()}`,
-        '',
-        'SENTRYVIBE_LOCAL_MODE=true',
-        `RUNNER_SHARED_SECRET=${generatedSecret}`,
-        `WORKSPACE_ROOT=${workspace}`,
-        'RUNNER_ID=local',
-        'RUNNER_DEFAULT_ID=local',
-        `DATABASE_URL=${databaseUrl || ''}`,
-        '',
-      ].join('\n');
-      
-      await writeFile(envLocalPath, envContent);
-      s.stop(pc.green('✓') + ' Environment configured for local mode');
-
-      // Build all services for production
-      s.start('Building all services for production');
-      const { spawn } = await import('child_process');
-
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const buildProcess = spawn('pnpm', ['build:all'], {
-            cwd: monorepoPath,
-            stdio: 'pipe',
-            shell: true,
-          });
-
-          buildProcess.on('close', (code) => {
-            if (code === 0) {
-              resolve();
-            } else {
-              reject(new Error(`Build failed with code ${code}`));
-            }
-          });
-
-          buildProcess.on('error', reject);
-        });
-
-        s.stop(pc.green('✓') + ' All services built for production');
-      } catch (buildError) {
-        s.stop(pc.yellow('⚠') + ' Build failed (you can build later with: pnpm build:all)');
-      }
-    }
-
-    // Step 7: Validate
-    const validation = configManager.validate();
-    if (!validation.valid) {
-      throw new CLIError({
-        code: 'CONFIG_INVALID',
-        message: 'Configuration validation failed',
-        context: { errors: validation.errors },
-        suggestions: validation.errors,
-      });
-    }
-
-    // Success!
-    p.outro(pc.green('✨ SentryVibe is ready!'));
-
-    // Show config summary
-    const apiUrlDisplay = normalizeUrl(options.url || 'http://localhost:3000');
-    const configSummary = [
-      '',
-      pc.bold('Configuration:'),
-      `  Workspace:  ${pc.cyan(workspace)}`,
-      `  Server:     ${pc.cyan(apiUrlDisplay)}`,
-      `  Runner ID:  ${pc.cyan('local')}`,
-    ];
-
-    if (monorepoPath) {
-      configSummary.push(`  Repository: ${pc.cyan(monorepoPath)}`);
-    }
-    if (!databaseUrl) {
-      configSummary.push('');
-      configSummary.push(pc.yellow('  ⚠ Database not configured (add it later with: sentryvibe db)'));
-    }
-
-    console.log(configSummary.join('\n'));
-    console.log();
-
-    p.note(
-      `${pc.cyan('sentryvibe run')}\n\nThen open: ${pc.cyan('http://localhost:3000')}`,
-      'Start the full stack'
-    );
   } catch (error) {
     // Handle cancellation gracefully
     if (error && typeof error === 'object' && 'name' in error) {
-      if (error.name === 'ExitPromptError' || (error as any).code === 'CLACK_CANCEL') {
+      if ((error as { name: string }).name === 'ExitPromptError' || (error as { code?: string }).code === 'CLACK_CANCEL') {
         handleCancel();
         return;
       }

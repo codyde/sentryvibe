@@ -11,7 +11,8 @@ export async function loadTemplateSelectionContext(
     return undefined;
   }
 
-  const requireFn: NodeRequire | undefined = typeof require === 'function' ? require : undefined;
-  const loader = requireFn ? requireFn('./load-template-context.server.js') : eval('require')("./load-template-context.server.js");
+  // Use dynamic ESM import instead of CommonJS require
+  // This ensures we get the same module instance that setTemplatesPath() configured
+  const loader = await import('./load-template-context.server.js');
   return loader.loadTemplateSelectionContext(context);
 }

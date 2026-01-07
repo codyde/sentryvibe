@@ -1,4 +1,4 @@
-import { simpleGit } from 'simple-git';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,6 +12,7 @@ export interface CloneOptions {
   repoUrl?: string;
   targetPath?: string;
   branch?: string;
+  silent?: boolean; // Suppress all console output (for TUI mode)
 }
 
 /**
@@ -21,14 +22,17 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
   const repoUrl = options.repoUrl || DEFAULT_REPO_URL;
   const targetPath = options.targetPath || DEFAULT_CLONE_PATH;
   const branch = options.branch || 'main';
+  const silent = options.silent || false;
 
-  logger.info(`Repository: ${repoUrl}`);
-  logger.info(`Target: ${targetPath}`);
-  logger.info(`Branch: ${branch}`);
-  logger.log('');
+  if (!silent) {
+    logger.info(`Repository: ${repoUrl}`);
+    logger.info(`Target: ${targetPath}`);
+    logger.info(`Branch: ${branch}`);
+    logger.log('');
+  }
 
   // Check if target already exists (should be handled by caller)
-  if (existsSync(targetPath)) {
+  if (existsSync(targetPath) && !silent) {
     logger.warn(`Directory already exists: ${targetPath}`);
     logger.warn('This should have been handled by init command');
     // Continue anyway - caller should have cleaned it up
@@ -40,33 +44,67 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
     await mkdir(parentPath, { recursive: true });
   }
 
-  spinner.start('Cloning repository...');
-
-  try {
-    const git = simpleGit();
-
-    await git.clone(repoUrl, targetPath, [
-      '--branch', branch,
-      '--single-branch',
-      '--depth', '1', // Shallow clone for faster download
-    ]);
-
-    spinner.succeed('Repository cloned successfully');
-    return targetPath;
-  } catch (error) {
-    spinner.fail('Failed to clone repository');
-    logger.error(error instanceof Error ? error.message : 'Unknown error');
-    throw error;
+  if (!silent) {
+    spinner.start('Cloning repository...');
   }
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('git', [
+      'clone',
+      '--branch', branch,
+      '--single-branch', 
+      '--depth', '1',
+      '--progress',
+      repoUrl,
+      targetPath,
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stderrOutput = '';
+
+    proc.stderr?.on('data', (data) => {
+      stderrOutput += data.toString();
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        if (!silent) {
+          spinner.succeed('Repository cloned successfully');
+        }
+        resolve(targetPath);
+      } else {
+        if (!silent) {
+          spinner.fail('Failed to clone repository');
+          // Show the actual git error message
+          if (stderrOutput) {
+            logger.error('Git error:');
+            logger.log(stderrOutput.trim());
+          }
+        }
+        reject(new Error(`git clone failed with code ${code}: ${stderrOutput.trim()}`));
+      }
+    });
+
+    proc.on('error', (error) => {
+      if (!silent) {
+        spinner.fail('Failed to clone repository');
+        logger.error(error.message);
+      }
+      reject(error);
+    });
+  });
 }
 
 /**
  * Install dependencies in the cloned repository
  */
-export async function installDependencies(repoPath: string): Promise<void> {
+export async function installDependencies(repoPath: string, silent: boolean = false): Promise<void> {
   const { spawn } = await import('child_process');
 
-  spinner.start('Installing dependencies (this may take a few minutes)...');
+  if (!silent) {
+    spinner.start('Installing dependencies (this may take a few minutes)...');
+  }
 
   return new Promise((resolve, reject) => {
     const proc = spawn('pnpm', ['install'], {
@@ -87,8 +125,8 @@ export async function installDependencies(repoPath: string): Promise<void> {
       const text = data.toString();
       stderrBuffer += text;
 
-      // Show critical errors immediately
-      if (text.includes('ERR!') || text.includes('ERROR') || text.includes('ELIFECYCLE')) {
+      // Show critical errors immediately (only if not silent)
+      if (!silent && (text.includes('ERR!') || text.includes('ERROR') || text.includes('ELIFECYCLE'))) {
         hasError = true;
         spinner.stop();
         logger.error(text.trim());
@@ -97,24 +135,28 @@ export async function installDependencies(repoPath: string): Promise<void> {
 
     proc.on('exit', (code) => {
       if (code === 0 && !hasError) {
-        spinner.succeed('Dependencies installed');
+        if (!silent) {
+          spinner.succeed('Dependencies installed');
+        }
         resolve();
       } else {
-        spinner.fail('Failed to install dependencies');
+        if (!silent) {
+          spinner.fail('Failed to install dependencies');
 
-        // Show full output on failure
-        logger.log('');
-        logger.error('Installation failed. Full output:');
-        logger.log('');
+          // Show full output on failure
+          logger.log('');
+          logger.error('Installation failed. Full output:');
+          logger.log('');
 
-        if (stderrBuffer) {
-          logger.error('STDERR:');
-          logger.log(stderrBuffer);
-        }
+          if (stderrBuffer) {
+            logger.error('STDERR:');
+            logger.log(stderrBuffer);
+          }
 
-        if (stdoutBuffer) {
-          logger.log('STDOUT:');
-          logger.log(stdoutBuffer);
+          if (stdoutBuffer) {
+            logger.log('STDOUT:');
+            logger.log(stdoutBuffer);
+          }
         }
 
         reject(new Error(`pnpm install exited with code ${code}`));
@@ -122,8 +164,10 @@ export async function installDependencies(repoPath: string): Promise<void> {
     });
 
     proc.on('error', (error) => {
-      spinner.fail('Failed to install dependencies');
-      logger.error(`Process error: ${error.message}`);
+      if (!silent) {
+        spinner.fail('Failed to install dependencies');
+        logger.error(`Process error: ${error.message}`);
+      }
       reject(error);
     });
   });
@@ -132,10 +176,12 @@ export async function installDependencies(repoPath: string): Promise<void> {
 /**
  * Build agent-core package (required before running apps)
  */
-export async function buildAgentCore(repoPath: string): Promise<void> {
+export async function buildAgentCore(repoPath: string, silent: boolean = false): Promise<void> {
   const { spawn } = await import('child_process');
 
-  spinner.start('Building agent-core package...');
+  if (!silent) {
+    spinner.start('Building agent-core package...');
+  }
 
   return new Promise((resolve, reject) => {
     const proc = spawn('pnpm', ['--filter', '@sentryvibe/agent-core', 'build'], {
@@ -158,19 +204,25 @@ export async function buildAgentCore(repoPath: string): Promise<void> {
 
     proc.on('exit', (code) => {
       if (code === 0 && !hasError) {
-        spinner.succeed('agent-core package built');
+        if (!silent) {
+          spinner.succeed('agent-core package built');
+        }
         resolve();
       } else {
-        spinner.fail('Failed to build agent-core package');
-        if (errorOutput) {
-          logger.error(errorOutput.trim());
+        if (!silent) {
+          spinner.fail('Failed to build agent-core package');
+          if (errorOutput) {
+            logger.error(errorOutput.trim());
+          }
         }
         reject(new Error(`agent-core build exited with code ${code}`));
       }
     });
 
     proc.on('error', (error) => {
-      spinner.fail('Failed to build agent-core package');
+      if (!silent) {
+        spinner.fail('Failed to build agent-core package');
+      }
       reject(error);
     });
   });

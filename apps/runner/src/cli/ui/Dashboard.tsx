@@ -80,7 +80,35 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     };
   }, [serviceManager]);
 
-  // Poll log file every 3 seconds (only if logging is enabled)
+  // Listen to service output events directly (works with or without DEBUG)
+  useEffect(() => {
+    const handleServiceOutput = (name: string, output: string, stream: 'stdout' | 'stderr') => {
+      // Split multi-line output into separate log entries
+      const lines = output.split('\n').filter(line => line.trim());
+      
+      const newLogs: LogEntry[] = lines.map(line => ({
+        timestamp: new Date(),
+        service: name,
+        message: line.trim(),
+        stream,
+      }));
+      
+      if (newLogs.length > 0) {
+        setLogs(prev => {
+          const combined = [...prev, ...newLogs];
+          return combined.slice(-10000); // Keep last 10000
+        });
+      }
+    };
+
+    serviceManager.on('service:output', handleServiceOutput);
+
+    return () => {
+      serviceManager.off('service:output', handleServiceOutput);
+    };
+  }, [serviceManager]);
+
+  // Also poll log file if available (for DEBUG mode with additional logging)
   useEffect(() => {
     // Skip if log file path is not set (DEBUG not enabled)
     if (!logFilePath) return;
@@ -225,21 +253,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       // Jump to bottom (resume auto-scroll)
       setScrollOffset(0);
       setAutoScroll(true);
-    } else if (input === 't') {
-      // Toggle tunnel for web app
-      const webService = services.find(s => s.name === 'web');
-      if (webService?.tunnelStatus === 'active') {
-        // Tunnel is active, close it
-        serviceManager.closeTunnel('web').catch(err => {
-          // Error will be shown in service panel
-        });
-      } else if (!webService?.tunnelStatus || webService.tunnelStatus === 'failed') {
-        // No tunnel or failed, create one
-        serviceManager.createTunnel('web').catch(err => {
-          // Error will be shown in service panel
-        });
-      }
-      // If creating, ignore (don't interrupt)
     } else if (input === '?') {
       // Show help
       setView('help');
@@ -256,9 +269,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     }
   });
 
-  // Get tunnel URL from web service
-  const webService = services.find(s => s.name === 'web');
-  const tunnelUrl = webService?.tunnelUrl || null;
+
 
   // Filter logs based on service filter and search query (memoized to prevent recalculation on every render)
   const filteredLogs = useMemo(() => {
@@ -317,8 +328,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       {/* Banner - Fixed at top */}
       <Banner />
 
-      {/* Status Box - Fixed, shows current service status */}
-      <StatusBox services={services} tunnelUrl={tunnelUrl} />
+      {/* Status Box - Centered, shows current service status */}
+      <StatusBox services={services} />
 
       {/* Logs Section - Scrollable area with reserved height */}
       {view === 'dashboard' && (
@@ -354,7 +365,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           <Text bold>General:</Text>
           <Text>  <Text color="cyan">q</Text> or <Text color="cyan">Ctrl+C</Text> - Quit and stop all services</Text>
           <Text>  <Text color="cyan">r</Text> - Restart all services</Text>
-          <Text>  <Text color="cyan">t</Text> - Toggle Cloudflare tunnel (create/close)</Text>
           <Text>  <Text color="cyan">c</Text> - Clear logs</Text>
           <Text>  <Text color="cyan">l</Text> - Toggle plain text log view (for copy/paste)</Text>
           <Text>  <Text color="cyan">f</Text> - Filter logs by service (cycles through all/web/broker/runner)</Text>
@@ -409,7 +419,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
                     <Text color="magenta">SCROLLED</Text>  <Text dimColor>|</Text>{' '}
                   </>
                 )}
-                <Text color="cyan">/</Text> search  <Text color="cyan">↑↓</Text> scroll  <Text color="cyan">g/G</Text> top/bottom  <Text color="cyan">q</Text> quit  <Text color="cyan">r</Text> restart  <Text color="cyan">t</Text> tunnel  <Text color="cyan">c</Text> clear  <Text color="cyan">f</Text> filter  <Text color="cyan">?</Text> help
+                <Text color="cyan">/</Text> search  <Text color="cyan">↑↓</Text> scroll  <Text color="cyan">g/G</Text> top/bottom  <Text color="cyan">q</Text> quit  <Text color="cyan">r</Text> restart  <Text color="cyan">c</Text> clear  <Text color="cyan">f</Text> filter  <Text color="cyan">?</Text> help
               </>
             )}
           </Text>

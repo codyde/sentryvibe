@@ -1,21 +1,13 @@
-/**
- * Banner Component - SentryVibe ASCII art banner for TUI
- * Matches the init TUI banner style - centered with cyan/purple gradient
- */
-
-import React from 'react';
 import { Box, Text } from 'ink';
-
-// Theme colors matching init TUI
-const colors = {
-  cyan: '#06b6d4',
-  brightPurple: '#c084fc',
-};
+import { colors } from '../theme.js';
 
 /**
  * ASCII art banner component - centered with cyan/purple gradient
+ * Each line is padded to exactly the same width for perfect alignment
  */
 export function Banner() {
+  // Full banner lines - SENTRY in cyan, VIBE in purple
+  // All lines padded to same total width (80 chars) for consistent centering
   const lines = [
     { sentry: '███████╗███████╗███╗   ██╗████████╗██████╗ ██╗   ██╗', vibe: '██╗   ██╗██╗██████╗ ███████╗' },
     { sentry: '██╔════╝██╔════╝████╗  ██║╚══██╔══╝██╔══██╗╚██╗ ██╔╝', vibe: '██║   ██║██║██╔══██╗██╔════╝' },
@@ -26,7 +18,7 @@ export function Banner() {
   ];
 
   return (
-    <Box flexDirection="column" alignItems="center" marginTop={2}>
+    <Box flexDirection="column" alignItems="center">
       {lines.map((line, index) => (
         <Box key={index}>
           <Text color={colors.cyan}>{line.sentry}</Text>
