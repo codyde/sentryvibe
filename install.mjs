@@ -3,19 +3,12 @@
 /**
  * SentryVibe CLI Installer
  * 
- * A beautiful, Sentry-instrumented installer for the SentryVibe CLI.
+ * A beautiful installer for the SentryVibe CLI.
  * 
  * Usage: curl -fsSL https://sentryvibe.app/install.mjs | node -
  */
 
 import { execSync, spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { createWriteStream } from 'node:fs';
-import { pipeline } from 'node:stream/promises';
-import { setTimeout as sleep } from 'node:timers/promises';
 
 // ANSI 256-color support for hex-like colors
 // These match the TUI theme.ts colors
@@ -49,95 +42,6 @@ const S = {
   // Braille spinner frames from TUI theme
   spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
 };
-
-// Installation context for Sentry
-const installContext = {
-  nodeVersion: process.version,
-  platform: process.platform,
-  arch: process.arch,
-  targetVersion: null,
-  startTime: Date.now(),
-};
-
-// Sentry integration (lightweight, no dependencies)
-const SENTRY_DSN = 'https://67fd3805ad7dbe3fccac79f35ce6d55f@o4508130833793024.ingest.us.sentry.io/4510671427207168';
-
-async function sendToSentry(error, level = 'error', extra = {}) {
-  try {
-    const [, , projectId] = SENTRY_DSN.match(/\/\/(.+)@(.+)\/(\d+)/) || [];
-    const [, authKey, host] = SENTRY_DSN.match(/\/\/(.+)@(.+)\//) || [];
-    
-    if (!projectId || !authKey || !host) return;
-    
-    const endpoint = `https://${host}/api/${projectId}/envelope/`;
-    
-    const eventId = crypto.randomUUID().replace(/-/g, '');
-    const timestamp = new Date().toISOString();
-    
-    const envelope = [
-      JSON.stringify({
-        event_id: eventId,
-        sent_at: timestamp,
-        dsn: SENTRY_DSN,
-      }),
-      JSON.stringify({ type: 'event' }),
-      JSON.stringify({
-        event_id: eventId,
-        timestamp: Date.now() / 1000,
-        level,
-        platform: 'node',
-        logger: 'sentryvibe-installer',
-        server_name: 'installer',
-        release: installContext.targetVersion || 'unknown',
-        environment: 'production',
-        tags: {
-          installer: 'true',
-          node_version: installContext.nodeVersion,
-          platform: installContext.platform,
-          arch: installContext.arch,
-        },
-        extra: {
-          ...installContext,
-          ...extra,
-          duration_ms: Date.now() - installContext.startTime,
-        },
-        exception: error ? {
-          values: [{
-            type: error.name || 'Error',
-            value: error.message || String(error),
-            stacktrace: error.stack ? {
-              frames: error.stack.split('\n').slice(1).map(line => {
-                const match = line.match(/at\s+(.+)\s+\((.+):(\d+):(\d+)\)/) ||
-                              line.match(/at\s+(.+):(\d+):(\d+)/);
-                if (match) {
-                  return {
-                    function: match[1] || '<anonymous>',
-                    filename: match[2] || match[1],
-                    lineno: parseInt(match[3] || match[2], 10),
-                    colno: parseInt(match[4] || match[3], 10),
-                  };
-                }
-                return { function: line.trim() };
-              }).reverse(),
-            } : undefined,
-          }],
-        } : undefined,
-        message: !error ? { formatted: extra.message || 'Installer event' } : undefined,
-      }),
-    ].join('\n');
-
-    await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-sentry-envelope',
-        'X-Sentry-Auth': `Sentry sentry_version=7, sentry_client=sentryvibe-installer/1.0, sentry_key=${authKey}`,
-      },
-      body: envelope,
-    });
-  } catch {
-    // Silently fail - don't break installer if Sentry is down
-  }
-}
 
 // Banner - matching TUI Banner.tsx exactly
 function printBanner() {
@@ -219,7 +123,6 @@ async function getLatestVersion() {
     if (response.ok) {
       const data = await response.json();
       const version = data.tag_name;
-      installContext.targetVersion = version;
       spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
       return version;
     }
@@ -229,7 +132,6 @@ async function getLatestVersion() {
     if (npmResponse.ok) {
       const data = await npmResponse.json();
       const version = `v${data.version}`;
-      installContext.targetVersion = version;
       spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
       return version;
     }
@@ -237,7 +139,6 @@ async function getLatestVersion() {
     throw new Error('Could not determine latest version');
   } catch (error) {
     spinner.error('Failed to fetch latest version');
-    await sendToSentry(error, 'error', { step: 'getLatestVersion' });
     throw error;
   }
 }
@@ -271,40 +172,21 @@ async function installCLI(version) {
       stderr += data.toString();
     });
     
-    npm.on('close', async (code) => {
+    npm.on('close', (code) => {
       if (code === 0) {
         spinner.success('SentryVibe CLI installed');
-        
-        // Send success event
-        await sendToSentry(null, 'info', {
-          message: 'Installation successful',
-          step: 'installCLI',
-          version,
-        });
-        
         resolve();
       } else {
         spinner.error('Installation failed');
-        
         const error = new Error(`npm install failed with code ${code}`);
         error.stdout = stdout;
         error.stderr = stderr;
-        
-        await sendToSentry(error, 'error', {
-          step: 'installCLI',
-          version,
-          exitCode: code,
-          stdout: stdout.slice(-2000), // Last 2000 chars
-          stderr: stderr.slice(-2000),
-        });
-        
         reject(error);
       }
     });
     
-    npm.on('error', async (error) => {
+    npm.on('error', (error) => {
       spinner.error('Installation failed');
-      await sendToSentry(error, 'error', { step: 'installCLI', version });
       reject(error);
     });
   });
@@ -395,8 +277,7 @@ async function main() {
 }
 
 // Run
-main().catch(async (error) => {
-  await sendToSentry(error, 'fatal', { step: 'main' });
+main().catch((error) => {
   console.error(`\n  ${S.error} Unexpected error: ${error.message}\n`);
   process.exit(1);
 });
