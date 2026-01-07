@@ -272,9 +272,8 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           </button>
         )}
 
-        {/* Setup Guide Button - show when not completed onboarding or no runners (in hosted mode) */}
+        {/* Setup Guide Button - always show when authenticated */}
         {canViewProjects && onOpenOnboarding && (
-          (!hasCompletedOnboarding || (!isLocalMode && availableRunners.length === 0)) && (
             <button
               onClick={onOpenOnboarding}
               className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border border-purple-500/30 rounded-lg transition-colors"
@@ -289,7 +288,6 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                 </span>
               )}
             </button>
-          )
         )}
       </SidebarFooter>
 
