@@ -120,7 +120,6 @@ class HmrProxyManager {
       callbacks?.onError?.('Failed to send connect command');
     }
 
-    console.log(`[hmr-proxy] Initiated HMR connection ${connectionId} to ${runnerId}:${port}`);
     return connectionId;
   }
 
@@ -162,7 +161,7 @@ class HmrProxyManager {
       return;
     }
 
-    console.log(`[hmr-proxy] Disconnecting HMR connection ${connectionId}`);
+
 
     const command: HmrDisconnectCommand = {
       id: randomUUID(),
@@ -188,7 +187,7 @@ class HmrProxyManager {
       return;
     }
 
-    console.log(`[hmr-proxy] HMR connection established: ${event.connectionId}`);
+
     conn.status = 'connected';
     conn.onConnected?.();
   }
@@ -210,7 +209,7 @@ class HmrProxyManager {
       return;
     }
 
-    console.log(`[hmr-proxy] HMR connection closed: ${event.connectionId} (${event.code}: ${event.reason})`);
+
     conn.status = 'disconnected';
     conn.onDisconnected?.(event.code, event.reason);
     this.connections.delete(event.connectionId);
@@ -269,7 +268,7 @@ class HmrProxyManager {
   disconnectRunner(runnerId: string): void {
     for (const [connectionId, conn] of this.connections.entries()) {
       if (conn.runnerId === runnerId) {
-        console.log(`[hmr-proxy] Closing HMR connection ${connectionId} (runner disconnected)`);
+
         conn.onDisconnected?.(1001, 'Runner disconnected');
         this.connections.delete(connectionId);
       }

@@ -16,18 +16,14 @@ export const HMR_PROXY_SCRIPT = `
 (function() {
   // Only run in iframe context
   if (window === window.parent) {
-    console.log('[HMR Proxy] Not in iframe, skipping');
     return;
   }
 
   // Track if we've initialized
   if (window.__sentryvibeHmrProxyInit) {
-    console.log('[HMR Proxy] Already initialized');
     return;
   }
   window.__sentryvibeHmrProxyInit = true;
-
-  console.log('[HMR Proxy] Initializing HMR proxy script');
 
   // Store original WebSocket constructor
   const OriginalWebSocket = window.WebSocket;
@@ -75,8 +71,6 @@ export const HMR_PROXY_SCRIPT = `
       // Store in active connections
       activeConnections.set(this._connectionId, this);
       
-      console.log('[HMR Proxy] FakeWebSocket created:', this._connectionId, url, protocols);
-      
       // Request connection from parent
       this._requestConnect();
     }
@@ -99,14 +93,11 @@ export const HMR_PROXY_SCRIPT = `
       
       // If we still don't have a valid port, HMR is disabled
       if (port === null || port === 80 || port === 443) {
-        console.warn('[HMR Proxy] Cannot determine dev server port - HMR disabled. URL:', this.url);
-        console.warn('[HMR Proxy] To enable HMR, ensure the dev server port is properly configured.');
+        console.warn('[HMR Proxy] Cannot determine dev server port - HMR disabled for remote preview. URL:', this.url);
         // Queue for later in case parent sends config
         pendingConnections.push(this);
         return;
       }
-      
-      console.log('[HMR Proxy] Requesting connection to port:', port);
       
       // Send connect request to parent
       window.parent.postMessage({
@@ -181,7 +172,6 @@ export const HMR_PROXY_SCRIPT = `
     
     // Called when connection is established (from parent message)
     _onConnected() {
-      console.log('[HMR Proxy] Connection established:', this._connectionId);
       this.readyState = WebSocket.OPEN;
       
       const event = new Event('open');
@@ -196,7 +186,6 @@ export const HMR_PROXY_SCRIPT = `
     
     // Called when connection closed (from parent message)
     _onClosed(code, reason) {
-      console.log('[HMR Proxy] Connection closed:', this._connectionId, code, reason);
       this.readyState = WebSocket.CLOSED;
       activeConnections.delete(this._connectionId);
       
@@ -206,8 +195,6 @@ export const HMR_PROXY_SCRIPT = `
     
     // Called when error occurs (from parent message)
     _onError(message) {
-      console.error('[HMR Proxy] Connection error:', this._connectionId, message);
-      
       const event = new Event('error');
       this.dispatchEvent(event);
     }
@@ -259,15 +246,11 @@ export const HMR_PROXY_SCRIPT = `
    * Proxy WebSocket constructor
    */
   const ProxiedWebSocket = function(url, protocols) {
-    console.log('[HMR Proxy] WebSocket constructor called:', url, protocols);
-    
     if (shouldIntercept(url, protocols)) {
-      console.log('[HMR Proxy] Intercepting WebSocket connection');
       return new FakeWebSocket(url, protocols);
     }
     
     // Let non-HMR connections through (shouldn't happen in proxy mode)
-    console.log('[HMR Proxy] Passing through to real WebSocket');
     return new OriginalWebSocket(url, protocols);
   };
   
@@ -296,15 +279,11 @@ export const HMR_PROXY_SCRIPT = `
     if (type === 'sentryvibe:hmr:config') {
       if (port && typeof port === 'number') {
         devServerPort = port;
-        console.log('[HMR Proxy] Dev server port set to:', devServerPort);
         
         // Process any queued connections
-        if (pendingConnections.length > 0) {
-          console.log('[HMR Proxy] Processing', pendingConnections.length, 'queued connections');
-          while (pendingConnections.length > 0) {
-            const conn = pendingConnections.shift();
-            conn._requestConnect();
-          }
+        while (pendingConnections.length > 0) {
+          const conn = pendingConnections.shift();
+          conn._requestConnect();
         }
       }
       return;
@@ -312,7 +291,6 @@ export const HMR_PROXY_SCRIPT = `
     
     const conn = activeConnections.get(connectionId);
     if (!conn) {
-      console.warn('[HMR Proxy] Message for unknown connection:', connectionId);
       return;
     }
     
@@ -334,8 +312,6 @@ export const HMR_PROXY_SCRIPT = `
         break;
     }
   });
-  
-  console.log('[HMR Proxy] Script loaded, WebSocket constructor overridden');
   
   // Announce ready to parent
   window.parent.postMessage({ type: 'sentryvibe:hmr:ready' }, '*');

@@ -2961,24 +2961,18 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
       case "hmr-connect": {
         // Connect to local HMR WebSocket server
         const { connectionId, port, protocol } = command.payload;
-        log(`🔥 HMR connect request: ${connectionId} → localhost:${port}`);
-        
         hmrProxyManager.connect(connectionId, port, command.projectId, protocol);
         break;
       }
       case "hmr-message": {
         // Forward message to HMR server
         const { connectionId, message } = command.payload;
-        const sent = hmrProxyManager.send(connectionId, message);
-        if (!sent) {
-          log(`⚠️ HMR message failed to send: connection ${connectionId} not ready`);
-        }
+        hmrProxyManager.send(connectionId, message);
         break;
       }
       case "hmr-disconnect": {
         // Disconnect from HMR server
         const { connectionId } = command.payload;
-        log(`🔥 HMR disconnect: ${connectionId}`);
         hmrProxyManager.disconnect(connectionId);
         break;
       }
@@ -3015,7 +3009,6 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
   // Set up HMR proxy callbacks to forward HMR events through the main WebSocket
   hmrProxyManager.setCallbacks({
     onConnected: (connectionId) => {
-      log(`🔥 HMR connected: ${connectionId}`);
       sendEvent({
         type: "hmr-connected",
         ...buildEventBase(),
@@ -3031,7 +3024,6 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
       });
     },
     onDisconnected: (connectionId, code, reason) => {
-      log(`🔥 HMR disconnected: ${connectionId} (${code}: ${reason})`);
       sendEvent({
         type: "hmr-disconnected",
         ...buildEventBase(),
@@ -3041,7 +3033,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
       });
     },
     onError: (connectionId, error) => {
-      log(`🔥 HMR error: ${connectionId} - ${error}`);
+      console.warn(`[hmr-proxy] HMR error: ${connectionId} - ${error}`);
       sendEvent({
         type: "hmr-error",
         ...buildEventBase(),
