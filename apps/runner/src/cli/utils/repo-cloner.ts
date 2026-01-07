@@ -61,6 +61,12 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
+    let stderrOutput = '';
+
+    proc.stderr?.on('data', (data) => {
+      stderrOutput += data.toString();
+    });
+
     proc.on('close', (code) => {
       if (code === 0) {
         if (!silent) {
@@ -70,8 +76,13 @@ export async function cloneRepository(options: CloneOptions = {}): Promise<strin
       } else {
         if (!silent) {
           spinner.fail('Failed to clone repository');
+          // Show the actual git error message
+          if (stderrOutput) {
+            logger.error('Git error:');
+            logger.log(stderrOutput.trim());
+          }
         }
-        reject(new Error(`git clone failed with code ${code}`));
+        reject(new Error(`git clone failed with code ${code}: ${stderrOutput.trim()}`));
       }
     });
 

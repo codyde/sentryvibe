@@ -97,28 +97,18 @@ export async function initTUICommand(options: InitOptions): Promise<void> {
   console.clear();
 
   try {
-    const config = await runInitTUI({
+    const { shouldStart } = await runInitTUI({
       onInit: async (callbacks: InitCallbacks) => {
         return executeInitFlow(options, callbacks);
       },
     });
-
-    // Wait a moment for user to see completion screen
-    await sleep(1000);
-    
-    // Print some newlines to separate from TUI, then prompt
-    // The TUI completion screen stays visible above
-    console.log('\n');
-    
-    // Ask if they want to start the server
-    const shouldStart = await promptToStart();
     
     if (shouldStart) {
       console.clear();
       console.log('\n  Starting SentryVibe...\n');
-      // Import and run the run command
-      const { runCommand } = await import('./run.js');
-      await runCommand({});
+      // Import and run the start command (full TUI with web app + runner)
+      const { startCommand } = await import('./start.js');
+      await startCommand({});
     } else {
       console.clear();
       console.log('\n  ✨ SentryVibe is ready!\n');
@@ -134,26 +124,7 @@ export async function initTUICommand(options: InitOptions): Promise<void> {
   }
 }
 
-/**
- * Prompt user to start the server
- */
-async function promptToStart(): Promise<boolean> {
-  const readline = await import('node:readline');
-  
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
 
-  return new Promise((resolve) => {
-    rl.question('  Start SentryVibe now? (Y/n) ', (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
-      // Default to yes if empty or starts with 'y'
-      resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
-    });
-  });
-}
 
 /**
  * Execute the init flow, calling callbacks to update UI
@@ -400,6 +371,7 @@ async function executeInitFlow(
 
   // Build all services for production
   if (monorepoPath) {
+    startTask('services', 'Building services (this may take a minute)...');
     try {
       const { spawn } = await import('child_process');
       await new Promise<void>((resolve, reject) => {
@@ -414,8 +386,12 @@ async function executeInitFlow(
         });
         buildProcess.on('error', reject);
       });
+      completeTask('services');
+      await sleep(layout.taskCompletionDelay);
     } catch {
       // Non-fatal: build can be done later
+      completeTask('services'); // Still mark as complete since it's non-fatal
+      await sleep(layout.taskCompletionDelay);
     }
   }
 

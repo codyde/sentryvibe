@@ -27,7 +27,7 @@ type Screen =
   | { type: 'mode-select' }
   | { type: 'local-mode' }
   | { type: 'runner-mode' }
-  | { type: 'config-form' };
+  | { type: 'config-form'; error?: string; lastBranch?: string };
 
 interface AppState {
   screen: Screen;
@@ -45,7 +45,7 @@ function App({
   onExit, 
   onRunnerStart, 
   onLocalStart, 
-  onInitStart 
+  onInitStart,
 }: {
   initialState: AppState;
   onExit: () => void;
@@ -58,6 +58,14 @@ function App({
   // Screen navigation handlers
   const navigateTo = (screen: Screen) => {
     setState(prev => ({ ...prev, screen }));
+  };
+  
+  // Navigate back to config form with error
+  const navigateToConfigWithError = (error: string, lastBranch: string) => {
+    setState(prev => ({ 
+      ...prev, 
+      screen: { type: 'config-form', error, lastBranch } 
+    }));
   };
 
   // Mode Select handlers
@@ -83,9 +91,30 @@ function App({
     onRunnerStart(config);
   };
 
-  // Config Form handler
-  const handleConfigSubmit = (config: InitFormConfig) => {
-    onInitStart(config);
+  // Config Form handler - validates branch before proceeding
+  const handleConfigSubmit = async (config: InitFormConfig) => {
+    // Skip validation if using main branch (always exists)
+    if (config.branch === 'main') {
+      onInitStart(config);
+      return;
+    }
+    
+    // Validate branch exists before proceeding
+    const { execSync } = await import('child_process');
+    try {
+      execSync(
+        `git ls-remote --exit-code --heads https://github.com/codyde/sentryvibe.git ${config.branch}`,
+        { stdio: 'pipe' }
+      );
+      // Branch exists, proceed with init
+      onInitStart(config);
+    } catch {
+      // Branch doesn't exist, show error
+      navigateToConfigWithError(
+        `Branch "${config.branch}" not found`,
+        config.branch
+      );
+    }
   };
 
   // Render current screen
@@ -121,12 +150,13 @@ function App({
       return (
         <ConfigFormScreen
           initialConfig={{
-            branch: 'main',
+            branch: state.screen.lastBranch || 'main',
             workspace: state.existingWorkspace || join(homedir(), 'sentryvibe-workspace'),
             useNeon: true,
           }}
           onSubmit={handleConfigSubmit}
           onEscape={() => navigateTo({ type: 'local-mode' })}
+          error={state.screen.error}
         />
       );
 

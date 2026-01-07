@@ -15,6 +15,7 @@ export interface ConfigFormScreenProps {
   initialConfig?: Partial<InitFormConfig>;
   onSubmit: (config: InitFormConfig) => void;
   onEscape: () => void;
+  error?: string; // Error message to display (e.g., "Branch not found")
 }
 
 type FocusedField = 'branch' | 'workspace' | 'database' | 'databaseUrl';
@@ -34,11 +35,17 @@ export function ConfigFormScreen({
   initialConfig,
   onSubmit,
   onEscape,
+  error,
 }: ConfigFormScreenProps) {
   const { stdout } = useStdout();
   
   // Form state
   const [branch, setBranch] = useState(initialConfig?.branch || 'main');
+  
+  // Clear error when user starts typing in branch field
+  const handleBranchChange = (value: string) => {
+    setBranch(value);
+  };
   const [workspace, setWorkspace] = useState(
     initialConfig?.workspace || '~/sentryvibe-workspace'
   );
@@ -137,31 +144,40 @@ export function ConfigFormScreen({
       
       {/* Form fields */}
       <Box flexDirection="column" gap={1}>
-        {/* Repository/Branch - shows "sentryvibe/" prefix with editable branch */}
-        <Box flexDirection="row" alignItems="center">
-          <Box width={LABEL_WIDTH} justifyContent="flex-end" marginRight={1}>
-            <Text color={focusedField === 'branch' ? colors.cyan : colors.gray}>
-              Repository
-            </Text>
-          </Box>
-          <Box
-            borderStyle="round"
-            borderColor={focusedField === 'branch' ? colors.cyan : colors.darkGray}
-            paddingX={1}
-          >
-            <Text color={colors.dimGray}>sentryvibe/</Text>
-            {focusedField === 'branch' ? (
-              <TextInput
-                value={branch}
-                onChange={setBranch}
-                placeholder="main"
-              />
-            ) : (
-              <Text color={branch ? colors.white : colors.dimGray}>
-                {branch || 'main'}
+        {/* Branch - editable branch name */}
+        <Box flexDirection="column">
+          <Box flexDirection="row" alignItems="center">
+            <Box width={LABEL_WIDTH} justifyContent="flex-end" marginRight={1}>
+              <Text color={error ? colors.error : (focusedField === 'branch' ? colors.cyan : colors.gray)}>
+                Branch
               </Text>
-            )}
+            </Box>
+            <Box
+              borderStyle="round"
+              borderColor={error ? colors.error : (focusedField === 'branch' ? colors.cyan : colors.darkGray)}
+              paddingX={1}
+            >
+              {focusedField === 'branch' ? (
+                <TextInput
+                  value={branch}
+                  onChange={handleBranchChange}
+                  placeholder="main"
+                />
+              ) : (
+                <Text color={branch ? colors.white : colors.dimGray}>
+                  {branch || 'main'}
+                </Text>
+              )}
+            </Box>
           </Box>
+          {/* Error message below branch field */}
+          {error && (
+            <Box marginLeft={LABEL_WIDTH + 2}>
+              <Text color={colors.error}>
+                {symbols.cross} {error}
+              </Text>
+            </Box>
+          )}
         </Box>
         
         {/* Workspace */}

@@ -18,14 +18,22 @@ export function StartPromptScreen({ onSelect }: StartPromptScreenProps) {
   const topPadding = Math.max(0, Math.floor((terminalHeight - contentHeight) / 3));
 
   useInput((input, key) => {
-    // Y or Enter = start
-    if (input.toLowerCase() === 'y' || key.return) {
+    const char = input.toLowerCase();
+    
+    // Enter = start
+    if (key.return) {
+      onSelect(true);
+      return;
+    }
+    
+    // Y = start
+    if (char === 'y') {
       onSelect(true);
       return;
     }
     
     // N = don't start
-    if (input.toLowerCase() === 'n') {
+    if (char === 'n') {
       onSelect(false);
       return;
     }

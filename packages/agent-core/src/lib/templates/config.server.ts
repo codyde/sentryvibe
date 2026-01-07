@@ -7,11 +7,26 @@ let configuredPath: string | undefined;
 
 /**
  * Configure the path to templates.json
- * Call this before using any template functions
+ * Call this before using any template functions.
+ * 
+ * NOTE: Also sets TEMPLATES_JSON_PATH env var to ensure path is shared
+ * across all module instances in bundled packages.
  */
 export function setTemplatesPath(path: string): void {
   configuredPath = path;
+  // Set environment variable to share path across module instances
+  // This is needed because bundlers like tsup may create separate module instances
+  process.env.TEMPLATES_JSON_PATH = path;
   cachedConfig = null; // Clear cache when path changes
+}
+
+/**
+ * Get the configured templates path, checking both module state and env var
+ */
+function getTemplatesPath(): string {
+  // Priority: module-level path > env var > cwd fallback
+  const path = configuredPath ?? process.env.TEMPLATES_JSON_PATH ?? join(process.cwd(), 'templates.json');
+  return path;
 }
 
 /**
@@ -22,8 +37,7 @@ export async function loadTemplateConfig(): Promise<TemplateConfig> {
     return cachedConfig;
   }
 
-  // Use configured path, or fall back to process.cwd()
-  const configPath = configuredPath ?? join(process.cwd(), 'templates.json');
+  const configPath = getTemplatesPath();
   const content = await readFile(configPath, 'utf-8');
   cachedConfig = JSON.parse(content) as TemplateConfig;
 
