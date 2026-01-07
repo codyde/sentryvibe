@@ -83,10 +83,23 @@ export async function POST(
     const frontendIsLocal = requestHost.includes('localhost') || requestHost.includes('127.0.0.1');
 
     let targetUrl: string;
+    let useWsProxy = false;
+    
     if (frontendIsLocal) {
       targetUrl = `http://localhost:${proj.devServerPort}${path}`;
+    } else if (USE_WS_PROXY && proj.runnerId && buildWebSocketServer.isRunnerConnected(proj.runnerId)) {
+      // WebSocket proxy enabled and runner is connected
+      console.log(`[proxy POST] Using WebSocket proxy to runner ${proj.runnerId}`);
+      useWsProxy = true;
+      targetUrl = ''; // Not used when useWsProxy is true
     } else if (proj.tunnelUrl) {
       targetUrl = `${proj.tunnelUrl}${path}`;
+    } else if (USE_WS_PROXY && proj.runnerId) {
+      // WebSocket proxy enabled but runner not connected
+      return new NextResponse('Waiting for runner connection...', {
+        status: 202,
+        headers: { 'X-Tunnel-Status': 'pending', 'X-Proxy-Mode': 'websocket' }
+      });
     } else {
       return new NextResponse('Waiting for tunnel...', {
         status: 202,
@@ -96,13 +109,32 @@ export async function POST(
 
     // Forward POST request with body
     const body = await req.text();
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': req.headers.get('content-type') || 'application/json',
-      },
-      body: body,
-    });
+    let response: Response;
+    
+    if (useWsProxy && proj.runnerId && proj.devServerPort) {
+      // Use WebSocket proxy
+      response = await fetchViaWsProxy(
+        proj.runnerId,
+        id,
+        proj.devServerPort,
+        path,
+        'POST',
+        { 
+          'Content-Type': req.headers.get('content-type') || 'application/json',
+          'Accept': req.headers.get('accept') || '*/*'
+        },
+        body ? Buffer.from(body) : undefined
+      );
+    } else {
+      // Direct fetch to target URL
+      response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': req.headers.get('content-type') || 'application/json',
+        },
+        body: body,
+      });
+    }
 
     // Return response as-is with CORS headers
     const responseBody = await response.arrayBuffer();
