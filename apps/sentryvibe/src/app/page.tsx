@@ -60,6 +60,8 @@ import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
+import { useAuth } from "@/contexts/AuthContext";
+import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -181,6 +183,12 @@ function HomeContent() {
   
   // Auth gate for protected actions
   const { requireAuth, LoginModal, isAuthenticated } = useAuthGate();
+  
+  // Auth context for onboarding
+  const { isLocalMode, hasCompletedOnboarding, setHasCompletedOnboarding } = useAuth();
+  
+  // Onboarding modal state
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   const [input, setInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<MessagePart[]>([]);
@@ -638,6 +646,30 @@ function HomeContent() {
       setActiveView(stored);
     }
   }, []);
+
+  // Onboarding modal trigger logic
+  // Show onboarding for:
+  // - Local mode: if not completed onboarding
+  // - Hosted mode: if not completed onboarding OR no runners connected
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    // Don't show onboarding if auth is still loading
+    if (!isAuthenticated && !isLocalMode) return;
+    
+    // Determine if we should show onboarding
+    const shouldShow = isLocalMode
+      ? !hasCompletedOnboarding
+      : !hasCompletedOnboarding || availableRunners.length === 0;
+    
+    if (shouldShow) {
+      // Small delay to let the page settle
+      const timer = setTimeout(() => {
+        setShowOnboarding(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isMounted, isLocalMode, hasCompletedOnboarding, availableRunners.length, isAuthenticated]);
 
   // Load tags from existing project or initialize defaults for new project
   useEffect(() => {
@@ -2505,6 +2537,27 @@ function HomeContent() {
       {/* Login Modal - shown when auth is required */}
       {LoginModal}
       
+      {/* Onboarding Modal - shown for new users */}
+      {isLocalMode ? (
+        <LocalModeOnboarding
+          open={showOnboarding}
+          onOpenChange={setShowOnboarding}
+          onComplete={() => {
+            setHasCompletedOnboarding(true);
+            setShowOnboarding(false);
+          }}
+        />
+      ) : (
+        <OnboardingModal
+          open={showOnboarding}
+          onOpenChange={setShowOnboarding}
+          onComplete={() => {
+            setHasCompletedOnboarding(true);
+            setShowOnboarding(false);
+          }}
+        />
+      )}
+      
       {/* WebSocket Connection Status Indicator */}
       {isGenerating && (
         <WebSocketStatus
@@ -2520,6 +2573,7 @@ function HomeContent() {
           onOpenProcessModal={() => setShowProcessModal(true)}
           onRenameProject={setRenamingProject}
           onDeleteProject={setDeletingProject}
+          onOpenOnboarding={() => setShowOnboarding(true)}
         />
         <ProcessManagerModal
           isOpen={showProcessModal}

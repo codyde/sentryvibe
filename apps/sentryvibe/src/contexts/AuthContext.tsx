@@ -4,6 +4,9 @@ import {
   createContext,
   useContext,
   useMemo,
+  useState,
+  useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
 import { useSession } from "@/lib/auth-client";
@@ -34,6 +37,9 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   isLocalMode: boolean;
+  hasCompletedOnboarding: boolean;
+  setHasCompletedOnboarding: (value: boolean) => void;
+  refetchOnboardingStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,6 +51,48 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children, isLocalMode = false }: AuthProviderProps) {
   const { data: session, isPending } = useSession();
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [onboardingLoading, setOnboardingLoading] = useState(true);
+
+  // Fetch onboarding status when authenticated
+  const fetchOnboardingStatus = useCallback(async () => {
+    if (isLocalMode) {
+      // In local mode, check localStorage for onboarding status
+      const stored = localStorage.getItem("sentryvibe-local-onboarding-complete");
+      setHasCompletedOnboarding(stored === "true");
+      setOnboardingLoading(false);
+      return;
+    }
+
+    if (!session?.user) {
+      setOnboardingLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/user/onboarding");
+      if (res.ok) {
+        const data = await res.json();
+        setHasCompletedOnboarding(data.hasCompletedOnboarding ?? false);
+      }
+    } catch (error) {
+      console.error("Failed to fetch onboarding status:", error);
+    } finally {
+      setOnboardingLoading(false);
+    }
+  }, [isLocalMode, session?.user]);
+
+  useEffect(() => {
+    fetchOnboardingStatus();
+  }, [fetchOnboardingStatus]);
+
+  // Handler to update onboarding status (also persists for local mode)
+  const handleSetOnboardingComplete = useCallback((value: boolean) => {
+    setHasCompletedOnboarding(value);
+    if (isLocalMode) {
+      localStorage.setItem("sentryvibe-local-onboarding-complete", value.toString());
+    }
+  }, [isLocalMode]);
 
   const value = useMemo<AuthContextValue>(() => {
     // In local mode, always authenticated as local user
@@ -52,8 +100,11 @@ export function AuthProvider({ children, isLocalMode = false }: AuthProviderProp
       return {
         user: LOCAL_USER,
         isAuthenticated: true,
-        isLoading: false,
+        isLoading: onboardingLoading,
         isLocalMode: true,
+        hasCompletedOnboarding,
+        setHasCompletedOnboarding: handleSetOnboardingComplete,
+        refetchOnboardingStatus: fetchOnboardingStatus,
       };
     }
 
@@ -69,10 +120,13 @@ export function AuthProvider({ children, isLocalMode = false }: AuthProviderProp
         updatedAt: new Date(session.user.updatedAt),
       } : null,
       isAuthenticated: !!session?.user,
-      isLoading: isPending,
+      isLoading: isPending || onboardingLoading,
       isLocalMode: false,
+      hasCompletedOnboarding,
+      setHasCompletedOnboarding: handleSetOnboardingComplete,
+      refetchOnboardingStatus: fetchOnboardingStatus,
     };
-  }, [session, isPending, isLocalMode]);
+  }, [session, isPending, isLocalMode, hasCompletedOnboarding, onboardingLoading, handleSetOnboardingComplete, fetchOnboardingStatus]);
 
   return (
     <AuthContext.Provider value={value}>
