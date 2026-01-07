@@ -47,5 +47,5 @@ if [ "$NODE_VERSION" -lt 20 ]; then
     exit 1
 fi
 
-# Run the Node.js installer
-exec node -e "$(curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install.mjs)"
+# Run the Node.js installer by piping to node stdin
+curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install.mjs | node --input-type=module -
