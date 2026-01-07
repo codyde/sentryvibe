@@ -65,8 +65,11 @@ class HttpProxyManager {
   ): Promise<ProxyResponse> {
     const requestId = randomUUID();
     
+    console.log(`[http-proxy] Starting proxy request ${requestId}: ${request.method} ${request.path} → runner ${runnerId}:${port}`);
+    
     // Check if runner is connected
     if (!buildWebSocketServer.isRunnerConnected(runnerId)) {
+      console.error(`[http-proxy] Runner ${runnerId} is not connected`);
       throw new Error(`Runner ${runnerId} is not connected`);
     }
     
@@ -106,11 +109,15 @@ class HttpProxyManager {
       };
       
       // Send command to runner
+      console.log(`[http-proxy] Sending command to runner ${runnerId}, requestId: ${requestId}`);
       const sent = buildWebSocketServer.sendCommandToRunner(runnerId, command);
       if (!sent) {
+        console.error(`[http-proxy] Failed to send command to runner ${runnerId}`);
         clearTimeout(timeout);
         this.pendingRequests.delete(requestId);
         reject(new Error(`Failed to send HTTP proxy request to runner ${runnerId}`));
+      } else {
+        console.log(`[http-proxy] Command sent successfully, waiting for response...`);
       }
     });
   }
@@ -119,9 +126,12 @@ class HttpProxyManager {
    * Handle HTTP proxy response event from runner
    */
   handleProxyResponse(event: HttpProxyResponseEvent): void {
+    console.log(`[http-proxy] Received response event for requestId: ${event.requestId}, status: ${event.statusCode}, isChunked: ${event.isChunked}`);
+    
     const pending = this.pendingRequests.get(event.requestId);
     if (!pending) {
       console.warn(`[http-proxy] Received response for unknown request: ${event.requestId}`);
+      console.warn(`[http-proxy] Pending requests: ${Array.from(this.pendingRequests.keys()).join(', ')}`);
       return;
     }
     
@@ -131,6 +141,7 @@ class HttpProxyManager {
     
     // If response includes body and is not chunked, resolve immediately
     if (!event.isChunked && event.body !== undefined) {
+      console.log(`[http-proxy] Resolving request ${event.requestId} with ${event.body.length} bytes (base64)`);
       clearTimeout(pending.timeout);
       this.pendingRequests.delete(event.requestId);
       
@@ -193,14 +204,18 @@ class HttpProxyManager {
    * Process a runner event and handle HTTP proxy events
    */
   processEvent(event: RunnerEvent): boolean {
+    console.log(`[http-proxy] processEvent called with type: ${event.type}`);
     switch (event.type) {
       case 'http-proxy-response':
+        console.log(`[http-proxy] Processing http-proxy-response event`);
         this.handleProxyResponse(event as HttpProxyResponseEvent);
         return true;
       case 'http-proxy-chunk':
+        console.log(`[http-proxy] Processing http-proxy-chunk event`);
         this.handleProxyChunk(event as HttpProxyChunkEvent);
         return true;
       case 'http-proxy-error':
+        console.log(`[http-proxy] Processing http-proxy-error event`);
         this.handleProxyError(event as HttpProxyErrorEvent);
         return true;
       default:
