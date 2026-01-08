@@ -4,3 +4,4 @@ export { LocalModeScreen, type LocalModeScreenProps, type LocalAction } from './
 export { RunnerModeScreen, type RunnerModeScreenProps, type RunnerConfig } from './RunnerModeScreen.js';
 export { ConfigFormScreen, type ConfigFormScreenProps, type InitFormConfig } from './ConfigFormScreen.js';
 export { StartPromptScreen, type StartPromptScreenProps } from './StartPromptScreen.js';
+export { RunnerDashboard, type RunnerDashboardProps } from './RunnerDashboard.js';

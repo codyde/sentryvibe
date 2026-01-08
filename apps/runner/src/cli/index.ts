@@ -1,4 +1,19 @@
 #!/usr/bin/env node
+// EARLY TUI DETECTION: Set SILENT_MODE before any modules are imported
+// This suppresses console output in TUI mode
+// Must be done before imports because file-logger.ts captures console at load time
+{
+  const args = process.argv.slice(2);
+  const isRunnerTUI = args[0] === 'runner' && !args.includes('--no-tui');
+  const isRunTUI = args[0] === 'run';
+  const isInitTUI = args[0] === 'init' && (args.includes('-y') || args.includes('--yes') || args.includes('--non-interactive'));
+  const isNoArgsTUI = args.length === 0 || (args.length === 1 && args[0] === '--debug');
+  
+  if (isRunnerTUI || isRunTUI || isInitTUI || isNoArgsTUI) {
+    process.env.SILENT_MODE = '1';
+  }
+}
+
 // IMPORTANT: Ensure vendor packages are extracted before any imports
 // pnpm postinstall doesn't always run reliably for global installs from URLs
 //
@@ -84,7 +99,14 @@ const args = process.argv.slice(2);
 const isInitWithYes = args[0] === 'init' && (args.includes('-y') || args.includes('--yes') || args.includes('--non-interactive'));
 const isNoArgs = args.length === 0 || (args.length === 1 && args[0] === '--debug');
 const isRunCommand = args[0] === 'run'; // `sentryvibe run` uses TUI Dashboard
-const isTUIMode = isInitWithYes || isNoArgs || isRunCommand;
+const isRunnerCommand = args[0] === 'runner' && !args.includes('--no-tui'); // `sentryvibe runner` uses TUI Dashboard (unless --no-tui)
+const isTUIMode = isInitWithYes || isNoArgs || isRunCommand || isRunnerCommand;
+
+// Set SILENT_MODE for TUI to suppress all console output from other modules
+// This must be set early, before modules that use console.log are imported
+if (isTUIMode) {
+  process.env.SILENT_MODE = '1';
+}
 
 // Display splash screen banner (skip for TUI modes)
 if (!isTUIMode) {
@@ -164,6 +186,8 @@ program
   .option('--dev', 'Use development mode (hot reload, slower startup)')
   .option('--rebuild', 'Rebuild services before starting')
   .option('--no-local', 'Disable local mode (require authentication)')
+  .option('--no-tui', 'Disable TUI dashboard, use plain text logs')
+  .option('-v, --verbose', 'Enable verbose logging (show debug info)')
   .action(async (options) => {
     try {
       const { startCommand } = await import('./commands/start.js');
@@ -196,6 +220,7 @@ program
   .option('-b, --broker <url>', 'WebSocket URL override (advanced, inferred from --url)')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-l, --local', 'Enable local mode (bypasses authentication)')
+  .option('--no-tui', 'Disable TUI dashboard, use plain text logs')
   .action(async (options) => {
     try {
       const { runCommand } = await import('./commands/run.js');

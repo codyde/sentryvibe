@@ -1,9 +1,14 @@
 import chalk from 'chalk';
 import { homedir, userInfo } from 'node:os';
 import { join } from 'node:path';
+import { render } from 'ink';
+import React from 'react';
 import { logger } from '../utils/logger.js';
 import { configManager } from '../utils/config-manager.js';
 import { startRunner } from '../../index.js';
+import { RunnerDashboard } from '../tui/screens/RunnerDashboard.js';
+import { initRunnerLogger } from '../../lib/logging/index.js';
+import { setFileLoggerTuiMode } from '../../lib/file-logger.js';
 
 // Default public SentryVibe instance
 const DEFAULT_URL = 'https://sentryvibe.up.railway.app';
@@ -63,6 +68,26 @@ interface RunOptions {
   secret?: string;
   verbose?: boolean;
   local?: boolean; // Enable local mode (bypasses authentication)
+  noTui?: boolean; // Disable TUI dashboard
+}
+
+/**
+ * Check if we should use TUI
+ */
+function shouldUseTUI(options: RunOptions): boolean {
+  // Explicit flag
+  if (options.noTui) return false;
+
+  // CI/CD environments
+  if (process.env.CI === '1' || process.env.CI === 'true') return false;
+
+  // Not a TTY
+  if (!process.stdout.isTTY) return false;
+
+  // Explicit env var to disable
+  if (process.env.NO_TUI === '1') return false;
+
+  return true;
 }
 
 export async function runCommand(options: RunOptions) {
@@ -71,6 +96,8 @@ export async function runCommand(options: RunOptions) {
     process.env.SENTRYVIBE_LOCAL_MODE = 'true';
     logger.info(chalk.yellow('Local mode enabled - authentication bypassed'));
   }
+
+  const useTUI = shouldUseTUI(options);
 
   // Build runner options from CLI flags or smart defaults
   // NOTE: For the `runner` command, we intentionally ignore local config values
@@ -101,6 +128,8 @@ export async function runCommand(options: RunOptions) {
     sharedSecret,
     runnerId,
     workspace,
+    verbose: options.verbose,
+    tuiMode: useTUI,
   };
 
   // Validate required options - only secret is truly required
@@ -115,23 +144,120 @@ export async function runCommand(options: RunOptions) {
     process.exit(1);
   }
 
-  // Display startup info
-  logger.section('Starting SentryVibe Runner');
-  logger.info(`Server: ${chalk.cyan(runnerOptions.wsUrl)}`);
-  logger.info(`API URL: ${chalk.cyan(runnerOptions.apiUrl)}`);
-  logger.info(`Runner ID: ${chalk.cyan(runnerOptions.runnerId)}`);
-  logger.info(`Workspace: ${chalk.cyan(runnerOptions.workspace)}`);
-  logger.log('');
+  // ========================================
+  // PLAIN TEXT MODE (--no-tui)
+  // ========================================
+  if (!useTUI) {
+    // Display startup info
+    logger.section('Starting SentryVibe Runner');
+    logger.info(`Server: ${chalk.cyan(runnerOptions.wsUrl)}`);
+    logger.info(`API URL: ${chalk.cyan(runnerOptions.apiUrl)}`);
+    logger.info(`Runner ID: ${chalk.cyan(runnerOptions.runnerId)}`);
+    logger.info(`Workspace: ${chalk.cyan(runnerOptions.workspace)}`);
+    logger.log('');
 
-  if (options.verbose) {
-    logger.debug('Verbose logging enabled');
-    logger.debug(`Full options: ${JSON.stringify(runnerOptions, null, 2)}`);
+    if (options.verbose) {
+      logger.debug('Verbose logging enabled');
+      logger.debug(`Full options: ${JSON.stringify(runnerOptions, null, 2)}`);
+    }
+
+    try {
+      // Start the runner (runs indefinitely)
+      await startRunner(runnerOptions);
+    } catch (error) {
+      logger.error('Failed to start runner:');
+      logger.error(error instanceof Error ? error.message : 'Unknown error');
+      if (error instanceof Error && error.stack) {
+        logger.debug(error.stack);
+      }
+      process.exit(1);
+    }
+    return;
   }
 
+  // ========================================
+  // TUI MODE (default)
+  // ========================================
+  
+  // Initialize the logger BEFORE rendering TUI so the TUI can subscribe to events
+  // This must happen before startRunner() which would create its own logger
+  initRunnerLogger({
+    verbose: options.verbose || false,
+    tuiMode: true,
+  });
+  
+  // Enable TUI mode in file-logger to suppress terminal output
+  setFileLoggerTuiMode(true);
+  
+  // Track runner cleanup function
+  let runnerCleanupFn: (() => Promise<void>) | undefined;
+
+  // Clear screen and enter alternate buffer for clean TUI
+  process.stdout.write('\x1b[?1049h'); // Enter alternate screen
+  process.stdout.write('\x1b[2J\x1b[H'); // Clear and home
+
+  // Ensure stdin is in raw mode for keyboard input
+  if (process.stdin.setRawMode) {
+    process.stdin.setRawMode(true);
+  }
+  process.stdin.resume();
+
+  // Handle quit from TUI
+  const handleQuit = async () => {
+    // Exit alternate screen buffer
+    process.stdout.write('\x1b[?1049l');
+    
+    console.log('\n' + chalk.yellow('Shutting down runner...'));
+    
+    if (runnerCleanupFn) {
+      try {
+        await runnerCleanupFn();
+        console.log(chalk.green('✓') + ' Runner stopped');
+      } catch (e) {
+        console.error(chalk.red('✗') + ' Error stopping runner:', e);
+      }
+    }
+    
+    process.exit(0);
+  };
+
+  // Handle SIGINT (Ctrl+C)
+  process.on('SIGINT', handleQuit);
+
+  // Render the TUI dashboard
+  const { waitUntilExit, clear } = render(
+    React.createElement(RunnerDashboard, {
+      config: {
+        runnerId,
+        serverUrl: wsUrl,
+        workspace,
+        apiUrl,
+      },
+      onQuit: handleQuit,
+    }),
+    {
+      stdin: process.stdin,
+      stdout: process.stdout,
+      stderr: process.stderr,
+      exitOnCtrlC: false, // We handle this ourselves
+      patchConsole: false, // We use our own logging
+    }
+  );
+
   try {
-    // Start the runner
-    startRunner(runnerOptions);
+    // Start the runner and get cleanup function
+    runnerCleanupFn = await startRunner(runnerOptions);
+
+    // Wait for TUI to exit (user pressed 'q')
+    await waitUntilExit();
+
+    // Clean up
+    clear();
+    await handleQuit();
   } catch (error) {
+    clear();
+    process.stdout.write('\x1b[?1049l'); // Exit alternate screen
+    
     logger.error('Failed to start runner:');
     logger.error(error instanceof Error ? error.message : 'Unknown error');
     if (error instanceof Error && error.stack) {

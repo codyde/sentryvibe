@@ -19,6 +19,7 @@ interface StartOptions {
   dev?: boolean; // Use development mode (hot reload)
   rebuild?: boolean; // Rebuild services before starting
   local?: boolean; // Enable local mode (default: true, use --no-local to disable)
+  verbose?: boolean; // Enable verbose logging
 }
 
 interface ManagedProcess {
@@ -272,6 +273,8 @@ export async function startCommand(options: StartOptions) {
       sharedSecret: sharedSecret,
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
+      verbose: options.verbose,
+      tuiMode: false, // Traditional mode = no TUI
     });
 
   } catch (error) {

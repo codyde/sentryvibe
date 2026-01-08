@@ -1,6 +1,13 @@
 import { streamLog } from './file-logger.js';
 import * as Sentry from '@sentry/node';
 
+// Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)
+const debugLog = (message: string) => {
+  if (process.env.SILENT_MODE !== '1' && process.env.DEBUG_BUILD === '1') {
+    debugLog(message);
+  }
+};
+
 /**
  * Truncate strings for logging to prevent excessive output
  */
@@ -95,7 +102,7 @@ export async function* transformAISDKStream(
   const activeToolSpans: Map<string, Sentry.Span> = new Map();
 
   // ALWAYS log start - write to stderr to bypass TUI console interceptor
-  process.stderr.write('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...\n');
+  debugLog('[runner] [ai-sdk-adapter] ✅ Starting stream transformation...\n');
   streamLog.info('━━━ STREAM TRANSFORMATION STARTED ━━━');
 
   for await (const part of stream) {
@@ -108,15 +115,15 @@ export async function* transformAISDKStream(
 
     // DEBUG: Log first 20 events with full JSON to see what we're actually getting
     if (DEBUG && eventCount <= 20) {
-      process.stderr.write(`[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}"\n`);
-      process.stderr.write(`[runner] [ai-sdk-adapter]   Full JSON: ${truncateJSON(part, 500)}\n`);
+      debugLog(`[runner] [ai-sdk-adapter] Event #${eventCount}: type="${part.type}"\n`);
+      debugLog(`[runner] [ai-sdk-adapter]   Full JSON: ${truncateJSON(part, 500)}\n`);
     }
 
     if (DEBUG) console.log('[ai-sdk-adapter] Event:', part.type, part);
 
     // DEBUG: Log every 10 events to show progress
     if (DEBUG && eventCount % 10 === 0) {
-      process.stderr.write(`[runner] [ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages\n`);
+      debugLog(`[runner] [ai-sdk-adapter] Processed ${eventCount} events, yielded ${yieldCount} messages\n`);
     }
 
     switch (part.type) {
@@ -125,7 +132,7 @@ export async function* transformAISDKStream(
         // Update message ID if provided
         if (part.id) {
           currentMessageId = part.id as string;
-          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Updated message ID: ${currentMessageId}\n`);
+          if (DEBUG) debugLog(`[runner] [ai-sdk-adapter] Updated message ID: ${currentMessageId}\n`);
         }
         break;
 
@@ -133,7 +140,7 @@ export async function* transformAISDKStream(
         // Capture message ID from text-start event
         if (part.id) {
           currentMessageId = part.id as string;
-          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Message ID from text-start: ${currentMessageId}\n`);
+          if (DEBUG) debugLog(`[runner] [ai-sdk-adapter] Message ID from text-start: ${currentMessageId}\n`);
         }
         break;
 
@@ -205,7 +212,7 @@ export async function* transformAISDKStream(
               },
             };
             yieldCount++;
-            process.stderr.write(`[runner] [ai-sdk-adapter] 💬 Yielding text before tool: ${currentTextContent.length} chars\n`);
+            debugLog(`[runner] [ai-sdk-adapter] 💬 Yielding text before tool: ${currentTextContent.length} chars\n`);
             yield textMessage;
             // Reset so it's not included in the tool message
             currentTextContent = '';
@@ -227,8 +234,8 @@ export async function* transformAISDKStream(
             },
           };
           yieldCount++;
-          process.stderr.write(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`);
-          process.stderr.write(`[runner] [ai-sdk-adapter]   Tool input: ${truncateJSON(toolInput)}\n`);
+          debugLog(`[runner] [ai-sdk-adapter] 🔧 Tool call: ${toolName}\n`);
+          debugLog(`[runner] [ai-sdk-adapter]   Tool input: ${truncateJSON(toolInput)}\n`);
 
           // Log to file
           streamLog.yield('tool-call', { toolName, toolCallId, toolInput, message: toolMessage });
@@ -258,13 +265,13 @@ export async function* transformAISDKStream(
           },
         };
         yieldCount++;
-        process.stderr.write(`[runner] [ai-sdk-adapter] 📥 Tool result for: ${part.toolName || resultId}\n`);
+        debugLog(`[runner] [ai-sdk-adapter] 📥 Tool result for: ${part.toolName || resultId}\n`);
 
         // Special handling for verbose tool results
         if (part.toolName === 'TodoWrite') {
-          process.stderr.write(`[runner] [ai-sdk-adapter]   Result: ✓ Todos updated\n`);
+          debugLog(`[runner] [ai-sdk-adapter]   Result: ✓ Todos updated\n`);
         } else {
-          process.stderr.write(`[runner] [ai-sdk-adapter]   Result: ${truncateJSON(toolResult)}\n`);
+          debugLog(`[runner] [ai-sdk-adapter]   Result: ${truncateJSON(toolResult)}\n`);
         }
 
         yield resultMessage as UserMessage;
@@ -289,8 +296,8 @@ export async function* transformAISDKStream(
           },
         };
         yieldCount++;
-        process.stderr.write(`[runner] [ai-sdk-adapter] ⚠️  Tool error: ${part.toolName || errorId}\n`);
-        process.stderr.write(`[runner] [ai-sdk-adapter]   Error: ${truncate(JSON.stringify(part.error), 150)}\n`);
+        debugLog(`[runner] [ai-sdk-adapter] ⚠️  Tool error: ${part.toolName || errorId}\n`);
+        debugLog(`[runner] [ai-sdk-adapter]   Error: ${truncate(JSON.stringify(part.error), 150)}\n`);
         yield errorMessage as UserMessage;
         break;
 
@@ -305,7 +312,7 @@ export async function* transformAISDKStream(
             },
           };
           yieldCount++;
-          process.stderr.write(`[runner] [ai-sdk-adapter] Yielding complete text block: ${currentTextContent.length} chars\n`);
+          debugLog(`[runner] [ai-sdk-adapter] Yielding complete text block: ${currentTextContent.length} chars\n`);
           yield message as TransformedMessage;
           // Reset text content for next block
           currentTextContent = '';
@@ -317,7 +324,7 @@ export async function* transformAISDKStream(
         // Final message - yield any remaining text
         if (currentTextContent.trim().length > 0) {
           yieldCount++;
-          if (DEBUG) process.stderr.write(`[runner] [ai-sdk-adapter] Yielding final text: ${currentTextContent.length} chars\n`);
+          if (DEBUG) debugLog(`[runner] [ai-sdk-adapter] Yielding final text: ${currentTextContent.length} chars\n`);
           yield {
             type: 'assistant' as const,
             message: {
@@ -339,7 +346,7 @@ export async function* transformAISDKStream(
         const wrappedError = new Error(`Claude stream error: ${errorText}`);
         Object.assign(wrappedError, { cause: errorPayload });
 
-        process.stderr.write(`[runner] [ai-sdk-adapter] ❌ Stream error: ${errorText}\n`);
+        debugLog(`[runner] [ai-sdk-adapter] ❌ Stream error: ${errorText}\n`);
         throw wrappedError;
 
       // Ignore other event types
@@ -358,18 +365,18 @@ export async function* transformAISDKStream(
 
   // Clean up any orphaned tool spans (tool calls that never received results)
   if (activeToolSpans.size > 0) {
-    process.stderr.write(`[runner] [ai-sdk-adapter] ⚠️  Cleaning up ${activeToolSpans.size} orphaned tool spans\n`);
+    debugLog(`[runner] [ai-sdk-adapter] ⚠️  Cleaning up ${activeToolSpans.size} orphaned tool spans\n`);
     for (const [toolId, span] of activeToolSpans) {
       span.setStatus({ code: 2, message: 'Tool execution incomplete - no result received' });
       span.end();
-      process.stderr.write(`[runner] [ai-sdk-adapter] 📊 Ended orphaned span: ${toolId}\n`);
+      debugLog(`[runner] [ai-sdk-adapter] 📊 Ended orphaned span: ${toolId}\n`);
     }
     activeToolSpans.clear();
   }
 
   // DEBUG: Log completion stats
   if (DEBUG) {
-    process.stderr.write(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages\n`);
+    debugLog(`[runner] [ai-sdk-adapter] ✅ Stream complete - processed ${eventCount} events, yielded ${yieldCount} messages\n`);
   }
 
   streamLog.info('━━━ STREAM TRANSFORMATION COMPLETE ━━━');

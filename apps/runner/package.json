@@ -44,7 +44,7 @@
     "postinstall": "node scripts/install-vendor.js",
     "dev": "RUNNER_WS_URL=ws://localhost:3000/ws/runner tsx --import ./src/instrument.ts src/index.ts",
     "dev:cli": "tsx --import ./src/instrument.ts src/cli/index.ts",
-    "build": "rollup -c",
+    "build": "rollup -c && cp templates.json dist/",
     "build:tsc": "tsc -p tsconfig.json",
     "start": "RUNNER_WS_URL=ws://localhost:3000/ws/runner node --import ./dist/instrument.js dist/index.js",
     "cli": "node --import ./dist/instrument.js dist/cli/index.js"

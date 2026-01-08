@@ -129,20 +129,24 @@ export class ConfigManager {
   }
 
   /**
-   * Check if config has been initialized (secret is set)
-   * Supports both new server config and legacy broker config
+   * Check if config has been initialized properly
+   * Requires monorepo to be cloned and databaseUrl to be configured
    */
   isInitialized(): boolean {
-    const server = this.get('server');
-    const broker = this.get('broker');
+    const monorepoPath = this.get('monorepoPath');
+    const databaseUrl = this.get('databaseUrl');
     
-    // Check new server config first
-    if (server && typeof server === 'object' && 'secret' in server && server.secret) {
-      return true;
+    // Must have monorepo path set and the directory must exist
+    if (!monorepoPath || !existsSync(monorepoPath)) {
+      return false;
     }
     
-    // Fall back to legacy broker config
-    return !!(broker && typeof broker === 'object' && 'secret' in broker && broker.secret);
+    // Must have database URL configured
+    if (!databaseUrl) {
+      return false;
+    }
+    
+    return true;
   }
   
   /**

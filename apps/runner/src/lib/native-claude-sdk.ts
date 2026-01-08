@@ -21,6 +21,13 @@ import {
   DEFAULT_CLAUDE_MODEL_ID,
 } from '@sentryvibe/agent-core';
 
+// Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)
+const debugLog = (message: string) => {
+  if (process.env.SILENT_MODE !== '1' && process.env.DEBUG_BUILD === '1') {
+    debugLog(message);
+  }
+};
+
 // Message part types for multi-modal support
 interface MessagePart {
   type: string;
@@ -178,10 +185,10 @@ export function createNativeClaudeQuery(
     _codexThreadId?: string,
     messageParts?: MessagePart[]
   ): AsyncGenerator<TransformedMessage, void, unknown> {
-    process.stderr.write('[runner] [native-sdk] 🎯 Starting native SDK query\n');
-    process.stderr.write(`[runner] [native-sdk] Model: ${modelId}\n`);
-    process.stderr.write(`[runner] [native-sdk] Working dir: ${workingDirectory}\n`);
-    process.stderr.write(`[runner] [native-sdk] Prompt length: ${prompt.length}\n`);
+    debugLog('[runner] [native-sdk] 🎯 Starting native SDK query\n');
+    debugLog(`[runner] [native-sdk] Model: ${modelId}\n`);
+    debugLog(`[runner] [native-sdk] Working dir: ${workingDirectory}\n`);
+    debugLog(`[runner] [native-sdk] Prompt length: ${prompt.length}\n`);
 
     // Build combined system prompt
     const systemPromptSegments: string[] = [CLAUDE_SYSTEM_PROMPT.trim()];
@@ -200,7 +207,7 @@ export function createNativeClaudeQuery(
     const hasImages = messageParts?.some(p => p.type === 'image');
     if (hasImages) {
       const imageCount = messageParts?.filter(p => p.type === 'image').length || 0;
-      process.stderr.write(`[runner] [native-sdk] 🖼️  Multi-modal message with ${imageCount} image(s)\n`);
+      debugLog(`[runner] [native-sdk] 🖼️  Multi-modal message with ${imageCount} image(s)\n`);
     }
 
     // Build the final prompt
@@ -230,7 +237,7 @@ export function createNativeClaudeQuery(
       tools: { type: 'preset', preset: 'claude_code' },
     };
 
-    process.stderr.write('[runner] [native-sdk] 🚀 Starting SDK query stream\n');
+    debugLog('[runner] [native-sdk] 🚀 Starting SDK query stream\n');
 
     let messageCount = 0;
     let toolCallCount = 0;
@@ -250,7 +257,7 @@ export function createNativeClaudeQuery(
             for (const block of transformed.message.content) {
               if (block.type === 'tool_use') {
                 toolCallCount++;
-                process.stderr.write(`[runner] [native-sdk] 🔧 Tool call: ${block.name}\n`);
+                debugLog(`[runner] [native-sdk] 🔧 Tool call: ${block.name}\n`);
               } else if (block.type === 'text') {
                 textBlockCount++;
               }
@@ -263,16 +270,16 @@ export function createNativeClaudeQuery(
         // Log result messages
         if (sdkMessage.type === 'result') {
           if (sdkMessage.subtype === 'success') {
-            process.stderr.write(`[runner] [native-sdk] ✅ Query complete - ${sdkMessage.num_turns} turns, $${sdkMessage.total_cost_usd?.toFixed(4)} USD\n`);
+            debugLog(`[runner] [native-sdk] ✅ Query complete - ${sdkMessage.num_turns} turns, $${sdkMessage.total_cost_usd?.toFixed(4)} USD\n`);
           } else {
-            process.stderr.write(`[runner] [native-sdk] ⚠️  Query ended with: ${sdkMessage.subtype}\n`);
+            debugLog(`[runner] [native-sdk] ⚠️  Query ended with: ${sdkMessage.subtype}\n`);
           }
         }
       }
 
-      process.stderr.write(`[runner] [native-sdk] 📊 Stream complete - ${messageCount} messages, ${toolCallCount} tool calls, ${textBlockCount} text blocks\n`);
+      debugLog(`[runner] [native-sdk] 📊 Stream complete - ${messageCount} messages, ${toolCallCount} tool calls, ${textBlockCount} text blocks\n`);
     } catch (error) {
-      process.stderr.write(`[runner] [native-sdk] ❌ Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      debugLog(`[runner] [native-sdk] ❌ Error: ${error instanceof Error ? error.message : String(error)}\n`);
       Sentry.captureException(error);
       throw error;
     }
