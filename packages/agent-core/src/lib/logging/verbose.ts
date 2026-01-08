@@ -57,6 +57,8 @@ export function setVerboseLogging(enabled: boolean) {
 
 export function createScopedLogger(scope: string) {
   return (message?: unknown, ...args: unknown[]) => {
+    // Suppress all output in TUI mode (SILENT_MODE=1)
+    if (process.env.SILENT_MODE === '1') return;
     if (!isVerboseLoggingEnabled()) return;
     if (typeof message === 'string' || typeof message === 'number') {
       console.log(`[${scope}] ${String(message)}`, ...args);

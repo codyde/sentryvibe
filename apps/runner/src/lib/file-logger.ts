@@ -66,6 +66,23 @@ export const streamLog = {
   },
 };
 
+// TUI mode flag - when true, don't output to terminal (only to file)
+let tuiModeEnabled = false;
+
+/**
+ * Enable TUI mode - suppresses terminal output, only writes to files
+ * Also sets SILENT_MODE env var to suppress agent-core build-logger output
+ */
+export function setFileLoggerTuiMode(enabled: boolean): void {
+  tuiModeEnabled = enabled;
+  // Set env var so agent-core's build-logger also silences itself
+  if (enabled) {
+    process.env.SILENT_MODE = '1';
+  } else {
+    delete process.env.SILENT_MODE;
+  }
+}
+
 // Intercept console methods to also write to file
 const originalConsole = {
   log: console.log,
@@ -75,29 +92,48 @@ const originalConsole = {
   debug: console.debug,
 };
 
-// Override console methods to write to both console AND file
+// Export original console for when we need direct output
+export { originalConsole };
+
+// Helper to check if we should suppress terminal output
+// Check both the runtime flag AND the environment variable (set early in CLI)
+function shouldSuppressTerminal(): boolean {
+  return tuiModeEnabled || process.env.SILENT_MODE === '1';
+}
+
+// Override console methods to write to file (and optionally terminal)
 console.log = (...args: unknown[]) => {
-  originalConsole.log(...args);
+  if (!shouldSuppressTerminal()) {
+    originalConsole.log(...args);
+  }
   fileLog.info(...args);
 };
 
 console.error = (...args: unknown[]) => {
-  originalConsole.error(...args);
+  if (!shouldSuppressTerminal()) {
+    originalConsole.error(...args);
+  }
   fileLog.error(...args);
 };
 
 console.warn = (...args: unknown[]) => {
-  originalConsole.warn(...args);
+  if (!shouldSuppressTerminal()) {
+    originalConsole.warn(...args);
+  }
   fileLog.warn(...args);
 };
 
 console.info = (...args: unknown[]) => {
-  originalConsole.info(...args);
+  if (!shouldSuppressTerminal()) {
+    originalConsole.info(...args);
+  }
   fileLog.info(...args);
 };
 
 console.debug = (...args: unknown[]) => {
-  originalConsole.debug(...args);
+  if (!shouldSuppressTerminal()) {
+    originalConsole.debug(...args);
+  }
   fileLog.debug(...args);
 };
 

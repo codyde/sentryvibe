@@ -24,6 +24,7 @@ interface StartOptions {
   dev?: boolean; // Use development mode (hot reload)
   rebuild?: boolean; // Rebuild services before starting
   local?: boolean; // Enable local mode (default: true, use --no-local to disable)
+  verbose?: boolean; // Enable verbose logging
 }
 
 /**
@@ -328,6 +329,8 @@ export async function startCommand(options: StartOptions) {
       runnerId: config.runner?.id || 'local',
       workspace: config.workspace,
       silent: false, // Changed to false - show all logs
+      verbose: options.verbose,
+      tuiMode: true, // TUI mode enabled
     });
 
     // Wait for TUI to exit

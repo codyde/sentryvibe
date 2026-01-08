@@ -12,6 +12,13 @@ import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '../../types/agent';
 import type { AgentId, ClaudeModelId } from '../../types/agent';
 import { getWorkspaceRoot } from '../workspace';
 
+// Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)
+const debugLog = (message: string) => {
+  if (process.env.SILENT_MODE !== '1' && process.env.DEBUG_BUILD === '1') {
+    debugLog(message);
+  }
+};
+
 export interface AgentMessage {
   type: string;
   subtype?: string;
@@ -172,7 +179,7 @@ async function detectRuntimeMetadata(projectPath: string): Promise<RuntimeMetada
     const { detectFrameworkFromFilesystem } = await import('../port-allocator');
     const detectedFramework = await detectFrameworkFromFilesystem(projectPath);
     
-    console.log(`[build-engine] 🔍 Detected framework: ${detectedFramework || 'unknown'}`);
+    if (process.env.DEBUG_BUILD === '1') console.log(`[build-engine] 🔍 Detected framework: ${detectedFramework || 'unknown'}`);
 
     return {
       runCommand,

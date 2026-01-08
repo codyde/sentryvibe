@@ -3,7 +3,7 @@
 import * as Sentry from "@sentry/node";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { Codex } from "@openai/codex-sdk";
-import { fileLog } from "./lib/file-logger.js";
+import { fileLog, setFileLoggerTuiMode } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +44,11 @@ import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
 import { hmrProxyManager } from "./lib/hmr-proxy-manager.js";
+import { 
+  initRunnerLogger, 
+  getLogger,
+  type RunnerLoggerOptions 
+} from "./lib/logging/index.js";
 
 globalThis.AI_SDK_LOG_WARNINGS = false;
 
@@ -77,25 +82,75 @@ export interface RunnerOptions {
   workspace?: string;
   heartbeatInterval?: number;
   silent?: boolean; // Suppress console output (for TUI mode)
+  verbose?: boolean; // Enable verbose logging
+  tuiMode?: boolean; // Enable TUI dashboard (default: true)
 }
 
 let isSilentMode = false;
+let isVerboseMode = false;
+let isTuiMode = true;
 
 // Build logging can be controlled separately
 const DEBUG_BUILD = process.env.DEBUG_BUILD === "1" || false;
 
+
+
+/**
+ * Log a message through the unified logger
+ * Falls back to console.log if logger not initialized
+ */
 const log = (...args: unknown[]) => {
-  // Always log with [runner] prefix for TUI routing
-  console.log("[runner]", ...args);
+  const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  
+  try {
+    const logger = getLogger();
+    logger.info('system', message);
+  } catch {
+    // Logger not yet initialized - use console
+    console.log("[runner]", ...args);
+  }
 };
 
+/**
+ * Log a build-related message
+ */
 const buildLog = (...args: unknown[]) => {
-  // Always log build events (removed silent mode check)
-  console.log("[runner] [build]", ...args);
+  const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  
+  try {
+    const logger = getLogger();
+    logger.info('build', message);
+  } catch {
+    // Logger not yet initialized - use console  
+    console.log("[runner] [build]", ...args);
+  }
+};
+
+/**
+ * Log a debug/verbose message (only shown in verbose mode)
+ */
+const debugLog = (...args: unknown[]) => {
+  if (!isVerboseMode && !DEBUG_BUILD) return;
+  
+  const message = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  
+  try {
+    const logger = getLogger();
+    logger.debug('system', message);
+  } catch {
+    console.log("[runner] [debug]", ...args);
+  }
 };
 
 const DEFAULT_AGENT: AgentId = "claude-code";
 const CODEX_MODEL = "gpt-5-codex";
+
+// Stderr debug logging - suppressed in TUI mode (SILENT_MODE=1)
+const stderrDebug = (message: string) => {
+  if (process.env.SILENT_MODE !== '1' && DEBUG_BUILD) {
+    stderrDebug(message);
+  }
+};
 
 type CodexEvent = {
   type: string;
@@ -447,14 +502,14 @@ function createClaudeQuery(
   return async function* (prompt, workingDirectory, systemPrompt, agent, codexThreadId, messageParts) {
     // Note: query is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration via OpenTelemetry
 
-    process.stderr.write(
+    stderrDebug(
       "[runner] [createClaudeQuery] 🎯 Query function called\n"
     );
-    process.stderr.write(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
-    process.stderr.write(
+    stderrDebug(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
+    stderrDebug(
       `[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`
     );
-    process.stderr.write(
+    stderrDebug(
       `[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`
     );
 
@@ -462,7 +517,7 @@ function createClaudeQuery(
     const hasImages = messageParts?.some(p => p.type === 'image');
     if (hasImages) {
       const imageCount = messageParts?.filter(p => p.type === 'image').length || 0;
-      process.stderr.write(
+      stderrDebug(
         `[runner] [createClaudeQuery] 🖼️  Multi-modal message with ${imageCount} image(s)\n`
       );
     }
@@ -529,7 +584,7 @@ function createClaudeQuery(
           // Extract media type for logging
           const match = part.image.match(/^data:(.+);base64,/);
           if (match) {
-            process.stderr.write(
+            stderrDebug(
               `[runner] [createClaudeQuery] ✅ Added image part (${match[1]})\n`
             );
           }
@@ -550,7 +605,7 @@ function createClaudeQuery(
       }
 
       userMessage = contentParts;
-      process.stderr.write(
+      stderrDebug(
         `[runner] [createClaudeQuery] 📦 Built multi-part message with ${contentParts.length} part(s)\n`
       );
     } else {
@@ -1030,8 +1085,22 @@ function startPeriodicHealthChecks(
  * Start the runner with the given options
  */
 export async function startRunner(options: RunnerOptions = {}) {
-  // Set silent mode if requested (for TUI)
+  // Set mode flags
   isSilentMode = options.silent || false;
+  isVerboseMode = options.verbose || process.env.VERBOSE === '1' || false;
+  isTuiMode = options.tuiMode !== false; // Default to true
+
+  // Initialize the unified logger
+  const loggerOptions: RunnerLoggerOptions = {
+    verbose: isVerboseMode,
+    tuiMode: isTuiMode && !isSilentMode,
+  };
+  const logger = initRunnerLogger(loggerOptions);
+
+  // Enable TUI mode in file-logger to suppress terminal output
+  if (isTuiMode && !isSilentMode) {
+    setFileLoggerTuiMode(true);
+  }
 
   // Also set silent mode for all modules
   if (isSilentMode) {
@@ -1109,9 +1178,17 @@ export async function startRunner(options: RunnerOptions = {}) {
   process.env.RUNNER_SHARED_SECRET = runnerSharedSecret;
   process.env.RUNNER_ID = RUNNER_ID;
 
-  log("api base url:", apiBaseUrl);
-  log("runner id:", RUNNER_ID);
-  log("workspace root:", WORKSPACE_ROOT);
+  // Log startup configuration using the unified logger
+  logger.header({
+    runnerId: RUNNER_ID,
+    serverUrl: WS_URL,
+    workspace: WORKSPACE_ROOT,
+    apiUrl: apiBaseUrl,
+  });
+
+  debugLog("api base url:", apiBaseUrl);
+  debugLog("runner id:", RUNNER_ID);
+  debugLog("workspace root:", WORKSPACE_ROOT);
 
   // Start HTTP health endpoint for Railway health checks
   const isServiceMode = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
@@ -1338,10 +1415,10 @@ export async function startRunner(options: RunnerOptions = {}) {
     // Skip duplicate 'start' events - only send the first one per session
     if (eventType === 'start') {
       if (startedSessions.has(context.sessionId)) {
-        console.log(`[runner] ⏭️  Skipping duplicate start event for session=${context.sessionId}`);
-        return; // Skip duplicate start events
+        // Silently skip - this is expected and not worth logging
+        return;
       }
-      console.log(`[runner] 🚀 Sending first start event for session=${context.sessionId}`);
+      debugLog(`Sending first start event for session=${context.sessionId}`);
       startedSessions.add(context.sessionId);
     }
 
@@ -1522,25 +1599,25 @@ export async function startRunner(options: RunnerOptions = {}) {
   }
 
   async function handleCommand(command: RunnerCommand) {
-    log(
-      `📥 Received command: ${command.type} for project: ${command.projectId}`
-    );
-    log(`  Command ID: ${command.id}`);
-    log(`  Timestamp: ${command.timestamp}`);
+    // Log command receipt - only verbose details in debug mode
+    debugLog(`Received command: ${command.type} for project: ${command.projectId}`);
+    debugLog(`Command ID: ${command.id}`);
+    debugLog(`Timestamp: ${command.timestamp}`);
 
-    // Log command-specific details
+    // Log command-specific details (verbose only)
     if (command.type === "start-build") {
-      log(`  Build operation: ${command.payload.operationType}`);
-      log(`  Project slug: ${command.payload.projectSlug}`);
-      log(`  Prompt length: ${command.payload.prompt?.length || 0} chars`);
+      debugLog(`Build operation: ${command.payload.operationType}`);
+      debugLog(`Project slug: ${command.payload.projectSlug}`);
+      debugLog(`Prompt length: ${command.payload.prompt?.length || 0} chars`);
     } else if (command.type === "start-dev-server") {
-      log(`  Working directory: ${command.payload.workingDirectory}`);
-      log(`  Run command: ${command.payload.runCommand}`);
+      logger.devServer({ port: command.payload.preferredPort || 3000, status: 'starting' });
+      debugLog(`Working directory: ${command.payload.workingDirectory}`);
+      debugLog(`Run command: ${command.payload.runCommand}`);
     } else if (
       command.type === "start-tunnel" ||
       command.type === "stop-tunnel"
     ) {
-      log(`  Port: ${command.payload.port}`);
+      debugLog(`Port: ${command.payload.port}`);
     }
 
     sendEvent({
@@ -1966,7 +2043,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
           // Create tunnel
           const tunnelUrl = await tunnelManager.createTunnel(port);
-          log(`✅ Tunnel created: ${tunnelUrl} → localhost:${port}`);
+          logger.tunnel({ port, url: tunnelUrl, status: 'created' });
 
           // Instrument tunnel startup timing
           const tunnelDuration = Date.now() - tunnelStartTime;
@@ -2014,13 +2091,13 @@ export async function startRunner(options: RunnerOptions = {}) {
       case "stop-tunnel": {
         try {
           const { port } = command.payload;
-          log(`🔗 Stopping tunnel for port ${port}...`);
+          debugLog(`Stopping tunnel for port ${port}...`);
 
           // Ensure tunnel manager is in silent mode
           tunnelManager.setSilent(isSilentMode);
 
           await tunnelManager.closeTunnel(port);
-          log(`✅ Tunnel closed for port ${port}`);
+          logger.tunnel({ port, status: 'closed' });
 
           sendEvent({
             type: "tunnel-closed",
@@ -2275,9 +2352,26 @@ export async function startRunner(options: RunnerOptions = {}) {
         break;
       }
       case "start-build": {
-        log("📥 Received start-build command");
-        log("   Project ID:", command.projectId);
-        log("   Prompt:", command.payload?.prompt?.substring(0, 100) + "...");
+        // Use unified logger for build received
+        const agent = (command.payload?.agent as string) || DEFAULT_AGENT;
+        const claudeModelFromPayload = command.payload?.claudeModel;
+        const model = agent === 'claude-code' && 
+          (claudeModelFromPayload === 'claude-haiku-4-5' || 
+           claudeModelFromPayload === 'claude-sonnet-4-5' || 
+           claudeModelFromPayload === 'claude-opus-4-5')
+          ? claudeModelFromPayload
+          : DEFAULT_CLAUDE_MODEL_ID;
+
+        logger.buildReceived({
+          commandId: command.id,
+          projectId: command.projectId,
+          projectSlug: command.payload?.projectSlug || command.projectId,
+          projectName: command.payload?.projectName,
+          prompt: command.payload?.prompt || '',
+          operation: command.payload?.operationType || 'initial-build',
+          agent,
+          model,
+        });
 
         fileLog.info("━━━ START-BUILD COMMAND RECEIVED ━━━");
         fileLog.info("Project ID:", command.projectId);
@@ -2369,7 +2463,17 @@ export async function startRunner(options: RunnerOptions = {}) {
             conversationHistory: (command.payload as unknown as { conversationHistory: Array<{ role: string; content: string; timestamp: Date }> }).conversationHistory, // Pass conversation context (type will be updated after rebuild)
           });
 
-          log("orchestration complete:", {
+          // Log template selection
+          if (orchestration.template) {
+            logger.template({
+              name: orchestration.template.name,
+              id: orchestration.template.id,
+              fileCount: orchestration.fileTree?.length,
+              status: 'selected',
+            });
+          }
+
+          debugLog("orchestration complete:", {
             isNewProject: orchestration.isNewProject,
             hasTemplate: !!orchestration.template,
             templateEventsCount: orchestration.templateEvents.length,
@@ -2543,12 +2647,14 @@ export async function startRunner(options: RunnerOptions = {}) {
                     );
                   }
 
-                  // DEBUG: Log tool use (adapter already logs this)
-                  if (DEBUG_BUILD && block.type === "tool_use") {
+                  // Log tool use via unified logger
+                  if (block.type === "tool_use") {
                     const toolName = block.name;
-                    const toolId = block.id;
-                    buildLog(` 🔧 Tool called: ${toolName} (${toolId})`);
-                    buildLog(`    Input: ${truncateJSON(block.input, 200)}`);
+                    logger.tool(toolName, block.input as Record<string, unknown>);
+                    
+                    if (DEBUG_BUILD) {
+                      buildLog(`    Input: ${truncateJSON(block.input, 200)}`);
+                    }
                   }
                 }
               }
@@ -2637,8 +2743,17 @@ export async function startRunner(options: RunnerOptions = {}) {
                 }
                 // Track completed todos for summary context
                 if (toolEvent.toolName === 'TodoWrite' && toolEvent.input) {
-                  const input = toolEvent.input as { todos?: Array<{ content: string; status: string }> };
+                  const input = toolEvent.input as { todos?: Array<{ id?: string; content: string; status: string; priority?: string }> };
                   if (input.todos) {
+                    // Update the logger's todo list for the build panel
+                    const todoItems = input.todos.map(t => ({
+                      id: t.id || `todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                      content: t.content,
+                      status: t.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+                      priority: t.priority as 'high' | 'medium' | 'low' | undefined,
+                    }));
+                    logger.updateTodos(todoItems);
+                    
                     // Get completed todos (excluding any "summarize" todos from old prompts)
                     const completed = input.todos
                       .filter(t => t.status === 'completed' && !t.content.toLowerCase().includes('summarize'))
@@ -2735,10 +2850,24 @@ export async function startRunner(options: RunnerOptions = {}) {
             log("Failed to detect runCommand:", error);
           }
 
-          buildLog(
-            ` ✅ Build completed successfully for project: ${command.projectId}`
-          );
-          buildLog(`   Total chunks processed: (stream ended)`);
+          // Calculate build statistics
+          const buildEndTime = Date.now();
+          const completedBuildContext = activeBuildContexts.get(command.id);
+          const elapsedSeconds = completedBuildContext 
+            ? (buildEndTime - (completedBuildContext as any).startTime || buildEndTime) / 1000 
+            : 0;
+          
+          // TODO: Get actual token usage from build stream when available
+          const totalTokens = 0; // Will be populated from usage events
+          
+          logger.buildComplete({
+            elapsedTime: elapsedSeconds,
+            toolCallCount: filesModified.size + completedTodos.length, // Approximate from tracked data
+            totalTokens,
+            directory: projectDirectory,
+          });
+
+          debugLog(`Total chunks processed: (stream ended)`);
 
           // Detect framework from generated files
           let detectedFramework: string | null = null;
@@ -2837,7 +2966,9 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
           }
           activeBuildContexts.delete(command.id);
         } catch (error) {
-          console.error("Failed to run build", error);
+          const errorMessage = error instanceof Error ? error.message : "Failed to run build";
+          logger.buildFailed(errorMessage);
+          
           Sentry.getActiveSpan()?.setStatus({
             code: 2, // SPAN_STATUS_ERROR
             message: "Build failed",
@@ -2845,10 +2976,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
           sendEvent({
             type: "build-failed",
             ...buildEventBase(command.projectId, command.id),
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to run build",
+            error: errorMessage,
             stack: error instanceof Error ? error.stack : undefined,
           });
 
@@ -2870,7 +2998,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         try {
           const { requestId, method, path: reqPath, headers, body, port } = command.payload;
           
-          log(`🔀 HTTP proxy request: ${method} ${reqPath} → localhost:${port}`);
+          debugLog(`🔀 HTTP proxy request: ${method} ${reqPath} → localhost:${port}`);
           
           // Build the target URL
           const targetUrl = `http://localhost:${port}${reqPath}`;
@@ -2944,7 +3072,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
             });
           }
           
-          log(`✅ HTTP proxy response: ${response.status} (${responseBody.length} bytes)`);
+          debugLog(`✅ HTTP proxy response: ${response.status} (${responseBody.length} bytes)`);
           
         } catch (error) {
           console.error("[runner] ❌ HTTP proxy request failed:", error);
@@ -3076,8 +3204,10 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
       reconnectAttempts = 0; // Reset on successful connection
       lastPongReceived = Date.now(); // Reset pong timer on new connection
       lastCommandReceived = Date.now(); // Reset command timer on new connection
-      log("✅ connected to server", url.toString());
-      log("   Health check: ping/pong enabled, command timeout: 5 minutes");
+      
+      // Update logger connection status
+      logger.setConnected(true);
+      debugLog("Health check: ping/pong enabled, command timeout: 5 minutes");
       publishStatus();
       scheduleHeartbeat();
 
@@ -3244,10 +3374,13 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
     socket.on("close", (code: number, reason: Buffer) => {
       const reasonStr = reason.toString() || "no reason provided";
 
+      // Update logger connection status
+      logger.setConnected(false);
+
       // Suppress close logs during startup (first few attempts) - expected as server starts
       const isEarlyAttempt = reconnectAttempts < SUPPRESS_ERRORS_UNTIL_ATTEMPT;
       if (!isEarlyAttempt) {
-        log(`connection closed with code ${code}, reason: ${reasonStr}`);
+        debugLog(`connection closed with code ${code}, reason: ${reasonStr}`);
       }
 
       if (heartbeatTimer) {
@@ -3283,7 +3416,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
 
       // Suppress reconnection logs during startup
       if (!isEarlyAttempt) {
-        log(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+        debugLog(`reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
       }
       setTimeout(connect, delay);
     });

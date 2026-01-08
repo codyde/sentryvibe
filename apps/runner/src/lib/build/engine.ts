@@ -3,6 +3,13 @@ import path from 'node:path';
 import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
 
+// Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)
+const debugLog = (message: string) => {
+  if (process.env.SILENT_MODE !== '1' && process.env.DEBUG_BUILD === '1') {
+    debugLog(message);
+  }
+};
+
 interface MessagePart {
   type: string;
   text?: string;
@@ -90,20 +97,20 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   // The buildQuery wrapper will configure the SDK with all options
   // Use actualWorkingDir so the query function gets the correct CWD
 
-  process.stderr.write('[runner] [build-engine] 🚀 Creating generator with query function...\n');
+  debugLog('[runner] [build-engine] 🚀 Creating generator with query function...\n');
   const generator = query(fullPrompt, actualWorkingDir, systemPrompt, agent, options.codexThreadId, messageParts);
 
-  process.stderr.write('[runner] [build-engine] 📦 Creating ReadableStream from generator...\n');
+  debugLog('[runner] [build-engine] 📦 Creating ReadableStream from generator...\n');
   // Create a ReadableStream from the AsyncGenerator
   const stream = new ReadableStream({
     async start(controller) {
-      process.stderr.write('[runner] [build-engine] ▶️  Stream start() called, beginning to consume generator...\n');
+      debugLog('[runner] [build-engine] ▶️  Stream start() called, beginning to consume generator...\n');
       let chunkCount = 0;
       try {
         for await (const chunk of generator) {
           chunkCount++;
           if (chunkCount % 5 === 0) {
-            process.stderr.write(`[runner] [build-engine] Processed ${chunkCount} chunks from generator\n`);
+            debugLog(`[runner] [build-engine] Processed ${chunkCount} chunks from generator\n`);
           }
           // Convert chunk to appropriate format
           if (typeof chunk === 'string') {
@@ -114,10 +121,10 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
             controller.enqueue(new TextEncoder().encode(JSON.stringify(chunk)));
           }
         }
-        process.stderr.write(`[runner] [build-engine] ✅ Generator exhausted after ${chunkCount} chunks, closing stream\n`);
+        debugLog(`[runner] [build-engine] ✅ Generator exhausted after ${chunkCount} chunks, closing stream\n`);
         controller.close();
       } catch (error) {
-        process.stderr.write(`[runner] [build-engine] ❌ Error consuming generator: ${error}\n`);
+        debugLog(`[runner] [build-engine] ❌ Error consuming generator: ${error}\n`);
         controller.error(error);
       } finally {
         // Restore the original working directory
@@ -126,6 +133,6 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
     },
   });
 
-  process.stderr.write('[runner] [build-engine] ✅ Stream created and returned\n');
+  debugLog('[runner] [build-engine] ✅ Stream created and returned\n');
   return stream;
 }

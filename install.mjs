@@ -143,11 +143,28 @@ async function getLatestVersion() {
   }
 }
 
+// Check if pnpm is available
+function hasPnpm() {
+  try {
+    execSync('pnpm --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Install the CLI
 async function installCLI(version) {
   const downloadUrl = `https://github.com/codyde/sentryvibe/releases/download/${version}/sentryvibe-cli.tgz`;
   
   const spinner = new Spinner('Installing SentryVibe CLI...').start();
+  
+  // Prefer pnpm if available, fall back to npm
+  const usePnpm = hasPnpm();
+  const packageManager = usePnpm ? 'pnpm' : 'npm';
+  const installArgs = usePnpm 
+    ? ['add', '-g', downloadUrl]
+    : ['install', '-g', downloadUrl];
   
   return new Promise((resolve, reject) => {
     // Set increased heap size for large packages
@@ -156,7 +173,7 @@ async function installCLI(version) {
       NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=8192`.trim(),
     };
     
-    const npm = spawn('npm', ['install', '-g', downloadUrl], {
+    const proc = spawn(packageManager, installArgs, {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -164,28 +181,28 @@ async function installCLI(version) {
     let stdout = '';
     let stderr = '';
     
-    npm.stdout.on('data', (data) => {
+    proc.stdout.on('data', (data) => {
       stdout += data.toString();
     });
     
-    npm.stderr.on('data', (data) => {
+    proc.stderr.on('data', (data) => {
       stderr += data.toString();
     });
     
-    npm.on('close', (code) => {
+    proc.on('close', (code) => {
       if (code === 0) {
         spinner.success('SentryVibe CLI installed');
         resolve();
       } else {
         spinner.error('Installation failed');
-        const error = new Error(`npm install failed with code ${code}`);
+        const error = new Error(`${packageManager} install failed with code ${code}`);
         error.stdout = stdout;
         error.stderr = stderr;
         reject(error);
       }
     });
     
-    npm.on('error', (error) => {
+    proc.on('error', (error) => {
       spinner.error('Installation failed');
       reject(error);
     });
@@ -235,9 +252,11 @@ function printFailure(error) {
     console.log(`  ${c.warning}Out of memory error detected.${c.reset}`);
     console.log();
     console.log(`  ${c.dimGray}Try running with increased memory:${c.reset}`);
-    console.log(`    ${c.cyan}NODE_OPTIONS="--max-old-space-size=8192" npm install -g @sentryvibe/runner-cli${c.reset}`);
+    console.log(`    ${c.cyan}NODE_OPTIONS="--max-old-space-size=8192" pnpm add -g @sentryvibe/runner-cli${c.reset}`);
   } else {
     console.log(`  ${c.dimGray}Try manual installation:${c.reset}`);
+    console.log(`    ${c.cyan}pnpm add -g @sentryvibe/runner-cli${c.reset}`);
+    console.log(`  ${c.dimGray}Or with npm:${c.reset}`);
     console.log(`    ${c.cyan}npm install -g @sentryvibe/runner-cli${c.reset}`);
   }
   console.log();
