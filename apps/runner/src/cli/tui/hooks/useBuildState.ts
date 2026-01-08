@@ -73,6 +73,9 @@ export function useBuildState(): [BuildState, BuildStateActions] {
     });
   }, []);
 
+  // Track when a new build is added to auto-select it
+  const [pendingNewBuildId, setPendingNewBuildId] = useState<string | null>(null);
+
   // Add a new build
   const addBuild = useCallback((build: BuildInfo) => {
     setBuilds(prev => {
@@ -82,12 +85,23 @@ export function useBuildState(): [BuildState, BuildStateActions] {
         // Update existing build
         return prev.map(b => b.id === build.id ? { ...b, ...build } : b);
       }
-      // Add new build and switch to it
-      const newBuilds = [...prev, build];
-      setCurrentBuildIndex(newBuilds.length - 1);
-      return newBuilds;
+      // Mark this as a new build to auto-select
+      setPendingNewBuildId(build.id);
+      // Add new build
+      return [...prev, build];
     });
   }, []);
+
+  // Auto-select newly added builds
+  useEffect(() => {
+    if (pendingNewBuildId) {
+      const index = builds.findIndex(b => b.id === pendingNewBuildId);
+      if (index !== -1) {
+        setCurrentBuildIndex(index);
+      }
+      setPendingNewBuildId(null);
+    }
+  }, [builds, pendingNewBuildId]);
 
   // Update an existing build
   const updateBuild = useCallback((buildId: string, updates: Partial<BuildInfo>) => {
