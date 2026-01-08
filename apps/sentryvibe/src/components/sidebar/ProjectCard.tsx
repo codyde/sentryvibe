@@ -9,7 +9,8 @@ import {
   Edit3,
   Trash2,
   Folder,
-  Loader2
+  Loader2,
+  Server
 } from "lucide-react"
 import { type Project } from "@/contexts/ProjectContext"
 import {
@@ -29,6 +30,7 @@ interface ProjectCardProps {
   onRename?: () => void
   onDelete?: () => void
   isCurrentProject?: boolean
+  showRunner?: boolean
 }
 
 export function ProjectCard({
@@ -37,7 +39,8 @@ export function ProjectCard({
   onStopServer,
   onRename,
   onDelete,
-  isCurrentProject = false
+  isCurrentProject = false,
+  showRunner = true
 }: ProjectCardProps) {
   const isRunning = project.devServerStatus === 'running'
   const isStarting = project.devServerStatus === 'starting'
@@ -132,9 +135,19 @@ export function ProjectCard({
         <div className="flex items-center gap-2 mt-0.5">
           {/* Status badge for active states */}
           {isRunning && (
-            <span className="text-[10px] text-green-400 font-medium">
-              :{project.devServerPort || project.port}
-            </span>
+            <>
+              <span className="text-[10px] text-green-400 font-medium">
+                :{project.devServerPort || project.port}
+              </span>
+              {showRunner && project.runnerId && (
+                <div className="flex items-center gap-1">
+                  <Server className="w-2.5 h-2.5 text-gray-600" />
+                  <span className="text-[10px] text-gray-500 truncate max-w-[60px]">
+                    {project.runnerId}
+                  </span>
+                </div>
+              )}
+            </>
           )}
           {isStarting && (
             <span className="text-[10px] text-green-400">Starting...</span>
@@ -146,13 +159,23 @@ export function ProjectCard({
             <span className="text-[10px] text-blue-400">Restarting...</span>
           )}
           {isBuilding && !isServerBusy && (
-            <span className="text-[10px] text-yellow-400">Building...</span>
+            <>
+              <span className="text-[10px] text-yellow-400">Building...</span>
+              {showRunner && project.runnerId && (
+                <div className="flex items-center gap-1">
+                  <Server className="w-2.5 h-2.5 text-gray-600" />
+                  <span className="text-[10px] text-gray-500 truncate max-w-[60px]">
+                    {project.runnerId}
+                  </span>
+                </div>
+              )}
+            </>
           )}
           {hasFailed && (
             <span className="text-[10px] text-red-400">Failed</span>
           )}
 
-          {/* Framework + time for inactive */}
+          {/* Framework + runner + time for inactive */}
           {!isRunning && !isBuilding && !hasFailed && !isServerBusy && (
             <>
               {frameworkLogoPath && (
@@ -166,6 +189,14 @@ export function ProjectCard({
                   />
                   <span className="text-[10px] text-gray-500 capitalize">
                     {project.detectedFramework}
+                  </span>
+                </div>
+              )}
+              {showRunner && project.runnerId && (
+                <div className="flex items-center gap-1">
+                  <Server className="w-2.5 h-2.5 text-gray-600" />
+                  <span className="text-[10px] text-gray-600 truncate max-w-[60px]">
+                    {project.runnerId}
                   </span>
                 </div>
               )}
