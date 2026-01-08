@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/nextjs';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
+import { requireProjectOwnership, handleAuthError } from '@/lib/auth-helpers';
 
 // GET /api/projects/:id - Get single project
 export async function GET(
@@ -14,14 +15,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    
+    // Verify user owns this project
+    const { project } = await requireProjectOwnership(id);
 
-    if (project.length === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ project: project[0] });
+    return NextResponse.json({ project });
   } catch (error) {
+    // Handle auth errors (401, 403, 404)
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    
     console.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Failed to fetch project' }, { status: 500 });
   }
@@ -34,6 +37,10 @@ export async function PATCH(
 ) {
   const executeUpdate = async () => {
     const { id } = await params;
+    
+    // Verify user owns this project
+    await requireProjectOwnership(id);
+    
     const updates = await req.json();
 
     // Validate allowed fields
@@ -83,6 +90,10 @@ export async function PATCH(
   try {
     return await executeUpdate();
   } catch (error) {
+    // Handle auth errors (401, 403, 404)
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    
     console.error('❌ Error updating project:', error);
     return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
   }
@@ -97,18 +108,14 @@ export async function DELETE(
     const { id } = await params;
     const { deleteFiles = false } = await req.json().catch(() => ({ deleteFiles: false }));
 
-    // Get project details before deleting
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-
-    if (project.length === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
+    // Verify user owns this project (also returns project details)
+    const { project } = await requireProjectOwnership(id);
 
     // Kill dev server if running
-    if (project[0].devServerPid) {
+    if (project.devServerPid) {
       try {
-        process.kill(project[0].devServerPid);
-        console.log(`🔪 Killed dev server process: ${project[0].devServerPid}`);
+        process.kill(project.devServerPid);
+        console.log(`🔪 Killed dev server process: ${project.devServerPid}`);
       } catch (error) {
         console.warn('Failed to kill process:', error);
       }
@@ -122,19 +129,19 @@ export async function DELETE(
       attributes: {
         project_id: id,
         delete_files: deleteFiles.toString(),
-        had_dev_server: (!!project[0].devServerPid).toString()
+        had_dev_server: (!!project.devServerPid).toString()
       }
     });
 
     // Optionally delete filesystem - delegate to runner
     let filesDeleted = false;
-    if (deleteFiles && project[0].slug) {
+    if (deleteFiles && project.slug) {
       try {
         // Try to use project's saved runner, fallback to any available runner
-        const runnerId = await getProjectRunnerId(project[0].runnerId);
+        const runnerId = await getProjectRunnerId(project.runnerId);
 
         if (!runnerId) {
-          console.warn(`No runners connected - skipping file deletion for ${project[0].slug}`);
+          console.warn(`No runners connected - skipping file deletion for ${project.slug}`);
         } else {
           // Send command to runner - it will delete files from its workspace
           try {
@@ -144,7 +151,7 @@ export async function DELETE(
               projectId: id,
               timestamp: new Date().toISOString(),
               payload: {
-                slug: project[0].slug,
+                slug: project.slug,
               },
             });
             filesDeleted = true;
@@ -166,6 +173,10 @@ export async function DELETE(
       filesRequested: deleteFiles,
     });
   } catch (error) {
+    // Handle auth errors (401, 403, 404)
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    
     console.error('Error deleting project:', error);
     return NextResponse.json({ error: 'Failed to delete project' }, { status: 500 });
   }

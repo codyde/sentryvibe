@@ -7,6 +7,7 @@ import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { StopDevServerCommand } from '@/shared/runner/messages';
+import { requireProjectOwnership, handleAuthError } from '@/lib/auth-helpers';
 
 // POST /api/projects/:id/stop - Stop dev server
 export async function POST(
@@ -18,15 +19,11 @@ export async function POST(
 
     console.log(`[stop-route] ⛔ Received stop request for project ${id}`);
 
-    // Get project from DB
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-
-    if (project.length === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
+    // Verify user owns this project
+    const { project } = await requireProjectOwnership(id);
 
     // Try to use project's saved runner, fallback to any available runner
-    const runnerId = await getProjectRunnerId(project[0].runnerId);
+    const runnerId = await getProjectRunnerId(project.runnerId);
 
     if (!runnerId) {
       return NextResponse.json(
@@ -44,14 +41,14 @@ export async function POST(
       .where(eq(projects.id, id));
 
     // Stop tunnel first if it exists
-    if (project[0].tunnelUrl) {
+    if (project.tunnelUrl) {
       const stopTunnelCommand = {
         id: randomUUID(),
         type: 'stop-tunnel' as const,
         projectId: id,
         timestamp: new Date().toISOString(),
         payload: {
-          port: project[0].devServerPort || 0,
+          port: project.devServerPort || 0,
         },
       };
 
@@ -95,6 +92,10 @@ export async function POST(
     }, { status: 202 });
 
   } catch (error) {
+    // Handle auth errors (401, 403, 404)
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    
     console.error('Error stopping dev server:', error);
 
     if (error instanceof Error && /not connected/i.test(error.message)) {

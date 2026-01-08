@@ -7,6 +7,7 @@ import { createConnection } from 'net';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import type { StartTunnelCommand } from '@/shared/runner/messages';
+import { requireProjectOwnership, handleAuthError } from '@/lib/auth-helpers';
 
 /**
  * Check if a port is reachable (has a server listening)
@@ -40,14 +41,8 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Get project from DB
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-
-    if (project.length === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    const proj = project[0];
+    // Verify user owns this project
+    const { project: proj } = await requireProjectOwnership(id);
 
     // Try to use project's saved runner, fallback to any available runner
     const runnerId = await getProjectRunnerId(proj.runnerId);
@@ -107,6 +102,10 @@ export async function POST(
     }, { status: 202 });
 
   } catch (error) {
+    // Handle auth errors (401, 403, 404)
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    
     console.error('Error starting tunnel:', error);
 
     if (error instanceof Error && /not connected/i.test(error.message)) {

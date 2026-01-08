@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@sentryvibe/agent-core/lib/db/client';
-import { runningProcesses } from '@sentryvibe/agent-core/lib/db/schema';
-import { eq } from 'drizzle-orm';
-import { authenticateRunnerRequest } from '@/lib/auth-helpers';
+import { runningProcesses, projects, runnerKeys } from '@sentryvibe/agent-core/lib/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
+import { authenticateRunnerRequest, authenticateRunnerKey, extractRunnerKey, isLocalMode } from '@/lib/auth-helpers';
 
 /**
  * Get list of running processes for health checking
  * GET /api/runner/process/list?runnerId=xxx (optional filter)
+ * 
+ * In SaaS mode, only returns processes for projects owned by the authenticated user
  */
 export async function GET(request: Request) {
   try {
@@ -17,13 +19,57 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const runnerId = searchParams.get('runnerId');
 
+    // In local mode, return all processes (no multi-tenancy)
+    if (isLocalMode()) {
+      let processes;
+      if (runnerId) {
+        processes = await db.select().from(runningProcesses).where(eq(runningProcesses.runnerId, runnerId));
+      } else {
+        processes = await db.select().from(runningProcesses);
+      }
+      return NextResponse.json({ processes });
+    }
+
+    // In SaaS mode, get the userId from the runner key to filter processes
+    const runnerKey = extractRunnerKey(request);
+    if (!runnerKey) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const authResult = await authenticateRunnerKey(runnerKey);
+    if (!authResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get project IDs owned by this user
+    const userProjects = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.userId, authResult.userId));
+
+    const projectIds = userProjects.map(p => p.id);
+
+    if (projectIds.length === 0) {
+      return NextResponse.json({ processes: [] });
+    }
+
+    // Filter processes by user's projects and optionally by runnerId
     let processes;
     if (runnerId) {
-      // Filter by runner ID if provided
-      processes = await db.select().from(runningProcesses).where(eq(runningProcesses.runnerId, runnerId));
+      processes = await db
+        .select()
+        .from(runningProcesses)
+        .where(
+          and(
+            eq(runningProcesses.runnerId, runnerId),
+            inArray(runningProcesses.projectId, projectIds)
+          )
+        );
     } else {
-      // Return all processes if no filter
-      processes = await db.select().from(runningProcesses);
+      processes = await db
+        .select()
+        .from(runningProcesses)
+        .where(inArray(runningProcesses.projectId, projectIds));
     }
 
     return NextResponse.json({ processes });
