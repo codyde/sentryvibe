@@ -58,9 +58,19 @@ export function useBuildState(): [BuildState, BuildStateActions] {
     });
   }, [builds.length]);
 
-  // Verbose toggle
+  // Verbose toggle - updates both UI state and logger
   const toggleVerbose = useCallback(() => {
-    setIsVerbose(prev => !prev);
+    setIsVerbose(prev => {
+      const newValue = !prev;
+      // Also update the logger's verbose flag
+      try {
+        const logger = getLogger();
+        logger.setVerbose(newValue);
+      } catch {
+        // Logger not initialized yet
+      }
+      return newValue;
+    });
   }, []);
 
   // Add a new build
