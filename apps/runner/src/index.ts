@@ -148,7 +148,7 @@ const CODEX_MODEL = "gpt-5-codex";
 // Stderr debug logging - suppressed in TUI mode (SILENT_MODE=1)
 const stderrDebug = (message: string) => {
   if (process.env.SILENT_MODE !== '1' && DEBUG_BUILD) {
-    stderrDebug(message);
+    process.stderr.write(message);
   }
 };
 
