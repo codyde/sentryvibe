@@ -148,25 +148,18 @@ export function useBuildState(): [BuildState, BuildStateActions] {
   // Subscribe to RunnerLogger events - only runs ONCE on mount
   // Uses refs for callbacks to avoid re-subscription race conditions
   useEffect(() => {
-    let logger: ReturnType<typeof getLogger> | null = null;
+    const logger = getLogger();
     
-    try {
-      logger = getLogger();
-      
-      // Sync initial state from logger (in case events already fired)
-      setIsConnected(logger.isConnected());
-      setIsVerbose(logger.isVerbose());
-      
-      // Load any existing builds
-      const existingBuilds = logger.getAllBuilds();
-      if (existingBuilds.length > 0) {
-        for (const build of existingBuilds) {
-          addBuildRef.current(build);
-        }
+    // Sync initial state from logger (in case events already fired)
+    setIsConnected(logger.isConnected());
+    setIsVerbose(logger.isVerbose());
+    
+    // Load any existing builds
+    const existingBuilds = logger.getAllBuilds();
+    if (existingBuilds.length > 0) {
+      for (const build of existingBuilds) {
+        addBuildRef.current(build);
       }
-    } catch {
-      // Logger not initialized yet - this is fine during startup
-      return;
     }
     
     // Handle build start events - use ref to get latest callback
@@ -214,15 +207,13 @@ export function useBuildState(): [BuildState, BuildStateActions] {
     
     // Cleanup - only runs on unmount
     return () => {
-      if (logger) {
-        logger.off('buildStart', handleBuildStart);
-        logger.off('buildUpdate', handleBuildUpdate);
-        logger.off('buildComplete', handleBuildComplete);
-        logger.off('todoUpdate', handleTodoUpdate);
-        logger.off('connected', handleConnected);
-        logger.off('disconnected', handleDisconnected);
-        logger.off('verboseChange', handleVerboseChange);
-      }
+      logger.off('buildStart', handleBuildStart);
+      logger.off('buildUpdate', handleBuildUpdate);
+      logger.off('buildComplete', handleBuildComplete);
+      logger.off('todoUpdate', handleTodoUpdate);
+      logger.off('connected', handleConnected);
+      logger.off('disconnected', handleDisconnected);
+      logger.off('verboseChange', handleVerboseChange);
     };
   }, []); // Empty deps - only subscribe once on mount
 
