@@ -30,10 +30,11 @@ export async function sendCommandToRunner(runnerId: string, command: RunnerComma
 /**
  * List all connected runners with their status
  * 
+ * @param userId - Optional user ID to filter runners (for multi-tenancy)
  * @returns Array of connected runners with heartbeat information
  */
-export async function listRunnerConnections() {
-  return buildWebSocketServer.listRunnerConnections();
+export async function listRunnerConnections(userId?: string) {
+  return buildWebSocketServer.listRunnerConnections(userId);
 }
 
 /**

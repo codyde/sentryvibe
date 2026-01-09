@@ -45,6 +45,7 @@ interface RunnerConnection {
   socket: WebSocket;
   lastHeartbeat: number;
   pingInterval: NodeJS.Timeout;
+  userId?: string; // User who owns the runner key (undefined for shared secret auth)
 }
 
 interface StateUpdateMessage {
@@ -74,17 +75,17 @@ function hashRunnerKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }
 
-// Validate a runner key against the database
-async function validateRunnerKey(key: string): Promise<boolean> {
+// Validate a runner key against the database and return the associated userId
+async function validateRunnerKey(key: string): Promise<{ valid: boolean; userId?: string }> {
   if (!key || !key.startsWith('sv_')) {
-    return false;
+    return { valid: false };
   }
 
   const keyHash = hashRunnerKey(key);
 
   try {
     const results = await db
-      .select({ id: runnerKeys.id })
+      .select({ id: runnerKeys.id, userId: runnerKeys.userId })
       .from(runnerKeys)
       .where(
         and(
@@ -101,13 +102,13 @@ async function validateRunnerKey(key: string): Promise<boolean> {
         .where(eq(runnerKeys.id, results[0].id))
         .execute()
         .catch(() => {});
-      return true;
+      return { valid: true, userId: results[0].userId };
     }
   } catch (error) {
     console.error('[websocket] Error validating runner key:', error);
   }
 
-  return false;
+  return { valid: false };
 }
 
 class BuildWebSocketServer {
@@ -296,15 +297,18 @@ class BuildWebSocketServer {
       ? authHeader.substring(7) 
       : authHeader;
 
-    // Validate authentication
+    // Validate authentication and get userId (for runner key auth)
     let isAuthenticated = false;
+    let runnerUserId: string | undefined;
     
     if (token) {
       if (token.startsWith('sv_')) {
-        // Runner key authentication
-        isAuthenticated = await validateRunnerKey(token);
+        // Runner key authentication - returns userId for multi-tenancy
+        const result = await validateRunnerKey(token);
+        isAuthenticated = result.valid;
+        runnerUserId = result.userId;
       } else if (sharedSecret && token === sharedSecret) {
-        // Shared secret authentication (legacy)
+        // Shared secret authentication (legacy) - no userId available
         isAuthenticated = true;
       }
     }
@@ -334,12 +338,13 @@ class BuildWebSocketServer {
       }
     }, this.RUNNER_PING_INTERVAL);
 
-    // Store runner connection
+    // Store runner connection with userId for multi-tenancy filtering
     this.runnerConnections.set(runnerId, {
       id: runnerId,
       socket: ws,
       lastHeartbeat: Date.now(),
       pingInterval,
+      userId: runnerUserId,
     });
 
     // Sentry breadcrumb for connection
@@ -494,13 +499,22 @@ class BuildWebSocketServer {
 
   /**
    * List all connected runners with their status
+   * @param userId - Optional user ID to filter runners (only show runners owned by this user)
    */
-  listRunnerConnections(): Array<{ runnerId: string; lastHeartbeat: number; lastHeartbeatAge: number }> {
+  listRunnerConnections(userId?: string): Array<{ runnerId: string; lastHeartbeat: number; lastHeartbeatAge: number; userId?: string }> {
     const now = Date.now();
-    return Array.from(this.runnerConnections.values()).map(({ id, lastHeartbeat }) => ({
+    let connections = Array.from(this.runnerConnections.values());
+    
+    // Filter by userId if provided (for multi-tenancy)
+    if (userId) {
+      connections = connections.filter(conn => conn.userId === userId);
+    }
+    
+    return connections.map(({ id, lastHeartbeat, userId: connUserId }) => ({
       runnerId: id,
       lastHeartbeat,
       lastHeartbeatAge: now - lastHeartbeat,
+      userId: connUserId,
     }));
   }
 

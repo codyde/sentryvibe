@@ -24,6 +24,7 @@ import { projectEvents } from '@/lib/project-events';
 import { releasePortForProject } from '@sentryvibe/agent-core/lib/port-allocator';
 import { getProjectRunnerId } from '@/lib/runner-utils';
 import * as Sentry from '@sentry/nextjs';
+import { requireProjectOwnership, AuthError } from '@/lib/auth-helpers';
 
 export const maxDuration = 30;
 
@@ -76,20 +77,15 @@ export async function POST(
 
           // Set project ID on scope for this trace
           scope.setTag('project.id', id);
+          
+    // Verify user owns this project
+    const { project } = await requireProjectOwnership(id);
+    
     const body = (await req.json()) as BuildRequest;
 
     if (!body?.operationType || !body?.prompt) {
       return new Response(JSON.stringify({ error: 'operationType and prompt are required' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Get project details for slug
-    const project = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-    if (project.length === 0) {
-      return new Response(JSON.stringify({ error: 'Project not found' }), {
-        status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -166,7 +162,7 @@ export async function POST(
           const names = await generateProjectName(body.prompt, agentId, claudeModel);
           generatedFriendlyName = names.friendlyName;
           console.log(`[build-route] ✅ Generated friendly name: ${generatedFriendlyName}`);
-          console.log(`[build-route]    Using stored slug: ${project[0].slug}`);
+          console.log(`[build-route]    Using stored slug: ${project.slug}`);
 
           // Get framework metadata from tag definition
           const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
@@ -195,7 +191,7 @@ export async function POST(
           // Note: We do NOT update the slug - it must remain immutable for directory consistency
           const updates: { name?: string; detectedFramework?: string } = {};
           
-          if (generatedFriendlyName && generatedFriendlyName !== project[0].name) {
+          if (generatedFriendlyName && generatedFriendlyName !== project.name) {
             updates.name = generatedFriendlyName;
           }
           
@@ -292,7 +288,7 @@ export async function POST(
     // Skip duplicate save here (hybrid approach - frontend saves user messages)
 
     // Update project with runnerId if not already set (for existing projects)
-    if (!project[0].runnerId) {
+    if (!project.runnerId) {
       await db.update(projects)
         .set({ runnerId: runnerId })
         .where(eq(projects.id, id));
@@ -313,7 +309,7 @@ export async function POST(
     const initialRawState = JSON.stringify({
       id: buildId,
       projectId: id,
-      projectName: project[0].name,
+      projectName: project.name,
       operationType: body.operationType,
       agentId,
       claudeModelId: agentId === 'claude-code' ? claudeModel : undefined,
@@ -565,7 +561,7 @@ export async function POST(
       console.log('[build-route] 📤 Sending template to runner:', templateMetadata.name);
       console.log(`[build-route]    ID: ${templateMetadata.id}`);
       console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
-      console.log(`[build-route]    Project Slug: ${project[0].slug} (immutable, from database)`);
+      console.log(`[build-route]    Project Slug: ${project.slug} (immutable, from database)`);
       if (generatedFriendlyName) {
         console.log(`[build-route]    Display Name: ${generatedFriendlyName}`);
       }
@@ -604,8 +600,8 @@ export async function POST(
         // CRITICAL: Always use the stored slug from database
         // The slug is generated once during project creation and must be immutable
         // Using a regenerated slug causes directory mismatch between initial build and enhancements
-        projectSlug: project[0].slug,
-        projectName: generatedFriendlyName || project[0].name,
+        projectSlug: project.slug,
+        projectName: generatedFriendlyName || project.name,
         context: body.context,
         designPreferences: body.designPreferences,
         tags: body.tags,
@@ -629,6 +625,14 @@ export async function POST(
           console.error('❌ Build request failed:', error);
 
           cleanup?.();
+
+          // Handle auth errors (401, 403, 404)
+          if (error instanceof AuthError) {
+            return new Response(JSON.stringify({ error: error.message }), {
+              status: error.statusCode,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
 
           if (error instanceof Error && /not connected/i.test(error.message)) {
             return new Response(JSON.stringify({ error: 'Runner is not connected' }), {

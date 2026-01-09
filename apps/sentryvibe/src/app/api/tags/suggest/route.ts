@@ -1,5 +1,6 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import { TAG_DEFINITIONS, findTagDefinition } from '@sentryvibe/agent-core/config/tags';
+import { requireAuth, handleAuthError } from '@/lib/auth-helpers';
 
 export const maxDuration = 30;
 
@@ -15,6 +16,9 @@ interface SuggestedTag {
 
 export async function POST(req: Request) {
   try {
+    // Require authentication to prevent API credit abuse
+    await requireAuth();
+    
     const { prompt } = await req.json();
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
@@ -93,6 +97,10 @@ export async function POST(req: Request) {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    // Handle auth errors (401, 403)
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    
     console.error('[tag-suggest] Error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to generate tag suggestions' }),

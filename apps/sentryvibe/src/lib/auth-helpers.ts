@@ -268,8 +268,10 @@ export class AuthError extends Error {
 
 /**
  * Handle auth errors in API routes
+ * Returns a Response for AuthError, or null for other errors to allow
+ * specific error handling to continue
  */
-export function handleAuthError(error: unknown): Response {
+export function handleAuthError(error: unknown): Response | null {
   if (error instanceof AuthError) {
     return Response.json(
       { error: error.message },
@@ -277,9 +279,6 @@ export function handleAuthError(error: unknown): Response {
     );
   }
 
-  console.error("Unexpected auth error:", error);
-  return Response.json(
-    { error: "Internal server error" },
-    { status: 500 }
-  );
+  // Return null for non-auth errors so specific error handling can continue
+  return null;
 }
