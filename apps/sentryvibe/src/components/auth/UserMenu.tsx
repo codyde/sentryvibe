@@ -52,7 +52,7 @@ export function UserMenu({ onOpenRunnerKeys }: UserMenuProps) {
       <>
         <button
           onClick={() => setShowLoginModal(true)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-medium rounded-lg transition-all"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 btn-theme-primary text-sm font-medium rounded-lg"
         >
           <User className="w-4 h-4" />
           <span>Sign in</span>
@@ -86,7 +86,7 @@ export function UserMenu({ onOpenRunnerKeys }: UserMenuProps) {
                 className="w-6 h-6 rounded-full"
               />
             ) : (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-medium text-white">
+              <div className="w-6 h-6 rounded-full bg-theme-gradient-br flex items-center justify-center text-[10px] font-medium text-white">
                 {initials}
               </div>
             )}

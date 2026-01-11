@@ -41,6 +41,12 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --animate-swing: swing 0.75s ease;
+  
+  /* Theme colors */
+  --color-theme-primary: var(--theme-primary);
+  --color-theme-secondary: var(--theme-secondary);
+  --color-theme-primary-muted: var(--theme-primary-muted);
+  --color-theme-secondary-muted: var(--theme-secondary-muted);
 }
 
 :root {
@@ -112,6 +118,80 @@
   --sidebar-ring: oklch(1 0 0);
 }
 
+/* ============================================
+   THEME DEFINITIONS
+   ============================================ */
+
+/* Sentry Theme (Default) - Purple/Pink */
+.theme-sentry {
+  --background: oklch(0.17 0.065 295);
+  --theme-primary: #a855f7;
+  --theme-secondary: #ec4899;
+  --theme-primary-muted: rgba(168, 85, 247, 0.2);
+  --theme-secondary-muted: rgba(236, 72, 153, 0.2);
+  --sidebar-gradient-from: #1D142F;
+  --sidebar-gradient-to: #31145F;
+  --theme-accent: #c084fc;
+  --theme-glow: rgba(168, 85, 247, 0.25);
+  --theme-glow-hover: rgba(168, 85, 247, 0.4);
+}
+
+/* Ocean Theme - Blue/Cyan */
+.theme-ocean {
+  --background: oklch(0.15 0.04 250);
+  --theme-primary: #3b82f6;
+  --theme-secondary: #22d3ee;
+  --theme-primary-muted: rgba(59, 130, 246, 0.2);
+  --theme-secondary-muted: rgba(34, 211, 238, 0.2);
+  --sidebar-gradient-from: #0f172a;
+  --sidebar-gradient-to: #1e3a5f;
+  --theme-accent: #60a5fa;
+  --theme-glow: rgba(59, 130, 246, 0.25);
+  --theme-glow-hover: rgba(59, 130, 246, 0.4);
+}
+
+/* Ember Theme - Orange/Red */
+.theme-ember {
+  --background: oklch(0.15 0.03 30);
+  --theme-primary: #f97316;
+  --theme-secondary: #ef4444;
+  --theme-primary-muted: rgba(249, 115, 22, 0.2);
+  --theme-secondary-muted: rgba(239, 68, 68, 0.2);
+  --sidebar-gradient-from: #1c1410;
+  --sidebar-gradient-to: #3d1f1f;
+  --theme-accent: #fb923c;
+  --theme-glow: rgba(249, 115, 22, 0.25);
+  --theme-glow-hover: rgba(249, 115, 22, 0.4);
+}
+
+/* Forest Theme - Green/Lime */
+.theme-forest {
+  --background: oklch(0.15 0.04 145);
+  --theme-primary: #10b981;
+  --theme-secondary: #84cc16;
+  --theme-primary-muted: rgba(16, 185, 129, 0.2);
+  --theme-secondary-muted: rgba(132, 204, 22, 0.2);
+  --sidebar-gradient-from: #0f1f17;
+  --sidebar-gradient-to: #1a3d2e;
+  --theme-accent: #34d399;
+  --theme-glow: rgba(16, 185, 129, 0.25);
+  --theme-glow-hover: rgba(16, 185, 129, 0.4);
+}
+
+/* Noir Theme - Monochrome */
+.theme-noir {
+  --background: oklch(0.0 0 0);
+  --theme-primary: #ffffff;
+  --theme-secondary: #a1a1aa;
+  --theme-primary-muted: rgba(255, 255, 255, 0.1);
+  --theme-secondary-muted: rgba(161, 161, 170, 0.1);
+  --sidebar-gradient-from: #000000;
+  --sidebar-gradient-to: #18181b;
+  --theme-accent: #d4d4d8;
+  --theme-glow: rgba(255, 255, 255, 0.1);
+  --theme-glow-hover: rgba(255, 255, 255, 0.2);
+}
+
 @keyframes swing-up {
   0% {
     transform: rotate(-7.5deg);
@@ -169,14 +249,15 @@
 }
 
 @layer utilities {
+  /* Theme-aware shimmer using CSS variables */
   .shimmer-text {
     background: linear-gradient(
       90deg,
-      #a855f7 0%,
-      #ec4899 25%,
-      #f472b6 50%,
-      #ec4899 75%,
-      #a855f7 100%
+      var(--theme-primary) 0%,
+      var(--theme-secondary) 25%,
+      var(--theme-accent) 50%,
+      var(--theme-secondary) 75%,
+      var(--theme-primary) 100%
     );
     background-size: 200% auto;
     -webkit-background-clip: text;
@@ -218,6 +299,149 @@
     color: transparent;
     animation: shimmer 2s linear infinite;
   }
+
+  /* Theme gradient utilities */
+  .bg-theme-gradient {
+    background: linear-gradient(to right, var(--theme-primary), var(--theme-secondary));
+  }
+  
+  .bg-theme-gradient-br {
+    background: linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary));
+  }
+
+  .bg-theme-gradient-muted {
+    background: linear-gradient(to right, var(--theme-primary-muted), var(--theme-secondary-muted));
+  }
+
+  .bg-theme-gradient-muted-br {
+    background: linear-gradient(to bottom right, var(--theme-primary-muted), var(--theme-secondary-muted));
+  }
+
+  .bg-theme-primary {
+    background-color: var(--theme-primary);
+  }
+
+  .bg-theme-primary-muted {
+    background-color: var(--theme-primary-muted);
+  }
+
+  .bg-theme-secondary-muted {
+    background-color: var(--theme-secondary-muted);
+  }
+
+  .text-theme-primary {
+    color: var(--theme-primary);
+  }
+
+  .text-theme-secondary {
+    color: var(--theme-secondary);
+  }
+
+  .text-theme-accent {
+    color: var(--theme-accent);
+  }
+
+  .border-theme-primary {
+    border-color: var(--theme-primary);
+  }
+
+  .border-theme-primary-muted {
+    border-color: var(--theme-primary-muted);
+  }
+
+  .border-theme-primary\/20 {
+    border-color: color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  }
+
+  .border-theme-primary\/30 {
+    border-color: color-mix(in srgb, var(--theme-primary) 30%, transparent);
+  }
+
+  .border-theme-primary\/50 {
+    border-color: color-mix(in srgb, var(--theme-primary) 50%, transparent);
+  }
+
+  .shadow-theme {
+    box-shadow: 0 10px 15px -3px var(--theme-glow), 0 4px 6px -4px var(--theme-glow);
+  }
+
+  .shadow-theme-hover:hover {
+    box-shadow: 0 10px 15px -3px var(--theme-glow-hover), 0 4px 6px -4px var(--theme-glow-hover);
+  }
+
+  .shadow-theme-sm {
+    box-shadow: 0 4px 6px -1px var(--theme-glow);
+  }
+
+  .ring-theme-primary {
+    --tw-ring-color: var(--theme-primary);
+  }
+
+  .focus\:border-theme-primary:focus {
+    border-color: var(--theme-primary);
+  }
+
+  .focus\:ring-theme-primary:focus {
+    --tw-ring-color: var(--theme-primary);
+  }
+
+  .hover\:bg-theme-primary-muted:hover {
+    background-color: var(--theme-primary-muted);
+  }
+
+  .hover\:border-theme-primary:hover {
+    border-color: var(--theme-primary);
+  }
+
+  .hover\:border-theme-primary\/40:hover {
+    border-color: color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  }
+
+  .data-\[state\=checked\]\:bg-theme-primary[data-state="checked"] {
+    background-color: var(--theme-primary);
+  }
+
+  .data-\[state\=checked\]\:border-theme-primary[data-state="checked"] {
+    border-color: var(--theme-primary);
+  }
+
+  /* Theme card styles */
+  .theme-card {
+    border-color: color-mix(in srgb, var(--theme-primary) 30%, transparent);
+    background: linear-gradient(to bottom right, 
+      color-mix(in srgb, var(--theme-primary) 15%, rgb(3, 7, 18)), 
+      rgba(17, 24, 39, 0.95), 
+      rgba(17, 24, 39, 0.95));
+  }
+
+  .theme-card-header {
+    border-color: color-mix(in srgb, var(--theme-primary) 20%, transparent);
+    background: linear-gradient(to right, var(--theme-primary-muted), var(--theme-secondary-muted));
+  }
+
+  /* Theme button primary */
+  .btn-theme-primary {
+    background: linear-gradient(to right, var(--theme-primary), var(--theme-secondary));
+    color: white;
+    transition: all 0.2s;
+  }
+
+  .btn-theme-primary:hover {
+    background: linear-gradient(to right, 
+      color-mix(in srgb, var(--theme-primary) 85%, black), 
+      color-mix(in srgb, var(--theme-secondary) 85%, black));
+  }
+
+  /* Theme selection/active state */
+  .theme-selected {
+    background: linear-gradient(to right, var(--theme-primary-muted), var(--theme-secondary-muted));
+    border-left: 2px solid var(--theme-primary);
+  }
+
+  /* Progress bar theme */
+  .progress-theme {
+    background: linear-gradient(to right, var(--theme-primary), var(--theme-secondary));
+  }
 }
 
 @layer base {
@@ -236,9 +460,9 @@
     margin-right: 0 !important;
   }
 
-  /* Sidebar styling */
+  /* Sidebar styling - uses theme variables */
   [data-sidebar="sidebar"] {
-    background: linear-gradient(to top right, #1D142F, #31145F) !important;
+    background: linear-gradient(to top right, var(--sidebar-gradient-from), var(--sidebar-gradient-to)) !important;
     border: none !important;
   }
 

@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useQueryClient } from "@tanstack/react-query"
+import { ThemeSwitcher } from "@/components/ThemeSwitcher"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onOpenProcessModal: () => void;
@@ -130,9 +131,12 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       {/* Header */}
-      <SidebarHeader className="p-4 border-b border-white/10 bg-gradient-to-r from-purple-900/20 to-pink-900/20">
+      <SidebarHeader className="p-4 border-b border-white/10 bg-[var(--theme-primary-muted)]">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 p-2">
+          <div 
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-2"
+            style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
+          >
             <img
               src="/sentryglyph.png"
               alt="SentryVibe"
@@ -150,7 +154,8 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
         {/* New Project Button */}
         <a
           href="/"
-          className="flex items-center justify-center gap-2 w-full mt-4 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+          className="flex items-center justify-center gap-2 w-full mt-4 px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-all shadow-theme hover:shadow-theme-hover"
+          style={{ background: `linear-gradient(to right, var(--theme-primary), var(--theme-secondary))` }}
         >
           <Plus className="w-4 h-4" />
           <span>New Project</span>
@@ -232,11 +237,11 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                       key={runner.runnerId}
                       onClick={() => setSelectedRunnerId(runner.runnerId)}
                       className={`flex items-center gap-2 cursor-pointer ${
-                        isSelected ? 'bg-purple-500/20' : ''
+                        isSelected ? 'bg-[var(--theme-primary-muted)]' : ''
                       }`}
                     >
                       {isSelected ? (
-                        <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                        <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
                       ) : (
                         <Circle className="w-4 h-4 text-gray-600" />
                       )}
@@ -276,11 +281,11 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
         {canViewProjects && onOpenOnboarding && (
             <button
               onClick={onOpenOnboarding}
-              className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border border-purple-500/30 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 bg-[var(--theme-primary-muted)] hover:bg-[color-mix(in_srgb,var(--theme-primary-muted)_150%,transparent)] border border-[var(--theme-primary)]/30 rounded-lg transition-colors"
             >
               <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-purple-400" />
-                <span className="text-xs text-purple-300 font-medium">Setup Guide</span>
+                <BookOpen className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
+                <span className="text-xs font-medium" style={{ color: 'var(--theme-primary)' }}>Setup Guide</span>
               </div>
               {!isLocalMode && availableRunners.length === 0 && (
                 <span className="px-1.5 py-0.5 text-[10px] font-medium bg-orange-500/20 text-orange-400 rounded">
@@ -289,6 +294,9 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               )}
             </button>
         )}
+
+        {/* Theme Switcher */}
+        <ThemeSwitcher />
       </SidebarFooter>
 
       <SidebarRail />
