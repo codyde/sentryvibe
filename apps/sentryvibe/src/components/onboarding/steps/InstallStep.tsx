@@ -37,15 +37,15 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
 
       {/* Info card */}
       <motion.div 
-        className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20"
+        className="p-4 rounded-lg bg-theme-gradient-muted border-theme-primary/20"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
         <div className="flex gap-3">
           <div className="shrink-0">
-            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-              <Info className="w-4 h-4 text-purple-400" />
+            <div className="w-8 h-8 rounded-full bg-theme-primary-muted flex items-center justify-center">
+              <Info className="w-4 h-4 text-theme-primary" />
             </div>
           </div>
           <div className="space-y-1">
@@ -53,7 +53,7 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
               What does this install?
             </p>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-purple-300">sentryvibe</code> CLI 
+              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-theme-accent">sentryvibe</code> CLI 
               runs locally on your machine. It connects to your AI provider (Claude, GPT) using your own API keys,
               keeping your code and credentials secure.
             </p>
@@ -91,7 +91,7 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
         <Button
           type="button"
           onClick={onNext}
-          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6"
+          className="bg-theme-gradient hover:opacity-90 text-white px-6"
         >
           I&apos;ve installed it
           <ArrowRight className="w-4 h-4 ml-2" />

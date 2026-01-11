@@ -75,7 +75,7 @@ export function AuthHeader() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50">
+          <button className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-theme-primary/50">
             {user?.image ? (
               <img
                 src={user.image}
@@ -83,7 +83,7 @@ export function AuthHeader() {
                 className="w-8 h-8 rounded-full"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-medium text-white">
+              <div className="w-8 h-8 rounded-full bg-theme-gradient flex items-center justify-center text-xs font-medium text-white">
                 {initials}
               </div>
             )}

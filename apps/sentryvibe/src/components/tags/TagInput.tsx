@@ -175,7 +175,7 @@ export function TagInput({
             size="sm"
             onClick={handleSuggestTags}
             disabled={tagSuggestionsMutation.isPending}
-            className="h-7 px-2 bg-purple-900/20 border-purple-700/50 hover:bg-purple-800/30 hover:border-purple-600 font-mono text-xs text-purple-300"
+            className="h-7 px-2 bg-theme-primary-muted border-theme-primary/50 hover:bg-theme-primary-muted/70 hover:border-theme-primary/60 font-mono text-xs text-theme-primary"
           >
             {tagSuggestionsMutation.isPending ? (
               <>

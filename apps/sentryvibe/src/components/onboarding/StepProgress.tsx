@@ -29,7 +29,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
         
         {/* Animated progress line */}
         <motion.div 
-          className="absolute top-5 left-8 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500"
+          className="absolute top-5 left-8 h-0.5 bg-theme-gradient"
           initial={{ width: 0 }}
           animate={{ 
             width: `calc(${((currentStep - 1) / (steps.length - 1)) * 100}% - 4rem)` 
@@ -49,9 +49,9 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                 className={`
                   relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors
                   ${isCompleted 
-                    ? "bg-gradient-to-br from-purple-500 to-pink-500 border-transparent" 
+                    ? "bg-theme-gradient border-transparent" 
                     : isCurrent 
-                      ? "bg-zinc-900 border-purple-500" 
+                      ? "bg-zinc-900 border-theme-primary" 
                       : "bg-zinc-900 border-zinc-700"
                   }
                 `}
@@ -69,7 +69,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                   </motion.div>
                 ) : (
                   <span className={`
-                    ${isCurrent ? "text-purple-400" : "text-zinc-500"}
+                    ${isCurrent ? "text-theme-primary" : "text-zinc-500"}
                   `}>
                     {step.icon}
                   </span>
@@ -78,7 +78,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                 {/* Pulse ring for current step */}
                 {isCurrent && (
                   <motion.div
-                    className="absolute inset-0 rounded-full border-2 border-purple-500"
+                    className="absolute inset-0 rounded-full border-2 border-theme-primary"
                     initial={{ scale: 1, opacity: 0.5 }}
                     animate={{ scale: 1.4, opacity: 0 }}
                     transition={{ duration: 1.5, repeat: Infinity }}

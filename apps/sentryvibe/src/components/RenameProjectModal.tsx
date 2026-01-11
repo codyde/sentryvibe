@@ -73,7 +73,7 @@ export default function RenameProjectModal({
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <Edit3 className="w-6 h-6 text-purple-400" />
+                <Edit3 className="w-6 h-6 text-theme-primary" />
                 <h2 className="text-xl font-semibold text-white">Rename Project</h2>
               </div>
               <button
@@ -93,7 +93,7 @@ export default function RenameProjectModal({
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-900 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                className="w-full px-4 py-2 bg-gray-900 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-theme-primary transition-colors"
                 placeholder="Enter new name"
                 autoFocus
               />

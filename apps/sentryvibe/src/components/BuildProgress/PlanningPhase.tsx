@@ -63,7 +63,7 @@ export function PlanningPhase({ activePlanningTool, projectName }: PlanningPhase
     <div className="space-y-2">
       {/* Main status line with shimmer */}
       <div className="flex items-center gap-2">
-        <Loader2 className="h-4 w-4 text-purple-400 animate-spin" />
+        <Loader2 className="h-4 w-4 text-theme-primary animate-spin" />
         <span className="text-sm shimmer-text">Analyzing project</span>
         {projectName && <span className="text-sm text-gray-500">· {projectName}</span>}
       </div>

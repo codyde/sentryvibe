@@ -62,7 +62,7 @@ export function ServerRestartProgress({
     healthcheck: {
       icon: <Loader2 className="h-4 w-4 animate-spin" />,
       text: 'Running health check',
-      color: 'text-purple-400'
+      color: 'text-theme-primary'
     },
     tunnel: {
       icon: <Wifi className="h-4 w-4" />,
@@ -102,7 +102,7 @@ export function ServerRestartProgress({
       <div className="mb-3">
         <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+            className="h-full progress-theme"
             initial={{ width: '0%' }}
             animate={{ 
               width: phase === 'stopping' ? '20%' 

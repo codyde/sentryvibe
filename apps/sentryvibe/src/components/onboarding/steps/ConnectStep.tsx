@@ -91,7 +91,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
               onChange={(e) => setIncludeRunnerId(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-5 h-5 rounded border-2 border-zinc-600 peer-checked:border-purple-500 peer-checked:bg-purple-500 transition-colors flex items-center justify-center">
+            <div className="w-5 h-5 rounded border-2 border-zinc-600 peer-checked:border-theme-primary peer-checked:bg-theme-primary transition-colors flex items-center justify-center">
               {includeRunnerId && (
                 <motion.svg
                   initial={{ scale: 0 }}
@@ -146,7 +146,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
         title="Interactive Setup"
       />
       <p className="text-xs text-zinc-500 text-center">
-        Select <span className="text-purple-400">&quot;Runner mode&quot;</span> and paste your key when prompted
+        Select <span className="text-theme-primary">&quot;Runner mode&quot;</span> and paste your key when prompted
       </p>
 
       {/* Connection status */}
@@ -176,7 +176,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
                   <Wifi className="w-5 h-5 text-zinc-500" />
                 </div>
                 <motion.div
-                  className="absolute inset-0 rounded-full border-2 border-purple-500/50"
+                  className="absolute inset-0 rounded-full border-2 border-theme-primary/50"
                   animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />

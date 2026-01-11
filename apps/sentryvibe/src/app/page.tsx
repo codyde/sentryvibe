@@ -2645,14 +2645,14 @@ function HomeContent() {
             }}
           />
         )}
-        <SidebarInset className="bg-gradient-to-tr from-[#1D142F] to-[#31145F] pt-2">
+        <SidebarInset className="bg-theme-content pt-2">
         {/* Top Header Bar - Logo, Breadcrumb, and Auth */}
         <header className="flex h-10 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             {/* Logo - Click to go home */}
             <button
               onClick={() => router.push('/')}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-pink-500 p-1 hover:opacity-80 transition-opacity cursor-pointer"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-theme-gradient-br p-1 hover:opacity-80 transition-opacity cursor-pointer"
               title="Go to home"
             >
               <img
@@ -2693,7 +2693,7 @@ function HomeContent() {
             enable builds and previews.
           </div>
         )}
-        <div className="h-[calc(100vh-3.5rem)] bg-gradient-to-tr from-[#1D142F] to-[#31145F] text-white flex flex-col overflow-hidden">
+        <div className="h-[calc(100vh-3.5rem)] bg-theme-content text-white flex flex-col overflow-hidden">
           {/* Landing Page */}
           <AnimatePresence mode="wait">
             {conversationMessages.length === 0 &&
@@ -2922,9 +2922,9 @@ function HomeContent() {
                                   repeat: Infinity,
                                   ease: "easeInOut",
                                 }}
-                                className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm border border-purple-500/30"
+                                className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-theme-gradient-muted-br backdrop-blur-sm border border-theme-primary\/30"
                               >
-                                <Sparkles className="w-10 h-10 text-purple-400" />
+                                <Sparkles className="w-10 h-10 text-theme-primary" />
                               </motion.div>
 
                               {/* Loading text */}
@@ -2959,12 +2959,12 @@ function HomeContent() {
                                   <motion.div
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 backdrop-blur-sm"
+                                    className="mt-4 p-4 rounded-lg bg-theme-gradient-muted-br border border-theme-primary\/30 backdrop-blur-sm"
                                   >
                                     <div className="space-y-2">
                                       <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                                        <p className="text-sm text-purple-300 font-semibold">
+                                        <div className="w-2 h-2 rounded-full bg-theme-primary animate-pulse" />
+                                        <p className="text-sm text-theme-accent font-semibold">
                                           Provisioning Template
                                         </p>
                                       </div>
@@ -2979,7 +2979,7 @@ function HomeContent() {
                                       {templateProvisioningInfo.framework && (
                                         <div className="flex items-center justify-between text-xs">
                                           <span className="text-gray-400">Framework:</span>
-                                          <span className="text-purple-300 font-medium">{templateProvisioningInfo.framework}</span>
+                                          <span className="text-theme-accent font-medium">{templateProvisioningInfo.framework}</span>
                                         </div>
                                       )}
 
@@ -3000,9 +3000,9 @@ function HomeContent() {
                                   <motion.div
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20"
+                                    className="mt-4 p-3 rounded-lg bg-theme-primary-muted border border-theme-primary\/20"
                                   >
-                                    <p className="text-sm text-purple-300 font-medium">
+                                    <p className="text-sm text-theme-accent font-medium">
                                       ✓ Template: {selectedTemplate.name}
                                     </p>
                                     <p className="text-xs text-gray-400 mt-1">
@@ -3021,7 +3021,7 @@ function HomeContent() {
                                     repeat: Infinity,
                                     delay: 0,
                                   }}
-                                  className="w-2 h-2 bg-purple-400 rounded-full"
+                                  className="w-2 h-2 bg-theme-primary rounded-full"
                                 />
                                 <motion.div
                                   animate={{ opacity: [0.3, 1, 0.3] }}
@@ -3030,7 +3030,7 @@ function HomeContent() {
                                     repeat: Infinity,
                                     delay: 0.2,
                                   }}
-                                  className="w-2 h-2 bg-pink-400 rounded-full"
+                                  className="w-2 h-2 bg-theme-secondary rounded-full"
                                 />
                                 <motion.div
                                   animate={{ opacity: [0.3, 1, 0.3] }}
@@ -3039,7 +3039,7 @@ function HomeContent() {
                                     repeat: Infinity,
                                     delay: 0.4,
                                   }}
-                                  className="w-2 h-2 bg-purple-400 rounded-full"
+                                  className="w-2 h-2 bg-theme-primary rounded-full"
                                 />
                               </div>
                             </div>
@@ -3078,7 +3078,7 @@ function HomeContent() {
                                           <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
                                             {idx === 0 ? 'Initial request' : `Follow-up ${idx}`}
                                           </p>
-                                          <div className="text-sm text-gray-300 leading-relaxed prose prose-invert max-w-none [&_p]:my-0 [&_code]:text-xs [&_code]:text-pink-300 [&_code]:bg-pink-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:font-mono">
+                                          <div className="text-sm text-gray-300 leading-relaxed prose prose-invert max-w-none [&_p]:my-0 [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:font-mono">
                                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                               {getMessageContent(msg)}
                                             </ReactMarkdown>
@@ -3091,7 +3091,7 @@ function HomeContent() {
                                             <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
                                               Build plan
                                             </p>
-                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-purple-300 [&_code]:bg-purple-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
+                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
                                               <ReactMarkdown
                                                 remarkPlugins={[remarkGfm]}
                                                 rehypePlugins={[rehypeHighlight]}
@@ -3118,7 +3118,7 @@ function HomeContent() {
                                             <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
                                               Build plan
                                             </p>
-                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-purple-300 [&_code]:bg-purple-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
+                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
                                               <ReactMarkdown
                                                 remarkPlugins={[remarkGfm]}
                                                 rehypePlugins={[rehypeHighlight]}
@@ -3140,7 +3140,7 @@ function HomeContent() {
                                                 <div className="text-xs text-gray-400">
                                                   {generationState.todos.filter(t => t.status === 'completed').length} / {generationState.todos.length}
                                                 </div>
-                                                <div className="text-sm font-semibold text-purple-400">
+                                                <div className="text-sm font-semibold text-theme-primary">
                                                   {Math.round((generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100)}%
                                                 </div>
                                               </div>

@@ -25,11 +25,11 @@ export default function SelectionMode({ isEnabled, onToggle }: SelectionModeProp
           onClick={() => onToggle(!isEnabled)}
           className={`p-1.5 rounded-md transition-all ${
             isEnabled
-              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50 hover:bg-purple-500/30'
+              ? 'bg-theme-primary-muted text-theme-primary border border-theme-primary/50 hover:bg-theme-primary/30'
               : 'hover:bg-white/10'
           }`}
         >
-          <MousePointer2 className={`w-4 h-4 ${isEnabled ? 'text-purple-400' : 'text-gray-400'}`} />
+          <MousePointer2 className={`w-4 h-4 ${isEnabled ? 'text-theme-primary' : 'text-gray-400'}`} />
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="w-auto bg-gray-900 border-white/20 text-xs text-gray-200" side="bottom">

@@ -128,7 +128,7 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
               <Button
                 type="submit"
                 disabled={isCreating || !keyName.trim()}
-                className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-base font-medium"
+                className="w-full h-12 bg-theme-gradient hover:opacity-90 text-white text-base font-medium"
               >
                 {isCreating ? (
                   <>
@@ -217,7 +217,7 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
               <Button
                 type="button"
                 onClick={handleCopyAndNext}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6"
+                className="bg-theme-gradient hover:opacity-90 text-white px-6"
               >
                 {hasCopied ? (
                   <>

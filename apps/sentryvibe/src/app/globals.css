@@ -442,6 +442,11 @@
   .progress-theme {
     background: linear-gradient(to right, var(--theme-primary), var(--theme-secondary));
   }
+
+  /* Main content background */
+  .bg-theme-content {
+    background: linear-gradient(to top right, var(--sidebar-gradient-from), var(--sidebar-gradient-to));
+  }
 }
 
 @layer base {

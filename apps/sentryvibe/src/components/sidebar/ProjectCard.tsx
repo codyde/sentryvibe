@@ -90,7 +90,7 @@ export function ProjectCard({
       href={`/?project=${project.slug}`}
       className={`group flex items-center gap-2 px-3 py-2 mx-2 rounded-lg transition-all ${
         isCurrentProject
-          ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30'
+          ? 'bg-theme-gradient border border-theme-primary/30'
           : 'hover:bg-white/5'
       }`}
       initial={{ opacity: 0, x: -10 }}

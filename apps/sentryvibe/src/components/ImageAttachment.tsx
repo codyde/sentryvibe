@@ -21,7 +21,7 @@ export default function ImageAttachment({
   return (
     <div className="relative inline-block">
       <div
-        className="px-3 py-2 bg-purple-600/20 border border-purple-400/40 rounded-lg text-sm text-purple-200 cursor-pointer hover:bg-purple-600/30 transition-colors flex items-center gap-2"
+        className="px-3 py-2 bg-theme-primary-muted border border-theme-primary/40 rounded-lg text-sm text-theme-primary cursor-pointer hover:bg-theme-primary-muted transition-colors flex items-center gap-2"
         onMouseEnter={() => setShowPreview(true)}
         onMouseLeave={() => setShowPreview(false)}
       >

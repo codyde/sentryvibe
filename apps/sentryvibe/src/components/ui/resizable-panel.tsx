@@ -92,8 +92,8 @@ export function ResizablePanel({
           onMouseDown={handleMouseDown}
           className={cn(
             'absolute top-0 right-0 w-1.5 h-full cursor-ew-resize z-10',
-            'hover:bg-purple-500/50 transition-colors',
-            isResizing && 'bg-purple-500/50'
+            'hover:bg-theme-primary-muted transition-colors',
+            isResizing && 'bg-theme-primary-muted'
           )}
         />
       )}

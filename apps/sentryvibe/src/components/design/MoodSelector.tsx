@@ -64,7 +64,7 @@ export default function MoodSelector({
                 <span className="text-gray-400">Select moods...</span>
               ) : (
                 selected.map(mood => (
-                  <span key={mood} className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs">
+                  <span key={mood} className="px-2 py-0.5 bg-theme-primary-muted text-theme-primary rounded text-xs">
                     {mood}
                   </span>
                 ))
@@ -92,11 +92,11 @@ export default function MoodSelector({
                       }
                     }}
                     disabled={isDisabled}
-                    className="cursor-pointer text-gray-200 aria-selected:bg-purple-500/20 aria-selected:text-purple-300"
+                    className="cursor-pointer text-gray-200 aria-selected:bg-theme-primary-muted aria-selected:text-theme-primary"
                   >
                     <Check
                       className={`mr-2 h-4 w-4 ${
-                        isSelected ? 'opacity-100 text-purple-300' : 'opacity-0'
+                        isSelected ? 'opacity-100 text-theme-primary' : 'opacity-0'
                       }`}
                     />
                     {mood}

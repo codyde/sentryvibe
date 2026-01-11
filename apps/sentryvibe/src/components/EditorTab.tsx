@@ -184,7 +184,7 @@ export default function EditorTab({ projectId }: EditorTabProps) {
             <button
               onClick={() => fetchFileContent(node.path)}
               className={`w-full flex items-center gap-2 px-2 py-1 text-sm hover:bg-white/5 transition-colors text-left ${
-                selectedFile === node.path ? 'bg-purple-500/20' : ''
+                selectedFile === node.path ? 'bg-theme-primary-muted' : ''
               }`}
               style={{ paddingLeft: `${depth * 12 + 28}px` }}
             >

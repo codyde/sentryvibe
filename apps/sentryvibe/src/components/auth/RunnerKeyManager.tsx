@@ -222,7 +222,7 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
           <Button
             type="submit"
             disabled={isCreating || !newKeyName.trim()}
-            className="shrink-0 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            className="shrink-0 bg-theme-gradient hover:opacity-90"
           >
             {isCreating ? (
               <Loader2 className="w-4 h-4 animate-spin" />
