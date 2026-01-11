@@ -551,7 +551,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
 
         {/* Bulk Action Buttons */}
         {selectedItems.size > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-theme-primary-muted"
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-theme-primary-muted">
             <button
               onClick={handleBulkStopServers}
               disabled={loadingAction === 'bulk-stop-servers'}

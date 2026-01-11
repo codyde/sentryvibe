@@ -84,9 +84,16 @@ export async function startCommand(options: StartOptions) {
     }
   }
 
-  // Step 2.5: Rebuild services if requested
-  if (options.rebuild) {
-    s.start('Rebuilding services');
+  // Step 2.5: Check for production build (unless --dev mode)
+  const nextBuildIdPath = join(monorepoRoot, 'apps', 'sentryvibe', '.next', 'BUILD_ID');
+  const needsProductionBuild = !options.dev && !existsSync(nextBuildIdPath);
+
+  // Rebuild services if requested OR if production build is missing
+  if (options.rebuild || needsProductionBuild) {
+    const buildReason = options.rebuild 
+      ? 'Rebuilding services' 
+      : 'Building for production (first run)';
+    s.start(buildReason);
 
     try {
       // Use turbo to build all services with caching
@@ -108,12 +115,12 @@ export async function startCommand(options: StartOptions) {
         buildProcess.on('error', reject);
       });
 
-      s.stop(pc.green('✓') + ' Rebuild complete (using Turborepo cache)');
+      s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
     } catch (error) {
       s.stop(pc.red('✗') + ' Build failed');
       throw new CLIError({
         code: 'BUILD_FAILED',
-        message: 'Failed to rebuild services',
+        message: 'Failed to build services',
         suggestions: [
           'Check that all dependencies are installed',
           'Try running: pnpm build:all',

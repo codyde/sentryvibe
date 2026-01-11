@@ -1,47 +1,69 @@
 /**
- * Main TUI Dashboard Component
- * Shows real-time status of all services with keyboard controls
+ * Main TUI Dashboard Component for Local Mode
+ * Redesigned to match Runner Mode UI style with split panel layout
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
-import { readFile } from 'node:fs/promises';
 import { ServiceManager, ServiceState } from './service-manager.js';
 import { Banner } from './components/Banner.js';
-import { StatusBox } from './components/StatusBox.js';
+
+// Import shared theme from tui (for consistency)
+const colors = {
+  cyan: '#06b6d4',
+  purple: '#a855f7',
+  success: '#22c55e',
+  error: '#ef4444',
+  warning: '#f59e0b',
+  white: '#ffffff',
+  gray: '#6b7280',
+  dimGray: '#4b5563',
+  darkGray: '#374151',
+};
+
+const symbols = {
+  filledDot: '●',
+  hollowDot: '○',
+  check: '✓',
+  cross: '✗',
+  spinnerFrames: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+};
 
 interface DashboardProps {
   serviceManager: ServiceManager;
   apiUrl: string;
   webPort: number;
-  logFilePath: string | null; // null when DEBUG is not set
+  logFilePath: string | null;
 }
 
-type ViewMode = 'dashboard' | 'help';
+type ViewMode = 'dashboard' | 'help' | 'fullLog';
 
 interface LogEntry {
+  id: string;
   timestamp: Date;
   service: string;
   message: string;
   stream: 'stdout' | 'stderr';
+  level: 'info' | 'success' | 'warn' | 'error';
 }
 
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString('en-US', { hour12: false });
+  return date.toLocaleTimeString('en-US', { 
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
-function getServiceColor(service: string): string {
-  switch (service) {
-    case 'web':
-      return 'blue';
-    case 'broker':
-      return 'green';
-    case 'runner':
-      return 'magenta';
-    default:
-      return 'white';
-  }
+function getLogLevel(message: string, stream: 'stdout' | 'stderr'): 'info' | 'success' | 'warn' | 'error' {
+  if (stream === 'stderr') return 'warn';
+  const lower = message.toLowerCase();
+  if (lower.includes('error') || lower.includes('failed') || lower.includes('exception')) return 'error';
+  if (lower.includes('warn') || lower.includes('warning')) return 'warn';
+  if (lower.includes('success') || lower.includes('ready') || lower.includes('started') || lower.includes('connected')) return 'success';
+  return 'info';
 }
 
 export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: DashboardProps) {
@@ -51,236 +73,93 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const [services, setServices] = useState<ServiceState[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const [showingPlainLogs, setShowingPlainLogs] = useState(false);
   const [serviceFilter, setServiceFilter] = useState<string | null>(null);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isVerbose, setIsVerbose] = useState(false);
+  const [logIdCounter, setLogIdCounter] = useState(0);
 
-  // Calculate available height for logs
-  // Banner ~7 lines, StatusBox ~9 lines, Footer ~2 lines, margins ~3 = 21 lines overhead
+  // Terminal dimensions
   const terminalHeight = stdout?.rows || 40;
-  const logAreaHeight = Math.max(5, terminalHeight - 21);
+  const terminalWidth = stdout?.columns || 80;
+  
+  // Layout calculations (matching Runner Mode)
+  const bannerHeight = 7;
+  const headerHeight = 3;
+  const statusBarHeight = 3;
+  const contentHeight = Math.max(1, terminalHeight - bannerHeight - headerHeight - statusBarHeight);
+  
+  // 20/80 split for panels
+  const servicesPanelWidth = Math.floor(terminalWidth * 0.2);
+  const logPanelWidth = terminalWidth - servicesPanelWidth;
+
+  // Check if all services are running
+  const allServicesRunning = useMemo(() => {
+    return services.length > 0 && services.every(s => s.status === 'running');
+  }, [services]);
 
   // Update service states on changes
   useEffect(() => {
     const handleStatusChange = () => {
       setServices(serviceManager.getAllStates());
     };
-
-    // Initial state
     setServices(serviceManager.getAllStates());
-
-    // Listen to service status changes
     serviceManager.on('service:status-change', handleStatusChange);
-
     return () => {
       serviceManager.off('service:status-change', handleStatusChange);
     };
   }, [serviceManager]);
 
-  // Listen to service output events directly (works with or without DEBUG)
+  // Listen to service output events
   useEffect(() => {
     const handleServiceOutput = (name: string, output: string, stream: 'stdout' | 'stderr') => {
-      // Split multi-line output into separate log entries
       const lines = output.split('\n').filter(line => line.trim());
       
-      const newLogs: LogEntry[] = lines.map(line => ({
-        timestamp: new Date(),
-        service: name,
-        message: line.trim(),
-        stream,
-      }));
-      
-      if (newLogs.length > 0) {
-        setLogs(prev => {
-          const combined = [...prev, ...newLogs];
-          return combined.slice(-10000); // Keep last 10000
-        });
-      }
+      setLogIdCounter(prev => {
+        const newLogs: LogEntry[] = lines.map((line, idx) => ({
+          id: `${Date.now()}-${prev + idx}`,
+          timestamp: new Date(),
+          service: name,
+          message: line.trim(),
+          stream,
+          level: getLogLevel(line, stream),
+        }));
+        
+        if (newLogs.length > 0) {
+          setLogs(prevLogs => {
+            const combined = [...prevLogs, ...newLogs];
+            return combined.slice(-10000);
+          });
+        }
+        
+        return prev + lines.length;
+      });
     };
 
     serviceManager.on('service:output', handleServiceOutput);
-
     return () => {
       serviceManager.off('service:output', handleServiceOutput);
     };
   }, [serviceManager]);
 
-  // Also poll log file if available (for DEBUG mode with additional logging)
-  useEffect(() => {
-    // Skip if log file path is not set (DEBUG not enabled)
-    if (!logFilePath) return;
-
-    let lastLineCount = 0;
-    let isMounted = true;
-
-    const readLogFile = async () => {
-      if (!isMounted) return;
-
-      try {
-        const content = await readFile(logFilePath, 'utf8');
-        const lines = content.split('\n').filter(line => line.trim());
-
-        // Only process new lines
-        if (lines.length > lastLineCount) {
-          const newLines = lines.slice(lastLineCount);
-          const newLogs: LogEntry[] = [];
-
-          for (const line of newLines) {
-            // Parse log format: [timestamp] [service] [stream] message
-            const match = line.match(/^\[([^\]]+)\] \[([^\]]+)\] \[([^\]]+)\] (.+)$/);
-            if (match) {
-              newLogs.push({
-                timestamp: new Date(match[1]),
-                service: match[2] as any,
-                stream: match[3] as 'stdout' | 'stderr',
-                message: match[4]
-              });
-            }
-          }
-
-          if (newLogs.length > 0 && isMounted) {
-            setLogs(prev => {
-              const combined = [...prev, ...newLogs];
-              return combined.slice(-10000); // Keep last 10000
-            });
-          }
-
-          lastLineCount = lines.length;
-        }
-      } catch (err) {
-        // File might not exist yet, ignore
-      }
-    };
-
-    // Read immediately
-    readLogFile();
-
-    // Then poll every 3 seconds
-    const interval = setInterval(() => {
-      if (isMounted) readLogFile();
-    }, 3000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [logFilePath]);
-
-  // Auto-scroll to bottom when new logs arrive
-  useEffect(() => {
-    if (autoScroll) {
-      setScrollOffset(0);
-    }
-  }, [logs.length, autoScroll]);
-
-  // Keyboard shortcuts
-  useInput((input, key) => {
-    // Prevent actions during shutdown
-    if (isShuttingDown) return;
-
-    // Handle Esc in search mode to exit
-    if (searchMode && key.escape) {
-      setSearchMode(false);
-      setSearchQuery('');
-      return;
-    }
-
-    // Don't process other keys when in search mode (TextInput handles them)
-    if (searchMode) return;
-
-    if (input === '/' && !showingPlainLogs) {
-      // Enter search mode
-      setSearchMode(true);
-      setSearchQuery('');
-      return;
-    }
-
-    if (input === 'q' || (key.ctrl && input === 'c')) {
-      // Quit
-      setIsShuttingDown(true);
-      serviceManager.stopAll().then(() => {
-        exit();
-      });
-    } else if (input === 'r') {
-      // Restart all
-      serviceManager.restartAll();
-    } else if (input === 'c') {
-      // Clear logs
-      setLogs([]);
-      setScrollOffset(0);
-      setAutoScroll(true);
-    } else if (input === 'l') {
-      // Toggle plain text log view
-      setShowingPlainLogs(!showingPlainLogs);
-    } else if (input === 'f') {
-      // Cycle through service filters: null -> 'web' -> 'broker' -> 'runner' -> null
-      setServiceFilter(current => {
-        if (!current) return 'web';
-        if (current === 'web') return 'broker';
-        if (current === 'broker') return 'runner';
-        return null;
-      });
-    } else if (key.upArrow) {
-      // Scroll up
-      setAutoScroll(false);
-      setScrollOffset(prev => Math.min(prev + 1, filteredLogs.length - logAreaHeight));
-    } else if (key.downArrow) {
-      // Scroll down
-      const newOffset = Math.max(scrollOffset - 1, 0);
-      setScrollOffset(newOffset);
-      if (newOffset === 0) {
-        setAutoScroll(true);
-      }
-    } else if (key.pageUp) {
-      // Scroll up by page
-      setAutoScroll(false);
-      setScrollOffset(prev => Math.min(prev + logAreaHeight, filteredLogs.length - logAreaHeight));
-    } else if (key.pageDown) {
-      // Scroll down by page
-      const newOffset = Math.max(scrollOffset - logAreaHeight, 0);
-      setScrollOffset(newOffset);
-      if (newOffset === 0) {
-        setAutoScroll(true);
-      }
-    } else if (input === 'g') {
-      // Jump to top
-      setAutoScroll(false);
-      setScrollOffset(Math.max(filteredLogs.length - logAreaHeight, 0));
-    } else if (input === 'G') {
-      // Jump to bottom (resume auto-scroll)
-      setScrollOffset(0);
-      setAutoScroll(true);
-    } else if (input === '?') {
-      // Show help
-      setView('help');
-    } else if (key.escape) {
-      // Exit search mode, plain logs mode, or go back to dashboard
-      if (searchMode) {
-        setSearchMode(false);
-        setSearchQuery(''); // Clear search when canceling
-      } else if (showingPlainLogs) {
-        setShowingPlainLogs(false);
-      } else {
-        setView('dashboard');
-      }
-    }
-  });
-
-
-
-  // Filter logs based on service filter and search query (memoized to prevent recalculation on every render)
+  // Filter logs
   const filteredLogs = useMemo(() => {
     let filtered = logs;
-
-    // Apply service filter
+    
+    // Filter out verbose logs unless verbose mode is on
+    if (!isVerbose) {
+      filtered = filtered.filter(log => 
+        !log.message.toLowerCase().includes('debug') &&
+        !log.message.toLowerCase().includes('trace')
+      );
+    }
+    
     if (serviceFilter) {
       filtered = filtered.filter(log => log.service === serviceFilter);
     }
-
-    // Apply search filter
+    
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(log =>
@@ -288,143 +167,396 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         log.service.toLowerCase().includes(query)
       );
     }
-
+    
     return filtered;
-  }, [logs, serviceFilter, searchQuery]);
+  }, [logs, serviceFilter, searchQuery, isVerbose]);
 
-  // Calculate which logs to show based on scroll offset (memoized)
-  const visibleLogs = useMemo(() => {
-    const startIndex = Math.max(0, filteredLogs.length - logAreaHeight - scrollOffset);
-    const endIndex = filteredLogs.length - scrollOffset;
-    return filteredLogs.slice(startIndex, endIndex);
-  }, [filteredLogs, logAreaHeight, scrollOffset]);
+  // Visible lines calculation
+  const visibleLines = Math.max(1, contentHeight - 3);
+  
+  // Auto-scroll when new logs arrive
+  useEffect(() => {
+    if (autoScroll && filteredLogs.length > 0) {
+      const maxScroll = Math.max(0, filteredLogs.length - visibleLines);
+      setScrollOffset(maxScroll);
+    }
+  }, [filteredLogs.length, autoScroll, visibleLines]);
 
-  // Plain logs mode - show ALL logs as plain text for easy copy/paste
-  if (showingPlainLogs) {
+  // Get displayed logs
+  const displayedLogs = useMemo(() => {
+    return filteredLogs.slice(scrollOffset, scrollOffset + visibleLines);
+  }, [filteredLogs, scrollOffset, visibleLines]);
+
+  // Keyboard shortcuts
+  useInput((input, key) => {
+    if (isShuttingDown) return;
+
+    // Handle Esc
+    if (key.escape) {
+      if (searchMode) {
+        setSearchMode(false);
+        setSearchQuery('');
+      } else if (view !== 'dashboard') {
+        setView('dashboard');
+      }
+      return;
+    }
+
+    // Don't process other keys when in search mode
+    if (searchMode) return;
+
+    if (input === '/' && view === 'dashboard') {
+      setSearchMode(true);
+      setSearchQuery('');
+      return;
+    }
+
+    if (input === 'q' || (key.ctrl && input === 'c')) {
+      setIsShuttingDown(true);
+      serviceManager.stopAll().then(() => exit());
+    } else if (input === 'v') {
+      setIsVerbose(!isVerbose);
+    } else if (input === 'r' && view === 'dashboard') {
+      serviceManager.restartAll();
+    } else if (input === 'c' && view === 'dashboard') {
+      setLogs([]);
+      setScrollOffset(0);
+      setAutoScroll(true);
+    } else if (input === 't') {
+      setView(view === 'dashboard' ? 'fullLog' : 'dashboard');
+    } else if (input === 'f') {
+      setServiceFilter(current => {
+        if (!current) return 'web';
+        if (current === 'web') return 'runner';
+        return null;
+      });
+    } else if (key.upArrow) {
+      setAutoScroll(false);
+      setScrollOffset(prev => Math.max(0, prev - 1));
+    } else if (key.downArrow) {
+      const maxScroll = Math.max(0, filteredLogs.length - visibleLines);
+      setScrollOffset(prev => Math.min(maxScroll, prev + 1));
+      if (scrollOffset >= maxScroll - 1) {
+        setAutoScroll(true);
+      }
+    } else if (key.pageUp) {
+      setAutoScroll(false);
+      setScrollOffset(prev => Math.max(0, prev - visibleLines));
+    } else if (key.pageDown) {
+      const maxScroll = Math.max(0, filteredLogs.length - visibleLines);
+      setScrollOffset(prev => Math.min(maxScroll, prev + visibleLines));
+    } else if (input === '?') {
+      setView('help');
+    }
+  });
+
+  // Full log view
+  if (view === 'fullLog') {
     return (
-      <Box flexDirection="column">
-        <Box borderBottom paddingX={1} paddingY={0}>
-          <Text bold>All Logs</Text>
-          <Text dimColor> (showing all {logs.length} entries - scroll with terminal)</Text>
+      <Box flexDirection="column" height={terminalHeight}>
+        <Box borderStyle="single" borderColor={colors.darkGray} paddingX={1}>
+          <Text color={colors.cyan} bold>Full Log View</Text>
+          <Text color={colors.dimGray}> - {filteredLogs.length} entries</Text>
         </Box>
-        <Box borderBottom paddingX={1} paddingY={0}>
-          <Text dimColor>Press </Text>
-          <Text color="cyan">Esc</Text>
-          <Text dimColor> to return to dashboard • Use terminal scroll or Cmd+F to search</Text>
-        </Box>
-        <Box flexDirection="column" paddingX={1} paddingY={1}>
-          {logs.map((log, index) => (
-            <Text key={index}>
-              {formatTime(log.timestamp)} [{log.service}] {log.message}
-            </Text>
+        <Box flexDirection="column" flexGrow={1} paddingX={1}>
+          {filteredLogs.slice(-50).map((log) => (
+            <Box key={log.id}>
+              <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+              <Text color={log.service === 'web' ? colors.cyan : colors.purple}> [{log.service}] </Text>
+              <Text color={log.level === 'error' ? colors.error : log.level === 'warn' ? colors.warning : log.level === 'success' ? colors.success : colors.white}>
+                {log.message}
+              </Text>
+            </Box>
           ))}
+        </Box>
+        <Box borderStyle="single" borderColor={colors.darkGray} paddingX={1}>
+          <Shortcut letter="t" label="dashboard" />
+          <Shortcut letter="↑↓" label="scroll" />
+          <Shortcut letter="Esc" label="back" />
         </Box>
       </Box>
     );
   }
 
+  // Help view
+  if (view === 'help') {
+    return (
+      <Box flexDirection="column" height={terminalHeight}>
+        <Banner />
+        <Box flexDirection="column" padding={2}>
+          <Text color={colors.cyan} bold>Keyboard Shortcuts</Text>
+          <Text> </Text>
+          <Text color={colors.white} bold>Navigation:</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>↑/↓</Text>      Scroll logs</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>PgUp/PgDn</Text> Scroll by page</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>/</Text>         Search logs</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>f</Text>         Filter by service</Text>
+          <Text> </Text>
+          <Text color={colors.white} bold>Views:</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>t</Text>         Toggle text view</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>v</Text>         Toggle verbose mode</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>?</Text>         Show this help</Text>
+          <Text> </Text>
+          <Text color={colors.white} bold>Actions:</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>r</Text>         Restart services</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>c</Text>         Clear logs</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>q</Text>         Quit</Text>
+          <Text> </Text>
+          <Text color={colors.dimGray}>Press Esc to return</Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Main dashboard view (Runner Mode style)
   return (
-    <Box flexDirection="column">
-      {/* Banner - Fixed at top */}
+    <Box flexDirection="column" height={terminalHeight} width={terminalWidth}>
+      {/* Banner */}
       <Banner />
 
-      {/* Status Box - Centered, shows current service status */}
-      <StatusBox services={services} />
+      {/* Header bar with service status */}
+      <Box
+        borderStyle="single"
+        borderColor={colors.darkGray}
+        paddingX={1}
+        justifyContent="space-between"
+      >
+        <Text color={colors.dimGray}>
+          Web: <Text color={colors.cyan}>localhost:{webPort}</Text>
+          {' • '}
+          Mode: <Text color={colors.cyan}>Local</Text>
+        </Text>
+        <Box>
+          <Text color={allServicesRunning ? colors.success : colors.warning}>
+            {allServicesRunning ? symbols.filledDot : symbols.hollowDot}
+          </Text>
+          <Text color={colors.gray}>
+            {' '}{allServicesRunning ? 'All Services Running' : 'Starting...'}
+          </Text>
+        </Box>
+      </Box>
 
-      {/* Logs Section - Scrollable area with reserved height */}
-      {view === 'dashboard' && (
-        <Box flexDirection="column" marginTop={1} minHeight={logAreaHeight}>
-          {visibleLogs.length > 0 ? (
-            visibleLogs.map((log, index) => (
-              <Box key={`${log.timestamp.getTime()}-${index}`}>
-                <Text dimColor>{formatTime(log.timestamp)}</Text>
-                <Text> </Text>
-                <Text color={getServiceColor(log.service)}>[{log.service}]</Text>
-                <Text> </Text>
-                <Text color={log.stream === 'stderr' ? 'yellow' : undefined}>
-                  {log.message.length > 150 ? log.message.substring(0, 150) + '...' : log.message}
-                </Text>
-              </Box>
-            ))
-          ) : filteredLogs.length === 0 && logs.length > 0 ? (
-            <Box justifyContent="center" minHeight={logAreaHeight}>
-              <Text dimColor>No logs matching filter "{serviceFilter}"</Text>
+      {/* Main content - split panels */}
+      <Box flexGrow={1} height={contentHeight}>
+        {/* Services Panel (20%) */}
+        <ServicesPanel 
+          services={services} 
+          width={servicesPanelWidth} 
+          height={contentHeight}
+        />
+        
+        {/* Log Panel (80%) */}
+        <Box
+          flexDirection="column"
+          width={logPanelWidth}
+          height={contentHeight}
+          borderStyle="single"
+          borderColor={colors.darkGray}
+          paddingX={1}
+        >
+          {/* Log header */}
+          <Box justifyContent="space-between" marginBottom={0}>
+            <Text color={colors.cyan} bold>LOGS</Text>
+            <Box>
+              {serviceFilter && (
+                <Text color={colors.dimGray}>filter: <Text color={colors.warning}>{serviceFilter}</Text>  </Text>
+              )}
+              <Text color={colors.dimGray}>
+                [verbose: {isVerbose ? 'on' : 'off'}]
+              </Text>
             </Box>
-          ) : (
-            <Box justifyContent="center" minHeight={logAreaHeight}>
-              <Text dimColor>No logs yet... Waiting for service output.</Text>
+          </Box>
+
+          {/* Log entries */}
+          <Box flexDirection="column" flexGrow={1}>
+            {displayedLogs.length === 0 ? (
+              <Box justifyContent="center" alignItems="center" flexGrow={1}>
+                <Text color={colors.dimGray}>Waiting for logs...</Text>
+              </Box>
+            ) : (
+              displayedLogs.map((log) => (
+                <LogEntryRow key={log.id} log={log} maxWidth={logPanelWidth - 4} />
+              ))
+            )}
+          </Box>
+
+          {/* Scroll indicator */}
+          {filteredLogs.length > visibleLines && (
+            <Box justifyContent="flex-end">
+              <Text color={colors.dimGray}>
+                {scrollOffset + 1}-{Math.min(scrollOffset + visibleLines, filteredLogs.length)}/{filteredLogs.length}
+                {autoScroll ? ' (auto)' : ''}
+              </Text>
             </Box>
           )}
         </Box>
-      )}
+      </Box>
 
-      {view === 'help' && (
-        <Box padding={2} flexDirection="column">
-          <Text bold>Keyboard Shortcuts</Text>
-          <Text></Text>
-          <Text bold>General:</Text>
-          <Text>  <Text color="cyan">q</Text> or <Text color="cyan">Ctrl+C</Text> - Quit and stop all services</Text>
-          <Text>  <Text color="cyan">r</Text> - Restart all services</Text>
-          <Text>  <Text color="cyan">c</Text> - Clear logs</Text>
-          <Text>  <Text color="cyan">l</Text> - Toggle plain text log view (for copy/paste)</Text>
-          <Text>  <Text color="cyan">f</Text> - Filter logs by service (cycles through all/web/broker/runner)</Text>
-          <Text>  <Text color="cyan">/</Text> - Search logs (type to filter, Enter to apply, Esc to cancel)</Text>
-          <Text>  <Text color="cyan">?</Text> - Show this help</Text>
-          <Text>  <Text color="cyan">Esc</Text> - Exit search/help and return to dashboard</Text>
-          <Text></Text>
-          <Text bold>Log Navigation:</Text>
-          <Text>  <Text color="cyan">↑/↓</Text> - Scroll logs up/down</Text>
-          <Text>  <Text color="cyan">PageUp/PageDown</Text> - Scroll by page</Text>
-          <Text>  <Text color="cyan">g</Text> - Jump to top (oldest logs)</Text>
-          <Text>  <Text color="cyan">G</Text> - Jump to bottom (newest logs, resume auto-scroll)</Text>
-          <Text></Text>
-          <Text dimColor>Press Esc to return to dashboard</Text>
+      {/* Status bar */}
+      <Box
+        borderStyle="single"
+        borderColor={colors.darkGray}
+        paddingX={1}
+        justifyContent="space-between"
+      >
+        <Box>
+          <Text color={allServicesRunning ? colors.success : colors.warning}>
+            {allServicesRunning ? symbols.filledDot : symbols.hollowDot}
+          </Text>
+          <Text color={colors.gray}>
+            {' '}{isShuttingDown ? 'Shutting down...' : allServicesRunning ? 'Ready' : 'Starting'}
+          </Text>
         </Box>
-      )}
-
-      {/* Footer - Shows at bottom */}
-      <Box borderTop paddingX={1} paddingY={0}>
+        
         {searchMode ? (
           <Box>
-            <Text color="cyan">/</Text>
+            <Text color={colors.cyan}>/</Text>
             <TextInput
               value={searchQuery}
               onChange={setSearchQuery}
               onSubmit={() => setSearchMode(false)}
-              placeholder="Search logs... (Enter to search, Esc to cancel)"
+              placeholder="Search... (Enter to apply, Esc to cancel)"
             />
           </Box>
         ) : (
-          <Text dimColor>
-            {isShuttingDown ? (
-              <Text color="yellow">Shutting down...</Text>
-            ) : view === 'help' ? (
-              <>
-                <Text color="cyan">Esc</Text> dashboard  <Text color="cyan">q</Text> quit
-              </>
-            ) : (
-              <>
-                {serviceFilter && (
-                  <>
-                    <Text color="cyan">Filter:</Text> <Text color="yellow">{serviceFilter}</Text>  <Text dimColor>|</Text>{' '}
-                  </>
-                )}
-                {searchQuery && (
-                  <>
-                    <Text color="cyan">Search:</Text> <Text color="yellow">{searchQuery}</Text>  <Text dimColor>|</Text>{' '}
-                  </>
-                )}
-                {!autoScroll && (
-                  <>
-                    <Text color="magenta">SCROLLED</Text>  <Text dimColor>|</Text>{' '}
-                  </>
-                )}
-                <Text color="cyan">/</Text> search  <Text color="cyan">↑↓</Text> scroll  <Text color="cyan">g/G</Text> top/bottom  <Text color="cyan">q</Text> quit  <Text color="cyan">r</Text> restart  <Text color="cyan">c</Text> clear  <Text color="cyan">f</Text> filter  <Text color="cyan">?</Text> help
-              </>
-            )}
-          </Text>
+          <Box>
+            <Shortcut letter="q" label="quit" />
+            <Shortcut letter="v" label={`verbose: ${isVerbose ? 'on' : 'off'}`} />
+            <Shortcut letter="r" label="restart" />
+            <Shortcut letter="/" label="search" />
+            <Shortcut letter="f" label="filter" />
+            <Shortcut letter="?" label="help" />
+          </Box>
         )}
       </Box>
+    </Box>
+  );
+}
+
+// Services Panel component (similar to BuildPanel in Runner Mode)
+function ServicesPanel({ services, width, height }: { services: ServiceState[], width: number, height: number }) {
+  const [spinnerFrame, setSpinnerFrame] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSpinnerFrame(prev => (prev + 1) % symbols.spinnerFrames.length);
+    }, 120);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'running':
+        return <Text color={colors.success}>{symbols.check}</Text>;
+      case 'starting':
+        return <Text color={colors.cyan}>{symbols.spinnerFrames[spinnerFrame]}</Text>;
+      case 'error':
+        return <Text color={colors.error}>{symbols.cross}</Text>;
+      default:
+        return <Text color={colors.dimGray}>{symbols.hollowDot}</Text>;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'running': return colors.success;
+      case 'starting': return colors.cyan;
+      case 'error': return colors.error;
+      default: return colors.dimGray;
+    }
+  };
+
+  return (
+    <Box
+      flexDirection="column"
+      width={width}
+      height={height}
+      borderStyle="single"
+      borderColor={colors.darkGray}
+      paddingX={1}
+    >
+      {/* Header */}
+      <Box marginBottom={1}>
+        <Text color={colors.cyan} bold>SERVICES</Text>
+      </Box>
+
+      {/* Service list */}
+      {services.map((service) => (
+        <Box key={service.name} marginBottom={1} flexDirection="column">
+          <Box>
+            {getStatusIcon(service.status)}
+            <Text color={colors.white}> {service.displayName}</Text>
+          </Box>
+          {service.status === 'running' && service.port && (
+            <Text color={colors.dimGray}>  :{service.port}</Text>
+          )}
+          {service.status === 'error' && service.error && (
+            <Text color={colors.error} wrap="truncate">  {service.error.substring(0, width - 4)}</Text>
+          )}
+        </Box>
+      ))}
+
+      {/* Uptime or status message */}
+      <Box flexGrow={1} />
+      <Box>
+        <Text color={colors.dimGray}>
+          {services.every(s => s.status === 'running') 
+            ? `${symbols.check} All systems go` 
+            : 'Initializing...'}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
+// Log entry row component (matching Runner Mode style)
+function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
+  const levelColors = {
+    info: colors.cyan,
+    success: colors.success,
+    warn: colors.warning,
+    error: colors.error,
+  };
+
+  const levelIcons = {
+    info: symbols.filledDot,
+    success: symbols.check,
+    warn: '⚠',
+    error: symbols.cross,
+  };
+
+  const color = levelColors[log.level];
+  const icon = levelIcons[log.level];
+  
+  // Service color
+  const serviceColor = log.service === 'web' ? colors.cyan : colors.purple;
+  
+  // Truncate message
+  const availableWidth = maxWidth - 18; // time + service + icon
+  const truncatedMessage = log.message.length > availableWidth
+    ? log.message.substring(0, availableWidth - 3) + '...'
+    : log.message;
+
+  return (
+    <Box>
+      <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+      <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
+      <Text color={color}> {icon} </Text>
+      <Text color={log.level === 'error' || log.level === 'warn' ? color : colors.white}>
+        {truncatedMessage}
+      </Text>
+    </Box>
+  );
+}
+
+// Shortcut helper component (matching Runner Mode style)
+function Shortcut({ letter, label }: { letter: string; label: string }) {
+  return (
+    <Box marginRight={2}>
+      <Text color={colors.dimGray}>[</Text>
+      <Text color={colors.cyan}>{letter}</Text>
+      <Text color={colors.dimGray}>]</Text>
+      <Text color={colors.gray}>{label}</Text>
     </Box>
   );
 }

@@ -132,7 +132,10 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
       {/* Error Display */}
       {state.error && (
         <Box marginTop={2}>
-          <ErrorSummary suggestions={state.error.suggestions} />
+          <ErrorSummary 
+            message={state.error.message} 
+            suggestions={state.error.suggestions} 
+          />
         </Box>
       )}
       
