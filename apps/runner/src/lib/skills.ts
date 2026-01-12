@@ -83,10 +83,18 @@ function copyDirSync(src: string, dest: string): void {
  * Ensure skills are available in a project directory.
  * Copies bundled skills to the project's .claude/skills/ directory.
  * 
+ * NOTE: Skills are now included in project templates directly, so this
+ * function is disabled. Templates include .claude/skills/github-setup/
+ * which gets cleaned up after successful GitHub setup.
+ * 
  * @param projectDirectory - The project's working directory
  * @returns true if skills were copied, false if they already existed or source doesn't exist
  */
 export function ensureProjectSkills(projectDirectory: string): boolean {
+  // Skills are now bundled with templates - no need to copy at runtime
+  // The github-setup skill self-deletes after successful repo creation
+  return false;
+  
   const projectSkillsDir = join(projectDirectory, '.claude', 'skills');
   
   // Find bundled skills directory

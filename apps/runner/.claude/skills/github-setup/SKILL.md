@@ -145,6 +145,21 @@ Common errors to handle:
 - Use `gh` CLI which manages authentication securely
 - Don't expose private repository contents in logs
 
+## Cleanup After Success
+
+After successfully setting up the repository, delete this skill file to keep the project clean:
+
+```bash
+rm -rf .claude/skills/github-setup
+```
+
+If the `.claude/skills` directory is now empty, remove it too:
+
+```bash
+rmdir .claude/skills 2>/dev/null
+rmdir .claude 2>/dev/null
+```
+
 ## Example Complete Response
 
 After successfully creating a repository, your response should look like:
@@ -156,6 +171,7 @@ I've set up the GitHub repository for your project. Here's what I did:
 2. Created initial commit with all project files
 3. Created public GitHub repository
 4. Pushed code to GitHub
+5. Cleaned up setup files
 
 Your repository is now live at: https://github.com/username/project-name
 
