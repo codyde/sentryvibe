@@ -50,6 +50,13 @@ function copyDirSync(src: string, dest: string): void {
  * @returns true if skills were copied, false if they already existed or source doesn't exist
  */
 export function ensureProjectSkills(projectDirectory: string): boolean {
+  // DISABLED: Skills copying is temporarily disabled to test without skills.
+  // The chat message includes inline instructions as a fallback.
+  // To re-enable, remove this early return.
+  if (true) {
+    return false;
+  }
+  
   const projectSkillsDir = join(projectDirectory, '.claude', 'skills');
   
   // Check if bundled skills exist
