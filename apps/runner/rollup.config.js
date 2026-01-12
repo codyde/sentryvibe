@@ -140,4 +140,16 @@ export default {
   },
   external: isExternal,
   plugins: commonPlugins,
+  // Suppress known harmless warnings
+  onwarn(warning, warn) {
+    // Ignore "this is undefined" warnings from @opentelemetry
+    // These are caused by TypeScript-generated helpers in their ESM build
+    // that use `this` at module scope, which is undefined in ES modules.
+    // The code still works correctly - it just falls back to inline helpers.
+    if (warning.code === 'THIS_IS_UNDEFINED' && 
+        warning.id?.includes('@opentelemetry')) {
+      return;
+    }
+    warn(warning);
+  },
 };
