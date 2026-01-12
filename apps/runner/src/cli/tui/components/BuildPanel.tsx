@@ -123,12 +123,7 @@ export function BuildPanel({ build, width, height }: BuildPanelProps) {
       {build.todos.length > 0 && (
         <Box flexDirection="column" marginTop={1}>
           <Text color={colors.dimGray} bold>TASKS</Text>
-          {build.todos.slice(0, 6).map((todo, index) => (
-            <TodoRow key={todo.id} todo={todo} maxWidth={width - 6} />
-          ))}
-          {build.todos.length > 6 && (
-            <Text color={colors.dimGray}>+{build.todos.length - 6} more</Text>
-          )}
+          <TodoList todos={build.todos} maxWidth={width - 6} maxVisible={10} />
         </Box>
       )}
 
@@ -141,6 +136,75 @@ export function BuildPanel({ build, width, height }: BuildPanelProps) {
         </Box>
       )}
     </Box>
+  );
+}
+
+/**
+ * TodoList - Smart display of todo items
+ * - Shows up to maxVisible items (default 10)
+ * - Prioritizes in_progress and pending tasks
+ * - Hides completed tasks when space is needed
+ * - Shows count of hidden completed tasks
+ */
+function TodoList({ todos, maxWidth, maxVisible = 10 }: { 
+  todos: TodoItem[]; 
+  maxWidth: number;
+  maxVisible?: number;
+}) {
+  // Separate todos by status
+  const inProgress = todos.filter(t => t.status === 'in_progress');
+  const pending = todos.filter(t => t.status === 'pending');
+  const completed = todos.filter(t => t.status === 'completed');
+  const cancelled = todos.filter(t => t.status === 'cancelled');
+  
+  // Calculate how many slots we have for each category
+  // Priority: in_progress > pending > completed > cancelled
+  const activeCount = inProgress.length + pending.length;
+  
+  let visibleTodos: TodoItem[] = [];
+  let hiddenCompletedCount = 0;
+  
+  if (todos.length <= maxVisible) {
+    // All todos fit - show them in order
+    visibleTodos = todos;
+  } else {
+    // Need to prioritize - always show in_progress and pending first
+    visibleTodos = [...inProgress, ...pending];
+    
+    // Calculate remaining slots for completed tasks
+    const remainingSlots = maxVisible - visibleTodos.length;
+    
+    if (remainingSlots > 0) {
+      // Show as many completed as we can fit
+      visibleTodos = [...visibleTodos, ...completed.slice(0, remainingSlots)];
+      hiddenCompletedCount = Math.max(0, completed.length - remainingSlots);
+    } else {
+      hiddenCompletedCount = completed.length;
+    }
+    
+    // Add cancelled if there's still room
+    const slotsAfterCompleted = maxVisible - visibleTodos.length;
+    if (slotsAfterCompleted > 0) {
+      visibleTodos = [...visibleTodos, ...cancelled.slice(0, slotsAfterCompleted)];
+    }
+  }
+  
+  // Sort visible todos to maintain logical order (by original index)
+  visibleTodos.sort((a, b) => {
+    const aIndex = todos.findIndex(t => t.id === a.id);
+    const bIndex = todos.findIndex(t => t.id === b.id);
+    return aIndex - bIndex;
+  });
+  
+  return (
+    <>
+      {visibleTodos.map((todo) => (
+        <TodoRow key={todo.id} todo={todo} maxWidth={maxWidth} />
+      ))}
+      {hiddenCompletedCount > 0 && (
+        <Text color={colors.dimGray}>✓ {hiddenCompletedCount} completed</Text>
+      )}
+    </>
   );
 }
 
