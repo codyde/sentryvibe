@@ -87,51 +87,13 @@ function copyDirSync(src: string, dest: string): void {
  * function is disabled. Templates include .claude/skills/github-setup/
  * which gets cleaned up after successful GitHub setup.
  * 
- * @param projectDirectory - The project's working directory
- * @returns true if skills were copied, false if they already existed or source doesn't exist
+ * @param _projectDirectory - The project's working directory (unused - skills bundled in templates)
+ * @returns false - skills are now bundled with templates
  */
-export function ensureProjectSkills(projectDirectory: string): boolean {
+export function ensureProjectSkills(_projectDirectory: string): boolean {
   // Skills are now bundled with templates - no need to copy at runtime
   // The github-setup skill self-deletes after successful repo creation
   return false;
-  
-  const projectSkillsDir = join(projectDirectory, '.claude', 'skills');
-  
-  // Find bundled skills directory
-  const bundledSkillsDir = getBundledSkillsDir();
-  if (!bundledSkillsDir) {
-    return false;
-  }
-  
-  // Get list of bundled skills
-  const bundledSkills = readdirSync(bundledSkillsDir).filter(name => {
-    const skillPath = join(bundledSkillsDir, name);
-    return statSync(skillPath).isDirectory();
-  });
-  
-  if (bundledSkills.length === 0) {
-    return false;
-  }
-  
-  let copiedAny = false;
-  
-  for (const skillName of bundledSkills) {
-    const srcSkillDir = join(bundledSkillsDir, skillName);
-    const destSkillDir = join(projectSkillsDir, skillName);
-    
-    // Skip if skill already exists in project
-    if (existsSync(destSkillDir)) {
-      console.log(`[skills] Skill "${skillName}" already exists in project`);
-      continue;
-    }
-    
-    // Copy skill to project
-    console.log(`[skills] Copying skill "${skillName}" to ${destSkillDir}`);
-    copyDirSync(srcSkillDir, destSkillDir);
-    copiedAny = true;
-  }
-  
-  return copiedAny;
 }
 
 /**
@@ -143,8 +105,10 @@ export function listBundledSkills(): string[] {
     return [];
   }
   
-  return readdirSync(bundledSkillsDir).filter(name => {
-    const skillPath = join(bundledSkillsDir, name);
+  // Store in const to help TypeScript narrow the type
+  const skillsDir = bundledSkillsDir;
+  return readdirSync(skillsDir).filter(name => {
+    const skillPath = join(skillsDir, name);
     return statSync(skillPath).isDirectory();
   });
 }

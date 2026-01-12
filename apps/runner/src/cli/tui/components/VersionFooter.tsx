@@ -1,4 +1,4 @@
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import { colors } from '../theme.js';
 
 interface VersionFooterProps {
@@ -7,23 +7,15 @@ interface VersionFooterProps {
 }
 
 /**
- * Version footer component - displays version and commit ID in bottom right
+ * Version footer component - displays version and commit ID
+ * Renders inline - parent component should position it appropriately
  */
 export function VersionFooter({ version, commit }: VersionFooterProps) {
-  const { stdout } = useStdout();
-  const terminalWidth = stdout?.columns || 80;
-  
   // Format display string
   const display = commit ? `v${version} (${commit})` : `v${version}`;
   
   return (
-    <Box 
-      position="absolute" 
-      bottom={0} 
-      width={terminalWidth}
-      justifyContent="flex-end"
-      paddingRight={2}
-    >
+    <Box justifyContent="flex-end" marginTop={1}>
       <Text color={colors.gray} dimColor>
         {display}
       </Text>
