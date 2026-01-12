@@ -14,6 +14,7 @@ import { ServiceManager, ServiceState } from './service-manager.js';
 import { Banner } from './components/Banner.js';
 import { useBuildState } from '../tui/hooks/useBuildState.js';
 import { BuildPanel } from '../tui/components/BuildPanel.js';
+import { configManager, type ThemeName } from '../utils/config-manager.js';
 
 // Base colors that don't change with theme
 const baseColors = {
@@ -35,7 +36,6 @@ const symbols = {
 };
 
 // Theme definitions (matching web app themes)
-type ThemeName = 'sentry' | 'ocean' | 'ember' | 'forest' | 'noir';
 
 interface ThemeColors {
   primary: string;
@@ -118,7 +118,7 @@ interface DashboardProps {
   logFilePath: string | null;
 }
 
-type ViewMode = 'dashboard' | 'help' | 'fullLog';
+type ViewMode = 'dashboard' | 'help' | 'fullLog' | 'themeSelector';
 type FilterMode = 'all' | 'errors' | 'tools' | 'verbose';
 
 interface LogEntry {
@@ -213,14 +213,18 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const [fullLogSearchQuery, setFullLogSearchQuery] = useState('');
   const [fullLogScrollOffset, setFullLogScrollOffset] = useState(0);
   
-  // Theme state
-  const [selectedTheme, setSelectedTheme] = useState<ThemeName>('sentry');
+  // Theme state - load from config, default to 'sentry'
+  const savedTheme = configManager.get('ui')?.theme as ThemeName | undefined;
+  const [selectedTheme, setSelectedTheme] = useState<ThemeName>(savedTheme || 'sentry');
+  const [previewTheme, setPreviewTheme] = useState<ThemeName | null>(null);
+  const [themeBeforePreview, setThemeBeforePreview] = useState<ThemeName | null>(null);
   
   // Build state - tracks active builds and todos from the RunnerLogger
   const [buildState] = useBuildState();
 
-  // Get current theme colors - these will be used throughout the TUI
-  const theme = THEMES[selectedTheme];
+  // Get current theme colors - use preview theme if active, otherwise selected theme
+  const activeThemeName = previewTheme || selectedTheme;
+  const theme = THEMES[activeThemeName];
   const themeColors = useMemo(() => ({
     primary: theme.colors.primary,
     secondary: theme.colors.secondary,
@@ -380,23 +384,69 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     return fullLogFilteredLogs.slice(fullLogScrollOffset, fullLogScrollOffset + fullLogVisibleLines);
   }, [fullLogFilteredLogs, fullLogScrollOffset, fullLogVisibleLines]);
 
-  const changeTheme = (newTheme: ThemeName) => {
+  // Save theme to config and update state
+  const saveTheme = (newTheme: ThemeName) => {
     setSelectedTheme(newTheme);
+    setPreviewTheme(null);
+    setThemeBeforePreview(null);
+    // Persist to config
+    configManager.set('ui', { theme: newTheme });
+  };
+  
+  // Open theme selector
+  const openThemeSelector = () => {
+    setThemeBeforePreview(selectedTheme);
+    setPreviewTheme(selectedTheme);
+    setView('themeSelector');
+  };
+  
+  // Cancel theme selection (revert to previous)
+  const cancelThemeSelection = () => {
+    setPreviewTheme(null);
+    setThemeBeforePreview(null);
+    setView('dashboard');
+  };
+  
+  // Confirm theme selection
+  const confirmThemeSelection = () => {
+    if (previewTheme) {
+      saveTheme(previewTheme);
+    }
+    setView('dashboard');
   };
 
   useInput((input, key) => {
     if (isShuttingDown) return;
 
+    // Theme selector view
+    if (view === 'themeSelector') {
+      if (key.escape) {
+        cancelThemeSelection();
+        return;
+      }
+      if (key.return) {
+        confirmThemeSelection();
+        return;
+      }
+      if (key.upArrow && previewTheme) {
+        const currentIndex = THEME_ORDER.indexOf(previewTheme);
+        const prevIndex = (currentIndex - 1 + THEME_ORDER.length) % THEME_ORDER.length;
+        setPreviewTheme(THEME_ORDER[prevIndex]);
+        return;
+      }
+      if (key.downArrow && previewTheme) {
+        const currentIndex = THEME_ORDER.indexOf(previewTheme);
+        const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
+        setPreviewTheme(THEME_ORDER[nextIndex]);
+        return;
+      }
+      return;
+    }
+
     // Help/Menu view
     if (view === 'help') {
       if (key.escape) {
         setView('dashboard');
-        return;
-      }
-      if (input === 't') {
-        const currentIndex = THEME_ORDER.indexOf(selectedTheme);
-        const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
-        changeTheme(THEME_ORDER[nextIndex]);
         return;
       }
       if (input === 'b') {
@@ -406,18 +456,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       if (input === 'q') {
         setIsShuttingDown(true);
         serviceManager.stopAll().then(() => exit());
-        return;
-      }
-      if (key.upArrow) {
-        const currentIndex = THEME_ORDER.indexOf(selectedTheme);
-        const prevIndex = (currentIndex - 1 + THEME_ORDER.length) % THEME_ORDER.length;
-        changeTheme(THEME_ORDER[prevIndex]);
-        return;
-      }
-      if (key.downArrow) {
-        const currentIndex = THEME_ORDER.indexOf(selectedTheme);
-        const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
-        changeTheme(THEME_ORDER[nextIndex]);
         return;
       }
       return;
@@ -497,6 +535,12 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     if (input === '/' && view === 'dashboard') {
       setSearchMode(true);
       setSearchQuery('');
+      return;
+    }
+
+    // Ctrl+T to open theme selector
+    if (key.ctrl && input === 't') {
+      openThemeSelector();
       return;
     }
 
@@ -632,42 +676,64 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     );
   }
 
-  // Help/Menu view with theme selector
+  // Theme Selector overlay
+  if (view === 'themeSelector') {
+    return (
+      <Box flexDirection="column" height={terminalHeight} width={terminalWidth}>
+        <Banner />
+        
+        {/* Centered theme selector box */}
+        <Box flexGrow={1} justifyContent="center" alignItems="center">
+          <Box
+            flexDirection="column"
+            borderStyle="double"
+            borderColor={themeColors.primary}
+            paddingX={3}
+            paddingY={1}
+            width={40}
+          >
+            <Box justifyContent="center" marginBottom={1}>
+              <Text color={themeColors.primary} bold>Select Theme</Text>
+            </Box>
+            
+            {THEME_ORDER.map((themeName) => {
+              const t = THEMES[themeName];
+              const isSelected = themeName === previewTheme;
+              return (
+                <Box key={themeName} paddingY={0}>
+                  <Text color={isSelected ? t.colors.primary : themeColors.textMuted}>
+                    {isSelected ? '▸ ' : '  '}
+                  </Text>
+                  <Text color={isSelected ? t.colors.primary : themeColors.textDim} bold={isSelected}>
+                    {t.label}
+                  </Text>
+                  <Text color={themeColors.textMuted}> - {t.description}</Text>
+                </Box>
+              );
+            })}
+            
+            <Box marginTop={1} justifyContent="center">
+              <Text color={themeColors.textMuted}>
+                <Text color={themeColors.primary}>↑↓</Text> navigate  
+                <Text color={themeColors.primary}> Enter</Text> select  
+                <Text color={themeColors.primary}> Esc</Text> cancel
+              </Text>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Help/Menu view
   if (view === 'help') {
     return (
       <Box flexDirection="column" height={terminalHeight}>
         <Banner />
         <Box flexDirection="column" padding={2}>
-          <Text color={themeColors.primary} bold>Settings & Help</Text>
+          <Text color={themeColors.primary} bold>Help & Keyboard Shortcuts</Text>
           <Text> </Text>
-          
-          {/* Theme Selector */}
-          <Box flexDirection="column" marginBottom={1}>
-            <Text color={themeColors.text} bold>Theme</Text>
-            <Box marginTop={1}>
-              {THEME_ORDER.map((themeName) => {
-                const t = THEMES[themeName];
-                const isSelected = themeName === selectedTheme;
-                return (
-                  <Box key={themeName} marginRight={2}>
-                    <Text color={isSelected ? t.colors.primary : themeColors.textMuted}>
-                      {isSelected ? '●' : '○'}
-                    </Text>
-                    <Text color={isSelected ? themeColors.text : themeColors.textDim}> {t.label}</Text>
-                  </Box>
-                );
-              })}
-            </Box>
-            <Box marginTop={1}>
-              <Text color={themeColors.textMuted}>
-                Press <Text color={themeColors.primary}>t</Text> or <Text color={themeColors.primary}>↑↓</Text> to change theme
-              </Text>
-            </Box>
-          </Box>
-          
-          <Text> </Text>
-          <Text color={themeColors.text} bold>Keyboard Shortcuts</Text>
-          <Text> </Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>Ctrl+T</Text>    Change theme</Text>
           <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>b</Text>         Open in browser</Text>
           <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>l</Text>         Full log view</Text>
           <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>/</Text>         Search logs</Text>
@@ -676,6 +742,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>r</Text>         Restart services</Text>
           <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>c</Text>         Clear logs</Text>
           <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>q</Text>         Quit</Text>
+          <Text> </Text>
+          <Text color={themeColors.textMuted}>Current theme: <Text color={themeColors.primary}>{theme.label}</Text></Text>
           <Text> </Text>
           <Text color={themeColors.textMuted}>Press <Text color={themeColors.primary}>Esc</Text> to return to dashboard</Text>
         </Box>
