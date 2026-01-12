@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Box, Text, useApp, useStdout } from 'ink';
-import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary } from '../components/index.js';
+import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary, BuildErrorView } from '../components/index.js';
 import { useInitFlow } from '../hooks/index.js';
 import type { ConfigItem } from '../components/ConfigSummary.js';
 import type { StreamTask } from '../components/TaskStream.js';
@@ -35,6 +35,8 @@ export interface InitCallbacks {
   updateTaskLabel: (taskId: string, label: string) => void;
   // Error handling
   setError: (message: string, suggestions: string[]) => void;
+  // Build error with full output for scrollable view
+  setBuildError: (message: string, errorLines: string[], suggestions: string[]) => void;
 }
 
 /**
@@ -68,6 +70,7 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
         flow.setTaskStatus(taskId, flow.state.tasks.find(t => t.id === taskId)?.status || 'pending');
       },
       setError: flow.setError,
+      setBuildError: flow.setBuildError,
     };
 
     onInit(callbacks)
@@ -129,8 +132,16 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
         />
       )}
       
-      {/* Error Display */}
-      {state.error && (
+      {/* Error Display - show full BuildErrorView for build errors, simple ErrorSummary for others */}
+      {state.error && state.error.buildError && (
+        <BuildErrorView
+          title={state.error.message}
+          errorLines={state.error.buildError.errorLines}
+          suggestions={state.error.buildError.suggestions}
+          onExit={() => exit()}
+        />
+      )}
+      {state.error && !state.error.buildError && (
         <Box marginTop={2}>
           <ErrorSummary 
             message={state.error.message} 
