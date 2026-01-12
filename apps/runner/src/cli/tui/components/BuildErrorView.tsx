@@ -1,9 +1,9 @@
 /**
- * BuildErrorView - Full-screen scrollable view for build errors
- * with copy functionality and exit handling
+ * BuildErrorView - Compact scrollable view for build errors
+ * Designed to fit in the center of the init screen, not full-screen
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import { colors, symbols } from '../theme.js';
 
@@ -19,7 +19,8 @@ interface BuildErrorViewProps {
 }
 
 /**
- * Full-screen build error viewer with scrolling and copy support
+ * Compact build error viewer with scrolling and copy support
+ * Displays in the center area, half-width, with scrollable content
  */
 export function BuildErrorView({ 
   title, 
@@ -29,24 +30,20 @@ export function BuildErrorView({
 }: BuildErrorViewProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  const terminalHeight = stdout?.rows || 24;
   const terminalWidth = stdout?.columns || 80;
 
   const [scrollOffset, setScrollOffset] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [showCopiedMessage, setShowCopiedMessage] = useState(false);
 
-  // Calculate available space
-  const headerHeight = 4;  // Title + separator + spacing
-  const footerHeight = 4;  // Shortcuts + spacing
-  const suggestionsHeight = suggestions.length > 0 ? suggestions.length + 2 : 0;
-  const availableHeight = Math.max(5, terminalHeight - headerHeight - footerHeight - suggestionsHeight);
-
+  // Fixed dimensions for compact view
+  const boxWidth = Math.min(70, Math.floor(terminalWidth * 0.6));
+  const maxVisibleLines = 12; // Show 12 lines of errors max
+  
   // Calculate max scroll
-  const maxScroll = Math.max(0, errorLines.length - availableHeight);
+  const maxScroll = Math.max(0, errorLines.length - maxVisibleLines);
 
   // Get visible lines
-  const visibleLines = errorLines.slice(scrollOffset, scrollOffset + availableHeight);
+  const visibleLines = errorLines.slice(scrollOffset, scrollOffset + maxVisibleLines);
 
   // Copy all error content to clipboard
   const copyToClipboard = useCallback(async () => {
@@ -60,10 +57,7 @@ export function BuildErrorView({
     ].join('\n');
 
     try {
-      // Use native clipboard via child process (works in terminal)
       const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
 
       // Detect platform and use appropriate clipboard command
       const platform = process.platform;
@@ -74,7 +68,6 @@ export function BuildErrorView({
       } else if (platform === 'win32') {
         clipboardCmd = 'clip';
       } else {
-        // Linux - try xclip first, fall back to xsel
         clipboardCmd = 'xclip -selection clipboard';
       }
 
@@ -83,7 +76,6 @@ export function BuildErrorView({
       child.stdin?.write(content);
       child.stdin?.end();
 
-      setCopied(true);
       setShowCopiedMessage(true);
 
       // Show success message then exit after delay
@@ -95,8 +87,9 @@ export function BuildErrorView({
         }
       }, 1500);
     } catch (error) {
-      // Clipboard failed - just show the message without exiting
-      console.error('Failed to copy to clipboard:', error);
+      // Clipboard failed - still show message
+      setShowCopiedMessage(true);
+      setTimeout(() => setShowCopiedMessage(false), 2000);
     }
   }, [title, errorLines, suggestions, onExit, exit]);
 
@@ -109,9 +102,9 @@ export function BuildErrorView({
     } else if (key.downArrow) {
       setScrollOffset(prev => Math.min(maxScroll, prev + 1));
     } else if (key.pageUp) {
-      setScrollOffset(prev => Math.max(0, prev - availableHeight));
+      setScrollOffset(prev => Math.max(0, prev - maxVisibleLines));
     } else if (key.pageDown) {
-      setScrollOffset(prev => Math.min(maxScroll, prev + availableHeight));
+      setScrollOffset(prev => Math.min(maxScroll, prev + maxVisibleLines));
     } else if (input === 'q' || key.escape) {
       if (onExit) {
         onExit();
@@ -125,48 +118,54 @@ export function BuildErrorView({
   const getLineColor = (line: string): string => {
     if (/error|Error|ERR!/i.test(line)) return colors.error;
     if (/warning|warn/i.test(line)) return colors.warning;
-    if (/:\d+:\d+/.test(line)) return colors.cyan; // File paths with line numbers
-    if (line.startsWith('─')) return colors.dimGray;
+    if (/:\d+:\d+/.test(line)) return colors.cyan;
+    if (line.startsWith('─') || line.startsWith('sentryvibe:')) return colors.dimGray;
     return colors.gray;
   };
 
+  const divider = symbols.horizontalLine.repeat(boxWidth - 2);
+  const hasScroll = errorLines.length > maxVisibleLines;
+
   return (
-    <Box flexDirection="column" height={terminalHeight} width={terminalWidth}>
-      {/* Header */}
-      <Box 
-        flexDirection="column" 
-        borderStyle="single" 
-        borderColor={colors.error}
-        paddingX={1}
-      >
-        <Box justifyContent="space-between">
-          <Text color={colors.error} bold>
-            {symbols.cross} {title}
-          </Text>
-          {errorLines.length > availableHeight && (
-            <Text color={colors.dimGray}>
-              [{scrollOffset + 1}-{Math.min(scrollOffset + availableHeight, errorLines.length)}/{errorLines.length}]
-            </Text>
-          )}
-        </Box>
+    <Box flexDirection="column" alignItems="center" width="100%">
+      {/* Top divider */}
+      <Text color={colors.dimGray}>{divider}</Text>
+      
+      {/* Error header */}
+      <Box marginTop={1} marginBottom={1} width={boxWidth} justifyContent="center">
+        <Text color={colors.error} bold>{symbols.cross} {title}</Text>
       </Box>
 
-      {/* Error content - scrollable */}
+      {/* Scrollable error content */}
       <Box 
         flexDirection="column" 
-        borderStyle="single" 
-        borderColor={colors.darkGray}
-        borderTop={false}
+        width={boxWidth}
+        borderStyle="round"
+        borderColor={colors.error}
         paddingX={1}
-        height={availableHeight + 2}
-        overflow="hidden"
+        paddingY={0}
       >
-        {visibleLines.length > 0 ? (
-          visibleLines.map((line, index) => (
-            <Text key={index} color={getLineColor(line)} wrap="truncate">
-              {line.length > terminalWidth - 4 ? line.substring(0, terminalWidth - 7) + '...' : line}
+        {/* Scroll indicator header */}
+        {hasScroll && (
+          <Box justifyContent="flex-end" marginBottom={0}>
+            <Text color={colors.dimGray} dimColor>
+              [{scrollOffset + 1}-{Math.min(scrollOffset + maxVisibleLines, errorLines.length)}/{errorLines.length}] ↑↓
             </Text>
-          ))
+          </Box>
+        )}
+        
+        {/* Error lines */}
+        {visibleLines.length > 0 ? (
+          visibleLines.map((line, index) => {
+            const truncatedLine = line.length > boxWidth - 4 
+              ? line.substring(0, boxWidth - 7) + '...' 
+              : line;
+            return (
+              <Text key={index} color={getLineColor(line)} wrap="truncate">
+                {truncatedLine}
+              </Text>
+            );
+          })
         ) : (
           <Text color={colors.dimGray}>No error details captured</Text>
         )}
@@ -174,14 +173,7 @@ export function BuildErrorView({
 
       {/* Suggestions */}
       {suggestions.length > 0 && (
-        <Box 
-          flexDirection="column" 
-          borderStyle="single" 
-          borderColor={colors.darkGray}
-          borderTop={false}
-          paddingX={1}
-        >
-          <Text color={colors.gray} bold>Suggestions:</Text>
+        <Box flexDirection="column" marginTop={1} width={boxWidth}>
           {suggestions.map((suggestion, index) => (
             <Text key={index} color={suggestion.startsWith('  ') ? colors.cyan : colors.gray}>
               {suggestion}
@@ -190,46 +182,40 @@ export function BuildErrorView({
         </Box>
       )}
 
-      {/* Footer with shortcuts */}
-      <Box 
-        borderStyle="single" 
-        borderColor={colors.darkGray}
-        borderTop={false}
-        paddingX={1}
-        justifyContent="space-between"
-      >
+      {/* Bottom divider */}
+      <Box marginTop={1}>
+        <Text color={colors.dimGray}>{divider}</Text>
+      </Box>
+
+      {/* Keyboard shortcuts */}
+      <Box marginTop={1} justifyContent="center">
         {showCopiedMessage ? (
           <Text color={colors.success} bold>
             {symbols.check} Copied to clipboard! Exiting...
           </Text>
         ) : (
           <Box>
-            <Shortcut letter="c" label="copy & exit" highlight />
-            <Shortcut letter="q" label="quit" />
-            <Shortcut letter="↑↓" label="scroll" />
-            <Shortcut letter="PgUp/Dn" label="page" />
+            <Text color={colors.dimGray}>[</Text>
+            <Text color={colors.success} bold>c</Text>
+            <Text color={colors.dimGray}>]</Text>
+            <Text color={colors.success}>copy & exit</Text>
+            <Text>  </Text>
+            <Text color={colors.dimGray}>[</Text>
+            <Text color={colors.cyan}>q</Text>
+            <Text color={colors.dimGray}>]</Text>
+            <Text color={colors.gray}>quit</Text>
+            {hasScroll && (
+              <>
+                <Text>  </Text>
+                <Text color={colors.dimGray}>[</Text>
+                <Text color={colors.cyan}>↑↓</Text>
+                <Text color={colors.dimGray}>]</Text>
+                <Text color={colors.gray}>scroll</Text>
+              </>
+            )}
           </Box>
         )}
       </Box>
-    </Box>
-  );
-}
-
-function Shortcut({ 
-  letter, 
-  label, 
-  highlight = false 
-}: { 
-  letter: string; 
-  label: string; 
-  highlight?: boolean;
-}) {
-  return (
-    <Box marginRight={2}>
-      <Text color={colors.dimGray}>[</Text>
-      <Text color={highlight ? colors.success : colors.cyan} bold={highlight}>{letter}</Text>
-      <Text color={colors.dimGray}>]</Text>
-      <Text color={highlight ? colors.success : colors.gray}>{label}</Text>
     </Box>
   );
 }

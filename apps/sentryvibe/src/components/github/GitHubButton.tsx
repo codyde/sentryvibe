@@ -6,7 +6,9 @@ import { Github, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGitHubStatus } from '@/queries/github';
 import { GitHubDropdown } from './GitHubDropdown';
-import { GITHUB_CHAT_MESSAGES } from '@sentryvibe/agent-core';
+
+// GitHub chat messages - defined here to avoid importing server-side code from agent-core
+const GITHUB_SETUP_MESSAGE = 'Set up GitHub repository for this project. Create a new public repository and push the code.';
 
 interface GitHubButtonProps {
   projectId: string;
@@ -94,5 +96,5 @@ export function GitHubButton({
  * Get the chat message to trigger GitHub setup
  */
 export function getGitHubSetupMessage(): string {
-  return GITHUB_CHAT_MESSAGES.SETUP;
+  return GITHUB_SETUP_MESSAGE;
 }
