@@ -9,14 +9,51 @@ import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from 'node
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Get the directory of this module (apps/runner/src/lib/)
+// Get the directory of this module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Path to bundled skills in the runner
-// In dev: apps/runner/.claude/skills/
-// In build: dist/.claude/skills/ (needs to be copied during build)
-const BUNDLED_SKILLS_DIR = join(__dirname, '..', '..', '.claude', 'skills');
+/**
+ * Find the bundled skills directory.
+ * Works in both development (src/lib/) and production (dist/lib/) modes.
+ */
+function findBundledSkillsDir(): string | null {
+  // Try multiple possible locations
+  const possiblePaths = [
+    // Development: apps/runner/src/lib/ -> apps/runner/.claude/skills/
+    join(__dirname, '..', '..', '.claude', 'skills'),
+    // Production from dist/lib/: apps/runner/dist/lib/ -> apps/runner/.claude/skills/
+    join(__dirname, '..', '..', '..', '.claude', 'skills'),
+    // Global install: might be in package root
+    join(__dirname, '..', '..', '..', '..', '.claude', 'skills'),
+  ];
+  
+  for (const skillsPath of possiblePaths) {
+    if (existsSync(skillsPath)) {
+      const skills = readdirSync(skillsPath).filter(name => {
+        const fullPath = join(skillsPath, name);
+        return statSync(fullPath).isDirectory();
+      });
+      if (skills.length > 0) {
+        console.log(`[skills] Found bundled skills at: ${skillsPath}`);
+        return skillsPath;
+      }
+    }
+  }
+  
+  console.log(`[skills] No bundled skills found. Searched paths:`, possiblePaths);
+  return null;
+}
+
+// Cache the skills directory path
+let _bundledSkillsDir: string | null | undefined = undefined;
+
+function getBundledSkillsDir(): string | null {
+  if (_bundledSkillsDir === undefined) {
+    _bundledSkillsDir = findBundledSkillsDir();
+  }
+  return _bundledSkillsDir;
+}
 
 /**
  * Copy a directory recursively
@@ -52,15 +89,15 @@ function copyDirSync(src: string, dest: string): void {
 export function ensureProjectSkills(projectDirectory: string): boolean {
   const projectSkillsDir = join(projectDirectory, '.claude', 'skills');
   
-  // Check if bundled skills exist
-  if (!existsSync(BUNDLED_SKILLS_DIR)) {
-    console.log(`[skills] No bundled skills found at ${BUNDLED_SKILLS_DIR}`);
+  // Find bundled skills directory
+  const bundledSkillsDir = getBundledSkillsDir();
+  if (!bundledSkillsDir) {
     return false;
   }
   
   // Get list of bundled skills
-  const bundledSkills = readdirSync(BUNDLED_SKILLS_DIR).filter(name => {
-    const skillPath = join(BUNDLED_SKILLS_DIR, name);
+  const bundledSkills = readdirSync(bundledSkillsDir).filter(name => {
+    const skillPath = join(bundledSkillsDir, name);
     return statSync(skillPath).isDirectory();
   });
   
@@ -71,16 +108,17 @@ export function ensureProjectSkills(projectDirectory: string): boolean {
   let copiedAny = false;
   
   for (const skillName of bundledSkills) {
-    const srcSkillDir = join(BUNDLED_SKILLS_DIR, skillName);
+    const srcSkillDir = join(bundledSkillsDir, skillName);
     const destSkillDir = join(projectSkillsDir, skillName);
     
     // Skip if skill already exists in project
     if (existsSync(destSkillDir)) {
+      console.log(`[skills] Skill "${skillName}" already exists in project`);
       continue;
     }
     
     // Copy skill to project
-    console.log(`[skills] Copying skill "${skillName}" to project`);
+    console.log(`[skills] Copying skill "${skillName}" to ${destSkillDir}`);
     copyDirSync(srcSkillDir, destSkillDir);
     copiedAny = true;
   }
@@ -92,12 +130,13 @@ export function ensureProjectSkills(projectDirectory: string): boolean {
  * List available bundled skills
  */
 export function listBundledSkills(): string[] {
-  if (!existsSync(BUNDLED_SKILLS_DIR)) {
+  const bundledSkillsDir = getBundledSkillsDir();
+  if (!bundledSkillsDir) {
     return [];
   }
   
-  return readdirSync(BUNDLED_SKILLS_DIR).filter(name => {
-    const skillPath = join(BUNDLED_SKILLS_DIR, name);
+  return readdirSync(bundledSkillsDir).filter(name => {
+    const skillPath = join(bundledSkillsDir, name);
     return statSync(skillPath).isDirectory();
   });
 }
