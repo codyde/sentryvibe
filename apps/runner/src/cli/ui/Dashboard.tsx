@@ -1,6 +1,7 @@
 /**
  * Main TUI Dashboard Component for Local Mode
  * Redesigned to match Runner Mode UI style with split panel layout
+ * Supports dynamic theming that changes TUI colors
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -11,10 +12,8 @@ import { platform } from 'os';
 import { ServiceManager, ServiceState } from './service-manager.js';
 import { Banner } from './components/Banner.js';
 
-// Import shared theme from tui (for consistency)
-const colors = {
-  cyan: '#06b6d4',
-  purple: '#a855f7',
+// Base colors that don't change with theme
+const baseColors = {
   success: '#22c55e',
   error: '#ef4444',
   warning: '#f59e0b',
@@ -35,14 +34,18 @@ const symbols = {
 // Theme definitions (matching web app themes)
 type ThemeName = 'sentry' | 'ocean' | 'ember' | 'forest' | 'noir';
 
+interface ThemeColors {
+  primary: string;
+  secondary: string;
+  accent: string;      // Used for highlights, borders
+  muted: string;       // Dimmed version of primary
+}
+
 interface ThemeInfo {
   name: ThemeName;
   label: string;
   description: string;
-  colors: {
-    primary: string;
-    secondary: string;
-  };
+  colors: ThemeColors;
 }
 
 const THEMES: Record<ThemeName, ThemeInfo> = {
@@ -50,31 +53,56 @@ const THEMES: Record<ThemeName, ThemeInfo> = {
     name: 'sentry',
     label: 'Sentry',
     description: 'Purple-pink gradient',
-    colors: { primary: '#a855f7', secondary: '#ec4899' },
+    colors: { 
+      primary: '#a855f7', 
+      secondary: '#ec4899',
+      accent: '#c084fc',
+      muted: '#7c3aed',
+    },
   },
   ocean: {
     name: 'ocean',
     label: 'Ocean',
     description: 'Cool blue & teal',
-    colors: { primary: '#3b82f6', secondary: '#22d3ee' },
+    colors: { 
+      primary: '#3b82f6', 
+      secondary: '#22d3ee',
+      accent: '#60a5fa',
+      muted: '#2563eb',
+    },
   },
   ember: {
     name: 'ember',
     label: 'Ember',
     description: 'Warm orange & red',
-    colors: { primary: '#f97316', secondary: '#ef4444' },
+    colors: { 
+      primary: '#f97316', 
+      secondary: '#ef4444',
+      accent: '#fb923c',
+      muted: '#ea580c',
+    },
   },
   forest: {
     name: 'forest',
     label: 'Forest',
     description: 'Green & earth tones',
-    colors: { primary: '#10b981', secondary: '#84cc16' },
+    colors: { 
+      primary: '#10b981', 
+      secondary: '#84cc16',
+      accent: '#34d399',
+      muted: '#059669',
+    },
   },
   noir: {
     name: 'noir',
     label: 'Noir',
     description: 'Monochrome dark',
-    colors: { primary: '#ffffff', secondary: '#a1a1aa' },
+    colors: { 
+      primary: '#ffffff', 
+      secondary: '#a1a1aa',
+      accent: '#e4e4e7',
+      muted: '#71717a',
+    },
   },
 };
 
@@ -148,7 +176,6 @@ function parseLogMessage(message: string): { tag?: string; emoji?: string; toolN
   return { tag, emoji, toolName, content: content.trim() };
 }
 
-// Open URL in default browser
 function openBrowser(url: string): void {
   const os = platform();
   let command: string;
@@ -161,11 +188,7 @@ function openBrowser(url: string): void {
     command = `xdg-open "${url}"`;
   }
   
-  exec(command, (error) => {
-    if (error) {
-      // Silently fail - user can manually open browser
-    }
-  });
+  exec(command, () => {});
 }
 
 export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: DashboardProps) {
@@ -189,7 +212,21 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   
   // Theme state
   const [selectedTheme, setSelectedTheme] = useState<ThemeName>('sentry');
-  const [helpMenuIndex, setHelpMenuIndex] = useState(0);
+
+  // Get current theme colors - these will be used throughout the TUI
+  const theme = THEMES[selectedTheme];
+  const themeColors = useMemo(() => ({
+    primary: theme.colors.primary,
+    secondary: theme.colors.secondary,
+    accent: theme.colors.accent,
+    muted: theme.colors.muted,
+    // Map to semantic colors
+    highlight: theme.colors.primary,
+    border: theme.colors.muted,
+    text: baseColors.white,
+    textDim: baseColors.gray,
+    textMuted: baseColors.dimGray,
+  }), [theme]);
 
   const terminalHeight = stdout?.rows || 40;
   const terminalWidth = stdout?.columns || 80;
@@ -333,21 +370,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     return fullLogFilteredLogs.slice(fullLogScrollOffset, fullLogScrollOffset + fullLogVisibleLines);
   }, [fullLogFilteredLogs, fullLogScrollOffset, fullLogVisibleLines]);
 
-  // Handle theme change - updates web app via API
-  const changeTheme = async (theme: ThemeName) => {
-    setSelectedTheme(theme);
-    try {
-      // Call API to update theme in web app
-      await fetch(`http://localhost:${webPort}/api/theme`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme }),
-      }).catch(() => {
-        // API might not exist yet, that's ok
-      });
-    } catch {
-      // Silently fail
-    }
+  const changeTheme = (newTheme: ThemeName) => {
+    setSelectedTheme(newTheme);
   };
 
   useInput((input, key) => {
@@ -360,7 +384,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         return;
       }
       if (input === 't') {
-        // Cycle to next theme
         const currentIndex = THEME_ORDER.indexOf(selectedTheme);
         const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
         changeTheme(THEME_ORDER[nextIndex]);
@@ -471,7 +494,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       setIsShuttingDown(true);
       serviceManager.stopAll().then(() => exit());
     } else if (input === 'b') {
-      // Open browser
       openBrowser(`http://localhost:${webPort}`);
     } else if (input === 'v') {
       setIsVerbose(!isVerbose);
@@ -520,7 +542,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     return (
       <>
         {text.slice(0, index)}
-        <Text backgroundColor={colors.warning} color="black">
+        <Text backgroundColor={baseColors.warning} color="black">
           {text.slice(index, index + query.length)}
         </Text>
         {text.slice(index + query.length)}
@@ -534,15 +556,15 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       <Box flexDirection="column" height={terminalHeight}>
         <Box
           borderStyle="single"
-          borderColor={colors.darkGray}
+          borderColor={themeColors.muted}
           paddingX={1}
           justifyContent="space-between"
         >
-          <Text color={colors.cyan} bold>LOGS</Text>
+          <Text color={themeColors.primary} bold>LOGS</Text>
           <Box>
-            <Text color={colors.dimGray}>Search: </Text>
+            <Text color={themeColors.textMuted}>Search: </Text>
             {fullLogSearchMode ? (
-              <Box borderStyle="round" borderColor={colors.cyan} paddingX={1}>
+              <Box borderStyle="round" borderColor={themeColors.primary} paddingX={1}>
                 <TextInput
                   value={fullLogSearchQuery}
                   onChange={setFullLogSearchQuery}
@@ -550,11 +572,11 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
                 />
               </Box>
             ) : (
-              <Text color={fullLogSearchQuery ? colors.white : colors.dimGray}>
+              <Text color={fullLogSearchQuery ? themeColors.text : themeColors.textMuted}>
                 [{fullLogSearchQuery || 'none'}]
               </Text>
             )}
-            <Text color={colors.dimGray}> [/]</Text>
+            <Text color={themeColors.textMuted}> [/]</Text>
           </Box>
         </Box>
 
@@ -562,7 +584,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           flexDirection="column"
           flexGrow={1}
           borderStyle="single"
-          borderColor={colors.darkGray}
+          borderColor={themeColors.muted}
           borderTop={false}
           borderBottom={false}
           paddingX={1}
@@ -574,24 +596,25 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
               maxWidth={terminalWidth - 4}
               searchQuery={fullLogSearchQuery}
               highlightSearch={highlightSearch}
+              themeColors={themeColors}
             />
           ))}
         </Box>
 
         <Box
           borderStyle="single"
-          borderColor={colors.darkGray}
+          borderColor={themeColors.muted}
           paddingX={1}
           justifyContent="space-between"
         >
           <Box>
-            <Shortcut letter="l" label="dashboard" />
-            <Shortcut letter="/" label="search" />
-            <Shortcut letter="f" label={`filter: ${filterMode}`} />
-            <Shortcut letter="b" label="browser" />
-            <Shortcut letter="q" label="quit" />
+            <Shortcut letter="l" label="dashboard" color={themeColors.primary} />
+            <Shortcut letter="/" label="search" color={themeColors.primary} />
+            <Shortcut letter="f" label={`filter: ${filterMode}`} color={themeColors.primary} />
+            <Shortcut letter="b" label="browser" color={themeColors.primary} />
+            <Shortcut letter="q" label="quit" color={themeColors.primary} />
           </Box>
-          <Text color={colors.dimGray}>
+          <Text color={themeColors.textMuted}>
             {fullLogScrollOffset + 1}-{Math.min(fullLogScrollOffset + fullLogVisibleLines, fullLogFilteredLogs.length)}/{fullLogFilteredLogs.length}
           </Text>
         </Box>
@@ -601,52 +624,50 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
 
   // Help/Menu view with theme selector
   if (view === 'help') {
-    const currentTheme = THEMES[selectedTheme];
-    
     return (
       <Box flexDirection="column" height={terminalHeight}>
         <Banner />
         <Box flexDirection="column" padding={2}>
-          <Text color={colors.cyan} bold>Settings & Help</Text>
+          <Text color={themeColors.primary} bold>Settings & Help</Text>
           <Text> </Text>
           
           {/* Theme Selector */}
           <Box flexDirection="column" marginBottom={1}>
-            <Text color={colors.white} bold>Theme</Text>
+            <Text color={themeColors.text} bold>Theme</Text>
             <Box marginTop={1}>
               {THEME_ORDER.map((themeName) => {
-                const theme = THEMES[themeName];
+                const t = THEMES[themeName];
                 const isSelected = themeName === selectedTheme;
                 return (
                   <Box key={themeName} marginRight={2}>
-                    <Text color={isSelected ? theme.colors.primary : colors.dimGray}>
+                    <Text color={isSelected ? t.colors.primary : themeColors.textMuted}>
                       {isSelected ? '●' : '○'}
                     </Text>
-                    <Text color={isSelected ? colors.white : colors.gray}> {theme.label}</Text>
+                    <Text color={isSelected ? themeColors.text : themeColors.textDim}> {t.label}</Text>
                   </Box>
                 );
               })}
             </Box>
             <Box marginTop={1}>
-              <Text color={colors.dimGray}>
-                Press <Text color={colors.cyan}>t</Text> or <Text color={colors.cyan}>↑↓</Text> to change theme
+              <Text color={themeColors.textMuted}>
+                Press <Text color={themeColors.primary}>t</Text> or <Text color={themeColors.primary}>↑↓</Text> to change theme
               </Text>
             </Box>
           </Box>
           
           <Text> </Text>
-          <Text color={colors.white} bold>Keyboard Shortcuts</Text>
+          <Text color={themeColors.text} bold>Keyboard Shortcuts</Text>
           <Text> </Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>b</Text>         Open in browser</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>l</Text>         Full log view</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>/</Text>         Search logs</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>f</Text>         Filter by service</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>v</Text>         Toggle verbose mode</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>r</Text>         Restart services</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>c</Text>         Clear logs</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>q</Text>         Quit</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>b</Text>         Open in browser</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>l</Text>         Full log view</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>/</Text>         Search logs</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>f</Text>         Filter by service</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>v</Text>         Toggle verbose mode</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>r</Text>         Restart services</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>c</Text>         Clear logs</Text>
+          <Text color={themeColors.textDim}>  <Text color={themeColors.primary}>q</Text>         Quit</Text>
           <Text> </Text>
-          <Text color={colors.dimGray}>Press <Text color={colors.cyan}>Esc</Text> to return to dashboard</Text>
+          <Text color={themeColors.textMuted}>Press <Text color={themeColors.primary}>Esc</Text> to return to dashboard</Text>
         </Box>
       </Box>
     );
@@ -659,22 +680,22 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
 
       <Box
         borderStyle="single"
-        borderColor={colors.darkGray}
+        borderColor={themeColors.muted}
         paddingX={1}
         justifyContent="space-between"
       >
-        <Text color={colors.dimGray}>
-          Web: <Text color={colors.cyan}>localhost:{webPort}</Text>
+        <Text color={themeColors.textMuted}>
+          Web: <Text color={themeColors.primary}>localhost:{webPort}</Text>
           {' • '}
-          Mode: <Text color={colors.cyan}>Local</Text>
+          Mode: <Text color={themeColors.primary}>Local</Text>
           {' • '}
-          Theme: <Text color={THEMES[selectedTheme].colors.primary}>{THEMES[selectedTheme].label}</Text>
+          Theme: <Text color={themeColors.primary}>{theme.label}</Text>
         </Text>
         <Box>
-          <Text color={allServicesRunning ? colors.success : colors.warning}>
+          <Text color={allServicesRunning ? baseColors.success : baseColors.warning}>
             {allServicesRunning ? symbols.filledDot : symbols.hollowDot}
           </Text>
-          <Text color={colors.gray}>
+          <Text color={themeColors.textDim}>
             {' '}{allServicesRunning ? 'All Services Running' : 'Starting...'}
           </Text>
         </Box>
@@ -685,6 +706,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           services={services} 
           width={servicesPanelWidth} 
           height={contentHeight}
+          themeColors={themeColors}
         />
         
         <Box
@@ -692,16 +714,16 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           width={logPanelWidth}
           height={contentHeight}
           borderStyle="single"
-          borderColor={colors.darkGray}
+          borderColor={themeColors.muted}
           paddingX={1}
         >
           <Box justifyContent="space-between" marginBottom={0}>
-            <Text color={colors.cyan} bold>LOGS</Text>
+            <Text color={themeColors.primary} bold>LOGS</Text>
             <Box>
               {serviceFilter && (
-                <Text color={colors.dimGray}>filter: <Text color={colors.warning}>{serviceFilter}</Text>  </Text>
+                <Text color={themeColors.textMuted}>filter: <Text color={baseColors.warning}>{serviceFilter}</Text>  </Text>
               )}
-              <Text color={colors.dimGray}>
+              <Text color={themeColors.textMuted}>
                 [verbose: {isVerbose ? 'on' : 'off'}]
               </Text>
             </Box>
@@ -710,18 +732,18 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           <Box flexDirection="column" flexGrow={1}>
             {displayedLogs.length === 0 ? (
               <Box justifyContent="center" alignItems="center" flexGrow={1}>
-                <Text color={colors.dimGray}>Waiting for logs...</Text>
+                <Text color={themeColors.textMuted}>Waiting for logs...</Text>
               </Box>
             ) : (
               displayedLogs.map((log) => (
-                <LogEntryRow key={log.id} log={log} maxWidth={logPanelWidth - 4} />
+                <LogEntryRow key={log.id} log={log} maxWidth={logPanelWidth - 4} themeColors={themeColors} />
               ))
             )}
           </Box>
 
           {filteredLogs.length > visibleLines && (
             <Box justifyContent="flex-end">
-              <Text color={colors.dimGray}>
+              <Text color={themeColors.textMuted}>
                 {scrollOffset + 1}-{Math.min(scrollOffset + visibleLines, filteredLogs.length)}/{filteredLogs.length}
                 {autoScroll ? ' (auto)' : ''}
               </Text>
@@ -732,22 +754,22 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
 
       <Box
         borderStyle="single"
-        borderColor={colors.darkGray}
+        borderColor={themeColors.muted}
         paddingX={1}
         justifyContent="space-between"
       >
         <Box>
-          <Text color={allServicesRunning ? colors.success : colors.warning}>
+          <Text color={allServicesRunning ? baseColors.success : baseColors.warning}>
             {allServicesRunning ? symbols.filledDot : symbols.hollowDot}
           </Text>
-          <Text color={colors.gray}>
+          <Text color={themeColors.textDim}>
             {' '}{isShuttingDown ? 'Shutting down...' : allServicesRunning ? 'Ready' : 'Starting'}
           </Text>
         </Box>
         
         {searchMode ? (
           <Box>
-            <Text color={colors.cyan}>/</Text>
+            <Text color={themeColors.primary}>/</Text>
             <TextInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -757,11 +779,11 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           </Box>
         ) : (
           <Box>
-            <Shortcut letter="b" label="browser" />
-            <Shortcut letter="l" label="logs" />
-            <Shortcut letter="/" label="search" />
-            <Shortcut letter="?" label="menu" />
-            <Shortcut letter="q" label="quit" />
+            <Shortcut letter="b" label="browser" color={themeColors.primary} />
+            <Shortcut letter="l" label="logs" color={themeColors.primary} />
+            <Shortcut letter="/" label="search" color={themeColors.primary} />
+            <Shortcut letter="?" label="menu" color={themeColors.primary} />
+            <Shortcut letter="q" label="quit" color={themeColors.primary} />
           </Box>
         )}
       </Box>
@@ -769,7 +791,24 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   );
 }
 
-function ServicesPanel({ services, width, height }: { services: ServiceState[], width: number, height: number }) {
+interface ThemeColorsType {
+  primary: string;
+  secondary: string;
+  accent: string;
+  muted: string;
+  highlight: string;
+  border: string;
+  text: string;
+  textDim: string;
+  textMuted: string;
+}
+
+function ServicesPanel({ services, width, height, themeColors }: { 
+  services: ServiceState[], 
+  width: number, 
+  height: number,
+  themeColors: ThemeColorsType
+}) {
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   
   useEffect(() => {
@@ -782,13 +821,13 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'running':
-        return <Text color={colors.success}>{symbols.check}</Text>;
+        return <Text color={baseColors.success}>{symbols.check}</Text>;
       case 'starting':
-        return <Text color={colors.cyan}>{symbols.spinnerFrames[spinnerFrame]}</Text>;
+        return <Text color={themeColors.primary}>{symbols.spinnerFrames[spinnerFrame]}</Text>;
       case 'error':
-        return <Text color={colors.error}>{symbols.cross}</Text>;
+        return <Text color={baseColors.error}>{symbols.cross}</Text>;
       default:
-        return <Text color={colors.dimGray}>{symbols.hollowDot}</Text>;
+        return <Text color={themeColors.textMuted}>{symbols.hollowDot}</Text>;
     }
   };
 
@@ -798,31 +837,31 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
       width={width}
       height={height}
       borderStyle="single"
-      borderColor={colors.darkGray}
+      borderColor={themeColors.muted}
       paddingX={1}
     >
       <Box marginBottom={1}>
-        <Text color={colors.cyan} bold>SERVICES</Text>
+        <Text color={themeColors.primary} bold>SERVICES</Text>
       </Box>
 
       {services.map((service) => (
         <Box key={service.name} marginBottom={1} flexDirection="column">
           <Box>
             {getStatusIcon(service.status)}
-            <Text color={colors.white}> {service.displayName}</Text>
+            <Text color={themeColors.text}> {service.displayName}</Text>
           </Box>
           {service.status === 'running' && service.port && (
-            <Text color={colors.dimGray}>  :{service.port}</Text>
+            <Text color={themeColors.textMuted}>  :{service.port}</Text>
           )}
           {service.status === 'error' && service.error && (
-            <Text color={colors.error} wrap="truncate">  {service.error.substring(0, width - 4)}</Text>
+            <Text color={baseColors.error} wrap="truncate">  {service.error.substring(0, width - 4)}</Text>
           )}
         </Box>
       ))}
 
       <Box flexGrow={1} />
       <Box>
-        <Text color={colors.dimGray}>
+        <Text color={themeColors.textMuted}>
           {services.every(s => s.status === 'running') 
             ? `${symbols.check} All systems go` 
             : 'Initializing...'}
@@ -832,12 +871,16 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
   );
 }
 
-function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
+function LogEntryRow({ log, maxWidth, themeColors }: { 
+  log: LogEntry, 
+  maxWidth: number,
+  themeColors: ThemeColorsType
+}) {
   const levelColors = {
-    info: colors.cyan,
-    success: colors.success,
-    warn: colors.warning,
-    error: colors.error,
+    info: themeColors.primary,
+    success: baseColors.success,
+    warn: baseColors.warning,
+    error: baseColors.error,
   };
 
   const levelIcons = {
@@ -847,7 +890,7 @@ function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
     error: symbols.cross,
   };
 
-  const serviceColor = log.service === 'web' ? colors.cyan : colors.purple;
+  const serviceColor = log.service === 'web' ? themeColors.primary : themeColors.secondary;
   const icon = log.emoji || levelIcons[log.level];
   const color = levelColors[log.level];
   
@@ -861,12 +904,12 @@ function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
   if (log.toolName) {
     return (
       <Box>
-        <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+        <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
         <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
-        <Text color={colors.cyan}> 🔧 </Text>
-        <Text color={colors.white}>{log.toolName}</Text>
+        <Text color={themeColors.primary}> 🔧 </Text>
+        <Text color={themeColors.text}>{log.toolName}</Text>
         {log.content && log.content !== log.toolName && (
-          <Text color={colors.gray}> {log.content.replace(`tool-input-available: ${log.toolName}`, '').trim()}</Text>
+          <Text color={themeColors.textDim}> {log.content.replace(`tool-input-available: ${log.toolName}`, '').trim()}</Text>
         )}
       </Box>
     );
@@ -874,11 +917,11 @@ function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
 
   return (
     <Box>
-      <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+      <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
       <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
       <Text color={color}> {icon} </Text>
-      {log.tag && <Text color={colors.dimGray}>[{log.tag}] </Text>}
-      <Text color={log.level === 'error' || log.level === 'warn' ? color : colors.white}>
+      {log.tag && <Text color={themeColors.textMuted}>[{log.tag}] </Text>}
+      <Text color={log.level === 'error' || log.level === 'warn' ? color : themeColors.text}>
         {truncatedMessage}
       </Text>
     </Box>
@@ -889,18 +932,20 @@ function FullLogEntryRow({
   log, 
   maxWidth, 
   searchQuery,
-  highlightSearch 
+  highlightSearch,
+  themeColors
 }: { 
   log: LogEntry, 
   maxWidth: number,
   searchQuery: string,
-  highlightSearch: (text: string, query: string) => React.ReactNode
+  highlightSearch: (text: string, query: string) => React.ReactNode,
+  themeColors: ThemeColorsType
 }) {
   const levelColors = {
-    info: colors.cyan,
-    success: colors.success,
-    warn: colors.warning,
-    error: colors.error,
+    info: themeColors.primary,
+    success: baseColors.success,
+    warn: baseColors.warning,
+    error: baseColors.error,
   };
 
   const levelIcons = {
@@ -910,19 +955,19 @@ function FullLogEntryRow({
     error: symbols.cross,
   };
 
-  const serviceColor = log.service === 'web' ? colors.cyan : colors.purple;
+  const serviceColor = log.service === 'web' ? themeColors.primary : themeColors.secondary;
   const icon = log.emoji || levelIcons[log.level];
   const color = levelColors[log.level];
 
   if (log.toolName) {
     return (
       <Box>
-        <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+        <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
         <Text color={serviceColor}> [{log.service}]</Text>
-        <Text color={colors.cyan}> 🔧 </Text>
-        <Text color={colors.white}>{highlightSearch(log.toolName, searchQuery)}</Text>
+        <Text color={themeColors.primary}> 🔧 </Text>
+        <Text color={themeColors.text}>{highlightSearch(log.toolName, searchQuery)}</Text>
         {log.content && (
-          <Text color={colors.gray}> {highlightSearch(log.content.replace(`tool-input-available: ${log.toolName}`, '').trim(), searchQuery)}</Text>
+          <Text color={themeColors.textDim}> {highlightSearch(log.content.replace(`tool-input-available: ${log.toolName}`, '').trim(), searchQuery)}</Text>
         )}
       </Box>
     );
@@ -930,24 +975,24 @@ function FullLogEntryRow({
 
   return (
     <Box>
-      <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+      <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
       <Text color={serviceColor}> [{log.service}]</Text>
       <Text color={color}> {icon} </Text>
-      {log.tag && <Text color={colors.dimGray}>[{log.tag}] </Text>}
-      <Text color={log.level === 'error' || log.level === 'warn' ? color : colors.white}>
+      {log.tag && <Text color={themeColors.textMuted}>[{log.tag}] </Text>}
+      <Text color={log.level === 'error' || log.level === 'warn' ? color : themeColors.text}>
         {highlightSearch(log.content || log.message, searchQuery)}
       </Text>
     </Box>
   );
 }
 
-function Shortcut({ letter, label }: { letter: string; label: string }) {
+function Shortcut({ letter, label, color }: { letter: string; label: string; color: string }) {
   return (
     <Box marginRight={2}>
-      <Text color={colors.dimGray}>[</Text>
-      <Text color={colors.cyan}>{letter}</Text>
-      <Text color={colors.dimGray}>]</Text>
-      <Text color={colors.gray}>{label}</Text>
+      <Text color={baseColors.dimGray}>[</Text>
+      <Text color={color}>{letter}</Text>
+      <Text color={baseColors.dimGray}>]</Text>
+      <Text color={baseColors.gray}>{label}</Text>
     </Box>
   );
 }
