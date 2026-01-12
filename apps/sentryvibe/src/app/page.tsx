@@ -63,6 +63,7 @@ import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { GitHubButton, getGitHubSetupMessage } from "@/components/github";
+import { processAgentGitHubResponse } from "@/lib/github-result-parser";
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -1967,6 +1968,13 @@ function HomeContent() {
           content: currentMessage.content,
           timestamp: Date.now(),
         });
+        
+        // Check for GitHub result in the response and update project if found
+        processAgentGitHubResponse(projectId, currentMessage.content, (result) => {
+          if (DEBUG_PAGE) console.log('🐙 GitHub setup completed:', result);
+          // Invalidate GitHub status query to refresh the button
+          queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'github'] });
+        });
       }
 
       // Ensure final summary todo is marked completed before finishing
@@ -2687,10 +2695,11 @@ function HomeContent() {
           </div>
           <div className="flex items-center gap-3">
             {/* GitHub Integration - show when project is selected and completed */}
-            {currentProject && currentProject.status === 'completed' && !isGenerating && (
+            {currentProject && currentProject.status === 'completed' && (
               <GitHubButton
                 projectId={currentProject.id}
                 projectSlug={currentProject.slug}
+                isGenerating={isGenerating}
                 onSetupClick={() => {
                   // Switch to Build tab to show the setup progress
                   switchTab("build");

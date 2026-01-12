@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Github, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,8 @@ interface GitHubButtonProps {
   onSetupClick?: () => void;
   className?: string;
   variant?: 'default' | 'compact';
+  /** Whether a generation/build is currently running */
+  isGenerating?: boolean;
 }
 
 /**
@@ -29,17 +31,33 @@ export function GitHubButton({
   onSetupClick,
   className,
   variant = 'default',
+  isGenerating = false,
 }: GitHubButtonProps) {
-  const { data: status, isLoading } = useGitHubStatus(projectId);
+  const { data: status, isLoading, refetch } = useGitHubStatus(projectId);
   const [isSettingUp, setIsSettingUp] = useState(false);
+
+  // Track if we were generating and now stopped - trigger a refetch
+  const wasGeneratingRef = useRef(isGenerating);
+  useEffect(() => {
+    if (wasGeneratingRef.current && !isGenerating) {
+      // Generation just completed - refetch GitHub status
+      refetch();
+    }
+    wasGeneratingRef.current = isGenerating;
+  }, [isGenerating, refetch]);
 
   const handleSetupClick = () => {
     setIsSettingUp(true);
     // Call the parent handler which will send the chat message
     onSetupClick?.();
-    // Reset after a delay (the actual setup happens via chat)
-    setTimeout(() => setIsSettingUp(false), 2000);
   };
+
+  // Reset isSettingUp when generation completes
+  useEffect(() => {
+    if (!isGenerating && isSettingUp) {
+      setIsSettingUp(false);
+    }
+  }, [isGenerating, isSettingUp]);
 
   if (isLoading) {
     return (
@@ -65,28 +83,32 @@ export function GitHubButton({
     );
   }
 
+  // Show running state during generation or setup
+  const isRunning = isSettingUp || isGenerating;
+
   // Not connected - show setup button
   return (
     <motion.button
       onClick={handleSetupClick}
-      disabled={isSettingUp}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      disabled={isRunning}
+      whileHover={isRunning ? {} : { scale: 1.02 }}
+      whileTap={isRunning ? {} : { scale: 0.98 }}
       className={cn(
         'flex items-center gap-2 px-3 py-1.5 text-xs rounded-md transition-all',
-        'bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600',
-        'text-gray-300 hover:text-white',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
+        isRunning 
+          ? 'bg-purple-900/30 border border-purple-700/50 text-purple-400'
+          : 'bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white',
+        'disabled:cursor-not-allowed',
         className
       )}
     >
-      {isSettingUp ? (
+      {isRunning ? (
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
       ) : (
         <Github className="w-3.5 h-3.5" />
       )}
       {variant === 'default' && (
-        <span>{isSettingUp ? 'Setting up...' : 'Setup GitHub'}</span>
+        <span>{isRunning ? 'Setting up...' : 'Setup GitHub'}</span>
       )}
     </motion.button>
   );
