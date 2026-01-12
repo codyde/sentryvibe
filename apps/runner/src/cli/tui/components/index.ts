@@ -15,3 +15,4 @@ export { StatusBar } from './StatusBar.js';
 export { FullLogView } from './FullLogView.js';
 export { CopyMenu } from './CopyMenu.js';
 export { BuildErrorView } from './BuildErrorView.js';
+export { VersionFooter } from './VersionFooter.js';

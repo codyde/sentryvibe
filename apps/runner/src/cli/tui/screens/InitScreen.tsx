@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Box, Text, useApp, useStdout } from 'ink';
-import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary, BuildErrorView } from '../components/index.js';
+import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary, BuildErrorView, VersionFooter } from '../components/index.js';
 import { useInitFlow } from '../hooks/index.js';
 import type { ConfigItem } from '../components/ConfigSummary.js';
 import type { StreamTask } from '../components/TaskStream.js';
 import { colors, symbols } from '../theme.js';
+import { getVersionInfo } from '../../utils/version-info.js';
 
 export interface InitConfig {
   workspace: string;
@@ -48,6 +49,9 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
   const { stdout } = useStdout();
   const flow = useInitFlow();
   const [finalConfig, setFinalConfig] = useState<InitConfig | null>(null);
+  
+  // Get version info
+  const versionInfo = getVersionInfo();
   
   // Calculate vertical centering
   const terminalHeight = stdout?.rows || 24;
@@ -173,6 +177,9 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
           <NextSteps command="sentryvibe run" url="http://localhost:3000" />
         </Box>
       )}
+      
+      {/* Version footer - bottom right */}
+      <VersionFooter version={versionInfo.version} commit={versionInfo.commit} />
     </Box>
   );
 }

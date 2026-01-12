@@ -5,6 +5,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { colors } from '../theme.js';
+import { getVersionInfo } from '../../utils/version-info.js';
 
 interface StatusBarProps {
   isConnected: boolean;
@@ -21,6 +22,9 @@ export function StatusBar({
   currentBuildIndex = 0,
   view,
 }: StatusBarProps) {
+  // Get version info
+  const versionInfo = getVersionInfo();
+  
   // Connection indicator
   const connectionIndicator = (
     <Box marginRight={2}>
@@ -67,6 +71,15 @@ export function StatusBar({
     </Box>
   );
 
+  // Version display
+  const versionDisplay = (
+    <Box marginLeft={2}>
+      <Text color={colors.dimGray}>
+        {versionInfo.display}
+      </Text>
+    </Box>
+  );
+
   return (
     <Box
       borderStyle="single"
@@ -78,7 +91,10 @@ export function StatusBar({
         {connectionIndicator}
         {buildIndicator}
       </Box>
-      {shortcuts}
+      <Box>
+        {shortcuts}
+        {versionDisplay}
+      </Box>
     </Box>
   );
 }
