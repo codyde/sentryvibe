@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
+import { exec } from 'child_process';
+import { platform } from 'os';
 import { ServiceManager, ServiceState } from './service-manager.js';
 import { Banner } from './components/Banner.js';
 
@@ -30,6 +32,54 @@ const symbols = {
   spinnerFrames: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
 };
 
+// Theme definitions (matching web app themes)
+type ThemeName = 'sentry' | 'ocean' | 'ember' | 'forest' | 'noir';
+
+interface ThemeInfo {
+  name: ThemeName;
+  label: string;
+  description: string;
+  colors: {
+    primary: string;
+    secondary: string;
+  };
+}
+
+const THEMES: Record<ThemeName, ThemeInfo> = {
+  sentry: {
+    name: 'sentry',
+    label: 'Sentry',
+    description: 'Purple-pink gradient',
+    colors: { primary: '#a855f7', secondary: '#ec4899' },
+  },
+  ocean: {
+    name: 'ocean',
+    label: 'Ocean',
+    description: 'Cool blue & teal',
+    colors: { primary: '#3b82f6', secondary: '#22d3ee' },
+  },
+  ember: {
+    name: 'ember',
+    label: 'Ember',
+    description: 'Warm orange & red',
+    colors: { primary: '#f97316', secondary: '#ef4444' },
+  },
+  forest: {
+    name: 'forest',
+    label: 'Forest',
+    description: 'Green & earth tones',
+    colors: { primary: '#10b981', secondary: '#84cc16' },
+  },
+  noir: {
+    name: 'noir',
+    label: 'Noir',
+    description: 'Monochrome dark',
+    colors: { primary: '#ffffff', secondary: '#a1a1aa' },
+  },
+};
+
+const THEME_ORDER: ThemeName[] = ['sentry', 'ocean', 'ember', 'forest', 'noir'];
+
 interface DashboardProps {
   serviceManager: ServiceManager;
   apiUrl: string;
@@ -47,11 +97,10 @@ interface LogEntry {
   message: string;
   stream: 'stdout' | 'stderr';
   level: 'info' | 'success' | 'warn' | 'error';
-  // Parsed fields for improved display
-  tag?: string;        // e.g., [build-route], [build-events]
-  emoji?: string;      // e.g., ✅, 📜, 📤, 🔧, 📡
-  toolName?: string;   // e.g., Glob, Read, Edit
-  content?: string;    // The actual message content after parsing
+  tag?: string;
+  emoji?: string;
+  toolName?: string;
+  content?: string;
 }
 
 function formatTime(date: Date): string {
@@ -72,28 +121,24 @@ function getLogLevel(message: string, stream: 'stdout' | 'stderr'): 'info' | 'su
   return 'info';
 }
 
-// Parse log message to extract structured info (tags, emojis, tool names)
 function parseLogMessage(message: string): { tag?: string; emoji?: string; toolName?: string; content: string } {
   let tag: string | undefined;
   let emoji: string | undefined;
   let toolName: string | undefined;
   let content = message;
 
-  // Extract tag like [build-route], [build-events], etc.
   const tagMatch = content.match(/^\[([^\]]+)\]\s*/);
   if (tagMatch) {
     tag = tagMatch[1];
     content = content.substring(tagMatch[0].length);
   }
 
-  // Extract leading emoji
   const emojiMatch = content.match(/^([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✅|✓|📜|📤|🔧|📡|⚠️|❌)\s*/u);
   if (emojiMatch) {
     emoji = emojiMatch[1];
     content = content.substring(emojiMatch[0].length);
   }
 
-  // Check for tool calls (e.g., "tool-input-available: Glob")
   const toolMatch = content.match(/^tool-input-available:\s*(\w+)/i);
   if (toolMatch) {
     toolName = toolMatch[1];
@@ -101,6 +146,26 @@ function parseLogMessage(message: string): { tag?: string; emoji?: string; toolN
   }
 
   return { tag, emoji, toolName, content: content.trim() };
+}
+
+// Open URL in default browser
+function openBrowser(url: string): void {
+  const os = platform();
+  let command: string;
+  
+  if (os === 'darwin') {
+    command = `open "${url}"`;
+  } else if (os === 'win32') {
+    command = `start "" "${url}"`;
+  } else {
+    command = `xdg-open "${url}"`;
+  }
+  
+  exec(command, (error) => {
+    if (error) {
+      // Silently fail - user can manually open browser
+    }
+  });
 }
 
 export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: DashboardProps) {
@@ -118,31 +183,29 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const [isVerbose, setIsVerbose] = useState(false);
   const [logIdCounter, setLogIdCounter] = useState(0);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
-  // Full log view state
   const [fullLogSearchMode, setFullLogSearchMode] = useState(false);
   const [fullLogSearchQuery, setFullLogSearchQuery] = useState('');
   const [fullLogScrollOffset, setFullLogScrollOffset] = useState(0);
+  
+  // Theme state
+  const [selectedTheme, setSelectedTheme] = useState<ThemeName>('sentry');
+  const [helpMenuIndex, setHelpMenuIndex] = useState(0);
 
-  // Terminal dimensions
   const terminalHeight = stdout?.rows || 40;
   const terminalWidth = stdout?.columns || 80;
   
-  // Layout calculations (matching Runner Mode)
   const bannerHeight = 7;
   const headerHeight = 3;
   const statusBarHeight = 3;
   const contentHeight = Math.max(1, terminalHeight - bannerHeight - headerHeight - statusBarHeight);
   
-  // 20/80 split for panels
   const servicesPanelWidth = Math.floor(terminalWidth * 0.2);
   const logPanelWidth = terminalWidth - servicesPanelWidth;
 
-  // Check if all services are running
   const allServicesRunning = useMemo(() => {
     return services.length > 0 && services.every(s => s.status === 'running');
   }, [services]);
 
-  // Update service states on changes
   useEffect(() => {
     const handleStatusChange = () => {
       setServices(serviceManager.getAllStates());
@@ -154,7 +217,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     };
   }, [serviceManager]);
 
-  // Listen to service output events
   useEffect(() => {
     const handleServiceOutput = (name: string, output: string, stream: 'stdout' | 'stderr') => {
       const lines = output.split('\n').filter(line => line.trim());
@@ -194,11 +256,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     };
   }, [serviceManager]);
 
-  // Filter logs for main dashboard
   const filteredLogs = useMemo(() => {
     let filtered = logs;
     
-    // Filter out verbose logs unless verbose mode is on
     if (!isVerbose) {
       filtered = filtered.filter(log => 
         !log.message.toLowerCase().includes('debug') &&
@@ -221,11 +281,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     return filtered;
   }, [logs, serviceFilter, searchQuery, isVerbose]);
 
-  // Filter logs for full log view
   const fullLogFilteredLogs = useMemo(() => {
     let filtered = logs;
     
-    // Apply filter mode
     if (filterMode === 'errors') {
       filtered = filtered.filter(log => log.level === 'error' || log.level === 'warn');
     } else if (filterMode === 'tools') {
@@ -237,7 +295,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       );
     }
     
-    // Apply search
     if (fullLogSearchQuery.trim()) {
       const query = fullLogSearchQuery.toLowerCase();
       filtered = filtered.filter(log =>
@@ -251,11 +308,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     return filtered;
   }, [logs, filterMode, fullLogSearchQuery]);
 
-  // Visible lines calculation
   const visibleLines = Math.max(1, contentHeight - 3);
   const fullLogVisibleLines = Math.max(1, terminalHeight - 6);
   
-  // Auto-scroll when new logs arrive (main dashboard)
   useEffect(() => {
     if (autoScroll && filteredLogs.length > 0) {
       const maxScroll = Math.max(0, filteredLogs.length - visibleLines);
@@ -263,7 +318,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     }
   }, [filteredLogs.length, autoScroll, visibleLines]);
 
-  // Auto-scroll for full log view
   useEffect(() => {
     if (view === 'fullLog') {
       const maxScroll = Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines);
@@ -271,19 +325,70 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     }
   }, [fullLogFilteredLogs.length, view, fullLogVisibleLines]);
 
-  // Get displayed logs
   const displayedLogs = useMemo(() => {
     return filteredLogs.slice(scrollOffset, scrollOffset + visibleLines);
   }, [filteredLogs, scrollOffset, visibleLines]);
 
-  // Get displayed logs for full log view
   const fullLogDisplayedLogs = useMemo(() => {
     return fullLogFilteredLogs.slice(fullLogScrollOffset, fullLogScrollOffset + fullLogVisibleLines);
   }, [fullLogFilteredLogs, fullLogScrollOffset, fullLogVisibleLines]);
 
-  // Keyboard shortcuts
+  // Handle theme change - updates web app via API
+  const changeTheme = async (theme: ThemeName) => {
+    setSelectedTheme(theme);
+    try {
+      // Call API to update theme in web app
+      await fetch(`http://localhost:${webPort}/api/theme`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme }),
+      }).catch(() => {
+        // API might not exist yet, that's ok
+      });
+    } catch {
+      // Silently fail
+    }
+  };
+
   useInput((input, key) => {
     if (isShuttingDown) return;
+
+    // Help/Menu view
+    if (view === 'help') {
+      if (key.escape) {
+        setView('dashboard');
+        return;
+      }
+      if (input === 't') {
+        // Cycle to next theme
+        const currentIndex = THEME_ORDER.indexOf(selectedTheme);
+        const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
+        changeTheme(THEME_ORDER[nextIndex]);
+        return;
+      }
+      if (input === 'b') {
+        openBrowser(`http://localhost:${webPort}`);
+        return;
+      }
+      if (input === 'q') {
+        setIsShuttingDown(true);
+        serviceManager.stopAll().then(() => exit());
+        return;
+      }
+      if (key.upArrow) {
+        const currentIndex = THEME_ORDER.indexOf(selectedTheme);
+        const prevIndex = (currentIndex - 1 + THEME_ORDER.length) % THEME_ORDER.length;
+        changeTheme(THEME_ORDER[prevIndex]);
+        return;
+      }
+      if (key.downArrow) {
+        const currentIndex = THEME_ORDER.indexOf(selectedTheme);
+        const nextIndex = (currentIndex + 1) % THEME_ORDER.length;
+        changeTheme(THEME_ORDER[nextIndex]);
+        return;
+      }
+      return;
+    }
 
     // Full log view mode
     if (view === 'fullLog') {
@@ -307,7 +412,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         return;
       }
       if (input === 'f') {
-        // Cycle through filter modes
         const modes: FilterMode[] = ['all', 'errors', 'tools', 'verbose'];
         const currentIndex = modes.indexOf(filterMode);
         setFilterMode(modes[(currentIndex + 1) % modes.length]);
@@ -337,6 +441,10 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         serviceManager.stopAll().then(() => exit());
         return;
       }
+      if (input === 'b') {
+        openBrowser(`http://localhost:${webPort}`);
+        return;
+      }
       return;
     }
 
@@ -362,6 +470,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     if (input === 'q' || (key.ctrl && input === 'c')) {
       setIsShuttingDown(true);
       serviceManager.stopAll().then(() => exit());
+    } else if (input === 'b') {
+      // Open browser
+      openBrowser(`http://localhost:${webPort}`);
     } else if (input === 'v') {
       setIsVerbose(!isVerbose);
     } else if (input === 'r' && view === 'dashboard') {
@@ -371,7 +482,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       setScrollOffset(0);
       setAutoScroll(true);
     } else if (input === 'l' || input === 't') {
-      // Both 'l' and 't' switch to full log view
       setView('fullLog');
       setFullLogScrollOffset(Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines));
     } else if (input === 'f') {
@@ -400,7 +510,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     }
   });
 
-  // Highlight search matches in text
   const highlightSearch = (text: string, query: string): React.ReactNode => {
     if (!query) return text;
     const lowerText = text.toLowerCase();
@@ -421,11 +530,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
 
   // Full log view
   if (view === 'fullLog') {
-    const maxScroll = Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines);
-    
     return (
       <Box flexDirection="column" height={terminalHeight}>
-        {/* Header with search */}
         <Box
           borderStyle="single"
           borderColor={colors.darkGray}
@@ -452,7 +558,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           </Box>
         </Box>
 
-        {/* Log content */}
         <Box
           flexDirection="column"
           flexGrow={1}
@@ -473,7 +578,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           ))}
         </Box>
 
-        {/* Footer with shortcuts and scroll position */}
         <Box
           borderStyle="single"
           borderColor={colors.darkGray}
@@ -484,7 +588,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
             <Shortcut letter="l" label="dashboard" />
             <Shortcut letter="/" label="search" />
             <Shortcut letter="f" label={`filter: ${filterMode}`} />
-            <Shortcut letter="↑↓" label="scroll" />
+            <Shortcut letter="b" label="browser" />
             <Shortcut letter="q" label="quit" />
           </Box>
           <Text color={colors.dimGray}>
@@ -495,43 +599,64 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     );
   }
 
-  // Help view
+  // Help/Menu view with theme selector
   if (view === 'help') {
+    const currentTheme = THEMES[selectedTheme];
+    
     return (
       <Box flexDirection="column" height={terminalHeight}>
         <Banner />
         <Box flexDirection="column" padding={2}>
-          <Text color={colors.cyan} bold>Keyboard Shortcuts</Text>
+          <Text color={colors.cyan} bold>Settings & Help</Text>
           <Text> </Text>
-          <Text color={colors.white} bold>Navigation:</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>↑/↓</Text>      Scroll logs</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>PgUp/PgDn</Text> Scroll by page</Text>
+          
+          {/* Theme Selector */}
+          <Box flexDirection="column" marginBottom={1}>
+            <Text color={colors.white} bold>Theme</Text>
+            <Box marginTop={1}>
+              {THEME_ORDER.map((themeName) => {
+                const theme = THEMES[themeName];
+                const isSelected = themeName === selectedTheme;
+                return (
+                  <Box key={themeName} marginRight={2}>
+                    <Text color={isSelected ? theme.colors.primary : colors.dimGray}>
+                      {isSelected ? '●' : '○'}
+                    </Text>
+                    <Text color={isSelected ? colors.white : colors.gray}> {theme.label}</Text>
+                  </Box>
+                );
+              })}
+            </Box>
+            <Box marginTop={1}>
+              <Text color={colors.dimGray}>
+                Press <Text color={colors.cyan}>t</Text> or <Text color={colors.cyan}>↑↓</Text> to change theme
+              </Text>
+            </Box>
+          </Box>
+          
+          <Text> </Text>
+          <Text color={colors.white} bold>Keyboard Shortcuts</Text>
+          <Text> </Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>b</Text>         Open in browser</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>l</Text>         Full log view</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>/</Text>         Search logs</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>f</Text>         Filter by service</Text>
-          <Text> </Text>
-          <Text color={colors.white} bold>Views:</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>l</Text>         Full log view</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>v</Text>         Toggle verbose mode</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>?</Text>         Show this help</Text>
-          <Text> </Text>
-          <Text color={colors.white} bold>Actions:</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>r</Text>         Restart services</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>c</Text>         Clear logs</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>q</Text>         Quit</Text>
           <Text> </Text>
-          <Text color={colors.dimGray}>Press Esc to return</Text>
+          <Text color={colors.dimGray}>Press <Text color={colors.cyan}>Esc</Text> to return to dashboard</Text>
         </Box>
       </Box>
     );
   }
 
-  // Main dashboard view (Runner Mode style)
+  // Main dashboard view
   return (
     <Box flexDirection="column" height={terminalHeight} width={terminalWidth}>
-      {/* Banner */}
       <Banner />
 
-      {/* Header bar with service status */}
       <Box
         borderStyle="single"
         borderColor={colors.darkGray}
@@ -542,6 +667,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           Web: <Text color={colors.cyan}>localhost:{webPort}</Text>
           {' • '}
           Mode: <Text color={colors.cyan}>Local</Text>
+          {' • '}
+          Theme: <Text color={THEMES[selectedTheme].colors.primary}>{THEMES[selectedTheme].label}</Text>
         </Text>
         <Box>
           <Text color={allServicesRunning ? colors.success : colors.warning}>
@@ -553,16 +680,13 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         </Box>
       </Box>
 
-      {/* Main content - split panels */}
       <Box flexGrow={1} height={contentHeight}>
-        {/* Services Panel (20%) */}
         <ServicesPanel 
           services={services} 
           width={servicesPanelWidth} 
           height={contentHeight}
         />
         
-        {/* Log Panel (80%) */}
         <Box
           flexDirection="column"
           width={logPanelWidth}
@@ -571,7 +695,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           borderColor={colors.darkGray}
           paddingX={1}
         >
-          {/* Log header */}
           <Box justifyContent="space-between" marginBottom={0}>
             <Text color={colors.cyan} bold>LOGS</Text>
             <Box>
@@ -584,7 +707,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
             </Box>
           </Box>
 
-          {/* Log entries */}
           <Box flexDirection="column" flexGrow={1}>
             {displayedLogs.length === 0 ? (
               <Box justifyContent="center" alignItems="center" flexGrow={1}>
@@ -597,7 +719,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
             )}
           </Box>
 
-          {/* Scroll indicator */}
           {filteredLogs.length > visibleLines && (
             <Box justifyContent="flex-end">
               <Text color={colors.dimGray}>
@@ -609,7 +730,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         </Box>
       </Box>
 
-      {/* Status bar */}
       <Box
         borderStyle="single"
         borderColor={colors.darkGray}
@@ -637,12 +757,11 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           </Box>
         ) : (
           <Box>
-            <Shortcut letter="q" label="quit" />
+            <Shortcut letter="b" label="browser" />
             <Shortcut letter="l" label="logs" />
-            <Shortcut letter="v" label={`verbose: ${isVerbose ? 'on' : 'off'}`} />
             <Shortcut letter="/" label="search" />
-            <Shortcut letter="f" label="filter" />
-            <Shortcut letter="?" label="help" />
+            <Shortcut letter="?" label="menu" />
+            <Shortcut letter="q" label="quit" />
           </Box>
         )}
       </Box>
@@ -650,7 +769,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   );
 }
 
-// Services Panel component (similar to BuildPanel in Runner Mode)
 function ServicesPanel({ services, width, height }: { services: ServiceState[], width: number, height: number }) {
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   
@@ -683,12 +801,10 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
       borderColor={colors.darkGray}
       paddingX={1}
     >
-      {/* Header */}
       <Box marginBottom={1}>
         <Text color={colors.cyan} bold>SERVICES</Text>
       </Box>
 
-      {/* Service list */}
       {services.map((service) => (
         <Box key={service.name} marginBottom={1} flexDirection="column">
           <Box>
@@ -704,7 +820,6 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
         </Box>
       ))}
 
-      {/* Uptime or status message */}
       <Box flexGrow={1} />
       <Box>
         <Text color={colors.dimGray}>
@@ -717,7 +832,6 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
   );
 }
 
-// Log entry row component for main dashboard (matching Runner Mode style)
 function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
   const levelColors = {
     info: colors.cyan,
@@ -733,24 +847,17 @@ function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
     error: symbols.cross,
   };
 
-  // Service color
   const serviceColor = log.service === 'web' ? colors.cyan : colors.purple;
-  
-  // Use parsed emoji or level icon
   const icon = log.emoji || levelIcons[log.level];
   const color = levelColors[log.level];
   
-  // Build display with tag if present
   let displayContent = log.content || log.message;
-  
-  // Truncate message
   const tagPart = log.tag ? `[${log.tag}] ` : '';
-  const availableWidth = maxWidth - 16 - tagPart.length; // time + service + icon + tag
+  const availableWidth = maxWidth - 16 - tagPart.length;
   const truncatedMessage = displayContent.length > availableWidth
     ? displayContent.substring(0, availableWidth - 3) + '...'
     : displayContent;
 
-  // Tool calls get special formatting
   if (log.toolName) {
     return (
       <Box>
@@ -778,7 +885,6 @@ function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
   );
 }
 
-// Full log entry row with search highlighting
 function FullLogEntryRow({ 
   log, 
   maxWidth, 
@@ -808,7 +914,6 @@ function FullLogEntryRow({
   const icon = log.emoji || levelIcons[log.level];
   const color = levelColors[log.level];
 
-  // Tool calls
   if (log.toolName) {
     return (
       <Box>
@@ -836,7 +941,6 @@ function FullLogEntryRow({
   );
 }
 
-// Shortcut helper component (matching Runner Mode style)
 function Shortcut({ letter, label }: { letter: string; label: string }) {
   return (
     <Box marginRight={2}>
