@@ -27,6 +27,118 @@ import { authenticateRunnerKey, extractRunnerKey, isLocalMode } from '@/lib/auth
 
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
 
+/**
+ * Format a tool call into a user-friendly log message.
+ * Extracts the most relevant info (file path, command, etc.) for each tool type.
+ */
+function formatToolLogMessage(toolName: string, input: unknown): string {
+  if (!input || typeof input !== 'object') {
+    return toolName;
+  }
+  
+  const args = input as Record<string, unknown>;
+  
+  switch (toolName) {
+    case 'Read': {
+      const filePath = args.filePath || args.file_path || args.path;
+      if (filePath) {
+        // Truncate long paths, showing the end which is most relevant
+        const pathStr = String(filePath);
+        const maxLen = 60;
+        const display = pathStr.length > maxLen 
+          ? '...' + pathStr.slice(-maxLen + 3) 
+          : pathStr;
+        return `Read: ${display}`;
+      }
+      return 'Read';
+    }
+    
+    case 'Edit': {
+      const filePath = args.filePath || args.file_path || args.path;
+      if (filePath) {
+        const pathStr = String(filePath);
+        const maxLen = 60;
+        const display = pathStr.length > maxLen 
+          ? '...' + pathStr.slice(-maxLen + 3) 
+          : pathStr;
+        return `Edit: ${display}`;
+      }
+      return 'Edit';
+    }
+    
+    case 'Write': {
+      const filePath = args.filePath || args.file_path || args.path;
+      if (filePath) {
+        const pathStr = String(filePath);
+        const maxLen = 60;
+        const display = pathStr.length > maxLen 
+          ? '...' + pathStr.slice(-maxLen + 3) 
+          : pathStr;
+        return `Write: ${display}`;
+      }
+      return 'Write';
+    }
+    
+    case 'Bash': {
+      const command = args.command || args.cmd;
+      if (command) {
+        const cmdStr = String(command);
+        // Show first line only, truncated
+        const firstLine = cmdStr.split('\n')[0];
+        const maxLen = 50;
+        const display = firstLine.length > maxLen 
+          ? firstLine.slice(0, maxLen - 3) + '...' 
+          : firstLine;
+        return `Run: ${display}`;
+      }
+      return 'Bash';
+    }
+    
+    case 'Glob': {
+      const pattern = args.pattern;
+      if (pattern) {
+        return `Find: ${pattern}`;
+      }
+      return 'Glob';
+    }
+    
+    case 'Grep': {
+      const pattern = args.pattern;
+      const include = args.include;
+      if (pattern) {
+        let msg = `Search: "${pattern}"`;
+        if (include) msg += ` in ${include}`;
+        return msg;
+      }
+      return 'Grep';
+    }
+    
+    case 'WebFetch': {
+      const url = args.url;
+      if (url) {
+        const urlStr = String(url);
+        const maxLen = 50;
+        const display = urlStr.length > maxLen 
+          ? urlStr.slice(0, maxLen - 3) + '...' 
+          : urlStr;
+        return `Fetch: ${display}`;
+      }
+      return 'WebFetch';
+    }
+    
+    case 'TodoWrite': {
+      const todos = args.todos;
+      if (Array.isArray(todos)) {
+        return `Update tasks (${todos.length} items)`;
+      }
+      return 'Update tasks';
+    }
+    
+    default:
+      return toolName;
+  }
+}
+
 async function ensureAuthorized(request: Request): Promise<boolean> {
   // In local mode, always allow
   if (isLocalMode()) {
@@ -276,7 +388,9 @@ export async function POST(request: Request) {
 
         // DB: Insert tool call record (skip TodoWrite - handled above)
         if (event.toolName && event.toolName !== 'TodoWrite') {
-          console.log(`[build-events] 🔧 tool-input-available: ${event.toolName} (todoIndex=${todoIndex}, sessionId=${sessionId})`);
+          // Log user-friendly tool info with relevant details
+          const toolInfo = formatToolLogMessage(event.toolName, event.input);
+          console.log(`🔧 ${toolInfo}`);
 
           await db.insert(generationToolCalls).values({
             sessionId,
@@ -297,7 +411,7 @@ export async function POST(request: Request) {
           // This enables the shimmer animation to show the active tool being used
           // Execution phase tools (todoIndex >= 0) only broadcast on completion
           if (todoIndex < 0) {
-            console.log(`[build-events] 📡 Broadcasting planning tool: ${event.toolName} (todoIndex=${todoIndex})`);
+            // Planning phase log is less important, skip verbose internal logging
             buildWebSocketServer.broadcastToolCall(projectId, sessionId, {
               id: toolCallId,
               name: event.toolName,

@@ -193,22 +193,39 @@ function isInternalLog(message: string): boolean {
  * Transforms a raw log message into a user-friendly format.
  * Extracts meaningful information and presents it clearly.
  */
-function transformLogMessage(message: string): { display: string; isUserFacing: boolean } {
-  // Tool calls with file paths - make them descriptive
-  const toolWithPath = message.match(/🔧\s*(Read|Edit|Write|Bash|Glob|Grep)\s*\(.*?\)/i);
-  if (toolWithPath) {
-    const toolName = toolWithPath[1];
+function transformLogMessage(message: string): { display: string; isUserFacing: boolean; toolAction?: string } {
+  // NEW FORMAT: Server now logs "🔧 Edit: /path/to/file.ts" or "🔧 Run: npm install"
+  // Match: 🔧 Action: details
+  const newToolFormat = message.match(/🔧\s*(Read|Edit|Write|Run|Find|Search|Fetch|Update tasks):\s*(.+)/i);
+  if (newToolFormat) {
+    const action = newToolFormat[1];
+    const detail = newToolFormat[2].trim();
+    return { display: `${action}: ${detail}`, isUserFacing: true, toolAction: action };
+  }
+  
+  // Also match bare tool names for backwards compat: "🔧 Read" (no colon/details)
+  const bareToolMatch = message.match(/^🔧\s*(Read|Edit|Write|Bash|Glob|Grep|WebFetch|TodoWrite)$/i);
+  if (bareToolMatch) {
+    return { display: bareToolMatch[1], isUserFacing: true, toolAction: bareToolMatch[1] };
+  }
+  
+  // OLD FORMAT: Tool calls with parentheses like "🔧 Read (todoIndex=..."
+  // Try to extract any useful info
+  const oldToolFormat = message.match(/🔧\s*(Read|Edit|Write|Bash|Glob|Grep)\s*\(/i);
+  if (oldToolFormat) {
+    const toolName = oldToolFormat[1];
     // Try to extract file path from the message
     const pathMatch = message.match(/(?:path|file)[:=]\s*["']?([^"'\s,)]+)/i);
     const cmdMatch = message.match(/(?:command|cmd)[:=]\s*["']?([^"'\n]+)/i);
     
     if (toolName.toLowerCase() === 'bash' && cmdMatch) {
       const cmd = cmdMatch[1].trim().substring(0, 50);
-      return { display: `Running: ${cmd}${cmdMatch[1].length > 50 ? '...' : ''}`, isUserFacing: true };
+      return { display: `Run: ${cmd}${cmdMatch[1].length > 50 ? '...' : ''}`, isUserFacing: true, toolAction: 'Run' };
     } else if (pathMatch) {
-      const action = toolName === 'Read' ? 'Reading' : toolName === 'Edit' ? 'Editing' : toolName === 'Write' ? 'Writing' : toolName;
-      return { display: `${action}: ${pathMatch[1]}`, isUserFacing: true };
+      return { display: `${toolName}: ${pathMatch[1]}`, isUserFacing: true, toolAction: toolName };
     }
+    // No details found, just show the tool name
+    return { display: toolName, isUserFacing: true, toolAction: toolName };
   }
   
   // Template/framework selection - always show
