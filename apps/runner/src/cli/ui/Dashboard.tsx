@@ -132,6 +132,8 @@ interface LogEntry {
   emoji?: string;
   toolName?: string;
   content?: string;
+  isInternal?: boolean;
+  displayMessage?: string; // User-friendly transformed message
 }
 
 function formatTime(date: Date): string {
@@ -152,7 +154,104 @@ function getLogLevel(message: string, stream: 'stdout' | 'stderr'): 'info' | 'su
   return 'info';
 }
 
-function parseLogMessage(message: string): { tag?: string; emoji?: string; toolName?: string; content: string } {
+/**
+ * Determines if a log message is internal/debug and should be hidden by default.
+ * These are implementation details that aren't useful for end users.
+ */
+function isInternalLog(message: string): boolean {
+  const internalPatterns = [
+    // Internal broadcasting/event system
+    /Broadcasting/i,
+    /Event emitted/i,
+    /📡.*Broadcasting/,
+    // Session/ID tracking details
+    /sessionId=/,
+    /todoIndex=/,
+    /buildId=/,
+    /commandId=/,
+    // Internal processor notes
+    /NOTE:.*DB writes/,
+    /NOTE:.*HTTP/,
+    /Registering build.*for WebSocket/,
+    // Verbose implementation details
+    /from database\)/,
+    /immutable/,
+    /\(waiting for runner/,
+    // Duplicate/skip messages
+    /Skipping duplicate/,
+    // Internal state
+    /SSE stream closed/,
+    /persistent processor continues/,
+    // Cost/optimization notes (internal)
+    /Cost savings:/,
+  ];
+  
+  return internalPatterns.some(pattern => pattern.test(message));
+}
+
+/**
+ * Transforms a raw log message into a user-friendly format.
+ * Extracts meaningful information and presents it clearly.
+ */
+function transformLogMessage(message: string): { display: string; isUserFacing: boolean } {
+  // Tool calls with file paths - make them descriptive
+  const toolWithPath = message.match(/🔧\s*(Read|Edit|Write|Bash|Glob|Grep)\s*\(.*?\)/i);
+  if (toolWithPath) {
+    const toolName = toolWithPath[1];
+    // Try to extract file path from the message
+    const pathMatch = message.match(/(?:path|file)[:=]\s*["']?([^"'\s,)]+)/i);
+    const cmdMatch = message.match(/(?:command|cmd)[:=]\s*["']?([^"'\n]+)/i);
+    
+    if (toolName.toLowerCase() === 'bash' && cmdMatch) {
+      const cmd = cmdMatch[1].trim().substring(0, 50);
+      return { display: `Running: ${cmd}${cmdMatch[1].length > 50 ? '...' : ''}`, isUserFacing: true };
+    } else if (pathMatch) {
+      const action = toolName === 'Read' ? 'Reading' : toolName === 'Edit' ? 'Editing' : toolName === 'Write' ? 'Writing' : toolName;
+      return { display: `${action}: ${pathMatch[1]}`, isUserFacing: true };
+    }
+  }
+  
+  // Template/framework selection - always show
+  const templateMatch = message.match(/Template (?:selected|from tag):\s*(.+)/i);
+  if (templateMatch) {
+    return { display: `Using template: ${templateMatch[1]}`, isUserFacing: true };
+  }
+  
+  const frameworkMatch = message.match(/Framework.*?:\s*(\w+)/i);
+  if (frameworkMatch && !message.includes('emit')) {
+    return { display: `Framework: ${frameworkMatch[1]}`, isUserFacing: true };
+  }
+  
+  // Build start
+  if (message.includes('start event received') || message.includes('build-started')) {
+    return { display: 'Build started', isUserFacing: true };
+  }
+  
+  // Build complete
+  if (message.includes('marked complete') || message.includes('Build complete')) {
+    return { display: 'Build complete', isUserFacing: true };
+  }
+  
+  // Agent selection - clean it up
+  const agentMatch = message.match(/(?:Using agent|Agent).*?:\s*(\S+)/i);
+  if (agentMatch && !message.includes('NOTE:')) {
+    return { display: `Agent: ${agentMatch[1].replace(/[()]/g, '')}`, isUserFacing: true };
+  }
+  
+  // Generic success messages
+  if (message.includes('✅') && !isInternalLog(message)) {
+    // Clean up the message
+    const cleaned = message.replace(/\[[\w-]+\]\s*/g, '').replace(/✅\s*/, '').trim();
+    if (cleaned.length > 10) {
+      return { display: cleaned, isUserFacing: true };
+    }
+  }
+  
+  // Default: not user-facing if it's internal
+  return { display: message, isUserFacing: !isInternalLog(message) };
+}
+
+function parseLogMessage(message: string): { tag?: string; emoji?: string; toolName?: string; content: string; isInternal: boolean } {
   let tag: string | undefined;
   let emoji: string | undefined;
   let toolName: string | undefined;
@@ -175,8 +274,15 @@ function parseLogMessage(message: string): { tag?: string; emoji?: string; toolN
     toolName = toolMatch[1];
     emoji = '🔧';
   }
+  
+  // Also detect tool calls in format: "🔧 ToolName (..."
+  const toolCallMatch = content.match(/^(Read|Edit|Write|Bash|Glob|Grep|TodoWrite)\s*\(/i);
+  if (toolCallMatch) {
+    toolName = toolCallMatch[1];
+    emoji = '🔧';
+  }
 
-  return { tag, emoji, toolName, content: content.trim() };
+  return { tag, emoji, toolName, content: content.trim(), isInternal: isInternalLog(message) };
 }
 
 function openBrowser(url: string): void {
@@ -276,6 +382,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         const newLogs: LogEntry[] = lines.map((line, idx) => {
           const trimmed = line.trim();
           const parsed = parseLogMessage(trimmed);
+          const transformed = transformLogMessage(trimmed);
           return {
             id: `${Date.now()}-${prev + idx}`,
             timestamp: new Date(),
@@ -287,6 +394,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
             emoji: parsed.emoji,
             toolName: parsed.toolName,
             content: parsed.content,
+            isInternal: parsed.isInternal,
+            displayMessage: transformed.isUserFacing ? transformed.display : undefined,
           };
         });
         
@@ -310,8 +419,10 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const filteredLogs = useMemo(() => {
     let filtered = logs;
     
+    // By default, hide internal/debug logs unless verbose mode is on
     if (!isVerbose) {
       filtered = filtered.filter(log => 
+        !log.isInternal &&
         !log.message.toLowerCase().includes('debug') &&
         !log.message.toLowerCase().includes('trace')
       );
@@ -339,8 +450,12 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       filtered = filtered.filter(log => log.level === 'error' || log.level === 'warn');
     } else if (filterMode === 'tools') {
       filtered = filtered.filter(log => log.toolName || log.message.includes('tool-input'));
-    } else if (filterMode !== 'verbose') {
+    } else if (filterMode === 'verbose') {
+      // Show everything in verbose mode
+    } else {
+      // Default 'all' mode - hide internal logs
       filtered = filtered.filter(log => 
+        !log.isInternal &&
         !log.message.toLowerCase().includes('debug') &&
         !log.message.toLowerCase().includes('trace')
       );
@@ -904,23 +1019,33 @@ function LogEntryRow({ log, maxWidth, themeColors }: {
   const icon = log.emoji || levelIcons[log.level];
   const color = levelColors[log.level];
   
-  let displayContent = log.content || log.message;
-  const tagPart = log.tag ? `[${log.tag}] ` : '';
-  const availableWidth = maxWidth - 16 - tagPart.length;
+  // Use displayMessage if available (user-friendly transformed message)
+  let displayContent = log.displayMessage || log.content || log.message;
+  const availableWidth = maxWidth - 16;
   const truncatedMessage = displayContent.length > availableWidth
     ? displayContent.substring(0, availableWidth - 3) + '...'
     : displayContent;
 
+  // Tool calls get special formatting
   if (log.toolName) {
+    // If we have a displayMessage, use it (it's already user-friendly)
+    if (log.displayMessage) {
+      return (
+        <Box>
+          <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
+          <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
+          <Text color={themeColors.primary}> 🔧 </Text>
+          <Text color={themeColors.text}>{log.displayMessage}</Text>
+        </Box>
+      );
+    }
+    // Fallback to showing tool name
     return (
       <Box>
         <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
         <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
         <Text color={themeColors.primary}> 🔧 </Text>
         <Text color={themeColors.text}>{log.toolName}</Text>
-        {log.content && log.content !== log.toolName && (
-          <Text color={themeColors.textDim}> {log.content.replace(`tool-input-available: ${log.toolName}`, '').trim()}</Text>
-        )}
       </Box>
     );
   }
@@ -930,7 +1055,6 @@ function LogEntryRow({ log, maxWidth, themeColors }: {
       <Text color={themeColors.textMuted}>{formatTime(log.timestamp)}</Text>
       <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
       <Text color={color}> {icon} </Text>
-      {log.tag && <Text color={themeColors.textMuted}>[{log.tag}] </Text>}
       <Text color={log.level === 'error' || log.level === 'warn' ? color : themeColors.text}>
         {truncatedMessage}
       </Text>
