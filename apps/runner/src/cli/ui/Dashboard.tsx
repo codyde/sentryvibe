@@ -2,6 +2,7 @@
  * Main TUI Dashboard Component for Local Mode
  * Redesigned to match Runner Mode UI style with split panel layout
  * Supports dynamic theming that changes TUI colors
+ * Shows BUILD panel when there's an active build (with todos)
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -11,6 +12,8 @@ import { exec } from 'child_process';
 import { platform } from 'os';
 import { ServiceManager, ServiceState } from './service-manager.js';
 import { Banner } from './components/Banner.js';
+import { useBuildState } from '../tui/hooks/useBuildState.js';
+import { BuildPanel } from '../tui/components/BuildPanel.js';
 
 // Base colors that don't change with theme
 const baseColors = {
@@ -212,6 +215,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   
   // Theme state
   const [selectedTheme, setSelectedTheme] = useState<ThemeName>('sentry');
+  
+  // Build state - tracks active builds and todos from the RunnerLogger
+  const [buildState] = useBuildState();
 
   // Get current theme colors - these will be used throughout the TUI
   const theme = THEMES[selectedTheme];
@@ -236,9 +242,12 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const statusBarHeight = 3;
   const contentHeight = Math.max(1, terminalHeight - bannerHeight - headerHeight - statusBarHeight);
   
-  // In local mode, we don't have a build process with todos
-  // So logs take full width (no left panel like runner mode)
-  const logPanelWidth = terminalWidth;
+  // Show build panel only when there's an active build
+  const showBuildPanel = buildState.currentBuild !== null;
+  
+  // 20/80 split when build panel is shown, otherwise full width
+  const buildPanelWidth = Math.floor(terminalWidth * 0.2);
+  const logPanelWidth = showBuildPanel ? terminalWidth - buildPanelWidth : terminalWidth;
 
   const allServicesRunning = useMemo(() => {
     return services.length > 0 && services.every(s => s.status === 'running');
@@ -703,6 +712,13 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       </Box>
 
       <Box flexGrow={1} height={contentHeight}>
+        {showBuildPanel && (
+          <BuildPanel
+            build={buildState.currentBuild}
+            width={buildPanelWidth}
+            height={contentHeight}
+          />
+        )}
         <Box
           flexDirection="column"
           width={logPanelWidth}

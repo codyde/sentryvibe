@@ -17,6 +17,8 @@ import { ServiceManager } from '../ui/service-manager.js';
 import { Dashboard } from '../ui/Dashboard.js';
 import { ConsoleInterceptor } from '../ui/console-interceptor.js';
 import { LogFileManager } from '../ui/log-file-manager.js';
+import { initRunnerLogger } from '../../lib/logging/index.js';
+import { setFileLoggerTuiMode } from '../../lib/file-logger.js';
 
 interface StartOptions {
   port?: string;
@@ -288,6 +290,16 @@ export async function startCommand(options: StartOptions) {
   // Enable alternate screen buffer to prevent scrolling above TUI
   process.stdout.write('\x1b[?1049h'); // Enter alternate screen
   process.stdout.write('\x1b[2J\x1b[H'); // Clear and home
+
+  // Initialize the RunnerLogger BEFORE rendering TUI so the TUI can subscribe to build events
+  // This must happen before startRunner() which would create its own logger
+  initRunnerLogger({
+    verbose: options.verbose || false,
+    tuiMode: true,
+  });
+  
+  // Enable TUI mode in file-logger to suppress terminal output
+  setFileLoggerTuiMode(true);
 
   // Render TUI immediately with log file path
   const { waitUntilExit, clear } = render(
