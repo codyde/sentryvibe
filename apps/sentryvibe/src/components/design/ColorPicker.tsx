@@ -73,7 +73,7 @@ export default function ColorPicker({ label, description, value, onChange }: Col
           placeholder="#FF6B6B"
           maxLength={7}
           className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-md
-                     text-sm font-mono text-gray-200 focus:border-purple-500 focus:outline-none
+                     text-sm font-mono text-gray-200 focus:border-theme-primary focus:outline-none
                      transition-colors"
         />
       </div>

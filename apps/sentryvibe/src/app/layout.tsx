@@ -5,6 +5,7 @@ import { ProjectProvider } from "@/contexts/ProjectContext";
 import { RunnerProvider } from "@/contexts/RunnerContext";
 import { AgentProvider } from "@/contexts/AgentContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { QueryProvider } from "./providers";
 import { ToastProvider } from "@/components/ui/toast";
 
@@ -28,22 +29,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark theme-sentry">
       <body
         className={`${rubik.variable} font-sans antialiased`}
       >
         <QueryProvider>
-          <AuthProvider isLocalMode={isLocalMode}>
-            <AgentProvider>
-              <RunnerProvider>
-                <ProjectProvider>
-                  <ToastProvider>
-                    {children}
-                  </ToastProvider>
-                </ProjectProvider>
-              </RunnerProvider>
-            </AgentProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider isLocalMode={isLocalMode}>
+              <AgentProvider>
+                <RunnerProvider>
+                  <ProjectProvider>
+                    <ToastProvider>
+                      {children}
+                    </ToastProvider>
+                  </ProjectProvider>
+                </RunnerProvider>
+              </AgentProvider>
+            </AuthProvider>
+          </ThemeProvider>
         </QueryProvider>
       </body>
     </html>

@@ -35,7 +35,7 @@ function BuildCompleteSummary({
   const [showTodos, setShowTodos] = useState(false);
 
   return (
-    <div className="border-t border-purple-500/20">
+    <div className="border-t border-theme-primary\/20">
       {/* Summary section */}
       <div className="p-4">
         <div className="flex items-center gap-2 text-green-400 mb-2">
@@ -199,7 +199,7 @@ export default function BuildProgress({
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full p-4 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95"
+        className="w-full p-4 rounded-xl theme-card"
       >
         <PlanningPhase
           activePlanningTool={state.activePlanningTool}
@@ -214,7 +214,7 @@ export default function BuildProgress({
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95 shadow-2xl backdrop-blur-sm"
+      className="w-full overflow-hidden rounded-xl theme-card shadow-2xl backdrop-blur-sm"
     >
       <BuildHeader
         projectName={state.projectName}

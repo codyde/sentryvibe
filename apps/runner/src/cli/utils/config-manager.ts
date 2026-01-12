@@ -3,6 +3,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 
+// Theme names for the TUI
+export type ThemeName = 'sentry' | 'ocean' | 'ember' | 'forest' | 'noir';
+
 export interface RunnerConfig {
   version: string;
   workspace: string;
@@ -29,6 +32,10 @@ export interface RunnerConfig {
   tunnel?: {
     provider: 'cloudflare';
     autoCreate: boolean;
+  };
+  // TUI preferences
+  ui?: {
+    theme: ThemeName;
   };
 }
 

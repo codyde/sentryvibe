@@ -168,7 +168,7 @@ export default function DeleteProjectModal({
                 <label
                   className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
                     !deleteFiles
-                      ? 'bg-purple-500/20 border-2 border-purple-500/50'
+                      ? 'bg-theme-primary-muted border-2 border-theme-primary/50'
                       : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
                   }`}
                 >
@@ -181,7 +181,7 @@ export default function DeleteProjectModal({
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <FolderOpen className="w-4 h-4 text-purple-400" />
+                      <FolderOpen className="w-4 h-4 text-theme-primary" />
                       <span className="text-sm font-medium text-white">Keep project files</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">

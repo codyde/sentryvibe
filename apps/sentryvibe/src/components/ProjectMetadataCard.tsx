@@ -26,7 +26,7 @@ export default function ProjectMetadataCard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full p-6 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95 backdrop-blur-sm"
+      className="w-full p-6 rounded-xl border-theme-primary/30 theme-card-header backdrop-blur-sm"
     >
       <div className="flex items-start gap-4">
         {/* Icon with pulsing animation */}
@@ -41,9 +41,9 @@ export default function ProjectMetadataCard({
               repeat: Infinity,
               ease: 'easeInOut',
             }}
-            className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border border-purple-500/30"
+            className="w-12 h-12 rounded-xl bg-theme-gradient-muted flex items-center justify-center border-theme-primary/30"
           >
-            <IconComponent className="w-6 h-6 text-purple-400" />
+            <IconComponent className="w-6 h-6 text-theme-primary" />
           </motion.div>
         </div>
 
@@ -55,7 +55,7 @@ export default function ProjectMetadataCard({
               animate={{ rotate: 360 }}
               transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             >
-              <Loader2 className="w-4 h-4 text-purple-400" />
+              <Loader2 className="w-4 h-4 text-theme-primary" />
             </motion.div>
           </div>
 
@@ -74,10 +74,10 @@ export default function ProjectMetadataCard({
           )}
 
           {/* Loading indicator */}
-          <div className="mt-4 flex items-center gap-2 text-sm text-purple-400">
+          <div className="mt-4 flex items-center gap-2 text-sm text-theme-primary">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-theme-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-theme-primary"></span>
             </span>
             <span>Analyzing project requirements...</span>
           </div>

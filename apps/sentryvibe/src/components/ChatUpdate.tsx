@@ -43,7 +43,7 @@ export default function ChatUpdate({
 
   const toneClasses =
     tone === 'user'
-      ? 'bg-gradient-to-br from-purple-600/35 via-purple-600/25 to-purple-400/15 border-purple-400/40 text-white'
+      ? 'bg-gradient-to-br from-[var(--theme-primary)]/35 via-[var(--theme-primary)]/25 to-[var(--theme-primary)]/15 border-theme-primary/40 text-white'
       : 'bg-zinc-900/70 border-zinc-700 text-zinc-100';
 
   const variantClasses =
@@ -101,7 +101,7 @@ export default function ChatUpdate({
                 <p className="text-gray-200 leading-relaxed mb-2 last:mb-0">{children}</p>
               ),
               strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
-              em: ({ children }) => <em className="text-purple-200">{children}</em>,
+              em: ({ children }) => <em className="text-theme-primary">{children}</em>,
               ul: ({ children }) => (
                 <ul className={cn('list-disc space-y-1', align === 'right' ? 'pl-0 pr-4' : 'pl-4')}>
                   {children}
@@ -114,7 +114,7 @@ export default function ChatUpdate({
               ),
               li: ({ children }) => <li className="text-sm text-gray-200">{children}</li>,
               code: ({ children }) => (
-                <code className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-200 font-mono text-xs">
+                <code className="px-1.5 py-0.5 rounded bg-theme-primary-muted text-theme-primary font-mono text-xs">
                   {children}
                 </code>
               ),

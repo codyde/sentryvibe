@@ -21,7 +21,7 @@ export default function FontSelector({ label, value, onChange, type }: FontSelec
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-md
-                   text-sm text-gray-200 focus:border-purple-500 focus:outline-none
+                   text-sm text-gray-200 focus:border-theme-primary focus:outline-none
                    transition-colors cursor-pointer"
       >
         {fonts.map(font => (

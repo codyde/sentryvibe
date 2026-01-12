@@ -58,12 +58,12 @@ export default function RunnerSelector() {
                 onClick={() => setSelectedRunnerId(runner.runnerId)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all ${
                   isSelected
-                    ? 'bg-purple-500/20 border border-purple-500/40 text-white'
+                    ? 'bg-theme-primary-muted border border-theme-primary/40 text-white'
                     : 'bg-black/20 border border-white/10 text-gray-400 hover:bg-white/5 hover:text-white'
                 }`}
               >
                 {isSelected ? (
-                  <CheckCircle2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-theme-primary flex-shrink-0" />
                 ) : (
                   <Circle className="w-4 h-4 text-gray-600 flex-shrink-0" />
                 )}

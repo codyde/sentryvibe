@@ -53,14 +53,14 @@ export function BuildHeader({
     <>
       {/* Header - Always clickable when there are todos */}
       <div
-        className={`relative border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-4 py-3 ${
-          total > 0 ? 'cursor-pointer hover:bg-purple-500/5 transition-colors' : ''
+        className={`relative border-b border-theme-primary\/20 theme-card-header px-4 py-3 ${
+          total > 0 ? 'cursor-pointer hover:bg-theme-primary-muted transition-colors' : ''
         }`}
         onClick={() => total > 0 && onToggleExpand()}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-theme-primary-muted text-theme-primary">
               {isComplete ? (
                 <CheckCircle2 className="h-5 w-5 text-green-400" />
               ) : (
@@ -77,14 +77,14 @@ export function BuildHeader({
                     {completed} of {total} complete
                   </p>
                   {templateInfo && (
-                    <p className="text-xs text-purple-300/80">
+                    <p className="text-xs text-theme-accent opacity-80">
                       {templateInfo.framework}
                       {templateInfo.analyzedBy && ` • Selected by ${templateInfo.analyzedBy}`}
                       {agentId && ` • ${agentLabel}`}
                     </p>
                   )}
                   {!templateInfo && agentId && (
-                    <p className="text-xs text-purple-300/80">{agentLabel}</p>
+                    <p className="text-xs text-theme-accent opacity-80">{agentLabel}</p>
                   )}
                 </div>
               ) : (
@@ -93,7 +93,7 @@ export function BuildHeader({
                     {completed} of {total} complete • Click to expand
                   </p>
                   {templateInfo && (
-                    <p className="text-xs text-purple-300/70">
+                    <p className="text-xs text-theme-accent opacity-70">
                       {templateInfo.framework}
                       {templateInfo.analyzedBy && ` • ${templateInfo.analyzedBy}`}
                     </p>
@@ -104,7 +104,7 @@ export function BuildHeader({
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <div className={`text-xl font-bold ${isComplete ? 'text-green-400' : 'text-purple-400'}`}>
+              <div className={`text-xl font-bold ${isComplete ? 'text-green-400' : 'text-theme-primary'}`}>
                 {Math.round(progress)}%
               </div>
             </div>
@@ -138,7 +138,7 @@ export function BuildHeader({
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+            className="h-full progress-theme"
           />
         </div>
       </div>

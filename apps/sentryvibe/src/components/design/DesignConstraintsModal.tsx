@@ -182,7 +182,7 @@ export default function DesignConstraintsModal({
             <Button variant="outline" onClick={onClose} className="bg-white/5 border-white/10 hover:bg-white/10 text-gray-200">
               Cancel
             </Button>
-            <Button onClick={handleApply} className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/50">
+            <Button onClick={handleApply} className="bg-theme-primary-muted hover:bg-theme-primary-muted/70 text-theme-primary border border-theme-primary/50">
               Apply
             </Button>
           </div>

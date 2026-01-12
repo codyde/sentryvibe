@@ -372,14 +372,24 @@ async function executeInitFlow(
   // Build all services for production
   if (monorepoPath) {
     startTask('services', 'Building services (this may take a minute)...');
+    
+    // Track build output for error reporting
+    let buildError = '';
+    
     try {
       const { spawn } = await import('child_process');
+      
       await new Promise<void>((resolve, reject) => {
         const buildProcess = spawn('pnpm', ['build:all'], {
           cwd: monorepoPath,
           stdio: 'pipe',
           shell: true,
         });
+        
+        buildProcess.stderr?.on('data', (data: Buffer) => {
+          buildError += data.toString();
+        });
+        
         buildProcess.on('close', (code) => {
           if (code === 0) resolve();
           else reject(new Error(`Build failed with code ${code}`));
@@ -388,10 +398,52 @@ async function executeInitFlow(
       });
       completeTask('services');
       await sleep(layout.taskCompletionDelay);
-    } catch {
-      // Non-fatal: build can be done later
-      completeTask('services'); // Still mark as complete since it's non-fatal
-      await sleep(layout.taskCompletionDelay);
+    } catch (error) {
+      // Build failed - surface the error to the user
+      failTask('services', 'Build failed');
+      failStep('ready');
+      
+      // Extract the last few lines of build error for display
+      const errorLines = buildError.trim().split('\n');
+      const relevantErrors = errorLines
+        .filter((line: string) => 
+          line.includes('error') || 
+          line.includes('Error') || 
+          line.includes('ERR!') || 
+          line.includes('failed')
+        )
+        .slice(-5) // Last 5 error lines
+        .map((line: string) => line.trim().substring(0, 60)); // Truncate long lines
+      
+      const suggestions: string[] = [];
+      
+      if (relevantErrors.length > 0) {
+        suggestions.push('Build output:');
+        relevantErrors.forEach((line: string) => suggestions.push(`  ${line}`));
+        suggestions.push('');
+      }
+      
+      suggestions.push(
+        'To fix this, try running manually:',
+        `  cd ${monorepoPath} && pnpm build:all`,
+        '',
+        'Common issues:',
+        '  - Missing environment variables',
+        '  - TypeScript compilation errors', 
+        '  - Missing dependencies (run: pnpm install)',
+      );
+      
+      setError('Production build failed', suggestions);
+      
+      throw new CLIError({
+        code: 'BUILD_FAILED',
+        message: 'Failed to build services for production',
+        suggestions: [
+          `Run manually: cd ${monorepoPath} && pnpm build:all`,
+          'Check for TypeScript errors in the output',
+          'Ensure all dependencies are installed: pnpm install',
+        ],
+      });
     }
   }
 

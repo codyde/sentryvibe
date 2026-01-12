@@ -20,10 +20,10 @@ export function ActiveTodoIndicator({ todo, currentTool }: ActiveTodoIndicatorPr
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="mb-4 p-3 rounded-lg border border-purple-500/30 bg-purple-950/20"
+      className="mb-4 p-3 rounded-lg border border-theme-primary/30 bg-theme-primary-muted"
     >
       <div className="flex items-start gap-3">
-        <Loader2 className="w-4 h-4 text-purple-400 mt-0.5 animate-spin flex-shrink-0" />
+        <Loader2 className="w-4 h-4 text-theme-primary mt-0.5 animate-spin flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 mb-1">Currently Working On</p>
           <p className="text-sm font-medium text-white">{todo.activeForm}</p>

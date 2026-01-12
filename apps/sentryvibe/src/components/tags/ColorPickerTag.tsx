@@ -121,7 +121,7 @@ export function ColorPickerTag({
           size="sm"
           onClick={handleApply}
           disabled={!!error}
-          className="bg-purple-600 hover:bg-purple-700"
+          className="bg-theme-primary hover:bg-theme-primary/80"
         >
           Apply Tag
         </Button>

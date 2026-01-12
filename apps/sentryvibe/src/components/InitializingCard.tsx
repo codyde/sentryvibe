@@ -13,7 +13,7 @@ export default function InitializingCard({ projectName, message }: InitializingC
     <motion.div
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full p-8 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/95 to-gray-900/95 shadow-2xl"
+      className="w-full p-8 rounded-xl border-theme-primary/30 theme-card-header shadow-2xl"
     >
       <div className="flex flex-col items-center text-center space-y-4">
         {/* Animated Icon */}
@@ -28,8 +28,8 @@ export default function InitializingCard({ projectName, message }: InitializingC
           }}
           className="relative"
         >
-          <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-xl" />
-          <Sparkles className="w-12 h-12 text-purple-400 relative z-10" />
+          <div className="absolute inset-0 bg-theme-primary-muted rounded-full blur-xl" />
+          <Sparkles className="w-12 h-12 text-theme-primary relative z-10" />
         </motion.div>
 
         {/* Text */}
@@ -47,17 +47,17 @@ export default function InitializingCard({ projectName, message }: InitializingC
           <motion.div
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.5, repeat: Infinity, delay: 0 }}
-            className="w-2 h-2 bg-purple-400 rounded-full"
+            className="w-2 h-2 bg-theme-primary rounded-full"
           />
           <motion.div
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-            className="w-2 h-2 bg-pink-400 rounded-full"
+            className="w-2 h-2 bg-theme-secondary rounded-full"
           />
           <motion.div
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
-            className="w-2 h-2 bg-purple-400 rounded-full"
+            className="w-2 h-2 bg-theme-primary rounded-full"
           />
         </div>
       </div>

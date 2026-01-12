@@ -67,7 +67,7 @@ export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
       icon: <Zap className="w-5 h-5" />,
       title: "AI-Powered Builds",
       description: "Generate full-stack apps with natural language",
-      color: "from-purple-500 to-pink-500",
+      color: "theme-gradient",
     },
     {
       icon: <Shield className="w-5 h-5" />,
@@ -149,7 +149,7 @@ export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 + i * 0.1 }}
           >
-            <div className={`shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${feature.color} flex items-center justify-center text-white`}>
+            <div className={`shrink-0 w-10 h-10 rounded-lg ${feature.color === "theme-gradient" ? "bg-theme-gradient" : `bg-gradient-to-br ${feature.color}`} flex items-center justify-center text-white`}>
               {feature.icon}
             </div>
             <div>
@@ -162,13 +162,13 @@ export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
 
       {/* Quick tip */}
       <motion.div 
-        className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20"
+        className="p-4 rounded-lg bg-theme-gradient-muted border-theme-primary/20"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
       >
         <p className="text-sm text-zinc-300">
-          <span className="font-semibold text-purple-400">Quick tip:</span> Try describing your app idea in the chat. 
+          <span className="font-semibold text-theme-primary">Quick tip:</span> Try describing your app idea in the chat. 
           Be specific about features, tech stack, and design preferences!
         </p>
       </motion.div>
@@ -190,7 +190,7 @@ export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
         <Button
           type="button"
           onClick={onComplete}
-          className={`bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 h-12 text-base font-medium ${!onBack ? 'w-full' : ''}`}
+          className={`bg-theme-gradient hover:opacity-90 text-white px-8 h-12 text-base font-medium ${!onBack ? 'w-full' : ''}`}
         >
           Start Building
           <ArrowRight className="w-5 h-5 ml-2" />

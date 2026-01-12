@@ -132,7 +132,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                   className={cn(
                     'p-1.5 rounded transition-all',
                     activeTab === 'preview'
-                      ? 'bg-purple-500/20 text-purple-400'
+                      ? 'bg-theme-primary-muted text-theme-primary'
                       : 'text-gray-400 hover:text-white hover:bg-white/10'
                   )}
                 >
@@ -148,7 +148,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                   className={cn(
                     'p-1.5 rounded transition-all',
                     activeTab === 'editor'
-                      ? 'bg-purple-500/20 text-purple-400'
+                      ? 'bg-theme-primary-muted text-theme-primary'
                       : 'text-gray-400 hover:text-white hover:bg-white/10'
                   )}
                 >
@@ -164,7 +164,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                   className={cn(
                     'p-1.5 rounded transition-all',
                     activeTab === 'terminal'
-                      ? 'bg-purple-500/20 text-purple-400'
+                      ? 'bg-theme-primary-muted text-theme-primary'
                       : 'text-gray-400 hover:text-white hover:bg-white/10'
                   )}
                 >
@@ -186,7 +186,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                     className={cn(
                       'p-1.5 rounded-md transition-all',
                       isSelectionMode
-                        ? 'bg-purple-500/20 text-purple-400'
+                        ? 'bg-theme-primary-muted text-theme-primary'
                         : 'text-gray-400 hover:text-white hover:bg-white/10'
                     )}
                   >
@@ -257,7 +257,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                       className={cn(
                         'p-1.5 rounded transition-all',
                         devicePreset === 'desktop'
-                          ? 'bg-purple-500/20 text-purple-400'
+                          ? 'bg-theme-primary-muted text-theme-primary'
                           : 'text-gray-400 hover:text-white hover:bg-white/10'
                       )}
                     >
@@ -273,7 +273,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                       className={cn(
                         'p-1.5 rounded transition-all',
                         devicePreset === 'tablet'
-                          ? 'bg-purple-500/20 text-purple-400'
+                          ? 'bg-theme-primary-muted text-theme-primary'
                           : 'text-gray-400 hover:text-white hover:bg-white/10'
                       )}
                     >
@@ -289,7 +289,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                       className={cn(
                         'p-1.5 rounded transition-all',
                         devicePreset === 'mobile'
-                          ? 'bg-purple-500/20 text-purple-400'
+                          ? 'bg-theme-primary-muted text-theme-primary'
                           : 'text-gray-400 hover:text-white hover:bg-white/10'
                       )}
                     >

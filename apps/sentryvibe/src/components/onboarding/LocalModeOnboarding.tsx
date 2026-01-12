@@ -44,8 +44,8 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
       icon: <Zap className="w-5 h-5" />,
       title: "Everything stays local",
       description: "Your code and API keys never leave your machine",
-      color: "text-purple-400",
-      bgColor: "bg-purple-500/20",
+      color: "text-theme-primary",
+      bgColor: "bg-theme-primary-muted",
     },
   ];
 
@@ -138,7 +138,7 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
             <Button
               type="button"
               onClick={handleComplete}
-              className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-base font-medium"
+              className="w-full h-12 bg-theme-gradient hover:opacity-90 text-white text-base font-medium"
             >
               Start Building
               <ArrowRight className="w-5 h-5 ml-2" />

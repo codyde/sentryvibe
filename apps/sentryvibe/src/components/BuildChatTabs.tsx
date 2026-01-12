@@ -45,14 +45,14 @@ export function BuildChatTabs({ activeTab, onTabChange, chatContent, buildConten
                 }
               `}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-purple-400' : ''}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-theme-primary' : ''}`} />
               <span>{tab.label}</span>
 
               {/* Active indicator */}
               {isActive && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-theme-gradient"
                   transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                 />
               )}

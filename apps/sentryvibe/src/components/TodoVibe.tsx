@@ -23,13 +23,13 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-gray-900/90 to-gray-900/90 shadow-2xl backdrop-blur-sm"
+      className="relative overflow-hidden rounded-xl theme-card shadow-2xl backdrop-blur-sm"
     >
       {/* Header with gradient accent */}
-      <div className="relative border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-6 py-4">
+      <div className="relative border-b border-theme-primary\/20 theme-card-header px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-theme-primary-muted text-theme-primary">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -40,7 +40,7 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-purple-400">{Math.round(progress)}%</div>
+            <div className="text-2xl font-bold text-theme-primary">{Math.round(progress)}%</div>
           </div>
         </div>
 
@@ -50,7 +50,7 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+            className="h-full progress-theme"
           />
         </div>
       </div>
@@ -67,12 +67,12 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
               transition={{ delay: index * 0.05 }}
               className="group mb-3 last:mb-0"
             >
-              <div
+                <div
                 className={`flex items-start gap-3 rounded-lg border p-4 transition-all ${
                   todo.status === 'completed'
                     ? 'border-green-500/30 bg-green-950/20'
                     : todo.status === 'in_progress'
-                      ? 'border-purple-500/30 bg-purple-950/20 shadow-lg shadow-purple-500/10'
+                      ? 'border-theme-primary\/30 bg-theme-primary-muted shadow-lg shadow-theme-sm'
                       : 'border-gray-700/50 bg-gray-800/30'
                 }`}
               >
@@ -91,7 +91,7 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
                       animate={{ rotate: 360 }}
                       transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                     >
-                      <Loader2 className="h-5 w-5 text-purple-400" />
+                      <Loader2 className="h-5 w-5 text-theme-primary" />
                     </motion.div>
                   ) : (
                     <Circle className="h-5 w-5 text-gray-500" />
@@ -128,7 +128,7 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
                           repeat: Infinity,
                           ease: 'easeInOut',
                         }}
-                        className="h-full w-1/3 bg-gradient-to-r from-transparent via-purple-400 to-transparent"
+                        className="h-full w-1/3 bg-gradient-to-r from-transparent via-[var(--theme-primary)] to-transparent"
                       />
                     </motion.div>
                   )}
@@ -146,7 +146,7 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm"
+            className="absolute inset-0 flex items-center justify-center bg-theme-gradient-muted-br backdrop-blur-sm"
           >
             <motion.div
               animate={{
@@ -156,7 +156,7 @@ export default function TodoVibe({ todos, title = 'Project Tasks' }: TodoVibePro
               transition={{ duration: 0.5 }}
               className="text-center"
             >
-              <Sparkles className="mx-auto h-16 w-16 text-purple-400" />
+              <Sparkles className="mx-auto h-16 w-16 text-theme-primary" />
               <p className="mt-4 text-2xl font-bold text-white">All Done! ✨</p>
             </motion.div>
           </motion.div>

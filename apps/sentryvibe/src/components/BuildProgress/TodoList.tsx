@@ -83,7 +83,7 @@ function ActiveToolDisplay({ tool }: { tool: ToolCall }) {
       {resource && <span className="font-mono text-gray-500 truncate max-w-[300px]">{resource}</span>}
 
       {/* Activity indicator */}
-      <Loader2 className="w-3 h-3 text-purple-400 animate-spin flex-shrink-0" />
+      <Loader2 className="w-3 h-3 text-theme-primary animate-spin flex-shrink-0" />
     </motion.div>
   );
 }
@@ -130,7 +130,7 @@ export function TodoList({
                       animate={{ rotate: 360 }}
                       transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                     >
-                      <Loader2 className="h-4 w-4 text-purple-400" />
+                      <Loader2 className="h-4 w-4 text-theme-primary" />
                     </motion.div>
                   ) : (
                     <Circle className="h-4 w-4 text-gray-600" />

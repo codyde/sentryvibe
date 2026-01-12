@@ -27,6 +27,186 @@ import { authenticateRunnerKey, extractRunnerKey, isLocalMode } from '@/lib/auth
 
 const SHARED_SECRET = process.env.RUNNER_SHARED_SECRET;
 
+/**
+ * Extract a project-relative path from an absolute path.
+ * Looks for common project markers (src/, package.json, etc.) and shows from there.
+ * Falls back to showing just the filename if path is too long.
+ */
+function formatProjectPath(absolutePath: string, maxLen: number = 60): string {
+  const pathStr = String(absolutePath);
+  
+  // Common project directory markers - show path from these points
+  const projectMarkers = [
+    '/src/',
+    '/app/',
+    '/pages/',
+    '/components/',
+    '/lib/',
+    '/utils/',
+    '/api/',
+    '/routes/',
+    '/public/',
+    '/styles/',
+    '/assets/',
+    '/config/',
+    '/test/',
+    '/tests/',
+    '/__tests__/',
+    '/spec/',
+  ];
+  
+  // Try to find a project marker and show from there
+  for (const marker of projectMarkers) {
+    const markerIndex = pathStr.lastIndexOf(marker);
+    if (markerIndex !== -1) {
+      // Show from one directory before the marker for context
+      // e.g., "project-name/src/components/App.tsx"
+      const beforeMarker = pathStr.substring(0, markerIndex);
+      const lastSlash = beforeMarker.lastIndexOf('/');
+      const projectRelative = pathStr.substring(lastSlash + 1);
+      
+      if (projectRelative.length <= maxLen) {
+        return projectRelative;
+      }
+      // Still too long, truncate from the start
+      return '...' + projectRelative.slice(-(maxLen - 3));
+    }
+  }
+  
+  // Check for root config files (package.json, tsconfig.json, etc.)
+  const configFiles = ['package.json', 'tsconfig.json', 'vite.config', 'next.config', 'astro.config', 'drizzle.config'];
+  for (const config of configFiles) {
+    if (pathStr.includes(config)) {
+      // Get project name + config file
+      const parts = pathStr.split('/');
+      const configIndex = parts.findIndex(p => p.includes(config));
+      if (configIndex > 0) {
+        const projectRelative = parts.slice(configIndex - 1).join('/');
+        if (projectRelative.length <= maxLen) {
+          return projectRelative;
+        }
+      }
+      // Just show the config file name
+      return parts[parts.length - 1];
+    }
+  }
+  
+  // No markers found - show from the last directory that fits
+  if (pathStr.length <= maxLen) {
+    return pathStr;
+  }
+  
+  // Get the last few path segments that fit
+  const parts = pathStr.split('/');
+  let result = parts[parts.length - 1]; // Start with filename
+  
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const potential = parts[i] + '/' + result;
+    if (potential.length > maxLen - 3) {
+      break;
+    }
+    result = potential;
+  }
+  
+  return result.length < pathStr.length ? '.../' + result : result;
+}
+
+/**
+ * Format a tool call into a user-friendly log message.
+ * Extracts the most relevant info (file path, command, etc.) for each tool type.
+ */
+function formatToolLogMessage(toolName: string, input: unknown): string {
+  if (!input || typeof input !== 'object') {
+    return toolName;
+  }
+  
+  const args = input as Record<string, unknown>;
+  
+  switch (toolName) {
+    case 'Read': {
+      const filePath = args.filePath || args.file_path || args.path;
+      if (filePath) {
+        return `Read: ${formatProjectPath(String(filePath))}`;
+      }
+      return 'Read';
+    }
+    
+    case 'Edit': {
+      const filePath = args.filePath || args.file_path || args.path;
+      if (filePath) {
+        return `Edit: ${formatProjectPath(String(filePath))}`;
+      }
+      return 'Edit';
+    }
+    
+    case 'Write': {
+      const filePath = args.filePath || args.file_path || args.path;
+      if (filePath) {
+        return `Write: ${formatProjectPath(String(filePath))}`;
+      }
+      return 'Write';
+    }
+    
+    case 'Bash': {
+      const command = args.command || args.cmd;
+      if (command) {
+        const cmdStr = String(command);
+        // Show first line only, truncated
+        const firstLine = cmdStr.split('\n')[0];
+        const maxLen = 60;
+        const display = firstLine.length > maxLen 
+          ? firstLine.slice(0, maxLen - 3) + '...' 
+          : firstLine;
+        return `Run: ${display}`;
+      }
+      return 'Bash';
+    }
+    
+    case 'Glob': {
+      const pattern = args.pattern;
+      if (pattern) {
+        return `Find: ${pattern}`;
+      }
+      return 'Glob';
+    }
+    
+    case 'Grep': {
+      const pattern = args.pattern;
+      const include = args.include;
+      if (pattern) {
+        let msg = `Search: "${pattern}"`;
+        if (include) msg += ` in ${include}`;
+        return msg;
+      }
+      return 'Grep';
+    }
+    
+    case 'WebFetch': {
+      const url = args.url;
+      if (url) {
+        const urlStr = String(url);
+        const maxLen = 60;
+        const display = urlStr.length > maxLen 
+          ? urlStr.slice(0, maxLen - 3) + '...' 
+          : urlStr;
+        return `Fetch: ${display}`;
+      }
+      return 'WebFetch';
+    }
+    
+    case 'TodoWrite': {
+      const todos = args.todos;
+      if (Array.isArray(todos)) {
+        return `Update tasks (${todos.length} items)`;
+      }
+      return 'Update tasks';
+    }
+    
+    default:
+      return toolName;
+  }
+}
+
 async function ensureAuthorized(request: Request): Promise<boolean> {
   // In local mode, always allow
   if (isLocalMode()) {
@@ -276,7 +456,9 @@ export async function POST(request: Request) {
 
         // DB: Insert tool call record (skip TodoWrite - handled above)
         if (event.toolName && event.toolName !== 'TodoWrite') {
-          console.log(`[build-events] 🔧 tool-input-available: ${event.toolName} (todoIndex=${todoIndex}, sessionId=${sessionId})`);
+          // Log user-friendly tool info with relevant details
+          const toolInfo = formatToolLogMessage(event.toolName, event.input);
+          console.log(`🔧 ${toolInfo}`);
 
           await db.insert(generationToolCalls).values({
             sessionId,
@@ -297,7 +479,7 @@ export async function POST(request: Request) {
           // This enables the shimmer animation to show the active tool being used
           // Execution phase tools (todoIndex >= 0) only broadcast on completion
           if (todoIndex < 0) {
-            console.log(`[build-events] 📡 Broadcasting planning tool: ${event.toolName} (todoIndex=${todoIndex})`);
+            // Planning phase log is less important, skip verbose internal logging
             buildWebSocketServer.broadcastToolCall(projectId, sessionId, {
               id: toolCallId,
               name: event.toolName,

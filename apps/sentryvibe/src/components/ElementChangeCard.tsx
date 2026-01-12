@@ -204,7 +204,7 @@ export default function ElementChangeCard({
                 <div className="space-y-2 mb-3 mt-2">
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-gray-500">Target:</span>
-                    <code className="px-2 py-0.5 bg-black/40 rounded text-purple-300 font-mono">
+                    <code className="px-2 py-0.5 bg-black/40 rounded text-theme-primary font-mono">
                       {elementSelector}
                     </code>
                     {elementInfo?.tagName && (

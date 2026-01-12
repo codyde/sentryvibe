@@ -44,14 +44,14 @@ export function PhaseSection({
               animate={{ rotate: 360 }}
               transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             >
-              <Loader2 className="h-4 w-4 text-purple-400" />
+              <Loader2 className="h-4 w-4 text-theme-primary" />
             </motion.div>
           ) : (
             <Circle className="h-4 w-4 text-gray-600" />
           )}
-          <PhaseIcon className={`h-4 w-4 ${isComplete ? 'text-green-400/60' : isActive ? 'text-purple-400' : 'text-gray-600'}`} />
+          <PhaseIcon className={`h-4 w-4 ${isComplete ? 'text-green-400/60' : isActive ? 'text-theme-primary' : 'text-gray-600'}`} />
           <span className={`text-xs font-medium uppercase tracking-wide ${
-            isComplete ? 'text-green-400/80' : isActive ? 'text-purple-300' : 'text-gray-500'
+            isComplete ? 'text-green-400/80' : isActive ? 'text-theme-accent' : 'text-gray-500'
           }`}>
             {title}
           </span>
@@ -94,7 +94,7 @@ export function PhaseSection({
                         animate={{ rotate: 360 }}
                         transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                       >
-                        <Loader2 className="h-3.5 w-3.5 text-purple-400" />
+                        <Loader2 className="h-3.5 w-3.5 text-theme-primary" />
                       </motion.div>
                     ) : (
                       <Circle className="h-3.5 w-3.5 text-gray-600" />

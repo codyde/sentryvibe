@@ -124,8 +124,8 @@ export default function ElementComment({
               top: `${circleTop}px`,
             }}
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 bg-purple-500/20 border-purple-400">
-              <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 bg-theme-primary-muted border-theme-primary">
+              <div className="w-2 h-2 rounded-full bg-theme-primary"></div>
             </div>
           </motion.div>
 
@@ -134,7 +134,7 @@ export default function ElementComment({
           initial={{ scale: 0, opacity: 0, x: -10 }}
           animate={{ scale: 1, opacity: 1, x: 0 }}
           exit={{ scale: 0, opacity: 0, x: -10 }}
-          className="fixed z-[101] bg-gradient-to-br from-gray-900 to-gray-800 border border-purple-500/30 rounded-lg shadow-2xl"
+          className="fixed z-[101] bg-gradient-to-br from-gray-900 to-gray-800 border border-theme-primary/30 rounded-lg shadow-2xl"
           style={{
             left: `${commentLeft}px`,
             top: `${commentTop}px`,
@@ -142,9 +142,9 @@ export default function ElementComment({
           }}
         >
           {/* Header */}
-          <div className="border-b border-purple-500/20 px-3 py-2 flex items-center justify-between">
+          <div className="border-b border-theme-primary/20 px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-theme-primary"></div>
               <span className="text-xs font-medium text-gray-400">
                 {element.tagName}
               </span>
@@ -155,7 +155,7 @@ export default function ElementComment({
                 className="p-1 hover:bg-white/10 rounded transition-colors"
                 title={showDetails ? 'Hide details' : 'Show details'}
               >
-                <Settings2 className={`w-3.5 h-3.5 transition-colors ${showDetails ? 'text-purple-400' : 'text-gray-500'}`} />
+                <Settings2 className={`w-3.5 h-3.5 transition-colors ${showDetails ? 'text-theme-primary' : 'text-gray-500'}`} />
               </button>
               <button
                 onClick={onClose}
@@ -174,19 +174,19 @@ export default function ElementComment({
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="border-b border-purple-500/10 overflow-hidden"
+                className="border-b border-theme-primary/10 overflow-hidden"
               >
                 <div className="p-3 space-y-2 text-xs">
                   <div>
                     <span className="text-gray-500">Selector:</span>
-                    <code className="ml-2 text-purple-300 font-mono">{element.selector}</code>
+                    <code className="ml-2 text-theme-primary font-mono">{element.selector}</code>
                   </div>
                   {element.className && (
                     <div>
                       <span className="text-gray-500">Classes:</span>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {element.className.split(' ').slice(0, 5).map((cls, i) => (
-                          <span key={i} className="bg-purple-500/20 px-1.5 py-0.5 rounded text-purple-300 font-mono">
+                          <span key={i} className="bg-theme-primary-muted px-1.5 py-0.5 rounded text-theme-primary font-mono">
                             {cls}
                           </span>
                         ))}
@@ -212,7 +212,7 @@ export default function ElementComment({
               onKeyDown={handleKeyDown}
               placeholder="Describe your change..."
               rows={2}
-              className="w-full px-3 py-2 bg-black/40 border border-purple-500/30 rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 resize-none"
+              className="w-full px-3 py-2 bg-black/40 border border-theme-primary/30 rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-theme-primary/50 resize-none"
               autoFocus
             />
             <div className="flex items-center justify-between">
@@ -221,7 +221,7 @@ export default function ElementComment({
                 onClick={handleSubmit}
                 disabled={!prompt.trim()}
                 size="sm"
-                className="h-6 px-2 text-xs bg-purple-500/20 border-purple-500/30 hover:bg-purple-500/30 text-purple-300"
+                className="h-6 px-2 text-xs bg-theme-primary-muted border-theme-primary/30 hover:bg-theme-primary-muted text-theme-primary"
               >
                 <Send className="w-3 h-3" />
               </Button>

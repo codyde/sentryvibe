@@ -498,7 +498,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       label="Command Menu"
       className="fixed left-[50%] top-[50%] z-50 w-full max-w-[640px] translate-x-[-50%] translate-y-[-50%]"
     >
-      <div className="overflow-hidden rounded-xl border-2 border-purple-500 bg-gray-950 shadow-2xl">
+      <div className="overflow-hidden rounded-xl border-2 border-theme-primary bg-gray-950 shadow-2xl">
         <VisuallyHidden.Root asChild>
           <Dialog.Title>Command Menu</Dialog.Title>
         </VisuallyHidden.Root>
@@ -511,7 +511,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
           const isBuilding = project?.status === 'in_progress' || project?.status === 'pending';
 
           return (
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 theme-card-header">
               <button
                 onClick={() => setSelectedProject(null)}
                 className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors group"
@@ -542,7 +542,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
             className="flex h-12 w-full bg-transparent py-3 text-sm text-white placeholder:text-gray-500 outline-none"
           />
           {selectedItems.size > 0 && (
-            <span className="ml-2 rounded bg-purple-500/20 px-2 py-1 text-xs text-purple-300 border border-purple-500/30 whitespace-nowrap flex items-center gap-1">
+            <span className="ml-2 rounded bg-theme-primary-muted px-2 py-1 text-xs text-theme-accent border border-theme-primary\/30 whitespace-nowrap flex items-center gap-1">
               <CheckSquare className="w-3 h-3" />
               {selectedItems.size} selected
             </span>
@@ -551,7 +551,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
 
         {/* Bulk Action Buttons */}
         {selectedItems.size > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-purple-500/5">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-theme-primary-muted">
             <button
               onClick={handleBulkStopServers}
               disabled={loadingAction === 'bulk-stop-servers'}
@@ -619,13 +619,13 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
                       handleSelect(command, e);
                     }}
                     disabled={isLoading}
-                    className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none data-[selected=true]:bg-gradient-to-r data-[selected=true]:from-purple-500/20 data-[selected=true]:to-pink-500/20 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed"
+                    className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white outline-none data-[selected=true]:bg-theme-gradient-muted data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed"
                   >
                     {isSelected && (
-                      <div className="absolute left-1 top-1 w-1.5 h-1.5 bg-purple-400 rounded-full" />
+                      <div className="absolute left-1 top-1 w-1.5 h-1.5 bg-theme-primary rounded-full" />
                     )}
                     {isLoading ? (
-                      <Loader2 className="h-4 w-4 shrink-0 text-purple-400 animate-spin" />
+                      <Loader2 className="h-4 w-4 shrink-0 text-theme-primary animate-spin" />
                     ) : (
                       <Icon className="h-4 w-4 shrink-0 text-gray-400" />
                     )}

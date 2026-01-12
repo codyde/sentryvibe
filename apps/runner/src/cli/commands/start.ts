@@ -17,6 +17,8 @@ import { ServiceManager } from '../ui/service-manager.js';
 import { Dashboard } from '../ui/Dashboard.js';
 import { ConsoleInterceptor } from '../ui/console-interceptor.js';
 import { LogFileManager } from '../ui/log-file-manager.js';
+import { initRunnerLogger } from '../../lib/logging/index.js';
+import { setFileLoggerTuiMode } from '../../lib/file-logger.js';
 
 interface StartOptions {
   port?: string;
@@ -99,9 +101,16 @@ export async function startCommand(options: StartOptions) {
     s.stop(pc.green('✓') + ' Dependencies installed');
   }
 
-  // Step 2.5: Rebuild services if requested
-  if (options.rebuild) {
-    s.start('Rebuilding services');
+  // Step 2.5: Check for production build (unless --dev mode)
+  const nextBuildIdPath = join(monorepoRoot, 'apps', 'sentryvibe', '.next', 'BUILD_ID');
+  const needsProductionBuild = !options.dev && !existsSync(nextBuildIdPath);
+
+  // Rebuild services if requested OR if production build is missing
+  if (options.rebuild || needsProductionBuild) {
+    const buildReason = options.rebuild 
+      ? 'Rebuilding services' 
+      : 'Building for production (first run)';
+    s.start(buildReason);
     const { spawn } = await import('child_process');
 
     try {
@@ -123,12 +132,12 @@ export async function startCommand(options: StartOptions) {
         buildProcess.on('error', reject);
       });
 
-      s.stop(pc.green('✓') + ' Rebuild complete (using Turborepo cache)');
+      s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
     } catch (error) {
       s.stop(pc.red('✗') + ' Build failed');
       throw new CLIError({
         code: 'BUILD_FAILED',
-        message: 'Failed to rebuild services',
+        message: 'Failed to build services',
         suggestions: [
           'Check that all dependencies are installed',
           'Try running: pnpm build:all',
@@ -281,6 +290,16 @@ export async function startCommand(options: StartOptions) {
   // Enable alternate screen buffer to prevent scrolling above TUI
   process.stdout.write('\x1b[?1049h'); // Enter alternate screen
   process.stdout.write('\x1b[2J\x1b[H'); // Clear and home
+
+  // Initialize the RunnerLogger BEFORE rendering TUI so the TUI can subscribe to build events
+  // This must happen before startRunner() which would create its own logger
+  initRunnerLogger({
+    verbose: options.verbose || false,
+    tuiMode: true,
+  });
+  
+  // Enable TUI mode in file-logger to suppress terminal output
+  setFileLoggerTuiMode(true);
 
   // Render TUI immediately with log file path
   const { waitUntilExit, clear } = render(

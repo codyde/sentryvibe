@@ -78,24 +78,35 @@ export function NextSteps({ command, url }: NextStepsProps) {
 }
 
 interface ErrorSummaryProps {
+  message?: string;
   suggestions: string[];
 }
 
 /**
- * Error recovery suggestions
+ * Error display with message and recovery suggestions
  */
-export function ErrorSummary({ suggestions }: ErrorSummaryProps) {
-  const dividerWidth = 40;
+export function ErrorSummary({ message, suggestions }: ErrorSummaryProps) {
+  const dividerWidth = 44;
   const divider = symbols.horizontalLine.repeat(dividerWidth);
 
   return (
     <Box flexDirection="column" alignItems="center">
       <Text color={colors.dimGray}>{divider}</Text>
       
-      <Box flexDirection="column" alignItems="flex-start" marginTop={1}>
+      {/* Error message header */}
+      {message && (
+        <Box marginTop={1} marginBottom={1}>
+          <Text color={colors.error} bold>{symbols.cross} {message}</Text>
+        </Box>
+      )}
+      
+      {/* Suggestions/details */}
+      <Box flexDirection="column" alignItems="flex-start" marginTop={message ? 0 : 1}>
         {suggestions.map((suggestion, index) => (
           <Box key={index}>
-            <Text color={colors.gray}>{suggestion}</Text>
+            <Text color={suggestion.startsWith('  ') ? colors.cyan : colors.gray}>
+              {suggestion}
+            </Text>
           </Box>
         ))}
       </Box>

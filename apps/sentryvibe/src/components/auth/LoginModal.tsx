@@ -198,7 +198,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+            className="w-full btn-theme-primary"
           >
             {isLoading ? (
               <>
@@ -222,12 +222,12 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
             {mode === "login" ? (
               <>
                 Don&apos;t have an account?{" "}
-                <span className="text-purple-400 hover:text-purple-300">Sign up</span>
+                <span className="text-theme-primary hover:text-theme-accent">Sign up</span>
               </>
             ) : (
               <>
                 Already have an account?{" "}
-                <span className="text-purple-400 hover:text-purple-300">Sign in</span>
+                <span className="text-theme-primary hover:text-theme-accent">Sign in</span>
               </>
             )}
           </button>

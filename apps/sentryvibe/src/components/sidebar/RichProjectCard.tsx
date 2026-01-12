@@ -89,7 +89,7 @@ export function RichProjectCard({
         href={`/?project=${project.slug}`}
         className={`block px-3 py-2 rounded-lg transition-all group ${
           isCurrentProject
-            ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-l-2 border-purple-500'
+            ? 'theme-selected'
             : 'hover:bg-white/5'
         }`}
         onMouseEnter={() => setIsHovered(true)}
@@ -102,7 +102,7 @@ export function RichProjectCard({
             transition={{ duration: 2, repeat: Infinity }}
           />
           <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
-            isCurrentProject ? 'text-purple-400' : 'text-gray-400 group-hover:text-white'
+            isCurrentProject ? 'text-theme-primary' : 'text-gray-400 group-hover:text-white'
           }`} />
           <span className={`text-sm truncate flex-1 ${
             isCurrentProject ? 'text-white font-medium' : 'text-white'
@@ -190,7 +190,7 @@ export function RichProjectCard({
       animate={{ opacity: 1, y: 0 }}
       className={`block p-4 rounded-lg transition-all group ${
         isCurrentProject
-          ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-2 border-purple-500/50'
+          ? 'bg-theme-gradient-muted border-2 border-theme-primary\/50'
           : 'bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10'
       }`}
     >
