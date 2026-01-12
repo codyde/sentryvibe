@@ -107,6 +107,14 @@ export const projects = pgTable('projects', {
   tags: jsonb('tags'), // Tag-based configuration system
   lastActivityAt: timestamp('last_activity_at').defaultNow(),
   errorMessage: text('error_message'),
+  // GitHub integration fields
+  githubRepo: text('github_repo'), // e.g., "owner/repo-name"
+  githubUrl: text('github_url'), // Full repository URL
+  githubBranch: text('github_branch'), // Default branch (e.g., "main")
+  githubLastPushedAt: timestamp('github_last_pushed_at'), // Last push timestamp
+  githubAutoPush: boolean('github_auto_push').default(false), // Auto-push after builds
+  githubLastSyncAt: timestamp('github_last_sync_at'), // Last time we synced repo info
+  githubMeta: jsonb('github_meta'), // Additional metadata (issues count, recent commits, etc.)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({

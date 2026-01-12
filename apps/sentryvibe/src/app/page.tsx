@@ -62,6 +62,7 @@ import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
+import { GitHubButton, getGitHubSetupMessage } from "@/components/github";
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -2684,7 +2685,25 @@ function HomeContent() {
               </>
             )}
           </div>
-          <AuthHeader />
+          <div className="flex items-center gap-3">
+            {/* GitHub Integration - show when project is selected and completed */}
+            {currentProject && currentProject.status === 'completed' && !isGenerating && (
+              <GitHubButton
+                projectId={currentProject.id}
+                projectSlug={currentProject.slug}
+                onSetupClick={() => {
+                  // Switch to Build tab to show the setup progress
+                  switchTab("build");
+                  // Send the GitHub setup message via the chat flow
+                  startGeneration(currentProject.id, getGitHubSetupMessage(), {
+                    addUserMessage: true,
+                  });
+                }}
+                variant="default"
+              />
+            )}
+            <AuthHeader />
+          </div>
         </header>
         
         {runnerOnline === false && (
