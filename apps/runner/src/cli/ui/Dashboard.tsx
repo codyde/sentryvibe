@@ -3,7 +3,7 @@
  * Redesigned to match Runner Mode UI style with split panel layout
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
 import { ServiceManager, ServiceState } from './service-manager.js';
@@ -38,6 +38,7 @@ interface DashboardProps {
 }
 
 type ViewMode = 'dashboard' | 'help' | 'fullLog';
+type FilterMode = 'all' | 'errors' | 'tools' | 'verbose';
 
 interface LogEntry {
   id: string;
@@ -46,6 +47,11 @@ interface LogEntry {
   message: string;
   stream: 'stdout' | 'stderr';
   level: 'info' | 'success' | 'warn' | 'error';
+  // Parsed fields for improved display
+  tag?: string;        // e.g., [build-route], [build-events]
+  emoji?: string;      // e.g., ✅, 📜, 📤, 🔧, 📡
+  toolName?: string;   // e.g., Glob, Read, Edit
+  content?: string;    // The actual message content after parsing
 }
 
 function formatTime(date: Date): string {
@@ -62,8 +68,39 @@ function getLogLevel(message: string, stream: 'stdout' | 'stderr'): 'info' | 'su
   const lower = message.toLowerCase();
   if (lower.includes('error') || lower.includes('failed') || lower.includes('exception')) return 'error';
   if (lower.includes('warn') || lower.includes('warning')) return 'warn';
-  if (lower.includes('success') || lower.includes('ready') || lower.includes('started') || lower.includes('connected')) return 'success';
+  if (lower.includes('success') || lower.includes('ready') || lower.includes('started') || lower.includes('connected') || lower.includes('✅') || lower.includes('✓')) return 'success';
   return 'info';
+}
+
+// Parse log message to extract structured info (tags, emojis, tool names)
+function parseLogMessage(message: string): { tag?: string; emoji?: string; toolName?: string; content: string } {
+  let tag: string | undefined;
+  let emoji: string | undefined;
+  let toolName: string | undefined;
+  let content = message;
+
+  // Extract tag like [build-route], [build-events], etc.
+  const tagMatch = content.match(/^\[([^\]]+)\]\s*/);
+  if (tagMatch) {
+    tag = tagMatch[1];
+    content = content.substring(tagMatch[0].length);
+  }
+
+  // Extract leading emoji
+  const emojiMatch = content.match(/^([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✅|✓|📜|📤|🔧|📡|⚠️|❌)\s*/u);
+  if (emojiMatch) {
+    emoji = emojiMatch[1];
+    content = content.substring(emojiMatch[0].length);
+  }
+
+  // Check for tool calls (e.g., "tool-input-available: Glob")
+  const toolMatch = content.match(/^tool-input-available:\s*(\w+)/i);
+  if (toolMatch) {
+    toolName = toolMatch[1];
+    emoji = '🔧';
+  }
+
+  return { tag, emoji, toolName, content: content.trim() };
 }
 
 export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: DashboardProps) {
@@ -80,6 +117,11 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const [searchQuery, setSearchQuery] = useState('');
   const [isVerbose, setIsVerbose] = useState(false);
   const [logIdCounter, setLogIdCounter] = useState(0);
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  // Full log view state
+  const [fullLogSearchMode, setFullLogSearchMode] = useState(false);
+  const [fullLogSearchQuery, setFullLogSearchQuery] = useState('');
+  const [fullLogScrollOffset, setFullLogScrollOffset] = useState(0);
 
   // Terminal dimensions
   const terminalHeight = stdout?.rows || 40;
@@ -118,14 +160,22 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       const lines = output.split('\n').filter(line => line.trim());
       
       setLogIdCounter(prev => {
-        const newLogs: LogEntry[] = lines.map((line, idx) => ({
-          id: `${Date.now()}-${prev + idx}`,
-          timestamp: new Date(),
-          service: name,
-          message: line.trim(),
-          stream,
-          level: getLogLevel(line, stream),
-        }));
+        const newLogs: LogEntry[] = lines.map((line, idx) => {
+          const trimmed = line.trim();
+          const parsed = parseLogMessage(trimmed);
+          return {
+            id: `${Date.now()}-${prev + idx}`,
+            timestamp: new Date(),
+            service: name,
+            message: trimmed,
+            stream,
+            level: getLogLevel(trimmed, stream),
+            tag: parsed.tag,
+            emoji: parsed.emoji,
+            toolName: parsed.toolName,
+            content: parsed.content,
+          };
+        });
         
         if (newLogs.length > 0) {
           setLogs(prevLogs => {
@@ -144,7 +194,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     };
   }, [serviceManager]);
 
-  // Filter logs
+  // Filter logs for main dashboard
   const filteredLogs = useMemo(() => {
     let filtered = logs;
     
@@ -171,10 +221,41 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     return filtered;
   }, [logs, serviceFilter, searchQuery, isVerbose]);
 
+  // Filter logs for full log view
+  const fullLogFilteredLogs = useMemo(() => {
+    let filtered = logs;
+    
+    // Apply filter mode
+    if (filterMode === 'errors') {
+      filtered = filtered.filter(log => log.level === 'error' || log.level === 'warn');
+    } else if (filterMode === 'tools') {
+      filtered = filtered.filter(log => log.toolName || log.message.includes('tool-input'));
+    } else if (filterMode !== 'verbose') {
+      filtered = filtered.filter(log => 
+        !log.message.toLowerCase().includes('debug') &&
+        !log.message.toLowerCase().includes('trace')
+      );
+    }
+    
+    // Apply search
+    if (fullLogSearchQuery.trim()) {
+      const query = fullLogSearchQuery.toLowerCase();
+      filtered = filtered.filter(log =>
+        log.message.toLowerCase().includes(query) ||
+        log.service.toLowerCase().includes(query) ||
+        (log.tag && log.tag.toLowerCase().includes(query)) ||
+        (log.toolName && log.toolName.toLowerCase().includes(query))
+      );
+    }
+    
+    return filtered;
+  }, [logs, filterMode, fullLogSearchQuery]);
+
   // Visible lines calculation
   const visibleLines = Math.max(1, contentHeight - 3);
+  const fullLogVisibleLines = Math.max(1, terminalHeight - 6);
   
-  // Auto-scroll when new logs arrive
+  // Auto-scroll when new logs arrive (main dashboard)
   useEffect(() => {
     if (autoScroll && filteredLogs.length > 0) {
       const maxScroll = Math.max(0, filteredLogs.length - visibleLines);
@@ -182,16 +263,84 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     }
   }, [filteredLogs.length, autoScroll, visibleLines]);
 
+  // Auto-scroll for full log view
+  useEffect(() => {
+    if (view === 'fullLog') {
+      const maxScroll = Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines);
+      setFullLogScrollOffset(maxScroll);
+    }
+  }, [fullLogFilteredLogs.length, view, fullLogVisibleLines]);
+
   // Get displayed logs
   const displayedLogs = useMemo(() => {
     return filteredLogs.slice(scrollOffset, scrollOffset + visibleLines);
   }, [filteredLogs, scrollOffset, visibleLines]);
 
+  // Get displayed logs for full log view
+  const fullLogDisplayedLogs = useMemo(() => {
+    return fullLogFilteredLogs.slice(fullLogScrollOffset, fullLogScrollOffset + fullLogVisibleLines);
+  }, [fullLogFilteredLogs, fullLogScrollOffset, fullLogVisibleLines]);
+
   // Keyboard shortcuts
   useInput((input, key) => {
     if (isShuttingDown) return;
 
-    // Handle Esc
+    // Full log view mode
+    if (view === 'fullLog') {
+      if (fullLogSearchMode) {
+        if (key.escape || key.return) {
+          setFullLogSearchMode(false);
+        }
+        return;
+      }
+
+      if (key.escape) {
+        setView('dashboard');
+        return;
+      }
+      if (input === 'l' || input === 't') {
+        setView('dashboard');
+        return;
+      }
+      if (input === '/') {
+        setFullLogSearchMode(true);
+        return;
+      }
+      if (input === 'f') {
+        // Cycle through filter modes
+        const modes: FilterMode[] = ['all', 'errors', 'tools', 'verbose'];
+        const currentIndex = modes.indexOf(filterMode);
+        setFilterMode(modes[(currentIndex + 1) % modes.length]);
+        setFullLogScrollOffset(0);
+        return;
+      }
+      if (key.upArrow) {
+        setFullLogScrollOffset(prev => Math.max(0, prev - 1));
+        return;
+      }
+      if (key.downArrow) {
+        const maxScroll = Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines);
+        setFullLogScrollOffset(prev => Math.min(maxScroll, prev + 1));
+        return;
+      }
+      if (key.pageUp) {
+        setFullLogScrollOffset(prev => Math.max(0, prev - fullLogVisibleLines));
+        return;
+      }
+      if (key.pageDown) {
+        const maxScroll = Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines);
+        setFullLogScrollOffset(prev => Math.min(maxScroll, prev + fullLogVisibleLines));
+        return;
+      }
+      if (input === 'q') {
+        setIsShuttingDown(true);
+        serviceManager.stopAll().then(() => exit());
+        return;
+      }
+      return;
+    }
+
+    // Dashboard mode
     if (key.escape) {
       if (searchMode) {
         setSearchMode(false);
@@ -202,7 +351,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       return;
     }
 
-    // Don't process other keys when in search mode
     if (searchMode) return;
 
     if (input === '/' && view === 'dashboard') {
@@ -222,8 +370,10 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       setLogs([]);
       setScrollOffset(0);
       setAutoScroll(true);
-    } else if (input === 't') {
-      setView(view === 'dashboard' ? 'fullLog' : 'dashboard');
+    } else if (input === 'l' || input === 't') {
+      // Both 'l' and 't' switch to full log view
+      setView('fullLog');
+      setFullLogScrollOffset(Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines));
     } else if (input === 'f') {
       setServiceFilter(current => {
         if (!current) return 'web';
@@ -250,29 +400,96 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     }
   });
 
+  // Highlight search matches in text
+  const highlightSearch = (text: string, query: string): React.ReactNode => {
+    if (!query) return text;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const index = lowerText.indexOf(lowerQuery);
+    if (index === -1) return text;
+    
+    return (
+      <>
+        {text.slice(0, index)}
+        <Text backgroundColor={colors.warning} color="black">
+          {text.slice(index, index + query.length)}
+        </Text>
+        {text.slice(index + query.length)}
+      </>
+    );
+  };
+
   // Full log view
   if (view === 'fullLog') {
+    const maxScroll = Math.max(0, fullLogFilteredLogs.length - fullLogVisibleLines);
+    
     return (
       <Box flexDirection="column" height={terminalHeight}>
-        <Box borderStyle="single" borderColor={colors.darkGray} paddingX={1}>
-          <Text color={colors.cyan} bold>Full Log View</Text>
-          <Text color={colors.dimGray}> - {filteredLogs.length} entries</Text>
-        </Box>
-        <Box flexDirection="column" flexGrow={1} paddingX={1}>
-          {filteredLogs.slice(-50).map((log) => (
-            <Box key={log.id}>
-              <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
-              <Text color={log.service === 'web' ? colors.cyan : colors.purple}> [{log.service}] </Text>
-              <Text color={log.level === 'error' ? colors.error : log.level === 'warn' ? colors.warning : log.level === 'success' ? colors.success : colors.white}>
-                {log.message}
+        {/* Header with search */}
+        <Box
+          borderStyle="single"
+          borderColor={colors.darkGray}
+          paddingX={1}
+          justifyContent="space-between"
+        >
+          <Text color={colors.cyan} bold>LOGS</Text>
+          <Box>
+            <Text color={colors.dimGray}>Search: </Text>
+            {fullLogSearchMode ? (
+              <Box borderStyle="round" borderColor={colors.cyan} paddingX={1}>
+                <TextInput
+                  value={fullLogSearchQuery}
+                  onChange={setFullLogSearchQuery}
+                  placeholder="type to search..."
+                />
+              </Box>
+            ) : (
+              <Text color={fullLogSearchQuery ? colors.white : colors.dimGray}>
+                [{fullLogSearchQuery || 'none'}]
               </Text>
-            </Box>
+            )}
+            <Text color={colors.dimGray}> [/]</Text>
+          </Box>
+        </Box>
+
+        {/* Log content */}
+        <Box
+          flexDirection="column"
+          flexGrow={1}
+          borderStyle="single"
+          borderColor={colors.darkGray}
+          borderTop={false}
+          borderBottom={false}
+          paddingX={1}
+        >
+          {fullLogDisplayedLogs.map((log) => (
+            <FullLogEntryRow 
+              key={log.id} 
+              log={log} 
+              maxWidth={terminalWidth - 4}
+              searchQuery={fullLogSearchQuery}
+              highlightSearch={highlightSearch}
+            />
           ))}
         </Box>
-        <Box borderStyle="single" borderColor={colors.darkGray} paddingX={1}>
-          <Shortcut letter="t" label="dashboard" />
-          <Shortcut letter="↑↓" label="scroll" />
-          <Shortcut letter="Esc" label="back" />
+
+        {/* Footer with shortcuts and scroll position */}
+        <Box
+          borderStyle="single"
+          borderColor={colors.darkGray}
+          paddingX={1}
+          justifyContent="space-between"
+        >
+          <Box>
+            <Shortcut letter="l" label="dashboard" />
+            <Shortcut letter="/" label="search" />
+            <Shortcut letter="f" label={`filter: ${filterMode}`} />
+            <Shortcut letter="↑↓" label="scroll" />
+            <Shortcut letter="q" label="quit" />
+          </Box>
+          <Text color={colors.dimGray}>
+            {fullLogScrollOffset + 1}-{Math.min(fullLogScrollOffset + fullLogVisibleLines, fullLogFilteredLogs.length)}/{fullLogFilteredLogs.length}
+          </Text>
         </Box>
       </Box>
     );
@@ -293,7 +510,7 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
           <Text color={colors.gray}>  <Text color={colors.cyan}>f</Text>         Filter by service</Text>
           <Text> </Text>
           <Text color={colors.white} bold>Views:</Text>
-          <Text color={colors.gray}>  <Text color={colors.cyan}>t</Text>         Toggle text view</Text>
+          <Text color={colors.gray}>  <Text color={colors.cyan}>l</Text>         Full log view</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>v</Text>         Toggle verbose mode</Text>
           <Text color={colors.gray}>  <Text color={colors.cyan}>?</Text>         Show this help</Text>
           <Text> </Text>
@@ -421,8 +638,8 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
         ) : (
           <Box>
             <Shortcut letter="q" label="quit" />
+            <Shortcut letter="l" label="logs" />
             <Shortcut letter="v" label={`verbose: ${isVerbose ? 'on' : 'off'}`} />
-            <Shortcut letter="r" label="restart" />
             <Shortcut letter="/" label="search" />
             <Shortcut letter="f" label="filter" />
             <Shortcut letter="?" label="help" />
@@ -454,15 +671,6 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
         return <Text color={colors.error}>{symbols.cross}</Text>;
       default:
         return <Text color={colors.dimGray}>{symbols.hollowDot}</Text>;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running': return colors.success;
-      case 'starting': return colors.cyan;
-      case 'error': return colors.error;
-      default: return colors.dimGray;
     }
   };
 
@@ -509,7 +717,7 @@ function ServicesPanel({ services, width, height }: { services: ServiceState[], 
   );
 }
 
-// Log entry row component (matching Runner Mode style)
+// Log entry row component for main dashboard (matching Runner Mode style)
 function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
   const levelColors = {
     info: colors.cyan,
@@ -525,25 +733,104 @@ function LogEntryRow({ log, maxWidth }: { log: LogEntry, maxWidth: number }) {
     error: symbols.cross,
   };
 
-  const color = levelColors[log.level];
-  const icon = levelIcons[log.level];
-  
   // Service color
   const serviceColor = log.service === 'web' ? colors.cyan : colors.purple;
   
+  // Use parsed emoji or level icon
+  const icon = log.emoji || levelIcons[log.level];
+  const color = levelColors[log.level];
+  
+  // Build display with tag if present
+  let displayContent = log.content || log.message;
+  
   // Truncate message
-  const availableWidth = maxWidth - 18; // time + service + icon
-  const truncatedMessage = log.message.length > availableWidth
-    ? log.message.substring(0, availableWidth - 3) + '...'
-    : log.message;
+  const tagPart = log.tag ? `[${log.tag}] ` : '';
+  const availableWidth = maxWidth - 16 - tagPart.length; // time + service + icon + tag
+  const truncatedMessage = displayContent.length > availableWidth
+    ? displayContent.substring(0, availableWidth - 3) + '...'
+    : displayContent;
+
+  // Tool calls get special formatting
+  if (log.toolName) {
+    return (
+      <Box>
+        <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+        <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
+        <Text color={colors.cyan}> 🔧 </Text>
+        <Text color={colors.white}>{log.toolName}</Text>
+        {log.content && log.content !== log.toolName && (
+          <Text color={colors.gray}> {log.content.replace(`tool-input-available: ${log.toolName}`, '').trim()}</Text>
+        )}
+      </Box>
+    );
+  }
 
   return (
     <Box>
       <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
       <Text color={serviceColor}> [{log.service.substring(0, 3)}]</Text>
       <Text color={color}> {icon} </Text>
+      {log.tag && <Text color={colors.dimGray}>[{log.tag}] </Text>}
       <Text color={log.level === 'error' || log.level === 'warn' ? color : colors.white}>
         {truncatedMessage}
+      </Text>
+    </Box>
+  );
+}
+
+// Full log entry row with search highlighting
+function FullLogEntryRow({ 
+  log, 
+  maxWidth, 
+  searchQuery,
+  highlightSearch 
+}: { 
+  log: LogEntry, 
+  maxWidth: number,
+  searchQuery: string,
+  highlightSearch: (text: string, query: string) => React.ReactNode
+}) {
+  const levelColors = {
+    info: colors.cyan,
+    success: colors.success,
+    warn: colors.warning,
+    error: colors.error,
+  };
+
+  const levelIcons = {
+    info: symbols.filledDot,
+    success: symbols.check,
+    warn: '⚠',
+    error: symbols.cross,
+  };
+
+  const serviceColor = log.service === 'web' ? colors.cyan : colors.purple;
+  const icon = log.emoji || levelIcons[log.level];
+  const color = levelColors[log.level];
+
+  // Tool calls
+  if (log.toolName) {
+    return (
+      <Box>
+        <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+        <Text color={serviceColor}> [{log.service}]</Text>
+        <Text color={colors.cyan}> 🔧 </Text>
+        <Text color={colors.white}>{highlightSearch(log.toolName, searchQuery)}</Text>
+        {log.content && (
+          <Text color={colors.gray}> {highlightSearch(log.content.replace(`tool-input-available: ${log.toolName}`, '').trim(), searchQuery)}</Text>
+        )}
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Text color={colors.dimGray}>{formatTime(log.timestamp)}</Text>
+      <Text color={serviceColor}> [{log.service}]</Text>
+      <Text color={color}> {icon} </Text>
+      {log.tag && <Text color={colors.dimGray}>[{log.tag}] </Text>}
+      <Text color={log.level === 'error' || log.level === 'warn' ? color : colors.white}>
+        {highlightSearch(log.content || log.message, searchQuery)}
       </Text>
     </Box>
   );
