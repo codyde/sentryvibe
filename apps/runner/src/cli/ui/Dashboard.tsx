@@ -236,8 +236,9 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
   const statusBarHeight = 3;
   const contentHeight = Math.max(1, terminalHeight - bannerHeight - headerHeight - statusBarHeight);
   
-  const servicesPanelWidth = Math.floor(terminalWidth * 0.2);
-  const logPanelWidth = terminalWidth - servicesPanelWidth;
+  // In local mode, we don't have a build process with todos
+  // So logs take full width (no left panel like runner mode)
+  const logPanelWidth = terminalWidth;
 
   const allServicesRunning = useMemo(() => {
     return services.length > 0 && services.every(s => s.status === 'running');
@@ -702,13 +703,6 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
       </Box>
 
       <Box flexGrow={1} height={contentHeight}>
-        <ServicesPanel 
-          services={services} 
-          width={servicesPanelWidth} 
-          height={contentHeight}
-          themeColors={themeColors}
-        />
-        
         <Box
           flexDirection="column"
           width={logPanelWidth}
@@ -801,74 +795,6 @@ interface ThemeColorsType {
   text: string;
   textDim: string;
   textMuted: string;
-}
-
-function ServicesPanel({ services, width, height, themeColors }: { 
-  services: ServiceState[], 
-  width: number, 
-  height: number,
-  themeColors: ThemeColorsType
-}) {
-  const [spinnerFrame, setSpinnerFrame] = useState(0);
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSpinnerFrame(prev => (prev + 1) % symbols.spinnerFrames.length);
-    }, 120);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return <Text color={baseColors.success}>{symbols.check}</Text>;
-      case 'starting':
-        return <Text color={themeColors.primary}>{symbols.spinnerFrames[spinnerFrame]}</Text>;
-      case 'error':
-        return <Text color={baseColors.error}>{symbols.cross}</Text>;
-      default:
-        return <Text color={themeColors.textMuted}>{symbols.hollowDot}</Text>;
-    }
-  };
-
-  return (
-    <Box
-      flexDirection="column"
-      width={width}
-      height={height}
-      borderStyle="single"
-      borderColor={themeColors.muted}
-      paddingX={1}
-    >
-      <Box marginBottom={1}>
-        <Text color={themeColors.primary} bold>SERVICES</Text>
-      </Box>
-
-      {services.map((service) => (
-        <Box key={service.name} marginBottom={1} flexDirection="column">
-          <Box>
-            {getStatusIcon(service.status)}
-            <Text color={themeColors.text}> {service.displayName}</Text>
-          </Box>
-          {service.status === 'running' && service.port && (
-            <Text color={themeColors.textMuted}>  :{service.port}</Text>
-          )}
-          {service.status === 'error' && service.error && (
-            <Text color={baseColors.error} wrap="truncate">  {service.error.substring(0, width - 4)}</Text>
-          )}
-        </Box>
-      ))}
-
-      <Box flexGrow={1} />
-      <Box>
-        <Text color={themeColors.textMuted}>
-          {services.every(s => s.status === 'running') 
-            ? `${symbols.check} All systems go` 
-            : 'Initializing...'}
-        </Text>
-      </Box>
-    </Box>
-  );
 }
 
 function LogEntryRow({ log, maxWidth, themeColors }: { 
