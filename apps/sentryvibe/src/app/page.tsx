@@ -1970,8 +1970,12 @@ function HomeContent() {
         });
         
         // Check for GitHub result in the response and update project if found
+        // Log for debugging - always log this regardless of DEBUG_PAGE
+        if (currentMessage.content.includes('GITHUB_RESULT:')) {
+          console.log('🐙 Found GITHUB_RESULT marker in response');
+        }
         processAgentGitHubResponse(projectId, currentMessage.content, (result) => {
-          if (DEBUG_PAGE) console.log('🐙 GitHub setup completed:', result);
+          console.log('🐙 GitHub setup completed:', result);
           // Invalidate GitHub status query to refresh the button
           queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'github'] });
         });

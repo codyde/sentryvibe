@@ -23,16 +23,45 @@ export interface GitHubResultPayload {
 export function parseGitHubResult(content: string): GitHubResultPayload | null {
   if (!content) return null;
   
-  // Look for GITHUB_RESULT: prefix followed by JSON
-  const pattern = /GITHUB_RESULT:\s*(\{[^}]+\})/;
-  const match = content.match(pattern);
+  // Find the GITHUB_RESULT: marker
+  const marker = 'GITHUB_RESULT:';
+  const markerIndex = content.indexOf(marker);
   
-  if (!match || !match[1]) {
+  if (markerIndex === -1) {
     return null;
   }
   
+  // Extract everything after the marker and find the JSON object
+  const afterMarker = content.slice(markerIndex + marker.length).trim();
+  
+  // Find the JSON object by matching balanced braces
+  if (!afterMarker.startsWith('{')) {
+    console.warn('[github-parser] No JSON object found after GITHUB_RESULT:');
+    return null;
+  }
+  
+  let braceCount = 0;
+  let endIndex = 0;
+  
+  for (let i = 0; i < afterMarker.length; i++) {
+    if (afterMarker[i] === '{') braceCount++;
+    else if (afterMarker[i] === '}') braceCount--;
+    
+    if (braceCount === 0) {
+      endIndex = i + 1;
+      break;
+    }
+  }
+  
+  if (endIndex === 0) {
+    console.warn('[github-parser] Unbalanced braces in JSON');
+    return null;
+  }
+  
+  const jsonStr = afterMarker.slice(0, endIndex);
+  
   try {
-    const payload = JSON.parse(match[1]) as GitHubResultPayload;
+    const payload = JSON.parse(jsonStr) as GitHubResultPayload;
     
     // Validate required fields
     if (typeof payload.success !== 'boolean' || !payload.action) {
@@ -42,7 +71,7 @@ export function parseGitHubResult(content: string): GitHubResultPayload | null {
     
     return payload;
   } catch (e) {
-    console.error('[github-parser] Failed to parse GitHub result JSON:', e);
+    console.error('[github-parser] Failed to parse GitHub result JSON:', jsonStr, e);
     return null;
   }
 }

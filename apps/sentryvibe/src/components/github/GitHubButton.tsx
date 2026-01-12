@@ -7,23 +7,9 @@ import { cn } from '@/lib/utils';
 import { useGitHubStatus } from '@/queries/github';
 import { GitHubDropdown } from './GitHubDropdown';
 
-// GitHub chat messages - defined here to avoid importing server-side code from agent-core
-// The message includes structured output instructions so the frontend can parse the result
-const GITHUB_SETUP_MESSAGE = `Set up GitHub repository for this project.
-
-Instructions:
-1. Check if gh CLI is installed: \`gh --version\`
-2. Check if authenticated: \`gh auth status\`
-3. Initialize git if needed: \`git init\`
-4. Create initial commit if no commits: \`git add . && git commit -m "Initial commit from SentryVibe"\`
-5. Create GitHub repo and push: \`gh repo create {project-name} --public --source=. --remote=origin --push\`
-6. Get repo info: \`gh repo view --json url,name,owner\`
-
-CRITICAL: At the end of your response, output the result in this exact format on a single line:
-GITHUB_RESULT:{"success":true,"repo":"owner/repo-name","url":"https://github.com/owner/repo-name","branch":"main","action":"setup"}
-
-If there's an error, output:
-GITHUB_RESULT:{"success":false,"action":"error","error":"description of what went wrong"}`;
+// GitHub chat message - simple and user-friendly
+// The skill file (.claude/skills/github-setup/SKILL.md) contains the detailed instructions
+const GITHUB_SETUP_MESSAGE = 'Set up GitHub repository for this project using the github-setup skill.';
 
 interface GitHubButtonProps {
   projectId: string;
