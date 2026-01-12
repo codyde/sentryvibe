@@ -15,6 +15,7 @@ import { query, type SDKMessage, type Options } from '@anthropic-ai/claude-agent
 import * as Sentry from '@sentry/node';
 import { existsSync, mkdirSync } from 'node:fs';
 import { createProjectScopedPermissionHandler } from './permissions/project-scoped-handler.js';
+import { ensureProjectSkills } from './skills.js';
 import {
   CLAUDE_SYSTEM_PROMPT,
   type ClaudeModelId,
@@ -202,6 +203,9 @@ export function createNativeClaudeQuery(
       console.log(`[native-sdk] Creating working directory: ${workingDirectory}`);
       mkdirSync(workingDirectory, { recursive: true });
     }
+    
+    // Ensure project has skills copied from bundled skills
+    ensureProjectSkills(workingDirectory);
 
     // Check for multi-modal content
     const hasImages = messageParts?.some(p => p.type === 'image');
@@ -228,7 +232,7 @@ export function createNativeClaudeQuery(
       additionalDirectories: [workingDirectory],
       canUseTool: createProjectScopedPermissionHandler(workingDirectory),
       includePartialMessages: false, // We don't need streaming deltas
-      settingSources: ['project', 'local'],
+      settingSources: ['user', 'project'],
       env: {
         ...process.env,
         CLAUDE_CODE_MAX_OUTPUT_TOKENS: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ?? '64000',

@@ -44,6 +44,7 @@ import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
 import { hmrProxyManager } from "./lib/hmr-proxy-manager.js";
+import { ensureProjectSkills } from "./lib/skills.js";
 import { 
   initRunnerLogger, 
   getLogger,
@@ -537,6 +538,9 @@ function createClaudeQuery(
       console.log(`[createClaudeQuery] Creating working directory: ${workingDirectory}`);
       mkdirSync(workingDirectory, { recursive: true });
     }
+    
+    // Ensure project has skills copied from bundled skills
+    ensureProjectSkills(workingDirectory);
 
     // NOTE: The community provider (ai-sdk-provider-claude-code) bundles an older
     // version of the SDK types. We cast to `any` to avoid type conflicts.
@@ -562,7 +566,7 @@ function createClaudeQuery(
       canUseTool: createProjectScopedPermissionHandler(workingDirectory) as any, // Cast for type compat
       streamingInput: "always", // REQUIRED when using canUseTool - enables tool callbacks
       includePartialMessages: true,
-      settingSources: ["project", "local"], // Load project-level settings
+      settingSources: ["user", "project"], // Load skills from user and project directories
     });
 
     // Build user message - either simple text or multi-part with images
