@@ -62,7 +62,7 @@ import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
-import { GitHubButton, getGitHubSetupMessage } from "@/components/github";
+import { GitHubButton, getGitHubSetupMessage, type RepoVisibility } from "@/components/github";
 import { processAgentGitHubResponse } from "@/lib/github-result-parser";
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
@@ -2704,11 +2704,11 @@ function HomeContent() {
                 projectId={currentProject.id}
                 projectSlug={currentProject.slug}
                 isGenerating={isGenerating}
-                onSetupClick={() => {
+                onSetupClick={(visibility: RepoVisibility) => {
                   // Switch to Build tab to show the setup progress
                   switchTab("build");
-                  // Send the GitHub setup message via the chat flow
-                  startGeneration(currentProject.id, getGitHubSetupMessage(), {
+                  // Send the GitHub setup message via the chat flow with visibility
+                  startGeneration(currentProject.id, getGitHubSetupMessage(visibility), {
                     addUserMessage: true,
                   });
                 }}

@@ -1,2 +1,2 @@
-export { GitHubButton, getGitHubSetupMessage } from './GitHubButton';
+export { GitHubButton, getGitHubSetupMessage, type RepoVisibility } from './GitHubButton';
 export { GitHubDropdown } from './GitHubDropdown';

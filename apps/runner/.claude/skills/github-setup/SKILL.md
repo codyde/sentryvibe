@@ -78,8 +78,18 @@ When the user wants to set up GitHub for their project:
    ```
 
 3. **Create the GitHub repository and push:**
+   
+   Check the user's request to determine visibility:
+   - If they say "public repository" → use `--public`
+   - If they say "private repository" → use `--private`
+   - Default to `--public` if not specified
+   
    ```bash
+   # For public repository:
    gh repo create {project-name} --public --source=. --remote=origin --push
+   
+   # For private repository:
+   gh repo create {project-name} --private --source=. --remote=origin --push
    ```
    
    Use the project name (slugified) as the repository name.
