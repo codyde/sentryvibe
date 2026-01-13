@@ -133,7 +133,7 @@ async function executeInitFlow(
   options: InitOptions,
   callbacks: InitCallbacks
 ): Promise<InitConfig> {
-  const { activateStep, completeStep, failStep, startTask, completeTask, failTask, setError } = callbacks;
+  const { activateStep, completeStep, failStep, startTask, completeTask, failTask, setError, setBuildError } = callbacks;
 
   let monorepoPath: string | undefined;
   let databaseUrl: string | undefined;
@@ -373,7 +373,8 @@ async function executeInitFlow(
   if (monorepoPath) {
     startTask('services', 'Building services (this may take a minute)...');
     
-    // Track build output for error reporting
+    // Track build output for error reporting (capture both stdout and stderr)
+    let buildOutput = '';
     let buildError = '';
     
     try {
@@ -386,6 +387,12 @@ async function executeInitFlow(
           shell: true,
         });
         
+        // Capture stdout - many build tools output errors here
+        buildProcess.stdout?.on('data', (data: Buffer) => {
+          buildOutput += data.toString();
+        });
+        
+        // Capture stderr
         buildProcess.stderr?.on('data', (data: Buffer) => {
           buildError += data.toString();
         });
@@ -403,44 +410,82 @@ async function executeInitFlow(
       failTask('services', 'Build failed');
       failStep('ready');
       
-      // Extract the last few lines of build error for display
-      const errorLines = buildError.trim().split('\n');
-      const relevantErrors = errorLines
-        .filter((line: string) => 
-          line.includes('error') || 
-          line.includes('Error') || 
-          line.includes('ERR!') || 
-          line.includes('failed')
-        )
-        .slice(-5) // Last 5 error lines
-        .map((line: string) => line.trim().substring(0, 60)); // Truncate long lines
+      // Combine all output for analysis
+      const allOutput = (buildOutput + '\n' + buildError).trim();
+      const allLines = allOutput.split('\n');
       
-      const suggestions: string[] = [];
+      // Find the most relevant error lines with better patterns
+      const errorPatterns = [
+        /error TS\d+:/i,           // TypeScript errors
+        /error:/i,                  // General errors
+        /Error:/,                   // Error messages
+        /ERR!/,                     // npm/pnpm errors
+        /failed/i,                  // Failed messages
+        /Cannot find/i,             // Module not found
+        /Module not found/i,        // Webpack/Next.js errors
+        /SyntaxError/i,             // Syntax errors
+        /TypeError/i,               // Type errors
+        /ReferenceError/i,          // Reference errors
+        /ENOENT/i,                  // File not found
+        /✖|✗|×/,                   // Error symbols
+      ];
       
-      if (relevantErrors.length > 0) {
-        suggestions.push('Build output:');
-        relevantErrors.forEach((line: string) => suggestions.push(`  ${line}`));
-        suggestions.push('');
+      // Find lines that match error patterns
+      const relevantLines: string[] = [];
+      let inErrorBlock = false;
+      
+      for (let i = 0; i < allLines.length; i++) {
+        const line = allLines[i];
+        const isErrorLine = errorPatterns.some(pattern => pattern.test(line));
+        
+        if (isErrorLine) {
+          inErrorBlock = true;
+          // Include 1 line before for context if available
+          if (i > 0 && relevantLines.length === 0) {
+            const prevLine = allLines[i - 1].trim();
+            if (prevLine && !prevLine.startsWith('>')) {
+              relevantLines.push(prevLine);
+            }
+          }
+        }
+        
+        if (inErrorBlock) {
+          relevantLines.push(line.trim());
+          // Collect more lines for scrollable view (max 50 lines)
+          if (relevantLines.length >= 50) break;
+        }
+        
+        // End error block on empty line or success indicators
+        if (inErrorBlock && (line.trim() === '' || /successfully|completed/i.test(line))) {
+          // Keep going in case there are more errors
+          inErrorBlock = false;
+        }
       }
       
-      suggestions.push(
-        'To fix this, try running manually:',
+      // If no specific errors found, show last 30 lines of output
+      const displayLines = relevantLines.length > 0 
+        ? relevantLines
+        : allLines.slice(-30);
+      
+      const suggestions = [
+        'To debug further, run manually:',
         `  cd ${monorepoPath} && pnpm build:all`,
         '',
-        'Common issues:',
-        '  - Missing environment variables',
-        '  - TypeScript compilation errors', 
-        '  - Missing dependencies (run: pnpm install)',
-      );
+        'Common fixes:',
+        '  - Run: pnpm install (missing dependencies)',
+        '  - Check for TypeScript errors in the files mentioned above',
+        '  - Ensure all environment variables are set',
+      ];
       
-      setError('Production build failed', suggestions);
+      // Use setBuildError to show full-screen scrollable error view
+      setBuildError('Production build failed', displayLines, suggestions);
       
       throw new CLIError({
         code: 'BUILD_FAILED',
         message: 'Failed to build services for production',
         suggestions: [
           `Run manually: cd ${monorepoPath} && pnpm build:all`,
-          'Check for TypeScript errors in the output',
+          'Check for TypeScript errors in the output above',
           'Ensure all dependencies are installed: pnpm install',
         ],
       });

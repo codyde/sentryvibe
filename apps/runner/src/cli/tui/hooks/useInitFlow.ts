@@ -20,6 +20,13 @@ export interface Step {
   status: StepStatus;
 }
 
+export interface BuildErrorDetails {
+  /** Raw error output lines for scrollable view */
+  errorLines: string[];
+  /** Suggestions for fixing */
+  suggestions: string[];
+}
+
 export interface InitState {
   phase: InitPhase;
   steps: Step[];
@@ -28,6 +35,8 @@ export interface InitState {
   error: {
     message: string;
     suggestions: string[];
+    /** Detailed build error for full-screen view */
+    buildError?: BuildErrorDetails;
   } | null;
   isComplete: boolean;
 }
@@ -69,6 +78,7 @@ export interface UseInitFlowReturn {
   setConfig: (items: ConfigItem[]) => void;
   // Error management
   setError: (message: string, suggestions: string[]) => void;
+  setBuildError: (message: string, errorLines: string[], suggestions: string[]) => void;
   clearError: () => void;
   // Completion
   markComplete: () => void;
@@ -167,6 +177,20 @@ export function useInitFlow(): UseInitFlowReturn {
     }));
   }, []);
 
+  const setBuildError = useCallback((message: string, errorLines: string[], suggestions: string[]) => {
+    setState(prev => ({
+      ...prev,
+      error: { 
+        message, 
+        suggestions,
+        buildError: {
+          errorLines,
+          suggestions,
+        }
+      },
+    }));
+  }, []);
+
   const clearError = useCallback(() => {
     setState(prev => ({
       ...prev,
@@ -210,6 +234,7 @@ export function useInitFlow(): UseInitFlowReturn {
     getActiveStepTasks,
     setConfig,
     setError,
+    setBuildError,
     clearError,
     markComplete,
     reset,

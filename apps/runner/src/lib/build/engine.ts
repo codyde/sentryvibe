@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
 import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
+import { ensureProjectSkills } from '../skills.js';
 
 // Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)
 const debugLog = (message: string) => {
@@ -75,6 +76,9 @@ export async function createBuildStream(options: BuildStreamOptions): Promise<Re
   } else if (!existsSync(workingDirectory)) {
     mkdirSync(workingDirectory, { recursive: true });
   }
+  
+  // Ensure project has skills copied from bundled skills
+  ensureProjectSkills(actualWorkingDir);
 
   if (!resolvedDir) {
     if (process.env.DEBUG_BUILD === '1') console.log(`[engine] Using project directory as CWD: ${actualWorkingDir}`);

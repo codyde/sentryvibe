@@ -19,6 +19,7 @@ import {
   generationSessions,
   generationTodos,
   generationToolCalls,
+  projects,
 } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { buildWebSocketServer } from '@sentryvibe/agent-core/lib/websocket/server';
@@ -525,6 +526,41 @@ export async function POST(request: Request) {
             eq(generationToolCalls.sessionId, sessionId),
             eq(generationToolCalls.toolCallId, toolCallId),
           ));
+
+        // Check for GitHub repo info in tool output (gh repo view --json output)
+        // This parses the output server-side so frontend doesn't need to handle it
+        if (event.output && typeof event.output === 'string') {
+          const ghRepoMatch = event.output.match(/"url"\s*:\s*"(https:\/\/github\.com\/([^\/]+)\/([^"]+))"/);
+          if (ghRepoMatch) {
+            const [, url, owner, repoName] = ghRepoMatch;
+            
+            // Try to extract branch from the output
+            // Check for defaultBranchRef in gh repo view output (if --json includes it)
+            let branch = 'main'; // fallback
+            const branchMatch = event.output.match(/"defaultBranchRef"\s*:\s*{\s*"name"\s*:\s*"([^"]+)"/);
+            if (branchMatch) {
+              branch = branchMatch[1];
+            }
+            
+            console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName} (branch: ${branch})`);
+            
+            // Update project with GitHub info
+            try {
+              await db.update(projects)
+                .set({
+                  githubRepo: `${owner}/${repoName}`,
+                  githubUrl: url,
+                  githubBranch: branch,
+                  githubLastPushedAt: timestamp,
+                  updatedAt: timestamp,
+                })
+                .where(eq(projects.id, projectId));
+              console.log(`🐙 [build-events] Updated project ${projectId} with GitHub info`);
+            } catch (e) {
+              console.error('[build-events] Failed to update project GitHub info:', e);
+            }
+          }
+        }
 
         // WebSocket: Broadcast tool completion WITH COMPLETE DATA
         // Broadcast ALL tools including planning phase (todoIndex < 0)

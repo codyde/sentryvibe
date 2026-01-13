@@ -249,6 +249,25 @@ export async function upgradeCommand(options: UpgradeOptions) {
   } catch (error) {
     s.stop(pc.red('✗') + ' Build failed');
 
+    // Try to extract error message from execSync error
+    let errorOutput = '';
+    if (error && typeof error === 'object' && 'stderr' in error) {
+      errorOutput = String((error as { stderr?: unknown }).stderr || '');
+    }
+    if (!errorOutput && error && typeof error === 'object' && 'stdout' in error) {
+      errorOutput = String((error as { stdout?: unknown }).stdout || '');
+    }
+
+    // Show error details if available
+    if (errorOutput) {
+      console.log(pc.red('\nBuild errors:'));
+      console.log(pc.gray('─'.repeat(60)));
+      const lines = errorOutput.split('\n').slice(-20);
+      lines.forEach(line => console.log(pc.red(`  ${line}`)));
+      console.log(pc.gray('─'.repeat(60)));
+      console.log('');
+    }
+
     // Cleanup
     rmSync(tempDir, { recursive: true, force: true });
 

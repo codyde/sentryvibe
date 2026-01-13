@@ -30,6 +30,7 @@ import { useProjects, type Project } from "@/contexts/ProjectContext";
 import { useRunner } from "@/contexts/RunnerContext";
 import { useAgent } from "@/contexts/AgentContext";
 import { useProjectMessages, useProject } from "@/queries/projects";
+import { useGitHubStatus } from "@/queries/github";
 import { useSaveMessage } from "@/mutations/messages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBrowserMetrics } from "@/hooks/useBrowserMetrics";
@@ -62,6 +63,8 @@ import { useAuthGate } from "@/components/auth/AuthGate";
 import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
+import { GitHubButton, getGitHubSetupMessage, getGitHubPushMessage, type RepoVisibility } from "@/components/github";
+
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -326,6 +329,9 @@ function HomeContent() {
 
   // Subscribe to single project query for SSE updates
   const { data: projectFromQuery } = useProject(currentProject?.id);
+  
+  // GitHub status for auto-push feature
+  const { data: githubStatus } = useGitHubStatus(currentProject?.id || '');
 
   // Use ref to track current project state without causing effect re-runs
   const currentProjectRef = useRef(currentProject);
@@ -556,6 +562,11 @@ function HomeContent() {
     return buildHistory.length > 0 ? buildHistory[0] : null;
   }, [generationState, buildHistory]);
 
+  // Track which builds we've already triggered auto-push for
+  const autoPushedBuildIdsRef = useRef<Set<string>>(new Set());
+  // Track pending auto-push to trigger after startGeneration is available
+  const pendingAutoPushRef = useRef<{ projectId: string; buildId: string } | null>(null);
+  
   // Force refetch when build completes to ensure fresh data from database
   // This eliminates duplicate "Build complete!" messages
   useEffect(() => {
@@ -579,12 +590,25 @@ function HomeContent() {
     // Also trigger explicit refetch
     refetchProjectMessages?.();
     
+    // Check if we should auto-push to GitHub
+    // Don't auto-push if the build was a GitHub push itself (avoid infinite loop)
+    const isGitHubPushBuild = generationState.buildPlan?.toLowerCase().includes('push') && 
+                              generationState.buildPlan?.toLowerCase().includes('git');
+    if (githubStatus?.isConnected && 
+        githubStatus?.autoPush && 
+        !isGitHubPushBuild &&
+        !autoPushedBuildIdsRef.current.has(generationState.id)) {
+      console.log('🐙 [Auto-Push] Scheduling auto-push after build completion');
+      autoPushedBuildIdsRef.current.add(generationState.id);
+      pendingAutoPushRef.current = { projectId: currentProject.id, buildId: generationState.id };
+    }
+    
     // CRITICAL FIX: Clear local generationState immediately when build completes
     // This prevents the build from appearing in BOTH active section AND history
     // The refetch will populate serverBuilds/buildHistory with the DB version
     console.log('🧹 [State Cleanup] Clearing local generationState (build completed):', generationState.id);
     setGenerationState(null);
-  }, [generationState, currentProject?.id, refetchProjectMessages, queryClient, serverBuilds]);
+  }, [generationState, currentProject?.id, refetchProjectMessages, queryClient, serverBuilds, githubStatus]);
 
   const updateGenerationState = useCallback(
     (
@@ -1376,6 +1400,26 @@ function HomeContent() {
     );
   };
 
+  // Effect to trigger pending auto-push (after startGeneration is defined)
+  useEffect(() => {
+    const pending = pendingAutoPushRef.current;
+    if (!pending) return;
+    
+    // Clear the pending ref immediately to prevent double-triggering
+    pendingAutoPushRef.current = null;
+    
+    console.log('🐙 [Auto-Push] Triggering auto-push for build:', pending.buildId);
+    
+    // Small delay to let the UI settle before starting new generation
+    const timer = setTimeout(() => {
+      startGeneration(pending.projectId, getGitHubPushMessage(), {
+        addUserMessage: false, // Don't show as user message, it's automatic
+      });
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  });
+
   const startGenerationStream = async (
     projectId: string,
     prompt: string,
@@ -1768,6 +1812,7 @@ function HomeContent() {
             });
 
             // Tool messages handled by backend
+            // Note: GitHub repo parsing is handled server-side in build-events route
 
             // REMOVED: Tool output handling for messages
             // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
@@ -1966,6 +2011,8 @@ function HomeContent() {
           content: currentMessage.content,
           timestamp: Date.now(),
         });
+        
+        // Note: GitHub repo parsing is handled server-side in build-events route
       }
 
       // Ensure final summary todo is marked completed before finishing
@@ -2684,7 +2731,34 @@ function HomeContent() {
               </>
             )}
           </div>
-          <AuthHeader />
+          <div className="flex items-center gap-3">
+            {/* GitHub Integration - show when project is selected and completed */}
+            {currentProject && currentProject.status === 'completed' && (
+              <GitHubButton
+                projectId={currentProject.id}
+                projectSlug={currentProject.slug}
+                isGenerating={isGenerating}
+                onSetupClick={(visibility: RepoVisibility) => {
+                  // Switch to Build tab to show the setup progress
+                  switchTab("build");
+                  // Send the GitHub setup message via the chat flow with visibility
+                  startGeneration(currentProject.id, getGitHubSetupMessage(visibility), {
+                    addUserMessage: true,
+                  });
+                }}
+                onPushClick={() => {
+                  // Switch to Build tab to show the push progress
+                  switchTab("build");
+                  // Send the GitHub push message via the chat flow
+                  startGeneration(currentProject.id, getGitHubPushMessage(), {
+                    addUserMessage: true,
+                  });
+                }}
+                variant="default"
+              />
+            )}
+            <AuthHeader />
+          </div>
         </header>
         
         {runnerOnline === false && (

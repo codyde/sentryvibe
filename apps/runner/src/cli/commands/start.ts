@@ -19,6 +19,7 @@ import { ConsoleInterceptor } from '../ui/console-interceptor.js';
 import { LogFileManager } from '../ui/log-file-manager.js';
 import { initRunnerLogger } from '../../lib/logging/index.js';
 import { setFileLoggerTuiMode } from '../../lib/file-logger.js';
+import { extractBuildErrors } from '../utils/build-error-extractor.js';
 
 interface StartOptions {
   port?: string;
@@ -113,12 +114,24 @@ export async function startCommand(options: StartOptions) {
     s.start(buildReason);
     const { spawn } = await import('child_process');
 
+    // Capture build output for error reporting
+    let buildOutput = '';
+    let buildError = '';
+
     try {
       // Use turbo to build all services with caching
       await new Promise<void>((resolve, reject) => {
         const buildProcess = spawn('pnpm', ['build:all'], {
           cwd: monorepoRoot,
-          stdio: 'pipe', // Capture output silently
+          stdio: 'pipe', // Capture output
+        });
+
+        buildProcess.stdout?.on('data', (data: Buffer) => {
+          buildOutput += data.toString();
+        });
+
+        buildProcess.stderr?.on('data', (data: Buffer) => {
+          buildError += data.toString();
         });
 
         buildProcess.on('close', (code) => {
@@ -135,14 +148,30 @@ export async function startCommand(options: StartOptions) {
       s.stop(pc.green('✓') + ' Build complete (using Turborepo cache)');
     } catch (error) {
       s.stop(pc.red('✗') + ' Build failed');
+      
+      // Extract meaningful error lines from build output
+      const allOutput = (buildOutput + '\n' + buildError).trim();
+      const errorLines = extractBuildErrors(allOutput);
+      
+      const suggestions = [
+        'Check that all dependencies are installed',
+        'Try running: pnpm build:all',
+        'Run with --dev flag to skip build and use dev mode',
+      ];
+      
+      // Add error context if available
+      if (errorLines.length > 0) {
+        console.log(pc.red('\nBuild errors:'));
+        console.log(pc.gray('─'.repeat(60)));
+        errorLines.forEach(line => console.log(pc.red(`  ${line}`)));
+        console.log(pc.gray('─'.repeat(60)));
+        console.log('');
+      }
+      
       throw new CLIError({
         code: 'BUILD_FAILED',
         message: 'Failed to build services',
-        suggestions: [
-          'Check that all dependencies are installed',
-          'Try running: pnpm build:all',
-          'Run with --dev flag to skip build and use dev mode',
-        ],
+        suggestions,
       });
     }
   }
