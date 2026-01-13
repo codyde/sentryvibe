@@ -20,6 +20,7 @@ import { TodoList } from "@/components/BuildProgress/TodoList";
 import { CompletedTodosSummary } from "@/components/CompletedTodosSummary";
 import { ErrorDetectedSection } from "@/components/ErrorDetectedSection";
 import { PlanningPhase } from "@/components/BuildProgress/PlanningPhase";
+import { ProjectStartingStatus } from "@/components/BuildProgress/ProjectStartingStatus";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -219,6 +220,7 @@ function HomeContent() {
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
+  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null); // Optimistic message shown during project creation
   const [breaksAnimationClass, setBreaksAnimationClass] = useState<string>("");
   const [generationState, setGenerationState] =
     useState<GenerationState | null>(null);
@@ -484,6 +486,11 @@ function HomeContent() {
   }, [conversationMessages, classifyMessage]);
 
   const displayedInitialMessage = useMemo(() => {
+    // Priority 1: Show pending message during project creation (instant feedback)
+    if (pendingUserMessage) {
+      return pendingUserMessage;
+    }
+
     if (initialUserMessage) {
       return initialUserMessage;
     }
@@ -510,7 +517,7 @@ function HomeContent() {
     }
 
     return null;
-  }, [initialUserMessage, currentProject]);
+  }, [initialUserMessage, currentProject, pendingUserMessage]);
 
   const sessionStates = useMemo(() => {
     const sessions = messagesFromDB?.sessions ?? [];
@@ -2139,9 +2146,29 @@ function HomeContent() {
 
     // If no project selected, create new project
     if (!currentProject) {
+      // INSTANT FEEDBACK: Create pending message immediately before any API calls
+      const pendingMessage: Message = {
+        id: `pending-${Date.now()}`,
+        projectId: 'pending',
+        role: 'user' as const,
+        type: 'user' as const,
+        content: userPrompt,
+        parts: userImages.length > 0 ? [...userImages, { type: 'text', text: userPrompt }] : undefined,
+        timestamp: Date.now(),
+      };
+      setPendingUserMessage(pendingMessage);
+      
       setIsCreatingProject(true);
-      setIsAnalyzingTemplate(true);
       setTemplateProvisioningInfo(null); // Clear previous template info
+
+      // Check if framework tag is present - if so, no template analysis needed (fast path)
+      const frameworkTag = appliedTags.find(t => t.key === 'framework');
+      const needsTemplateAnalysis = !frameworkTag;
+      setIsAnalyzingTemplate(needsTemplateAnalysis);
+      
+      if (frameworkTag) {
+        console.log('[page.tsx] ⚡ Framework tag present - fast path, no template analysis');
+      }
 
       try {
         // Derive agent/model from tags
@@ -2174,8 +2201,9 @@ function HomeContent() {
 
         if (DEBUG_PAGE) console.log("✅ Project created:", project.slug);
 
-        // Template analysis happens automatically in the build API route
-        // We'll see the results in the build metadata event
+        // Template analysis happens in the build API route
+        // For fast path (framework tag), it's already false
+        // For slow path (no framework tag), the build route will trigger analysis
         setIsAnalyzingTemplate(false);
 
         // LOCK generation mode FIRST (before anything else!)
@@ -2225,8 +2253,9 @@ function HomeContent() {
         if (DEBUG_PAGE) console.log("🎯 Switching to Build tab for new project");
         switchTab("build");
 
-        // Set project state
+        // Set project state and clear pending message (real message will be added below)
         setCurrentProject(project);
+        setPendingUserMessage(null); // Clear optimistic message - real one comes from query cache
         setIsCreatingProject(false);
 
         // Refresh project list IMMEDIATELY so sidebar updates
@@ -2293,6 +2322,8 @@ function HomeContent() {
       } catch (error) {
         console.error("Error creating project:", error);
         setIsCreatingProject(false);
+        setPendingUserMessage(null); // Clear optimistic message on error
+        setIsAnalyzingTemplate(false);
       }
     } else {
       // Continue conversation on existing project
@@ -2901,44 +2932,68 @@ function HomeContent() {
                       className="flex-1 flex flex-col min-h-0 max-h-full bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
                     >
                       {/* Project Info Header with Tags */}
-                      {currentProject && (
+                      {(currentProject || isCreatingProject) && (
                         <div className="border-b border-white/10 px-4 py-3">
                           {/* Framework/Model tags - larger style with labels */}
-                          {(generationState?.agentId || latestCompletedBuild?.agentId || currentProject.detectedFramework) && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              {(generationState?.agentId || latestCompletedBuild?.agentId) && (() => {
-                                const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId;
-                                const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId;
-                                const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
-                                const modelLogo = modelValue ? getModelLogo(modelValue) : null;
-                                return (
-                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
-                                    {modelLogo && (
-                                      <img src={modelLogo} alt="model" className="w-4 h-4 object-contain" />
-                                    )}
-                                    <span className="text-gray-400">model:</span>
-                                    <span className="text-gray-200">
-                                      {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-                              {currentProject.detectedFramework && (() => {
-                                const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
-                                return (
-                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
-                                    {frameworkLogo && (
-                                      <img src={frameworkLogo} alt="framework" className="w-4 h-4 object-contain" />
-                                    )}
-                                    <span className="text-gray-400">framework:</span>
-                                    <span className="text-gray-200">{currentProject.detectedFramework}</span>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
+                          {(() => {
+                            // Get framework from applied tags during creation, or from project after creation
+                            const frameworkTagValue = appliedTags.find(t => t.key === 'framework')?.value;
+                            const displayFramework = currentProject?.detectedFramework || frameworkTagValue || templateProvisioningInfo?.framework;
+                            const modelTagValue = appliedTags.find(t => t.key === 'model')?.value;
+                            
+                            const shouldShow = generationState?.agentId || latestCompletedBuild?.agentId || 
+                                              displayFramework || isCreatingProject;
+                            
+                            if (!shouldShow) return null;
+                            
+                            return (
+                              <div className="flex flex-wrap items-center gap-2">
+                                {/* Model badge - show from generation state, build history, or tags during creation */}
+                                {(() => {
+                                  const activeAgent = generationState?.agentId || latestCompletedBuild?.agentId || 
+                                    (modelTagValue ? parseModelTag(modelTagValue).agent : selectedAgentId);
+                                  const activeModel = generationState?.claudeModelId || latestCompletedBuild?.claudeModelId ||
+                                    (modelTagValue ? parseModelTag(modelTagValue).claudeModel : 
+                                      (selectedAgentId === 'claude-code' ? selectedClaudeModelId : undefined));
+                                  const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
+                                  const modelLogo = modelValue ? getModelLogo(modelValue) : null;
+                                  
+                                  if (!activeAgent) return null;
+                                  
+                                  return (
+                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
+                                      {modelLogo && (
+                                        <img src={modelLogo} alt="model" className="w-4 h-4 object-contain" />
+                                      )}
+                                      <span className="text-gray-400">model:</span>
+                                      <span className="text-gray-200">
+                                        {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
+                                {/* Framework badge - show early from tags or detected framework */}
+                                {displayFramework && (() => {
+                                  const frameworkLogo = getFrameworkLogo(displayFramework);
+                                  return (
+                                    <motion.div 
+                                      initial={{ opacity: 0, scale: 0.9 }}
+                                      animate={{ opacity: 1, scale: 1 }}
+                                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono"
+                                    >
+                                      {frameworkLogo && (
+                                        <img src={frameworkLogo} alt="framework" className="w-4 h-4 object-contain" />
+                                      )}
+                                      <span className="text-gray-400">framework:</span>
+                                      <span className="text-gray-200">{displayFramework}</span>
+                                    </motion.div>
+                                  );
+                                })()}
+                              </div>
+                            );
+                          })()}
                           {/* Error message and retry button */}
-                          {currentProject.status === "failed" && (
+                          {currentProject && currentProject.status === "failed" && (
                             <div className="mt-2 p-2 bg-[#FF45A8]/10 border border-[#FF45A8]/30 rounded-lg">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
@@ -2975,152 +3030,8 @@ function HomeContent() {
                         ref={scrollContainerRef}
                         className="flex-1 overflow-y-auto p-6 min-h-0"
                       >
-                        {/* Beautiful loading */}
-                        {isCreatingProject && (
-                          <motion.div
-                            key="creating-project"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="flex items-center justify-center min-h-[400px]"
-                          >
-                            <div className="text-center space-y-6 max-w-md">
-                              {/* Animated icon */}
-                              <motion.div
-                                animate={{
-                                  scale: [1, 1.2, 1],
-                                  rotate: [0, 180, 360],
-                                }}
-                                transition={{
-                                  duration: 3,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                }}
-                                className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-theme-gradient-muted-br backdrop-blur-sm border border-theme-primary\/30"
-                              >
-                                <Sparkles className="w-10 h-10 text-theme-primary" />
-                              </motion.div>
-
-                              {/* Loading text */}
-                              <div className="space-y-2">
-                                <h3 className="text-2xl font-semibold text-white">
-                                  {isAnalyzingTemplate
-                                    ? "Analyzing Your Request"
-                                    : "Preparing Your Project"}
-                                </h3>
-                                <p className="text-gray-400">
-                                  {isAnalyzingTemplate
-                                    ? `${
-                                        (() => {
-                                          // Use model from tags if present, otherwise use selected model
-                                          const modelTag = appliedTags.find(t => t.key === 'model');
-                                          if (modelTag) {
-                                            const parsed = parseModelTag(modelTag.value);
-                                            return parsed.agent === 'claude-code' && parsed.claudeModel
-                                              ? getClaudeModelLabel(parsed.claudeModel)
-                                              : 'GPT-5 Codex';
-                                          }
-                                          return selectedAgentId === "claude-code"
-                                            ? selectedClaudeModelLabel
-                                            : "GPT-5 Codex";
-                                        })()
-                                      } is selecting the best template...`
-                                    : "Setting up the perfect environment..."}
-                                </p>
-
-                                {/* Show template provisioning info */}
-                                {templateProvisioningInfo && !isAnalyzingTemplate && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-4 rounded-lg bg-theme-gradient-muted-br border border-theme-primary\/30 backdrop-blur-sm"
-                                  >
-                                    <div className="space-y-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-theme-primary animate-pulse" />
-                                        <p className="text-sm text-theme-accent font-semibold">
-                                          Provisioning Template
-                                        </p>
-                                      </div>
-
-                                      {templateProvisioningInfo.templateName && (
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-gray-400">Template:</span>
-                                          <span className="text-white font-medium">{templateProvisioningInfo.templateName}</span>
-                                        </div>
-                                      )}
-
-                                      {templateProvisioningInfo.framework && (
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-gray-400">Framework:</span>
-                                          <span className="text-theme-accent font-medium">{templateProvisioningInfo.framework}</span>
-                                        </div>
-                                      )}
-
-                                      {templateProvisioningInfo.downloadPath && (
-                                        <div className="flex items-start justify-between text-xs gap-2">
-                                          <span className="text-gray-400 shrink-0">Path:</span>
-                                          <span className="text-gray-300 font-mono text-right break-all">
-                                            {templateProvisioningInfo.downloadPath.split('/').pop()}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                )}
-
-                                {/* Fallback to show selected template if provisioning info not available */}
-                                {selectedTemplate && !templateProvisioningInfo && !isAnalyzingTemplate && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-3 rounded-lg bg-theme-primary-muted border border-theme-primary\/20"
-                                  >
-                                    <p className="text-sm text-theme-accent font-medium">
-                                      ✓ Template: {selectedTemplate.name}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Selected by {selectedTemplate.analyzedBy}
-                                    </p>
-                                  </motion.div>
-                                )}
-                              </div>
-
-                              {/* Animated progress dots */}
-                              <div className="flex items-center gap-2 justify-center">
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0,
-                                  }}
-                                  className="w-2 h-2 bg-theme-primary rounded-full"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0.2,
-                                  }}
-                                  className="w-2 h-2 bg-theme-secondary rounded-full"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0.4,
-                                  }}
-                                  className="w-2 h-2 bg-theme-primary rounded-full"
-                                />
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {!isCreatingProject && (
+                        {/* Content area - show user prompt immediately even while creating */}
+                        {(isCreatingProject || !isCreatingProject) && (
                           <div className="space-y-4 p-4">
                             {(() => {
                               const userMessages = conversationMessages.filter(
@@ -3176,8 +3087,37 @@ function HomeContent() {
                                           </div>
                                         )}
 
+                                        {/* Project Starting Status - show during initial setup */}
+                                        {isLastMessage && isCreatingProject && idx === 0 && (
+                                          <AnimatePresence>
+                                            <ProjectStartingStatus
+                                              projectName={currentProject?.name}
+                                              framework={currentProject?.detectedFramework || templateProvisioningInfo?.framework}
+                                              isSelectingTemplate={isAnalyzingTemplate}
+                                              isDownloadingTemplate={!!templateProvisioningInfo && !templateProvisioningInfo.downloadPath}
+                                              templateName={templateProvisioningInfo?.templateName || selectedTemplate?.name}
+                                              modelId={(() => {
+                                                const modelTag = appliedTags.find(t => t.key === 'model');
+                                                if (modelTag) {
+                                                  const parsed = parseModelTag(modelTag.value);
+                                                  return parsed.agent === 'openai-codex' ? 'gpt-5-codex' : parsed.claudeModel;
+                                                }
+                                                return selectedAgentId === 'claude-code' ? selectedClaudeModelId : 'gpt-5-codex';
+                                              })()}
+                                              agentId={(() => {
+                                                const modelTag = appliedTags.find(t => t.key === 'model');
+                                                if (modelTag) {
+                                                  const parsed = parseModelTag(modelTag.value);
+                                                  return parsed.agent;
+                                                }
+                                                return selectedAgentId;
+                                              })()}
+                                            />
+                                          </AnimatePresence>
+                                        )}
+
                                         {/* Planning Phase - only show for current active build */}
-                                        {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && (
+                                        {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && !isCreatingProject && (
                                           <div className="space-y-3">
                                             <PlanningPhase
                                               activePlanningTool={generationState?.activePlanningTool}

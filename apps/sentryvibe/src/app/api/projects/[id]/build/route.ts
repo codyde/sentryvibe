@@ -152,19 +152,18 @@ export async function POST(
       const frameworkTag = body.tags?.find(t => t.key === 'framework');
 
       if (frameworkTag) {
-        // FAST PATH: Framework tag present - skip template analysis, only generate name
-        console.log('[build-route] Framework tag present - skipping template analysis');
+        // FAST PATH: Framework tag present - skip template analysis, but still generate name
+        // Trust the user's explicit tag selection absolutely
+        console.log('[build-route] ⚡ FAST PATH: Framework tag present - skipping template analysis');
         console.log(`[build-route] Framework: ${frameworkTag.value}`);
 
         try {
-          // Generate project friendly name with Haiku (fast + cheap)
-          // Note: We only use the friendlyName - slug comes from DB and is immutable
+          // Generate project friendly name with AI (still needed for good UX)
           const names = await generateProjectName(body.prompt, agentId, claudeModel);
           generatedFriendlyName = names.friendlyName;
           console.log(`[build-route] ✅ Generated friendly name: ${generatedFriendlyName}`);
-          console.log(`[build-route]    Using stored slug: ${project.slug}`);
 
-          // Get framework metadata from tag definition
+          // Get framework metadata from tag definition (instant lookup, no template analysis AI)
           const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
           const frameworkOption = frameworkDef?.options?.find(o => o.value === frameworkTag.value);
 
@@ -172,7 +171,7 @@ export async function POST(
             throw new Error(`Framework tag ${frameworkTag.value} missing repository metadata`);
           }
 
-          // Build template metadata from tag (no AI analysis needed)
+          // Build template metadata from tag (skips template selection AI)
           templateMetadata = {
             id: `${frameworkTag.value}-default`,
             name: frameworkOption.label,
@@ -185,17 +184,15 @@ export async function POST(
 
           console.log(`[build-route] ✅ Template from tag: ${frameworkOption.label}`);
           console.log(`[build-route]    Repository: ${frameworkOption.repository}`);
-          console.log(`[build-route]    Cost savings: ~85% (skipped template analysis)`);
+          console.log(`[build-route]    ⚡ Skipped template selection AI - used tag directly`);
 
           // Update project name and framework in DB
-          // Note: We do NOT update the slug - it must remain immutable for directory consistency
           const updates: { name?: string; detectedFramework?: string } = {};
           
           if (generatedFriendlyName && generatedFriendlyName !== project.name) {
             updates.name = generatedFriendlyName;
           }
           
-          // Store framework from tag for metrics consistency
           if (templateMetadata.framework) {
             updates.detectedFramework = templateMetadata.framework;
           }
@@ -205,10 +202,7 @@ export async function POST(
               .set(updates)
               .where(eq(projects.id, id))
               .returning();
-            console.log(`[build-route] ✅ Updated project:`, updates);
             
-            // EMIT FRAMEWORK EARLY: Push update to frontend immediately
-            // This makes the framework tag appear at the START of the build
             if (updated) {
               console.log(`[build-route] 🚀 Framework emitted immediately: ${templateMetadata.framework}`);
               projectEvents.emitProjectUpdate(id, updated);
@@ -272,7 +266,7 @@ export async function POST(
     const frameworkTag = body.tags?.find(t => t.key === 'framework');
     Sentry.metrics.count('build.started', 1, {
       attributes: {
-        project_id: params.id,
+        project_id: id,
         model: agentId === 'claude-code' ? claudeModel : agentId,
         framework: templateMetadata?.framework || 'unknown',
         runner: runnerId,
