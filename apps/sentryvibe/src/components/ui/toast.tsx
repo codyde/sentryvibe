@@ -33,8 +33,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback((type: ToastType, message: string, duration = 4000) => {
+    // Validate toast type - if invalid, use 'info' as fallback
+    const validTypes: ToastType[] = ['success', 'error', 'warning', 'info'];
+    const validatedType = validTypes.includes(type) ? type : 'info';
+    
+    if (validatedType !== type) {
+      console.warn(`[Toast] Invalid toast type "${type}" provided, falling back to "info"`);
+    }
+    
     const id = Math.random().toString(36).substr(2, 9);
-    setToasts((prev) => [...prev, { id, type, message, duration }]);
+    setToasts((prev) => [...prev, { id, type: validatedType, message, duration }]);
 
     if (duration > 0) {
       setTimeout(() => {
@@ -90,12 +98,21 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
     },
   };
 
+  // Default fallback for unknown toast types
+  const defaultColor = {
+    bg: 'bg-gray-500/20',
+    border: 'border-gray-500/40',
+    icon: 'text-gray-400',
+    text: 'text-gray-100',
+  };
+
   return (
     <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => {
-          const Icon = icons[toast.type];
-          const color = colors[toast.type];
+          // Defensive: Use fallback if toast.type is invalid or undefined
+          const Icon = icons[toast.type] || Info;
+          const color = colors[toast.type] || defaultColor;
 
           return (
             <motion.div
