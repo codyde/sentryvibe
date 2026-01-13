@@ -560,30 +560,6 @@ export async function POST(request: Request) {
               console.error('[build-events] Failed to update project GitHub info:', e);
             }
           }
-          
-          // Also check for branch name from "git branch --show-current" output
-          // This updates the branch if the project already has GitHub connected
-          // Output is typically just the branch name on a single line like "main" or "master"
-          const cleanOutput = event.output.trim();
-          if (/^(main|master|develop|dev)$/i.test(cleanOutput) || /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(cleanOutput)) {
-            // Looks like a branch name - check if this project has GitHub connected
-            const existingProject = await db.select({ githubRepo: projects.githubRepo, githubBranch: projects.githubBranch })
-              .from(projects)
-              .where(eq(projects.id, projectId))
-              .limit(1);
-            
-            if (existingProject[0]?.githubRepo && existingProject[0]?.githubBranch !== cleanOutput) {
-              // Update the branch if different
-              try {
-                await db.update(projects)
-                  .set({ githubBranch: cleanOutput, updatedAt: timestamp })
-                  .where(eq(projects.id, projectId));
-                console.log(`🐙 [build-events] Updated project ${projectId} branch to: ${cleanOutput}`);
-              } catch (e) {
-                // Ignore errors - branch update is optional
-              }
-            }
-          }
         }
 
         // WebSocket: Broadcast tool completion WITH COMPLETE DATA
