@@ -19,6 +19,8 @@ interface GitHubButtonProps {
   projectId: string;
   projectSlug: string;
   onSetupClick?: (visibility: RepoVisibility) => void;
+  /** Callback to trigger a push via agent */
+  onPushClick?: () => void;
   className?: string;
   variant?: 'default' | 'compact';
   /** Whether a generation/build is currently running */
@@ -34,6 +36,7 @@ export function GitHubButton({
   projectId,
   projectSlug,
   onSetupClick,
+  onPushClick,
   className,
   variant = 'default',
   isGenerating = false,
@@ -103,6 +106,8 @@ export function GitHubButton({
         status={status}
         className={className}
         variant={variant}
+        onPushClick={onPushClick}
+        isGenerating={isGenerating}
       />
     );
   }
@@ -184,4 +189,12 @@ export function GitHubButton({
  */
 export function getGitHubSetupMessage(visibility: RepoVisibility = 'public'): string {
   return getSetupMessage(visibility);
+}
+
+/**
+ * Get the chat message to trigger GitHub push
+ */
+export function getGitHubPushMessage(commitMessage?: string): string {
+  const message = commitMessage || 'Update from SentryVibe';
+  return `Stage all current changes with git add, commit with message "${message}", and push to the remote repository.`;
 }

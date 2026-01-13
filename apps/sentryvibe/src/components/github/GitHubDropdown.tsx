@@ -26,7 +26,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
-import { usePushToGitHub, useSyncGitHub, useUpdateGitHubSettings, useDisconnectGitHub } from '@/mutations/github';
+import { useSyncGitHub, useUpdateGitHubSettings, useDisconnectGitHub } from '@/mutations/github';
 import { useToast } from '@/components/ui/toast';
 
 interface GitHubDropdownProps {
@@ -34,6 +34,10 @@ interface GitHubDropdownProps {
   status: GitHubStatus;
   className?: string;
   variant?: 'default' | 'compact';
+  /** Callback to trigger a push via agent (sends chat message) */
+  onPushClick?: () => void;
+  /** Whether a generation/build is currently running */
+  isGenerating?: boolean;
 }
 
 /**
@@ -44,21 +48,21 @@ export function GitHubDropdown({
   status,
   className,
   variant = 'default',
+  onPushClick,
+  isGenerating = false,
 }: GitHubDropdownProps) {
   const { addToast } = useToast();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   
-  const pushMutation = usePushToGitHub(projectId);
   const syncMutation = useSyncGitHub(projectId);
   const settingsMutation = useUpdateGitHubSettings(projectId);
   const disconnectMutation = useDisconnectGitHub(projectId);
 
-  const handlePush = async () => {
-    try {
-      await pushMutation.mutateAsync();
-      addToast('success', 'Your changes are being pushed to GitHub.');
-    } catch (error) {
-      addToast('error', error instanceof Error ? error.message : 'Failed to push to GitHub');
+  const handlePush = () => {
+    if (onPushClick) {
+      onPushClick();
+    } else {
+      addToast('info', 'Push handler not configured');
     }
   };
 
@@ -112,7 +116,7 @@ export function GitHubDropdown({
   };
 
   const repoName = status.repo?.split('/')[1] || status.repo || 'Unknown';
-  const isLoading = pushMutation.isPending || syncMutation.isPending || 
+  const isLoading = isGenerating || syncMutation.isPending || 
                     settingsMutation.isPending || disconnectMutation.isPending;
 
   return (
@@ -201,12 +205,12 @@ export function GitHubDropdown({
             disabled={isLoading}
             className="text-white hover:bg-gray-800 cursor-pointer"
           >
-            {pushMutation.isPending ? (
+            {isGenerating ? (
               <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
             ) : (
               <Upload className="w-4 h-4 text-gray-400" />
             )}
-            <span>Push Changes</span>
+            <span>{isGenerating ? 'Pushing...' : 'Push Changes'}</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem

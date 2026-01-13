@@ -46,51 +46,6 @@ export function useUpdateGitHubSettings(projectId: string) {
 }
 
 // ============================================================================
-// GitHub Push
-// ============================================================================
-
-interface PushOptions {
-  message?: string;
-}
-
-interface PushResult {
-  success: boolean;
-  message: string;
-  commandId: string;
-}
-
-async function pushToGitHub(projectId: string, options?: PushOptions): Promise<PushResult> {
-  const res = await fetch(`/api/projects/${projectId}/github/push`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options || {}),
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to push to GitHub');
-  }
-
-  return res.json();
-}
-
-export function usePushToGitHub(projectId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (options?: PushOptions) => pushToGitHub(projectId, options),
-    onSuccess: () => {
-      // Invalidate queries to refetch fresh data after push
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'github'] });
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId] });
-    },
-    onError: (err) => {
-      console.error('Failed to push to GitHub:', err);
-    },
-  });
-}
-
-// ============================================================================
 // GitHub Sync
 // ============================================================================
 
