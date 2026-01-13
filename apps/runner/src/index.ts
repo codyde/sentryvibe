@@ -3107,6 +3107,34 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         hmrProxyManager.disconnect(connectionId);
         break;
       }
+      case "github-sync": {
+        // GitHub sync command - fetch repo metadata
+        // TODO: Implement actual sync logic if needed
+        console.log(`[runner] Received github-sync command for project ${command.projectId}`);
+        console.log(`[runner] Repo: ${command.payload.repo}, Slug: ${command.payload.slug}`);
+        
+        // Send acknowledgment
+        sendEvent({
+          type: 'ack',
+          ...buildEventBase(command.projectId, command.id),
+          message: 'GitHub sync command received',
+        });
+        break;
+      }
+      case "github-push": {
+        // GitHub push command - push changes to repo
+        // TODO: Implement actual push logic if needed  
+        console.log(`[runner] Received github-push command for project ${command.projectId}`);
+        console.log(`[runner] Repo: ${command.payload.repo}, Branch: ${command.payload.branch}`);
+        
+        // Send acknowledgment
+        sendEvent({
+          type: 'ack',
+          ...buildEventBase(command.projectId, command.id),
+          message: 'GitHub push command received',
+        });
+        break;
+      }
       default:
         assertNever(command as never);
     }

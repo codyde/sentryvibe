@@ -20,7 +20,9 @@ export type RunnerCommandType =
   | 'http-proxy-request'
   | 'hmr-connect'
   | 'hmr-message'
-  | 'hmr-disconnect';
+  | 'hmr-disconnect'
+  | 'github-sync'
+  | 'github-push';
 
 export type RunnerEventType =
   | 'ack'
@@ -207,6 +209,24 @@ export interface HmrDisconnectCommand extends BaseCommand {
   };
 }
 
+export interface GithubSyncCommand extends BaseCommand {
+  type: 'github-sync';
+  payload: {
+    slug: string;
+    repo: string | null;
+  };
+}
+
+export interface GithubPushCommand extends BaseCommand {
+  type: 'github-push';
+  payload: {
+    slug: string;
+    commitMessage?: string;
+    repo: string;
+    branch: string;
+  };
+}
+
 export type RunnerCommand =
   | StartBuildCommand
   | StartDevServerCommand
@@ -222,7 +242,9 @@ export type RunnerCommand =
   | HttpProxyRequestCommand
   | HmrConnectCommand
   | HmrMessageCommand
-  | HmrDisconnectCommand;
+  | HmrDisconnectCommand
+  | GithubSyncCommand
+  | GithubPushCommand;
 
 export interface BaseEvent {
   type: RunnerEventType;
@@ -491,6 +513,8 @@ const COMMAND_TYPES: RunnerCommandType[] = [
   'hmr-connect',
   'hmr-message',
   'hmr-disconnect',
+  'github-sync',
+  'github-push',
 ];
 
 export const isRunnerCommand = (message: RunnerMessage): message is RunnerCommand =>
