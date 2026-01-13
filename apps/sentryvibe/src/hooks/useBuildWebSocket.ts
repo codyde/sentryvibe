@@ -213,6 +213,8 @@ export function useBuildWebSocket({
     for (const update of updates) {
       if (update.type === 'tool-call') {
         const toolData = update.data as { name: string; state: string; output?: unknown };
+        // Debug: Log all tool-call events
+        console.log(`[useBuildWebSocket] 🔧 tool-call: ${toolData.name} state=${toolData.state} hasOutput=${toolData.output !== undefined}`);
         if (toolData.state === 'output-available' && toolData.output !== undefined) {
           toolOutputs.push({ name: toolData.name, output: toolData.output });
         }
@@ -220,12 +222,15 @@ export function useBuildWebSocket({
     }
     
     // Call onToolOutput callback for each tool output (outside of setState)
-    if (onToolOutput && toolOutputs.length > 0) {
-      for (const { name, output } of toolOutputs) {
-        try {
-          onToolOutput(name, output);
-        } catch (e) {
-          console.error('[useBuildWebSocket] Error in onToolOutput callback:', e);
+    if (toolOutputs.length > 0) {
+      console.log(`[useBuildWebSocket] 📤 Processing ${toolOutputs.length} tool outputs, hasCallback=${!!onToolOutput}`);
+      if (onToolOutput) {
+        for (const { name, output } of toolOutputs) {
+          try {
+            onToolOutput(name, output);
+          } catch (e) {
+            console.error('[useBuildWebSocket] Error in onToolOutput callback:', e);
+          }
         }
       }
     }
