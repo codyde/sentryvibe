@@ -30,6 +30,8 @@ interface UseBuildWebSocketOptions {
   projectId: string;
   sessionId?: string;
   enabled?: boolean;
+  /** Callback fired when a tool output is received (useful for parsing structured results) */
+  onToolOutput?: (toolName: string, output: unknown) => void;
 }
 
 interface AutoFixState {
@@ -57,6 +59,7 @@ export function useBuildWebSocket({
   projectId,
   sessionId,
   enabled = true,
+  onToolOutput,
 }: UseBuildWebSocketOptions): UseBuildWebSocketReturn {
   const [state, setState] = useState<GenerationState | null>(null);
   const [autoFixState, setAutoFixState] = useState<AutoFixState | null>(null);
@@ -203,6 +206,28 @@ export function useBuildWebSocket({
       .find(u => u._sentry)?._sentry || null;
     if (latestTraceContext) {
       setSentryTrace(latestTraceContext);
+    }
+    
+    // Collect tool outputs to process after state update (for callbacks like GITHUB_RESULT parsing)
+    const toolOutputs: Array<{ name: string; output: unknown }> = [];
+    for (const update of updates) {
+      if (update.type === 'tool-call') {
+        const toolData = update.data as { name: string; state: string; output?: unknown };
+        if (toolData.state === 'output-available' && toolData.output !== undefined) {
+          toolOutputs.push({ name: toolData.name, output: toolData.output });
+        }
+      }
+    }
+    
+    // Call onToolOutput callback for each tool output (outside of setState)
+    if (onToolOutput && toolOutputs.length > 0) {
+      for (const { name, output } of toolOutputs) {
+        try {
+          onToolOutput(name, output);
+        } catch (e) {
+          console.error('[useBuildWebSocket] Error in onToolOutput callback:', e);
+        }
+      }
     }
     
     setState((prevState) => {
@@ -439,7 +464,7 @@ export function useBuildWebSocket({
     });
     
     if (DEBUG) console.log(`[useBuildWebSocket] Processed ${updates.length} updates`);
-  }, [normalizeDates]);
+  }, [normalizeDates, onToolOutput]);
 
   /**
    * Handle WebSocket message

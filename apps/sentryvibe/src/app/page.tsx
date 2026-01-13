@@ -321,6 +321,18 @@ function HomeContent() {
     projectId: currentProject?.id || '',
     sessionId: undefined, // Subscribe to all sessions for this project
     enabled: !!currentProject, // Always connect when project exists (eager mode)
+    // Parse tool outputs for structured results (e.g., GITHUB_RESULT from github-setup skill)
+    onToolOutput: useCallback((toolName: string, output: unknown) => {
+      if (!currentProject?.id) return;
+      const outputStr = typeof output === 'string' ? output : JSON.stringify(output);
+      if (outputStr.includes('GITHUB_RESULT:')) {
+        console.log('🐙 Found GITHUB_RESULT in tool output from', toolName);
+        processAgentGitHubResponse(currentProject.id, outputStr, (result) => {
+          console.log('🐙 GitHub setup completed:', result);
+          queryClient.invalidateQueries({ queryKey: ['projects', currentProject.id, 'github'] });
+        });
+      }
+    }, [currentProject?.id, queryClient]),
   });
 
   // SSE connection for real-time project status updates
@@ -1770,15 +1782,7 @@ function HomeContent() {
             });
 
             // Tool messages handled by backend
-
-            // Check tool output for GITHUB_RESULT (agent outputs it via echo/bash)
-            if (data.output && typeof data.output === 'string' && data.output.includes('GITHUB_RESULT:')) {
-              console.log('🐙 Found GITHUB_RESULT in tool output');
-              processAgentGitHubResponse(projectId, data.output, (result) => {
-                console.log('🐙 GitHub setup completed from tool output:', result);
-                queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'github'] });
-              });
-            }
+            // Note: GITHUB_RESULT parsing is handled via useBuildWebSocket's onToolOutput callback
 
             // REMOVED: Tool output handling for messages
             // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
