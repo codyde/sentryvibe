@@ -2714,16 +2714,15 @@ export async function startRunner(options: RunnerOptions = {}) {
             const sseEvents = transformAgentMessageToSSE(agentMessage);
 
             // Filter and send events - exclude high-volume events that don't affect UI
-            // This reduces websocket traffic by ~60-70% (text-delta: ~500/build, reasoning: ~100/build)
             const IMPORTANT_EVENT_TYPES = [
               'start',
               'finish',
               'tool-input-available',
               'tool-output-available',
               'text-start',
+              'text-delta',  // Needed for streaming text content (e.g., GITHUB_RESULT parsing)
               'text-end',
               'error',
-              // NOT text-delta (high volume, only for DB persistence if needed)
               // NOT reasoning (high volume, only for DB persistence if needed)
             ];
 
