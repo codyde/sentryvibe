@@ -11,14 +11,8 @@ export type RepoVisibility = 'public' | 'private';
 
 // GitHub chat message - includes visibility preference
 // The skill file (.claude/skills/github-setup/SKILL.md) contains the detailed instructions
-// IMPORTANT: The output requirement is included directly in the message to ensure the agent outputs it
 function getSetupMessage(visibility: RepoVisibility): string {
-  return `Set up GitHub repository for this project using the github-setup skill. Create a ${visibility} repository.
-
-IMPORTANT: After completing the setup, you MUST output exactly this line with the real values from gh repo view:
-GITHUB_RESULT:{"success":true,"repo":"owner/repo","url":"https://github.com/owner/repo","branch":"main","action":"setup"}
-
-This line is required for the UI to update. Do not skip it.`;
+  return `Set up GitHub repository for this project using the github-setup skill. Create a ${visibility} repository.`;
 }
 
 interface GitHubButtonProps {
