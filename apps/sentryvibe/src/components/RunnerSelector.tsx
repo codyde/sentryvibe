@@ -43,7 +43,7 @@ export default function RunnerSelector() {
 
       <div className="space-y-1">
         <AnimatePresence mode="popLayout">
-          {availableRunners.map((runner) => {
+          {availableRunners.filter(runner => runner !== null).map((runner) => {
             const isSelected = runner.runnerId === selectedRunnerId;
             const timeSinceHeartbeat = Date.now() - runner.lastHeartbeat;
             const isHealthy = timeSinceHeartbeat < 30000; // 30 seconds
