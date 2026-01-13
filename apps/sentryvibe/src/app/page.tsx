@@ -20,6 +20,7 @@ import { TodoList } from "@/components/BuildProgress/TodoList";
 import { CompletedTodosSummary } from "@/components/CompletedTodosSummary";
 import { ErrorDetectedSection } from "@/components/ErrorDetectedSection";
 import { PlanningPhase } from "@/components/BuildProgress/PlanningPhase";
+import { AgentNotesSection, ActiveAgentNote } from "@/components/AgentNotesSection";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -432,41 +433,6 @@ function HomeContent() {
       })
       .filter((msg): msg is Message => msg !== null);
   }, [messagesFromDB]);
-
-  // Get build plan for a specific user message index
-  const getBuildPlanForUserMessage = useCallback((userMessageIndex: number): string | null => {
-    const userMessages = conversationMessages.filter(msg => classifyMessage(msg) === 'user');
-
-    if (userMessageIndex < 0 || userMessageIndex >= userMessages.length) {
-      return null;
-    }
-
-    const targetUserMsg = userMessages[userMessageIndex];
-    const userMsgIdxInAll = conversationMessages.findIndex(m => m.id === targetUserMsg.id);
-
-    if (userMsgIdxInAll === -1) return null;
-
-    // Find first assistant message after this user message
-    for (let i = userMsgIdxInAll + 1; i < conversationMessages.length; i++) {
-      const msg = conversationMessages[i];
-
-      if (classifyMessage(msg) === 'assistant' && !isToolAssistantMessage(msg)) {
-        const hasContent = msg.content && msg.content.trim().length > 20;
-        const noError = !msg.content.includes('{"error"');
-
-        if (hasContent && noError) {
-          return extractMarkdownFromMessage(msg);
-        }
-      }
-
-      // Stop if we hit another user message
-      if (classifyMessage(msg) === 'user') {
-        break;
-      }
-    }
-
-    return null;
-  }, [conversationMessages, classifyMessage, isToolAssistantMessage]);
 
   const initialUserMessage = useMemo(() => {
     if (conversationMessages.length === 0) {
@@ -2986,7 +2952,6 @@ function HomeContent() {
                               return (
                                 <div className="space-y-6 px-1">
                                   {allUserMessages.map((msg, idx) => {
-                                    const messageBuildPlan = getBuildPlanForUserMessage(idx);
                                     const correspondingBuild = sortedBuildHistory[idx];
                                     const isLastMessage = idx === allUserMessages.length - 1;
                                     const hasActiveBuild = isLastMessage && generationState?.isActive;
@@ -3006,23 +2971,6 @@ function HomeContent() {
                                             </ReactMarkdown>
                                           </div>
                                         </div>
-
-                                        {/* Build Plan for this message */}
-                                        {messageBuildPlan && (
-                                          <div className="space-y-2">
-                                            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                                              Build plan
-                                            </p>
-                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
-                                              <ReactMarkdown
-                                                remarkPlugins={[remarkGfm]}
-                                                rehypePlugins={[rehypeHighlight]}
-                                              >
-                                                {messageBuildPlan}
-                                              </ReactMarkdown>
-                                            </div>
-                                          </div>
-                                        )}
 
                                         {/* Planning Phase - only show for current active build */}
                                         {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && (
@@ -3087,12 +3035,42 @@ function HomeContent() {
                                               }}
                                               onStartServer={startDevServer}
                                             />
+                                            
+                                            {/* Active agent note - shows most recent reasoning */}
+                                            {generationState.textByTodo && Object.keys(generationState.textByTodo).length > 0 && (
+                                              <ActiveAgentNote
+                                                textByTodo={generationState.textByTodo}
+                                                activeTodoIndex={generationState.activeTodoIndex}
+                                              />
+                                            )}
                                           </div>
                                         )}
 
-                                        {/* Completed Build - Show completed todos and summary */}
+                                        {/* Completed Build - Show build plan, agent notes, todos, and summary */}
                                         {correspondingBuild && !correspondingBuild.isActive && !correspondingBuild.isAutoFix && (
                                           <>
+                                            {/* Build Plan - from persisted generation state */}
+                                            {correspondingBuild.buildPlan && (
+                                              <div className="space-y-2">
+                                                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                                                  Build plan
+                                                </p>
+                                                <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
+                                                  <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    rehypePlugins={[rehypeHighlight]}
+                                                  >
+                                                    {correspondingBuild.buildPlan}
+                                                  </ReactMarkdown>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Agent notes - collapsed by default */}
+                                            {correspondingBuild.textByTodo && Object.keys(correspondingBuild.textByTodo).length > 0 && (
+                                              <AgentNotesSection textByTodo={correspondingBuild.textByTodo} />
+                                            )}
+
                                             {/* Completed todos section - only show if there are todos */}
                                             {correspondingBuild.todos && correspondingBuild.todos.length > 0 && (
                                               <div className="space-y-2">

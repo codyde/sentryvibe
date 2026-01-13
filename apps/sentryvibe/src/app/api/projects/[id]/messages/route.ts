@@ -9,7 +9,7 @@ import {
 import { eq, desc, inArray, and, sql } from 'drizzle-orm';
 import { deserializeGenerationState } from '@sentryvibe/agent-core/lib/generation-persistence';
 import { cleanupStuckBuilds } from '@sentryvibe/agent-core/lib/runner/persistent-event-processor';
-import type { GenerationState, ToolCall, TodoItem } from '@/types/generation';
+import type { GenerationState, ToolCall, TodoItem, TextMessage } from '@/types/generation';
 
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') {
@@ -185,13 +185,24 @@ export async function GET(
             }
             return acc;
           }, {} as Record<number, ToolCall[]>),
-          // textByTodo removed - notes no longer persisted
-          textByTodo: {},
+          // Restore textByTodo from rawState if available
+          textByTodo: rawStateObj?.textByTodo
+            ? Object.entries(rawStateObj.textByTodo as Record<string, unknown[]>).reduce((acc, [key, texts]) => {
+                acc[parseInt(key)] = (texts as Array<{ id: string; text: string; timestamp: string | Date }>).map((text) => ({
+                  id: text.id,
+                  text: text.text,
+                  timestamp: new Date(text.timestamp),
+                }));
+                return acc;
+              }, {} as Record<number, TextMessage[]>)
+            : {},
           activeTodoIndex: sessionTodos.findIndex(todo => todo.status === 'in_progress'),
           isActive: session.status === 'active',
           startTime: session.startedAt ?? new Date(),
           endTime: session.endedAt ?? undefined,
           codex: rawStateObj?.codex as GenerationState['codex'] | undefined,
+          // Load build plan from rawState if available
+          buildPlan: rawStateObj?.buildPlan as string | undefined,
           // Load build summary from session if available
           buildSummary: session.summary ?? undefined,
           // Auto-fix tracking
