@@ -202,7 +202,6 @@ function HomeContent() {
 
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<{
     name: string;
     framework: string;
@@ -2140,7 +2139,6 @@ function HomeContent() {
     // If no project selected, create new project
     if (!currentProject) {
       setIsCreatingProject(true);
-      setIsAnalyzingTemplate(true);
       setTemplateProvisioningInfo(null); // Clear previous template info
 
       try {
@@ -2173,10 +2171,6 @@ function HomeContent() {
         const project = data.project;
 
         if (DEBUG_PAGE) console.log("✅ Project created:", project.slug);
-
-        // Template analysis happens automatically in the build API route
-        // We'll see the results in the build metadata event
-        setIsAnalyzingTemplate(false);
 
         // LOCK generation mode FIRST (before anything else!)
         isGeneratingRef.current = true;
@@ -2975,153 +2969,7 @@ function HomeContent() {
                         ref={scrollContainerRef}
                         className="flex-1 overflow-y-auto p-6 min-h-0"
                       >
-                        {/* Beautiful loading */}
-                        {isCreatingProject && (
-                          <motion.div
-                            key="creating-project"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="flex items-center justify-center min-h-[400px]"
-                          >
-                            <div className="text-center space-y-6 max-w-md">
-                              {/* Animated icon */}
-                              <motion.div
-                                animate={{
-                                  scale: [1, 1.2, 1],
-                                  rotate: [0, 180, 360],
-                                }}
-                                transition={{
-                                  duration: 3,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                }}
-                                className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-theme-gradient-muted-br backdrop-blur-sm border border-theme-primary\/30"
-                              >
-                                <Sparkles className="w-10 h-10 text-theme-primary" />
-                              </motion.div>
-
-                              {/* Loading text */}
-                              <div className="space-y-2">
-                                <h3 className="text-2xl font-semibold text-white">
-                                  {isAnalyzingTemplate
-                                    ? "Analyzing Your Request"
-                                    : "Preparing Your Project"}
-                                </h3>
-                                <p className="text-gray-400">
-                                  {isAnalyzingTemplate
-                                    ? `${
-                                        (() => {
-                                          // Use model from tags if present, otherwise use selected model
-                                          const modelTag = appliedTags.find(t => t.key === 'model');
-                                          if (modelTag) {
-                                            const parsed = parseModelTag(modelTag.value);
-                                            return parsed.agent === 'claude-code' && parsed.claudeModel
-                                              ? getClaudeModelLabel(parsed.claudeModel)
-                                              : 'GPT-5 Codex';
-                                          }
-                                          return selectedAgentId === "claude-code"
-                                            ? selectedClaudeModelLabel
-                                            : "GPT-5 Codex";
-                                        })()
-                                      } is selecting the best template...`
-                                    : "Setting up the perfect environment..."}
-                                </p>
-
-                                {/* Show template provisioning info */}
-                                {templateProvisioningInfo && !isAnalyzingTemplate && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-4 rounded-lg bg-theme-gradient-muted-br border border-theme-primary\/30 backdrop-blur-sm"
-                                  >
-                                    <div className="space-y-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-theme-primary animate-pulse" />
-                                        <p className="text-sm text-theme-accent font-semibold">
-                                          Provisioning Template
-                                        </p>
-                                      </div>
-
-                                      {templateProvisioningInfo.templateName && (
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-gray-400">Template:</span>
-                                          <span className="text-white font-medium">{templateProvisioningInfo.templateName}</span>
-                                        </div>
-                                      )}
-
-                                      {templateProvisioningInfo.framework && (
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-gray-400">Framework:</span>
-                                          <span className="text-theme-accent font-medium">{templateProvisioningInfo.framework}</span>
-                                        </div>
-                                      )}
-
-                                      {templateProvisioningInfo.downloadPath && (
-                                        <div className="flex items-start justify-between text-xs gap-2">
-                                          <span className="text-gray-400 shrink-0">Path:</span>
-                                          <span className="text-gray-300 font-mono text-right break-all">
-                                            {templateProvisioningInfo.downloadPath.split('/').pop()}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                )}
-
-                                {/* Fallback to show selected template if provisioning info not available */}
-                                {selectedTemplate && !templateProvisioningInfo && !isAnalyzingTemplate && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-3 rounded-lg bg-theme-primary-muted border border-theme-primary\/20"
-                                  >
-                                    <p className="text-sm text-theme-accent font-medium">
-                                      ✓ Template: {selectedTemplate.name}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Selected by {selectedTemplate.analyzedBy}
-                                    </p>
-                                  </motion.div>
-                                )}
-                              </div>
-
-                              {/* Animated progress dots */}
-                              <div className="flex items-center gap-2 justify-center">
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0,
-                                  }}
-                                  className="w-2 h-2 bg-theme-primary rounded-full"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0.2,
-                                  }}
-                                  className="w-2 h-2 bg-theme-secondary rounded-full"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0.4,
-                                  }}
-                                  className="w-2 h-2 bg-theme-primary rounded-full"
-                                />
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {!isCreatingProject && (
-                          <div className="space-y-4 p-4">
+                        <div className="space-y-4 p-4">
                             {(() => {
                               const userMessages = conversationMessages.filter(
                                 (msg) => classifyMessage(msg) === 'user'
@@ -3315,8 +3163,7 @@ function HomeContent() {
                                 </div>
                               </div>
                             )}
-                              </div>
-                        )}
+                          </div>
 
                         <div ref={messagesEndRef} />
                       </div>
