@@ -228,7 +228,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   <p className="text-[10px] text-gray-500 mt-1">Start a runner to begin building</p>
                 </div>
               ) : (
-                availableRunners.map((runner) => {
+                availableRunners.filter(runner => runner != null).map((runner) => {
                   const isSelected = runner.runnerId === selectedRunnerId;
                   const isHealthy = (Date.now() - runner.lastHeartbeat) < 30000;
 

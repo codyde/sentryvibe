@@ -3107,6 +3107,30 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         hmrProxyManager.disconnect(connectionId);
         break;
       }
+      case "github-sync": {
+        // Sync GitHub repository information (not yet implemented)
+        console.log('[github] GitHub sync command received (not yet implemented)');
+        sendEvent({
+          type: "ack",
+          commandId: command.id,
+          projectId: command.projectId,
+          timestamp: new Date().toISOString(),
+          message: 'GitHub sync command received (not yet implemented)',
+        });
+        break;
+      }
+      case "github-push": {
+        // Push to GitHub repository (not yet implemented)
+        console.log('[github] GitHub push command received (not yet implemented)');
+        sendEvent({
+          type: "ack",
+          commandId: command.id,
+          projectId: command.projectId,
+          timestamp: new Date().toISOString(),
+          message: 'GitHub push command received (not yet implemented)',
+        });
+        break;
+      }
       default:
         assertNever(command as never);
     }

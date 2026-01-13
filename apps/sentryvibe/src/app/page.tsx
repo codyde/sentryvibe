@@ -2860,7 +2860,7 @@ function HomeContent() {
                           <TagInput
                             tags={appliedTags}
                             onTagsChange={setAppliedTags}
-                            runnerOptions={availableRunners.map(r => ({
+                            runnerOptions={availableRunners.filter(r => r != null).map(r => ({
                               value: r.runnerId,
                               label: r.runnerId,
                               description: `Runner: ${r.runnerId}`

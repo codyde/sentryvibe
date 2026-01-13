@@ -56,14 +56,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
-  const icons = {
+  const icons: Record<string, React.FC<{ className?: string }>> = {
     success: CheckCircle2,
     error: XCircle,
     warning: AlertTriangle,
     info: Info,
   };
 
-  const colors = {
+  const colors: Record<string, {
+    bg: string;
+    border: string;
+    icon: string;
+    text: string;
+  }> = {
     success: {
       bg: 'bg-green-500/20',
       border: 'border-green-500/40',
@@ -90,12 +95,15 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
     },
   };
 
+  const defaultColor = colors.info;
+  const defaultIcon = Info;
+
   return (
     <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => {
-          const Icon = icons[toast.type];
-          const color = colors[toast.type];
+          const Icon = icons[toast.type] || defaultIcon;
+          const color = colors[toast.type] || defaultColor;
 
           return (
             <motion.div
