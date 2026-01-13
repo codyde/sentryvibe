@@ -320,7 +320,7 @@ export function transformAgentMessageToSSE(agentMessage: any): SSEEvent[] {
             type: 'tool-output-available',
             toolCallId: block.tool_use_id,
             toolName, // Include tool name so API can broadcast to WebSocket
-            output: block.content,
+            output, // Use processed string output, not raw block.content
           });
 
           // Clean up tool name after use

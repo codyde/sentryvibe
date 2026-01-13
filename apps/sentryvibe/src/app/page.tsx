@@ -1771,6 +1771,15 @@ function HomeContent() {
 
             // Tool messages handled by backend
 
+            // Check tool output for GITHUB_RESULT (agent outputs it via echo/bash)
+            if (data.output && typeof data.output === 'string' && data.output.includes('GITHUB_RESULT:')) {
+              console.log('🐙 Found GITHUB_RESULT in tool output');
+              processAgentGitHubResponse(projectId, data.output, (result) => {
+                console.log('🐙 GitHub setup completed from tool output:', result);
+                queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'github'] });
+              });
+            }
+
             // REMOVED: Tool output handling for messages
             // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
             // This code was trying to use old Message.parts structure which doesn't exist
