@@ -15,15 +15,23 @@ description: |
 
 You are helping set up GitHub integration for a SentryVibe project. This skill uses the `gh` CLI tool which authenticates locally on the user's machine.
 
-## CRITICAL: Structured Output Requirement
+## ⚠️ MANDATORY: You MUST Output GITHUB_RESULT
 
-After completing ANY GitHub operation, you MUST end your response with a JSON block in this exact format:
+**YOUR RESPONSE IS NOT COMPLETE WITHOUT THIS LINE.**
 
-```json
+After completing the GitHub setup, your FINAL message MUST include this exact line (with real values):
+
+```
 GITHUB_RESULT:{"success":true,"repo":"owner/repo-name","url":"https://github.com/owner/repo-name","branch":"main","action":"setup"}
 ```
 
-The JSON must be on a single line, prefixed with `GITHUB_RESULT:` and no spaces before the JSON.
+This line:
+- Must be on its own line
+- Must start with `GITHUB_RESULT:` (no spaces before)
+- Must contain valid JSON with actual repo info
+- Must appear in your final response text
+
+**If you don't output this line, the UI will not update to show the connected repository.**
 
 ### Result Schema
 
@@ -187,3 +195,7 @@ Your repository is now live at: https://github.com/username/project-name
 
 GITHUB_RESULT:{"success":true,"repo":"username/project-name","url":"https://github.com/username/project-name","branch":"main","action":"setup"}
 ```
+
+## ⚠️ REMINDER: Don't Forget GITHUB_RESULT!
+
+Your response MUST end with the `GITHUB_RESULT:{...}` line containing the actual repo info from `gh repo view --json`. Without it, the SentryVibe UI cannot update to show the GitHub connection.
