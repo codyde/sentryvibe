@@ -63,7 +63,7 @@ import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { GitHubButton, getGitHubSetupMessage, type RepoVisibility } from "@/components/github";
-import { processAgentGitHubResponse } from "@/lib/github-result-parser";
+
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
   Tooltip,
@@ -321,18 +321,6 @@ function HomeContent() {
     projectId: currentProject?.id || '',
     sessionId: undefined, // Subscribe to all sessions for this project
     enabled: !!currentProject, // Always connect when project exists (eager mode)
-    // Parse tool outputs for structured results (e.g., GITHUB_RESULT from github-setup skill)
-    onToolOutput: useCallback((toolName: string, output: unknown) => {
-      if (!currentProject?.id) return;
-      const outputStr = typeof output === 'string' ? output : JSON.stringify(output);
-      if (outputStr.includes('GITHUB_RESULT:')) {
-        console.log('🐙 Found GITHUB_RESULT in tool output from', toolName);
-        processAgentGitHubResponse(currentProject.id, outputStr, (result) => {
-          console.log('🐙 GitHub setup completed:', result);
-          queryClient.invalidateQueries({ queryKey: ['projects', currentProject.id, 'github'] });
-        });
-      }
-    }, [currentProject?.id, queryClient]),
   });
 
   // SSE connection for real-time project status updates
@@ -1782,7 +1770,7 @@ function HomeContent() {
             });
 
             // Tool messages handled by backend
-            // Note: GITHUB_RESULT parsing is handled via useBuildWebSocket's onToolOutput callback
+            // Note: GitHub repo parsing is handled server-side in build-events route
 
             // REMOVED: Tool output handling for messages
             // Tools are displayed in BuildProgress via toolsByTodo, not as separate messages
@@ -1982,16 +1970,7 @@ function HomeContent() {
           timestamp: Date.now(),
         });
         
-        // Check for GitHub result in the response and update project if found
-        // Log for debugging - always log this regardless of DEBUG_PAGE
-        if (currentMessage.content.includes('GITHUB_RESULT:')) {
-          console.log('🐙 Found GITHUB_RESULT marker in response');
-        }
-        processAgentGitHubResponse(projectId, currentMessage.content, (result) => {
-          console.log('🐙 GitHub setup completed:', result);
-          // Invalidate GitHub status query to refresh the button
-          queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'github'] });
-        });
+        // Note: GitHub repo parsing is handled server-side in build-events route
       }
 
       // Ensure final summary todo is marked completed before finishing

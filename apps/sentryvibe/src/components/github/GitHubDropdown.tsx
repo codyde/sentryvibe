@@ -56,71 +56,42 @@ export function GitHubDropdown({
   const handlePush = async () => {
     try {
       await pushMutation.mutateAsync();
-      addToast({
-        title: 'Push initiated',
-        description: 'Your changes are being pushed to GitHub.',
-        type: 'success',
-      });
+      addToast('success', 'Your changes are being pushed to GitHub.');
     } catch (error) {
-      addToast({
-        title: 'Push failed',
-        description: error instanceof Error ? error.message : 'Failed to push to GitHub',
-        type: 'error',
-      });
+      addToast('error', error instanceof Error ? error.message : 'Failed to push to GitHub');
     }
   };
 
   const handleSync = async () => {
     try {
       await syncMutation.mutateAsync();
-      addToast({
-        title: 'Sync initiated',
-        description: 'Fetching latest repository info.',
-        type: 'success',
-      });
+      addToast('success', 'Fetching latest repository info.');
     } catch (error) {
-      addToast({
-        title: 'Sync failed',
-        description: error instanceof Error ? error.message : 'Failed to sync',
-        type: 'error',
-      });
+      addToast('error', error instanceof Error ? error.message : 'Failed to sync');
     }
   };
 
   const handleToggleAutoPush = async () => {
     try {
       await settingsMutation.mutateAsync({ autoPush: !status.autoPush });
-      addToast({
-        title: status.autoPush ? 'Auto-push disabled' : 'Auto-push enabled',
-        description: status.autoPush 
-          ? 'Changes will no longer be pushed automatically after builds.'
-          : 'Changes will be automatically pushed after successful builds.',
-        type: 'success',
-      });
+      addToast(
+        'success',
+        status.autoPush 
+          ? 'Auto-push disabled. Changes will no longer be pushed automatically.'
+          : 'Auto-push enabled. Changes will be pushed after successful builds.'
+      );
     } catch (error) {
-      addToast({
-        title: 'Failed to update settings',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        type: 'error',
-      });
+      addToast('error', error instanceof Error ? error.message : 'Failed to update settings');
     }
   };
 
   const handleDisconnect = async () => {
     try {
       await disconnectMutation.mutateAsync();
-      addToast({
-        title: 'GitHub disconnected',
-        description: 'GitHub integration has been removed from this project.',
-        type: 'success',
-      });
+      addToast('success', 'GitHub integration has been removed from this project.');
       setShowDisconnectConfirm(false);
     } catch (error) {
-      addToast({
-        title: 'Disconnect failed',
-        description: error instanceof Error ? error.message : 'Failed to disconnect',
-        type: 'error',
-      });
+      addToast('error', error instanceof Error ? error.message : 'Failed to disconnect');
     }
   };
 
