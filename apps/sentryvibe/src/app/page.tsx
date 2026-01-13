@@ -827,9 +827,43 @@ function HomeContent() {
 
         // Same build - merge updates incrementally
         // This handles todos being added, tools updating, etc. within the same build
+        
+        // CRITICAL: Merge toolsByTodo carefully to preserve in-progress tools
+        // WebSocket state only contains completed tools, but SSE adds in-progress tools
+        // We need to keep in-progress tools from prevState and add completed tools from wsState
+        const mergedToolsByTodo: Record<number, typeof prevState.toolsByTodo[number]> = { ...prevState.toolsByTodo };
+        
+        // Merge in tools from wsState, but don't remove in-progress tools from prevState
+        if (wsState.toolsByTodo) {
+          for (const [todoIndexStr, wsTools] of Object.entries(wsState.toolsByTodo)) {
+            const todoIndex = Number(todoIndexStr);
+            const prevTools = mergedToolsByTodo[todoIndex] || [];
+            
+            // Get IDs of tools we already have
+            const existingIds = new Set(prevTools.map(t => t.id));
+            
+            // Add any new tools from wsState that we don't already have
+            const newTools = (wsTools || []).filter(t => !existingIds.has(t.id));
+            
+            // Update existing tools with completed state from wsState
+            const updatedPrevTools = prevTools.map(prevTool => {
+              const wsTool = (wsTools || []).find(t => t.id === prevTool.id);
+              if (wsTool && (wsTool.state === 'output-available' || wsTool.state === 'error')) {
+                // Tool completed - update with output
+                return { ...prevTool, ...wsTool };
+              }
+              return prevTool;
+            });
+            
+            mergedToolsByTodo[todoIndex] = [...updatedPrevTools, ...newTools];
+          }
+        }
+        
         const merged = {
           ...prevState,
           ...wsState,
+          // Use our carefully merged toolsByTodo instead of wsState's
+          toolsByTodo: mergedToolsByTodo,
           // Ensure critical metadata is never lost (use WebSocket value OR previous value)
           agentId: wsState.agentId || prevState.agentId,
           claudeModelId: wsState.claudeModelId || prevState.claudeModelId,
