@@ -79,13 +79,22 @@ When the user wants to set up GitHub for their project:
    git init
    ```
 
-2. **Create initial commit if no commits exist:**
+2. **Update the README.md:**
+   Before creating the initial commit, update the project's README.md with relevant information:
+   - Project name and brief description
+   - Tech stack / framework used
+   - Basic setup instructions (npm install, npm run dev, etc.)
+   - Any other relevant project details
+   
+   If README.md doesn't exist, create one. Keep it concise but informative.
+
+3. **Create initial commit:**
    ```bash
    git add .
    git commit -m "Initial commit from SentryVibe"
    ```
 
-3. **Create the GitHub repository and push:**
+4. **Create the GitHub repository and push:**
    
    Check the user's request to determine visibility:
    - If they say "public repository" → use `--public`
@@ -102,17 +111,17 @@ When the user wants to set up GitHub for their project:
    
    Use the project name (slugified) as the repository name.
 
-4. **Get repository information:**
+5. **Get repository information:**
    ```bash
    gh repo view --json url,name,owner
    ```
 
-5. **Get the default branch:**
+6. **Get the default branch:**
    ```bash
    git branch --show-current
    ```
 
-6. **Return structured result:**
+7. **Return structured result:**
    ```json
    GITHUB_RESULT:{"success":true,"repo":"username/project-name","url":"https://github.com/username/project-name","branch":"main","action":"setup"}
    ```
@@ -186,10 +195,11 @@ After successfully creating a repository, your response should look like:
 I've set up the GitHub repository for your project. Here's what I did:
 
 1. Initialized git repository
-2. Created initial commit with all project files
-3. Created public GitHub repository
-4. Pushed code to GitHub
-5. Cleaned up setup files
+2. Updated README.md with project info
+3. Created initial commit with all project files
+4. Created public GitHub repository
+5. Pushed code to GitHub
+6. Cleaned up setup files
 
 Your repository is now live at: https://github.com/username/project-name
 
