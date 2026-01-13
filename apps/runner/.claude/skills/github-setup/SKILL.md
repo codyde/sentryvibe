@@ -111,12 +111,12 @@ When the user wants to set up GitHub for their project:
    
    Use the project name (slugified) as the repository name.
 
-5. **Get repository information:**
+5. **Get repository information (including default branch):**
    ```bash
-   gh repo view --json url,name,owner
+   gh repo view --json url,name,owner,defaultBranchRef
    ```
 
-6. **Get the default branch:**
+6. **Verify the default branch:**
    ```bash
    git branch --show-current
    ```

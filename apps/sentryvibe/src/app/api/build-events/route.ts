@@ -533,7 +533,16 @@ export async function POST(request: Request) {
           const ghRepoMatch = event.output.match(/"url"\s*:\s*"(https:\/\/github\.com\/([^\/]+)\/([^"]+))"/);
           if (ghRepoMatch) {
             const [, url, owner, repoName] = ghRepoMatch;
-            console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName}`);
+            
+            // Try to extract branch from the output
+            // Check for defaultBranchRef in gh repo view output (if --json includes it)
+            let branch = 'main'; // fallback
+            const branchMatch = event.output.match(/"defaultBranchRef"\s*:\s*{\s*"name"\s*:\s*"([^"]+)"/);
+            if (branchMatch) {
+              branch = branchMatch[1];
+            }
+            
+            console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName} (branch: ${branch})`);
             
             // Update project with GitHub info
             try {
@@ -541,7 +550,7 @@ export async function POST(request: Request) {
                 .set({
                   githubRepo: `${owner}/${repoName}`,
                   githubUrl: url,
-                  githubBranch: 'main',
+                  githubBranch: branch,
                   githubLastPushedAt: timestamp,
                   updatedAt: timestamp,
                 })
@@ -549,6 +558,30 @@ export async function POST(request: Request) {
               console.log(`🐙 [build-events] Updated project ${projectId} with GitHub info`);
             } catch (e) {
               console.error('[build-events] Failed to update project GitHub info:', e);
+            }
+          }
+          
+          // Also check for branch name from "git branch --show-current" output
+          // This updates the branch if the project already has GitHub connected
+          // Output is typically just the branch name on a single line like "main" or "master"
+          const cleanOutput = event.output.trim();
+          if (/^(main|master|develop|dev)$/i.test(cleanOutput) || /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(cleanOutput)) {
+            // Looks like a branch name - check if this project has GitHub connected
+            const existingProject = await db.select({ githubRepo: projects.githubRepo, githubBranch: projects.githubBranch })
+              .from(projects)
+              .where(eq(projects.id, projectId))
+              .limit(1);
+            
+            if (existingProject[0]?.githubRepo && existingProject[0]?.githubBranch !== cleanOutput) {
+              // Update the branch if different
+              try {
+                await db.update(projects)
+                  .set({ githubBranch: cleanOutput, updatedAt: timestamp })
+                  .where(eq(projects.id, projectId));
+                console.log(`🐙 [build-events] Updated project ${projectId} branch to: ${cleanOutput}`);
+              } catch (e) {
+                // Ignore errors - branch update is optional
+              }
             }
           }
         }
