@@ -53,10 +53,12 @@ function getToolResource(tool: ToolCall): string {
 function ThinkingDisplay() {
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="ml-6 mt-1 flex items-center gap-2 text-xs overflow-hidden"
+      key="thinking"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="ml-6 mt-1 flex items-center gap-2 text-xs"
     >
       <span className="text-gray-600">└─</span>
       <span className="font-mono shimmer-text">Thinking...</span>
@@ -70,10 +72,12 @@ function ActiveToolDisplay({ tool }: { tool: ToolCall }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="ml-6 mt-1 flex items-center gap-2 text-xs overflow-hidden"
+      key={tool.id} // Use tool ID for stable identity
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }} // Quick but smooth transition
+      className="ml-6 mt-1 flex items-center gap-2 text-xs"
     >
       {/* Tree branch connector */}
       <span className="text-gray-600">└─</span>
@@ -98,7 +102,7 @@ export function TodoList({
 }: TodoListProps) {
   return (
     <div className="p-3">
-      <AnimatePresence mode="popLayout">
+      <AnimatePresence mode="sync">
         {todos.map((todo, index) => {
           const isActive = index === activeTodoIndex && todo.status === 'in_progress';
           const lastTool = isActive ? getLastDisplayableTool(toolsByTodo[index] || []) : null;
@@ -152,7 +156,7 @@ export function TodoList({
               </div>
 
               {/* Active tool display - only for in_progress todo */}
-              <AnimatePresence>
+              <AnimatePresence mode="wait">
                 {isActive && (lastTool ? <ActiveToolDisplay tool={lastTool} /> : <ThinkingDisplay />)}
               </AnimatePresence>
             </motion.div>

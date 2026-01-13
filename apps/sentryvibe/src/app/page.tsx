@@ -20,7 +20,6 @@ import { TodoList } from "@/components/BuildProgress/TodoList";
 import { CompletedTodosSummary } from "@/components/CompletedTodosSummary";
 import { ErrorDetectedSection } from "@/components/ErrorDetectedSection";
 import { PlanningPhase } from "@/components/BuildProgress/PlanningPhase";
-import { ProjectStartingStatus } from "@/components/BuildProgress/ProjectStartingStatus";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -3087,37 +3086,8 @@ function HomeContent() {
                                           </div>
                                         )}
 
-                                        {/* Project Starting Status - show during initial setup */}
-                                        {isLastMessage && isCreatingProject && idx === 0 && (
-                                          <AnimatePresence>
-                                            <ProjectStartingStatus
-                                              projectName={currentProject?.name}
-                                              framework={currentProject?.detectedFramework || templateProvisioningInfo?.framework}
-                                              isSelectingTemplate={isAnalyzingTemplate}
-                                              isDownloadingTemplate={!!templateProvisioningInfo && !templateProvisioningInfo.downloadPath}
-                                              templateName={templateProvisioningInfo?.templateName || selectedTemplate?.name}
-                                              modelId={(() => {
-                                                const modelTag = appliedTags.find(t => t.key === 'model');
-                                                if (modelTag) {
-                                                  const parsed = parseModelTag(modelTag.value);
-                                                  return parsed.agent === 'openai-codex' ? 'gpt-5-codex' : parsed.claudeModel;
-                                                }
-                                                return selectedAgentId === 'claude-code' ? selectedClaudeModelId : 'gpt-5-codex';
-                                              })()}
-                                              agentId={(() => {
-                                                const modelTag = appliedTags.find(t => t.key === 'model');
-                                                if (modelTag) {
-                                                  const parsed = parseModelTag(modelTag.value);
-                                                  return parsed.agent;
-                                                }
-                                                return selectedAgentId;
-                                              })()}
-                                            />
-                                          </AnimatePresence>
-                                        )}
-
-                                        {/* Planning Phase - only show for current active build */}
-                                        {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && !isCreatingProject && (
+                                        {/* Planning Phase - show during initial setup and planning */}
+                                        {isLastMessage && (isCreatingProject || (isThinking && currentProject && !generationState?.buildPlan)) && (
                                           <div className="space-y-3">
                                             <PlanningPhase
                                               activePlanningTool={generationState?.activePlanningTool}
