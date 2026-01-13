@@ -10,8 +10,40 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Find package root (apps/runner)
-const packageRoot = join(__dirname, '..', '..', '..');
+/**
+ * Find the package root directory (apps/runner).
+ * Works in both development (src/cli/utils/) and production (dist/cli/utils/) modes.
+ */
+function findPackageRoot(): string {
+  // Try multiple possible locations
+  const possiblePaths = [
+    // Development: src/cli/utils/ -> apps/runner (3 levels up)
+    join(__dirname, '..', '..', '..'),
+    // Production from dist/cli/utils/: -> apps/runner (3 levels up, same structure)
+    join(__dirname, '..', '..', '..'),
+  ];
+  
+  for (const path of possiblePaths) {
+    const packageJsonPath = join(path, 'package.json');
+    if (existsSync(packageJsonPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        // Verify this is the runner package
+        if (pkg.name === '@sentryvibe/runner-cli') {
+          return path;
+        }
+      } catch {
+        // Continue to next path
+      }
+    }
+  }
+  
+  // Fallback to the standard path
+  return join(__dirname, '..', '..', '..');
+}
+
+// Cache the package root
+const packageRoot = findPackageRoot();
 
 /**
  * Get the package version from package.json

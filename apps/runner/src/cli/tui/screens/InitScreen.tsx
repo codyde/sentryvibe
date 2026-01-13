@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Box, Text, useApp, useStdout } from 'ink';
-import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary, BuildErrorView, VersionFooter } from '../components/index.js';
+import { Banner, ProgressStepper, TaskStream, ConfigSummary, NextSteps, ErrorSummary, BuildErrorView } from '../components/index.js';
 import { useInitFlow } from '../hooks/index.js';
 import type { ConfigItem } from '../components/ConfigSummary.js';
 import type { StreamTask } from '../components/TaskStream.js';
@@ -122,8 +122,15 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
       {/* Banner */}
       <Banner />
       
+      {/* Version - right under banner */}
+      <Box marginTop={1}>
+        <Text color={colors.gray} dimColor>
+          {versionInfo.display}
+        </Text>
+      </Box>
+      
       {/* Spacer */}
-      <Box marginTop={2} />
+      <Box marginTop={1} />
       
       {/* Progress Stepper (just dots and labels) */}
       <ProgressStepper steps={state.steps} />
@@ -177,9 +184,6 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
           <NextSteps command="sentryvibe run" url="http://localhost:3000" />
         </Box>
       )}
-      
-      {/* Version footer - bottom right */}
-      <VersionFooter version={versionInfo.version} commit={versionInfo.commit} />
     </Box>
   );
 }
