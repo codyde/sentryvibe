@@ -16,6 +16,11 @@ import { isLocalMode, isHostedMode } from './mode.js';
 import type * as pgSchema from './schema.pg.js';
 import type * as sqliteSchema from './schema.sqlite.js';
 
+// Import both client modules statically - bundler includes both
+// At runtime, we call the appropriate one based on MODE
+import { createSqliteClient, resetSqliteDatabase } from './client.sqlite.js';
+import { createPostgresClient } from './client.pg.js';
+
 // For external consumers who need the specific types
 export type PostgresClient = NodePgDatabase<typeof pgSchema>;
 export type SqliteClient = BetterSQLite3Database<typeof sqliteSchema>;
@@ -34,23 +39,38 @@ export type SqliteClient = BetterSQLite3Database<typeof sqliteSchema>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DatabaseClient = any;
 
-declare global {
-  var __db: DatabaseClient | undefined;
-}
+// Global variable for the unified database client
+// Declared without augmenting global scope to avoid conflicts with client-specific globals
+let _globalDb: DatabaseClient | undefined;
+
+// Also check the global object for backwards compatibility
+declare const global: { __db?: DatabaseClient };
 
 /**
  * Create the appropriate database client based on MODE
  */
 function createDatabaseClient(): DatabaseClient {
   if (isLocalMode()) {
-    // Dynamic import to avoid loading better-sqlite3 in hosted mode
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createSqliteClient } = require('./client.sqlite.js');
     return createSqliteClient();
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createPostgresClient } = require('./client.pg.js');
     return createPostgresClient();
+  }
+}
+
+/**
+ * Get the cached database client
+ */
+function getCachedDb(): DatabaseClient | undefined {
+  return _globalDb ?? (typeof global !== 'undefined' ? global.__db : undefined);
+}
+
+/**
+ * Set the cached database client
+ */
+function setCachedDb(client: DatabaseClient): void {
+  _globalDb = client;
+  if (typeof global !== 'undefined') {
+    global.__db = client;
   }
 }
 
@@ -58,15 +78,16 @@ function createDatabaseClient(): DatabaseClient {
  * Initialize the database connection
  */
 export async function initializeDatabase(): Promise<DatabaseClient> {
-  if (global.__db) {
-    return global.__db;
+  const cached = getCachedDb();
+  if (cached) {
+    return cached;
   }
   
   const mode = isLocalMode() ? 'LOCAL (SQLite)' : 'HOSTED (PostgreSQL)';
   console.log(`Initializing database in ${mode} mode...`);
   
   const client = createDatabaseClient();
-  global.__db = client;
+  setCachedDb(client);
   return client;
 }
 
@@ -74,8 +95,9 @@ export async function initializeDatabase(): Promise<DatabaseClient> {
  * Get the database client (async version)
  */
 export async function getDb(): Promise<DatabaseClient> {
-  if (global.__db) {
-    return global.__db;
+  const cached = getCachedDb();
+  if (cached) {
+    return cached;
   }
   return initializeDatabase();
 }
@@ -85,11 +107,12 @@ export async function getDb(): Promise<DatabaseClient> {
  */
 export function resetDatabase(): void {
   if (isLocalMode()) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { resetSqliteDatabase } = require('./client.sqlite.js');
     resetSqliteDatabase();
   }
-  global.__db = undefined;
+  _globalDb = undefined;
+  if (typeof global !== 'undefined') {
+    global.__db = undefined;
+  }
 }
 
 /**
@@ -100,10 +123,12 @@ export function resetDatabase(): void {
  */
 export const db = new Proxy({} as DatabaseClient, {
   get(_target, prop) {
-    if (!global.__db) {
-      global.__db = createDatabaseClient();
+    let cached = getCachedDb();
+    if (!cached) {
+      cached = createDatabaseClient();
+      setCachedDb(cached);
     }
-    return (global.__db as any)[prop];
+    return (cached as any)[prop];
   }
 });
 

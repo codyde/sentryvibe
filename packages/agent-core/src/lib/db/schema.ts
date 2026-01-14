@@ -9,10 +9,6 @@
 
 import { isLocalMode } from './mode.js';
 
-// Re-export everything from the appropriate schema
-// Note: We use dynamic imports at build time, but for type safety
-// we need to export a consistent interface
-
 // For type compatibility, we always export from the full PG schema types
 // The actual runtime behavior uses the correct schema
 export type {
@@ -41,22 +37,15 @@ export type {
   GenerationNote,
 } from './schema.pg.js';
 
-// Conditional exports based on mode
-// We use a function to lazily load the correct schema
-function getSchema() {
-  if (isLocalMode()) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('./schema.sqlite.js');
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('./schema.pg.js');
-  }
-}
+// Import both schemas statically - the bundler will include both
+// At runtime, we select which one to use based on MODE
+import * as sqliteSchema from './schema.sqlite.js';
+import * as pgSchema from './schema.pg.js';
 
-// Get the schema once at module load time
-const schema = getSchema();
+// Select the schema based on mode at module load time
+const schema = isLocalMode() ? sqliteSchema : pgSchema;
 
-// Export all tables
+// Export all tables from the selected schema
 export const users = schema.users;
 export const sessions = schema.sessions;
 export const accounts = schema.accounts;
