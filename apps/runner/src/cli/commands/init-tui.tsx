@@ -291,6 +291,11 @@ async function executeInitFlow(
   } else {
     // Default: Use SQLite for local mode - no setup required!
     startTask('database', 'Configuring SQLite (local mode)...');
+    
+    // IMPORTANT: Clear any existing databaseUrl from config to ensure LOCAL mode
+    // This handles the case where user previously had PostgreSQL configured
+    configManager.delete('databaseUrl');
+    
     await sleep(500); // Brief pause to show the step
     completeTask('database');
     await sleep(layout.taskCompletionDelay);
