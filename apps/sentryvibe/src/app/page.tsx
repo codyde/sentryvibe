@@ -20,6 +20,7 @@ import { TodoList } from "@/components/BuildProgress/TodoList";
 import { CompletedTodosSummary } from "@/components/CompletedTodosSummary";
 import { ErrorDetectedSection } from "@/components/ErrorDetectedSection";
 import { PlanningPhase } from "@/components/BuildProgress/PlanningPhase";
+import { AgentNotesSection, ActiveAgentNote } from "@/components/AgentNotesSection";
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -202,7 +203,6 @@ function HomeContent() {
 
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isAnalyzingTemplate, setIsAnalyzingTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<{
     name: string;
     framework: string;
@@ -433,41 +433,6 @@ function HomeContent() {
       })
       .filter((msg): msg is Message => msg !== null);
   }, [messagesFromDB]);
-
-  // Get build plan for a specific user message index
-  const getBuildPlanForUserMessage = useCallback((userMessageIndex: number): string | null => {
-    const userMessages = conversationMessages.filter(msg => classifyMessage(msg) === 'user');
-
-    if (userMessageIndex < 0 || userMessageIndex >= userMessages.length) {
-      return null;
-    }
-
-    const targetUserMsg = userMessages[userMessageIndex];
-    const userMsgIdxInAll = conversationMessages.findIndex(m => m.id === targetUserMsg.id);
-
-    if (userMsgIdxInAll === -1) return null;
-
-    // Find first assistant message after this user message
-    for (let i = userMsgIdxInAll + 1; i < conversationMessages.length; i++) {
-      const msg = conversationMessages[i];
-
-      if (classifyMessage(msg) === 'assistant' && !isToolAssistantMessage(msg)) {
-        const hasContent = msg.content && msg.content.trim().length > 20;
-        const noError = !msg.content.includes('{"error"');
-
-        if (hasContent && noError) {
-          return extractMarkdownFromMessage(msg);
-        }
-      }
-
-      // Stop if we hit another user message
-      if (classifyMessage(msg) === 'user') {
-        break;
-      }
-    }
-
-    return null;
-  }, [conversationMessages, classifyMessage, isToolAssistantMessage]);
 
   const initialUserMessage = useMemo(() => {
     if (conversationMessages.length === 0) {
@@ -2140,7 +2105,6 @@ function HomeContent() {
     // If no project selected, create new project
     if (!currentProject) {
       setIsCreatingProject(true);
-      setIsAnalyzingTemplate(true);
       setTemplateProvisioningInfo(null); // Clear previous template info
 
       try {
@@ -2173,10 +2137,6 @@ function HomeContent() {
         const project = data.project;
 
         if (DEBUG_PAGE) console.log("✅ Project created:", project.slug);
-
-        // Template analysis happens automatically in the build API route
-        // We'll see the results in the build metadata event
-        setIsAnalyzingTemplate(false);
 
         // LOCK generation mode FIRST (before anything else!)
         isGeneratingRef.current = true;
@@ -2975,153 +2935,7 @@ function HomeContent() {
                         ref={scrollContainerRef}
                         className="flex-1 overflow-y-auto p-6 min-h-0"
                       >
-                        {/* Beautiful loading */}
-                        {isCreatingProject && (
-                          <motion.div
-                            key="creating-project"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="flex items-center justify-center min-h-[400px]"
-                          >
-                            <div className="text-center space-y-6 max-w-md">
-                              {/* Animated icon */}
-                              <motion.div
-                                animate={{
-                                  scale: [1, 1.2, 1],
-                                  rotate: [0, 180, 360],
-                                }}
-                                transition={{
-                                  duration: 3,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                }}
-                                className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-theme-gradient-muted-br backdrop-blur-sm border border-theme-primary\/30"
-                              >
-                                <Sparkles className="w-10 h-10 text-theme-primary" />
-                              </motion.div>
-
-                              {/* Loading text */}
-                              <div className="space-y-2">
-                                <h3 className="text-2xl font-semibold text-white">
-                                  {isAnalyzingTemplate
-                                    ? "Analyzing Your Request"
-                                    : "Preparing Your Project"}
-                                </h3>
-                                <p className="text-gray-400">
-                                  {isAnalyzingTemplate
-                                    ? `${
-                                        (() => {
-                                          // Use model from tags if present, otherwise use selected model
-                                          const modelTag = appliedTags.find(t => t.key === 'model');
-                                          if (modelTag) {
-                                            const parsed = parseModelTag(modelTag.value);
-                                            return parsed.agent === 'claude-code' && parsed.claudeModel
-                                              ? getClaudeModelLabel(parsed.claudeModel)
-                                              : 'GPT-5 Codex';
-                                          }
-                                          return selectedAgentId === "claude-code"
-                                            ? selectedClaudeModelLabel
-                                            : "GPT-5 Codex";
-                                        })()
-                                      } is selecting the best template...`
-                                    : "Setting up the perfect environment..."}
-                                </p>
-
-                                {/* Show template provisioning info */}
-                                {templateProvisioningInfo && !isAnalyzingTemplate && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-4 rounded-lg bg-theme-gradient-muted-br border border-theme-primary\/30 backdrop-blur-sm"
-                                  >
-                                    <div className="space-y-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-theme-primary animate-pulse" />
-                                        <p className="text-sm text-theme-accent font-semibold">
-                                          Provisioning Template
-                                        </p>
-                                      </div>
-
-                                      {templateProvisioningInfo.templateName && (
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-gray-400">Template:</span>
-                                          <span className="text-white font-medium">{templateProvisioningInfo.templateName}</span>
-                                        </div>
-                                      )}
-
-                                      {templateProvisioningInfo.framework && (
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-gray-400">Framework:</span>
-                                          <span className="text-theme-accent font-medium">{templateProvisioningInfo.framework}</span>
-                                        </div>
-                                      )}
-
-                                      {templateProvisioningInfo.downloadPath && (
-                                        <div className="flex items-start justify-between text-xs gap-2">
-                                          <span className="text-gray-400 shrink-0">Path:</span>
-                                          <span className="text-gray-300 font-mono text-right break-all">
-                                            {templateProvisioningInfo.downloadPath.split('/').pop()}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                )}
-
-                                {/* Fallback to show selected template if provisioning info not available */}
-                                {selectedTemplate && !templateProvisioningInfo && !isAnalyzingTemplate && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="mt-4 p-3 rounded-lg bg-theme-primary-muted border border-theme-primary\/20"
-                                  >
-                                    <p className="text-sm text-theme-accent font-medium">
-                                      ✓ Template: {selectedTemplate.name}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Selected by {selectedTemplate.analyzedBy}
-                                    </p>
-                                  </motion.div>
-                                )}
-                              </div>
-
-                              {/* Animated progress dots */}
-                              <div className="flex items-center gap-2 justify-center">
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0,
-                                  }}
-                                  className="w-2 h-2 bg-theme-primary rounded-full"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0.2,
-                                  }}
-                                  className="w-2 h-2 bg-theme-secondary rounded-full"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{
-                                    duration: 1.5,
-                                    repeat: Infinity,
-                                    delay: 0.4,
-                                  }}
-                                  className="w-2 h-2 bg-theme-primary rounded-full"
-                                />
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {!isCreatingProject && (
-                          <div className="space-y-4 p-4">
+                        <div className="space-y-4 p-4">
                             {(() => {
                               const userMessages = conversationMessages.filter(
                                 (msg) => classifyMessage(msg) === 'user'
@@ -3138,7 +2952,6 @@ function HomeContent() {
                               return (
                                 <div className="space-y-6 px-1">
                                   {allUserMessages.map((msg, idx) => {
-                                    const messageBuildPlan = getBuildPlanForUserMessage(idx);
                                     const correspondingBuild = sortedBuildHistory[idx];
                                     const isLastMessage = idx === allUserMessages.length - 1;
                                     const hasActiveBuild = isLastMessage && generationState?.isActive;
@@ -3158,23 +2971,6 @@ function HomeContent() {
                                             </ReactMarkdown>
                                           </div>
                                         </div>
-
-                                        {/* Build Plan for this message */}
-                                        {messageBuildPlan && (
-                                          <div className="space-y-2">
-                                            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                                              Build plan
-                                            </p>
-                                            <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
-                                              <ReactMarkdown
-                                                remarkPlugins={[remarkGfm]}
-                                                rehypePlugins={[rehypeHighlight]}
-                                              >
-                                                {messageBuildPlan}
-                                              </ReactMarkdown>
-                                            </div>
-                                          </div>
-                                        )}
 
                                         {/* Planning Phase - only show for current active build */}
                                         {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && (
@@ -3239,12 +3035,42 @@ function HomeContent() {
                                               }}
                                               onStartServer={startDevServer}
                                             />
+                                            
+                                            {/* Active agent note - shows most recent reasoning */}
+                                            {generationState.textByTodo && Object.keys(generationState.textByTodo).length > 0 && (
+                                              <ActiveAgentNote
+                                                textByTodo={generationState.textByTodo}
+                                                activeTodoIndex={generationState.activeTodoIndex}
+                                              />
+                                            )}
                                           </div>
                                         )}
 
-                                        {/* Completed Build - Show completed todos and summary */}
+                                        {/* Completed Build - Show build plan, agent notes, todos, and summary */}
                                         {correspondingBuild && !correspondingBuild.isActive && !correspondingBuild.isAutoFix && (
                                           <>
+                                            {/* Build Plan - from persisted generation state */}
+                                            {correspondingBuild.buildPlan && (
+                                              <div className="space-y-2">
+                                                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                                                  Build plan
+                                                </p>
+                                                <div className="prose prose-invert max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-white [&_h1]:mb-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-gray-200 [&_h3]:mb-2 [&_p]:text-sm [&_p]:text-gray-300 [&_p]:my-2 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-sm [&_li]:text-gray-300 [&_li]:leading-relaxed [&_code]:text-xs [&_code]:text-theme-accent [&_code]:bg-theme-primary-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded">
+                                                  <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    rehypePlugins={[rehypeHighlight]}
+                                                  >
+                                                    {correspondingBuild.buildPlan}
+                                                  </ReactMarkdown>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Agent notes - collapsed by default */}
+                                            {correspondingBuild.textByTodo && Object.keys(correspondingBuild.textByTodo).length > 0 && (
+                                              <AgentNotesSection textByTodo={correspondingBuild.textByTodo} />
+                                            )}
+
                                             {/* Completed todos section - only show if there are todos */}
                                             {correspondingBuild.todos && correspondingBuild.todos.length > 0 && (
                                               <div className="space-y-2">
@@ -3315,8 +3141,7 @@ function HomeContent() {
                                 </div>
                               </div>
                             )}
-                              </div>
-                        )}
+                          </div>
 
                         <div ref={messagesEndRef} />
                       </div>
