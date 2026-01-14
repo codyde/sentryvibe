@@ -1,4 +1,5 @@
 import { db } from './db/client';
+import { isLocalMode } from './db/mode';
 import { portAllocations } from './db/schema';
 import { and, eq, isNull, sql, isNotNull, lt } from 'drizzle-orm';
 import { createServer } from 'node:net';
@@ -6,6 +7,28 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildLogger } from './logging/build-logger';
+
+/**
+ * Helper to run operations either in a transaction (PostgreSQL) or sequentially (SQLite)
+ * 
+ * SQLite with better-sqlite3 is synchronous and doesn't support async transactions.
+ * Since SQLite is single-threaded and each statement is atomic, we can safely run
+ * operations sequentially without explicit transactions for most use cases.
+ */
+async function withDbOperations<T>(
+  operations: (dbOrTx: typeof db) => Promise<T>
+): Promise<T> {
+  if (isLocalMode()) {
+    // SQLite: Run operations directly without transaction wrapper
+    // SQLite is single-threaded and statements are atomic
+    return operations(db);
+  } else {
+    // PostgreSQL: Use transaction for atomicity
+    return db.transaction(async (tx) => {
+      return operations(tx as unknown as typeof db);
+    });
+  }
+}
 
 interface ReservePortParams {
   projectId: string;
@@ -221,8 +244,8 @@ export async function reservePortForProject(params: ReservePortParams): Promise<
   const range = FRAMEWORK_RANGES[framework];
   const preferred = params.preferredPort ?? undefined;
 
-  return db.transaction(async (tx) => {
-    await tx.update(portAllocations)
+  return withDbOperations(async (dbOrTx) => {
+    await dbOrTx.update(portAllocations)
       .set({ projectId: null, reservedAt: null })
       .where(eq(portAllocations.projectId, params.projectId))
       .execute();
@@ -234,13 +257,13 @@ export async function reservePortForProject(params: ReservePortParams): Promise<
         return null;
       }
 
-      const existing = await tx.select().from(portAllocations)
+      const existing = await dbOrTx.select().from(portAllocations)
         .where(eq(portAllocations.port, port))
         .limit(1)
         .execute();
 
       if (existing.length === 0) {
-        await tx.insert(portAllocations).values({
+        await dbOrTx.insert(portAllocations).values({
           port,
           framework,
           projectId: params.projectId,
@@ -250,7 +273,7 @@ export async function reservePortForProject(params: ReservePortParams): Promise<
       }
 
       if (existing[0].projectId === null) {
-        await tx.update(portAllocations)
+        await dbOrTx.update(portAllocations)
           .set({ projectId: params.projectId, reservedAt: now })
           .where(eq(portAllocations.port, port))
           .execute();
@@ -267,21 +290,21 @@ export async function reservePortForProject(params: ReservePortParams): Promise<
       }
     }
 
-    const reusable = await tx.select().from(portAllocations)
+    const reusable = await dbOrTx.select().from(portAllocations)
       .where(and(eq(portAllocations.framework, framework), isNull(portAllocations.projectId)))
       .orderBy(portAllocations.port)
       .limit(1)
       .execute();
 
     if (reusable.length > 0) {
-      await tx.update(portAllocations)
+      await dbOrTx.update(portAllocations)
         .set({ projectId: params.projectId, reservedAt: now })
         .where(eq(portAllocations.port, reusable[0].port))
         .execute();
       return { port: reusable[0].port, framework };
     }
 
-    const rows = await tx.select({
+    const rows = await dbOrTx.select({
       maxPort: sql<number>`COALESCE(MAX(${portAllocations.port}), ${range.start - 1})`,
     })
       .from(portAllocations)
@@ -294,7 +317,7 @@ export async function reservePortForProject(params: ReservePortParams): Promise<
       throw new Error(`No available ports remaining for framework "${framework}" (${range.start}-${range.end}).`);
     }
 
-    await tx.insert(portAllocations).values({
+    await dbOrTx.insert(portAllocations).values({
       port: nextPort,
       framework,
       projectId: params.projectId,
@@ -306,8 +329,8 @@ export async function reservePortForProject(params: ReservePortParams): Promise<
 }
 
 export async function updatePortReservationForProject(projectId: string, actualPort: number): Promise<void> {
-  await db.transaction(async (tx) => {
-    const rows = await tx.select().from(portAllocations)
+  await withDbOperations(async (dbOrTx) => {
+    const rows = await dbOrTx.select().from(portAllocations)
       .where(eq(portAllocations.projectId, projectId))
       .limit(1)
       .execute();
@@ -327,7 +350,7 @@ export async function updatePortReservationForProject(projectId: string, actualP
       return;
     }
 
-    const occupying = await tx.select().from(portAllocations)
+    const occupying = await dbOrTx.select().from(portAllocations)
       .where(eq(portAllocations.port, actualPort))
       .limit(1)
       .execute();
@@ -336,17 +359,17 @@ export async function updatePortReservationForProject(projectId: string, actualP
       return;
     }
 
-    await tx.delete(portAllocations).where(eq(portAllocations.port, current.port)).execute();
+    await dbOrTx.delete(portAllocations).where(eq(portAllocations.port, current.port)).execute();
 
     const now = new Date();
 
     if (occupying.length > 0) {
-      await tx.update(portAllocations)
+      await dbOrTx.update(portAllocations)
         .set({ projectId, reservedAt: now })
         .where(eq(portAllocations.port, actualPort))
         .execute();
     } else {
-      await tx.insert(portAllocations).values({
+      await dbOrTx.insert(portAllocations).values({
         port: actualPort,
         framework: current.framework,
         projectId,
@@ -621,15 +644,15 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
     projectId: params.projectId
   });
   
-  await db.transaction(async (tx) => {
+  await withDbOperations(async (dbOrTx) => {
     // Clear any existing allocation for this project
-    await tx.update(portAllocations)
+    await dbOrTx.update(portAllocations)
       .set({ projectId: null, reservedAt: null })
       .where(eq(portAllocations.projectId, params.projectId))
       .execute();
 
     // Check if this port already exists in DB
-    const existingPort = await tx.select()
+    const existingPort = await dbOrTx.select()
       .from(portAllocations)
       .where(eq(portAllocations.port, availablePort!))
       .limit(1)
@@ -639,7 +662,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
 
     if (existingPort.length === 0) {
       // Insert new port allocation
-      await tx.insert(portAllocations).values({
+      await dbOrTx.insert(portAllocations).values({
         port: availablePort!,
         framework,
         projectId: params.projectId,
@@ -647,7 +670,7 @@ export async function reserveOrReallocatePort(params: ReservePortParams, skipPor
       }).execute();
     } else {
       // Update existing port allocation
-      await tx.update(portAllocations)
+      await dbOrTx.update(portAllocations)
         .set({ projectId: params.projectId, framework, reservedAt: now })
         .where(eq(portAllocations.port, availablePort!))
         .execute();
