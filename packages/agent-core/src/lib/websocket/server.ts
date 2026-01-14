@@ -25,7 +25,7 @@ import { publishRunnerEvent } from '../runner/event-stream';
 // NOTE: processGlobalRunnerEvent removed - DB writes now happen via HTTP from runner
 import * as Sentry from '@sentry/node';
 import { buildLogger } from '../logging/build-logger';
-import { db } from '../db/client';
+import { db, isLocalMode } from '../db/client';
 import { runnerKeys } from '../db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
@@ -77,6 +77,13 @@ function hashRunnerKey(key: string): string {
 
 // Validate a runner key against the database and return the associated userId
 async function validateRunnerKey(key: string): Promise<{ valid: boolean; userId?: string }> {
+  // In LOCAL mode, runner keys are not supported (no auth tables)
+  // Runner authentication should use shared secret instead
+  if (isLocalMode()) {
+    console.log('[websocket] Runner key validation skipped in LOCAL mode');
+    return { valid: false };
+  }
+
   if (!key || !key.startsWith('sv_')) {
     return { valid: false };
   }
