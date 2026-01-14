@@ -1,6 +1,6 @@
 import { getAuth } from "./auth";
 import { headers } from "next/headers";
-import { db } from "@sentryvibe/agent-core";
+import { db } from "@sentryvibe/agent-core/lib/db/client";
 import { projects, runnerKeys } from "@sentryvibe/agent-core/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { createHash } from "crypto";

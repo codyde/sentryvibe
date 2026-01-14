@@ -28,18 +28,14 @@ export { buildLogger } from './lib/logging/build-logger';
 // WebSocket server (server-only)
 export { buildWebSocketServer } from './lib/websocket';
 
-// Database utilities
-export { 
-  db, 
-  getDb, 
-  initializeDatabase,
-  resetDatabase,
-  isLocalMode,
-  isHostedMode,
-  getDatabaseMode,
-  type DatabaseClient
-} from './lib/db/client';
-export { runMigrations } from './lib/db/migrate';
+// Database utilities - import from '@sentryvibe/agent-core/lib/db/client' instead
+// These are NOT exported from the main index to avoid bundling better-sqlite3/pg
+// in packages that don't need database access (like the runner)
+// 
+// To use database in your code:
+//   import { db, initializeDatabase, isLocalMode } from '@sentryvibe/agent-core/lib/db/client';
+//   import { runMigrations } from '@sentryvibe/agent-core/lib/db/migrate';
 
-// Database mode utilities
+// Only export the mode detection utilities (no native dependencies)
+export { isLocalMode, isHostedMode, getDatabaseMode } from './lib/db/mode';
 export type { DatabaseMode } from './lib/db/mode';

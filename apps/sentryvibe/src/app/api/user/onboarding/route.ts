@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@sentryvibe/agent-core";
+import { db } from "@sentryvibe/agent-core/lib/db/client";
 import { users } from "@sentryvibe/agent-core/lib/db/schema";
 import { eq } from "drizzle-orm";
 import {

@@ -14,7 +14,8 @@ export async function register() {
     
     // Initialize database BEFORE any database-dependent code
     try {
-      const { initializeDatabase, isLocalMode } = await import('@sentryvibe/agent-core');
+      const { initializeDatabase } = await import('@sentryvibe/agent-core/lib/db/client');
+      const { isLocalMode } = await import('@sentryvibe/agent-core');
       const mode = isLocalMode() ? 'LOCAL (SQLite)' : 'HOSTED (PostgreSQL)';
       console.log(`[instrumentation] Initializing database in ${mode} mode...`);
       await initializeDatabase();

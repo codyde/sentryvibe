@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@sentryvibe/agent-core";
+import { db } from "@sentryvibe/agent-core/lib/db/client";
 import { runnerKeys } from "@sentryvibe/agent-core/lib/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import {

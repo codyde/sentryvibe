@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db, isLocalMode } from "@sentryvibe/agent-core";
+import { db } from "@sentryvibe/agent-core/lib/db/client";
+import { isLocalMode } from "@sentryvibe/agent-core";
 import { users, sessions, accounts, verifications } from "@sentryvibe/agent-core/lib/db/schema";
 
 // ============================================================================
