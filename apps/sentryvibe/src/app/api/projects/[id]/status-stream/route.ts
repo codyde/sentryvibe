@@ -67,30 +67,34 @@ export async function GET(
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const enqueueConnected = `data: ${JSON.stringify({ type: 'connected' })}\n\n`;
-        safeEnqueue(controller, enqueueConnected);
-
-        // Send initial project state immediately
+        // Query the database BEFORE starting to send any data
+        // This prevents "failed to pipe response" errors when DB connection fails
         const initialProject = await db.select()
           .from(projects)
           .where(eq(projects.id, id))
           .limit(1);
 
-        if (initialProject.length > 0) {
-          const data = `data: ${JSON.stringify({
-            type: 'status-update',
-            project: initialProject[0],
-          })}\n\n`;
-          safeEnqueue(controller, data);
-          debugLog(`✅ Sent initial status for ${id}`);
-        } else {
+        if (initialProject.length === 0) {
           if (!loggedMissingProjects.has(id)) {
             console.warn(`⚠️  Project ${id} not found`);
             loggedMissingProjects.add(id);
           }
-          safeClose(controller);
+          // Project not found - error the stream before sending any data
+          controller.error(new Error(`Project ${id} not found`));
           return;
         }
+
+        // Database is accessible and project exists - now start the stream
+        const enqueueConnected = `data: ${JSON.stringify({ type: 'connected' })}\n\n`;
+        safeEnqueue(controller, enqueueConnected);
+
+        // Send initial project state
+        const data = `data: ${JSON.stringify({
+          type: 'status-update',
+          project: initialProject[0],
+        })}\n\n`;
+        safeEnqueue(controller, data);
+        debugLog(`✅ Sent initial status for ${id}`);
 
         // Start keepalive pings every 15 seconds
         keepaliveInterval = setInterval(() => {
