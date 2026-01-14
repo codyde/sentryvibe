@@ -44,7 +44,7 @@ export interface InitState {
 const INITIAL_STEPS: Step[] = [
   { id: 'repo', label: 'Clone', status: 'pending' },
   { id: 'build', label: 'Build', status: 'pending' },
-  { id: 'database', label: 'Configure', status: 'pending' },
+  { id: 'database', label: 'SQLite', status: 'pending' },
   { id: 'ready', label: 'Finish', status: 'pending' },
 ];
 
@@ -53,7 +53,7 @@ const INITIAL_TASKS: Task[] = [
   { id: 'clone', label: 'Cloning repository', status: 'pending', stepId: 'repo' },
   { id: 'deps', label: 'Installing dependencies', status: 'pending', stepId: 'build' },
   { id: 'build', label: 'Building packages', status: 'pending', stepId: 'build' },
-  { id: 'database', label: 'Configuring database', status: 'pending', stepId: 'database' },
+  { id: 'database', label: 'Configuring SQLite (local mode)', status: 'pending', stepId: 'database' },
   { id: 'config', label: 'Saving configuration', status: 'pending', stepId: 'ready' },
   { id: 'services', label: 'Building services', status: 'pending', stepId: 'ready' },
 ];

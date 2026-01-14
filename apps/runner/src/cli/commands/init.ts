@@ -404,9 +404,14 @@ export async function initCommand(options: InitOptions) {
           message: 'Database configuration',
           options: [
             {
+              value: 'sqlite',
+              label: 'SQLite (recommended for local)',
+              hint: 'No setup required, data stored locally'
+            },
+            {
               value: 'neon',
-              label: 'Create Neon database (recommended)',
-              hint: 'Free tier, persistent storage'
+              label: 'Create Neon PostgreSQL',
+              hint: 'For hosted/production deployments'
             },
             {
               value: 'existing',
@@ -421,7 +426,15 @@ export async function initCommand(options: InitOptions) {
           return;
         }
 
-        if (dbChoice === 'neon') {
+        if (dbChoice === 'sqlite') {
+          // SQLite is the default for local mode - no setup required!
+          p.log.success('Using SQLite - no additional setup needed!');
+          p.note(
+            'Data will be stored at: ~/.sentryvibe/data.db\nThis is perfect for local development.',
+            pc.cyan('SQLite Configured')
+          );
+          // databaseUrl stays undefined, which means MODE=LOCAL will use SQLite
+        } else if (dbChoice === 'neon') {
           p.note(
             'Opening Neon in your browser...\nCreate a database and paste the connection string below.',
             pc.cyan('Database Setup')
