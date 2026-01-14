@@ -74,6 +74,7 @@ export default defineConfig({
     '@sentry/node',
     'ai',
     'better-auth',
+    'better-sqlite3', // Native module - must be external
     'clsx',
     'drizzle-orm',
     'lucide-react',

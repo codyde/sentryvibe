@@ -8,96 +8,77 @@
  * Default: LOCAL for easiest onboarding
  */
 
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { isLocalMode, isHostedMode } from './mode.js';
 
-// Import schema types for type definitions
-import type * as pgSchema from './schema.pg.js';
-import type * as sqliteSchema from './schema.sqlite.js';
-
-// Import both client modules statically - bundler includes both
-// At runtime, we call the appropriate one based on MODE
-import { createSqliteClient, resetSqliteDatabase } from './client.sqlite.js';
-import { createPostgresClient } from './client.pg.js';
-
-// For external consumers who need the specific types
-export type PostgresClient = NodePgDatabase<typeof pgSchema>;
-export type SqliteClient = BetterSQLite3Database<typeof sqliteSchema>;
-
-/**
- * Unified database client type
- * 
- * We use `any` here because Drizzle's PostgreSQL and SQLite clients have
- * incompatible type signatures that TypeScript can't union properly.
- * The actual runtime type will be correct based on MODE.
- * 
- * When you need type-safe access to dialect-specific features:
- * - Use `isLocalMode()` / `isHostedMode()` guards
- * - Cast to `PostgresClient` or `SqliteClient` as needed
- */
+// We use `any` for the database client type because Drizzle's PostgreSQL and SQLite 
+// clients have incompatible type signatures that TypeScript can't union properly.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DatabaseClient = any;
 
-// Global variable for the unified database client
-// Declared without augmenting global scope to avoid conflicts with client-specific globals
-let _globalDb: DatabaseClient | undefined;
+// Use globalThis to share state across all module instances
+// This is necessary because tsup bundles each entry point separately with splitting: false
+// Without this, each bundle would have its own _globalDb variable
+declare global {
+  // eslint-disable-next-line no-var
+  var __sentryvibeDb: DatabaseClient | undefined;
+  // eslint-disable-next-line no-var
+  var __sentryvibeDbInitPromise: Promise<DatabaseClient> | undefined;
+}
 
-// Also check the global object for backwards compatibility
-declare const global: { __db?: DatabaseClient };
+// Initialize globals if not already set
+globalThis.__sentryvibeDb = globalThis.__sentryvibeDb;
+globalThis.__sentryvibeDbInitPromise = globalThis.__sentryvibeDbInitPromise;
 
 /**
- * Create the appropriate database client based on MODE
+ * Dynamically import and create the appropriate database client based on MODE
+ * This ensures we only load the client module we actually need.
  */
-function createDatabaseClient(): DatabaseClient {
+async function createDatabaseClientAsync(): Promise<DatabaseClient> {
   if (isLocalMode()) {
+    // Dynamic import - only loads better-sqlite3 in LOCAL mode
+    const { createSqliteClient } = await import('./client.sqlite.js');
     return createSqliteClient();
   } else {
+    // Dynamic import - only loads pg in HOSTED mode
+    const { createPostgresClient } = await import('./client.pg.js');
     return createPostgresClient();
   }
 }
 
 /**
- * Get the cached database client
- */
-function getCachedDb(): DatabaseClient | undefined {
-  return _globalDb ?? (typeof global !== 'undefined' ? global.__db : undefined);
-}
-
-/**
- * Set the cached database client
- */
-function setCachedDb(client: DatabaseClient): void {
-  _globalDb = client;
-  if (typeof global !== 'undefined') {
-    global.__db = client;
-  }
-}
-
-/**
- * Initialize the database connection
+ * Initialize the database connection (async - preferred)
+ * 
+ * This is the recommended way to initialize the database.
+ * It uses dynamic imports to only load the client module needed for the current mode.
  */
 export async function initializeDatabase(): Promise<DatabaseClient> {
-  const cached = getCachedDb();
-  if (cached) {
-    return cached;
+  if (globalThis.__sentryvibeDb) {
+    return globalThis.__sentryvibeDb;
+  }
+  
+  // Prevent multiple concurrent initializations
+  if (globalThis.__sentryvibeDbInitPromise) {
+    return globalThis.__sentryvibeDbInitPromise;
   }
   
   const mode = isLocalMode() ? 'LOCAL (SQLite)' : 'HOSTED (PostgreSQL)';
   console.log(`Initializing database in ${mode} mode...`);
   
-  const client = createDatabaseClient();
-  setCachedDb(client);
-  return client;
+  globalThis.__sentryvibeDbInitPromise = createDatabaseClientAsync().then(client => {
+    globalThis.__sentryvibeDb = client;
+    globalThis.__sentryvibeDbInitPromise = undefined;
+    return client;
+  });
+  
+  return globalThis.__sentryvibeDbInitPromise;
 }
 
 /**
  * Get the database client (async version)
  */
 export async function getDb(): Promise<DatabaseClient> {
-  const cached = getCachedDb();
-  if (cached) {
-    return cached;
+  if (globalThis.__sentryvibeDb) {
+    return globalThis.__sentryvibeDb;
   }
   return initializeDatabase();
 }
@@ -105,30 +86,33 @@ export async function getDb(): Promise<DatabaseClient> {
 /**
  * Reset the database connection (useful for testing)
  */
-export function resetDatabase(): void {
-  if (isLocalMode()) {
+export async function resetDatabase(): Promise<void> {
+  if (isLocalMode() && globalThis.__sentryvibeDb) {
+    const { resetSqliteDatabase } = await import('./client.sqlite.js');
     resetSqliteDatabase();
   }
-  _globalDb = undefined;
-  if (typeof global !== 'undefined') {
-    global.__db = undefined;
-  }
+  globalThis.__sentryvibeDb = undefined;
+  globalThis.__sentryvibeDbInitPromise = undefined;
 }
 
 /**
- * Synchronous database client - lazy loads on first access
+ * Synchronous database client accessor
  * 
- * This uses a Proxy to provide synchronous access while still
- * allowing lazy initialization.
+ * IMPORTANT: This requires initializeDatabase() to have been called first!
+ * The database is initialized in instrumentation.ts before any routes run.
+ * 
+ * This uses a Proxy to provide synchronous access to the pre-initialized client.
+ * If accessed before initialization, it throws a helpful error.
  */
 export const db = new Proxy({} as DatabaseClient, {
   get(_target, prop) {
-    let cached = getCachedDb();
-    if (!cached) {
-      cached = createDatabaseClient();
-      setCachedDb(cached);
+    if (!globalThis.__sentryvibeDb) {
+      throw new Error(
+        'Database not initialized. Ensure initializeDatabase() is called during startup.\n' +
+        'This should happen automatically in instrumentation.ts.'
+      );
     }
-    return (cached as any)[prop];
+    return (globalThis.__sentryvibeDb as any)[prop];
   }
 });
 
