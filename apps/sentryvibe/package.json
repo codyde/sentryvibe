@@ -11,7 +11,12 @@
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
     "start:next": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate:pg": "drizzle-kit generate --config=drizzle.pg.config.ts",
+    "db:generate:sqlite": "drizzle-kit generate --config=drizzle.sqlite.config.ts",
+    "db:migrate:pg": "drizzle-kit migrate --config=drizzle.pg.config.ts",
+    "db:push:pg": "drizzle-kit push --config=drizzle.pg.config.ts",
+    "db:studio:pg": "drizzle-kit studio --config=drizzle.pg.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.76",

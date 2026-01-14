@@ -34,6 +34,12 @@ export {
   getDb, 
   initializeDatabase,
   resetDatabase,
+  isLocalMode,
+  isHostedMode,
+  getDatabaseMode,
   type DatabaseClient
 } from './lib/db/client';
 export { runMigrations } from './lib/db/migrate';
+
+// Database mode utilities
+export type { DatabaseMode } from './lib/db/mode';

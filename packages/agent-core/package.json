@@ -46,6 +46,10 @@
       "types": "./dist/lib/db/migrate.d.ts",
       "default": "./dist/lib/db/migrate.js"
     },
+    "./lib/db/mode": {
+      "types": "./dist/lib/db/mode.d.ts",
+      "default": "./dist/lib/db/mode.js"
+    },
     "./lib/generation-persistence": {
       "types": "./dist/lib/generation-persistence.d.ts",
       "default": "./dist/lib/generation-persistence.js"
@@ -183,6 +187,7 @@
     "@sentry/node": "file:../../apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
     "ai": "^5.0.79",
     "better-auth": "^1.4.9",
+    "better-sqlite3": "^11.7.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.7",
     "lucide-react": "^0.544.0",
@@ -199,6 +204,7 @@
     "prepack": "pnpm run build"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
     "@types/ws": "^8.5.10",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"

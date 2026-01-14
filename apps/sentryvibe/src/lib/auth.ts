@@ -1,7 +1,48 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "@sentryvibe/agent-core";
+import { db, isLocalMode } from "@sentryvibe/agent-core";
 import { users, sessions, accounts, verifications } from "@sentryvibe/agent-core/lib/db/schema";
+
+// ============================================================================
+// Local Mode: No Authentication Required
+// ============================================================================
+// In local mode (MODE=LOCAL), we skip all authentication.
+// A synthetic "local user" is returned for all auth checks.
+// ============================================================================
+
+/**
+ * Default local user for single-user local mode
+ */
+export const LOCAL_USER: User = {
+  id: "local-user-00000000-0000-0000-0000-000000000000",
+  email: "local@sentryvibe.local",
+  emailVerified: true,
+  name: "Local User",
+  image: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+/**
+ * Default local session for single-user local mode
+ */
+export const LOCAL_SESSION: Session = {
+  session: {
+    id: "local-session-00000000-0000-0000-0000-000000000000",
+    userId: LOCAL_USER.id,
+    expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+    token: "local-token",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ipAddress: "127.0.0.1",
+    userAgent: "SentryVibe Local",
+  },
+  user: LOCAL_USER,
+};
+
+// ============================================================================
+// Hosted Mode: Full Better-Auth Authentication
+// ============================================================================
 
 // Get trusted origins for CORS/auth
 function getTrustedOrigins(): string[] {
@@ -27,8 +68,8 @@ function getAuthSecret(): string {
     return process.env.BETTER_AUTH_SECRET;
   }
   
-  // In local mode, use a default development secret
-  if (process.env.SENTRYVIBE_LOCAL_MODE === "true") {
+  // In local mode, use a default development secret (auth is skipped anyway)
+  if (isLocalMode()) {
     return "local-development-secret-do-not-use-in-production";
   }
   
@@ -44,17 +85,20 @@ function getAuthSecret(): string {
 let _auth: ReturnType<typeof betterAuth> | null = null;
 
 function createAuth() {
+  // In local mode, we still create a minimal auth instance
+  // but it won't be used for actual authentication
   return betterAuth({
     secret: getAuthSecret(),
-    database: drizzleAdapter(db, {
-      provider: "pg",
+    database: drizzleAdapter(db as any, {
+      provider: isLocalMode() ? "sqlite" : "pg",
       schema: { users, sessions, accounts, verifications },
       usePlural: true,
     }),
     // Let PostgreSQL generate UUIDs (our schema has defaultRandom())
+    // For SQLite, we generate UUIDs in the schema with $defaultFn
     advanced: {
       database: {
-        generateId: false,
+        generateId: isLocalMode() ? undefined : false,
       },
     },
     // Session configuration
@@ -79,10 +123,10 @@ function createAuth() {
 /**
  * Get the better-auth instance (lazy initialized)
  * 
- * This is lazy to avoid errors during Next.js build phase when
- * environment variables may not be available.
+ * In LOCAL mode, this returns a minimal auth instance that won't be used
+ * for actual authentication (all requests get LOCAL_SESSION/LOCAL_USER).
  * 
- * This configures authentication with:
+ * In HOSTED mode, this configures authentication with:
  * - Email/password credentials
  * - PostgreSQL session storage via Drizzle
  * - 7-day session duration
@@ -98,6 +142,36 @@ export function getAuth() {
     _auth = createAuth();
   }
   return _auth;
+}
+
+/**
+ * Check if the current mode requires authentication
+ */
+export function requiresAuth(): boolean {
+  return !isLocalMode();
+}
+
+/**
+ * Get the current session - returns LOCAL_SESSION in local mode
+ * This is a convenience function for use in API routes
+ */
+export async function getCurrentSession(headers: Headers): Promise<Session | null> {
+  if (isLocalMode()) {
+    return LOCAL_SESSION;
+  }
+  
+  const auth = getAuth();
+  const session = await auth.api.getSession({ headers });
+  return session;
+}
+
+/**
+ * Get the current user - returns LOCAL_USER in local mode
+ * This is a convenience function for use in API routes
+ */
+export async function getCurrentUser(headers: Headers): Promise<User | null> {
+  const session = await getCurrentSession(headers);
+  return session?.user ?? null;
 }
 
 // Type exports for session/user
