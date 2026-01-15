@@ -4,10 +4,10 @@
  * Supports both legacy Claude-only format and new OpenCode multi-provider format.
  */
 
-// Agent types - 'opencode' is the new default, 'claude-code' kept for backwards compat
-export type AgentId = 'opencode' | 'claude-code' | 'openai-codex';
+// Agent types - 'claude-code' is the default, 'opencode' enabled via OPENCODE_URL env var
+export type AgentId = 'claude-code' | 'opencode' | 'openai-codex';
 
-export const DEFAULT_AGENT_ID: AgentId = 'opencode';
+export const DEFAULT_AGENT_ID: AgentId = 'claude-code';
 
 // Legacy Claude-specific model IDs (backwards compatibility)
 export type ClaudeModelId = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5';

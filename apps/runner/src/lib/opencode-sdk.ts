@@ -439,9 +439,10 @@ export function createOpenCodeQuery(
 /**
  * Feature flag to control which implementation to use
  * 
- * Default: OpenCode SDK is enabled when OPENCODE_URL is set
- * Set USE_LEGACY_CLAUDE_SDK=1 to use the old Claude Agent SDK path
+ * Default: Claude Agent SDK (native)
+ * Set USE_OPENCODE_SDK=1 to enable OpenCode multi-provider support
+ * Note: OPENCODE_URL must also be set to the OpenCode service URL
  */
-export const USE_OPENCODE_SDK = process.env.USE_LEGACY_CLAUDE_SDK !== '1' && !!process.env.OPENCODE_URL;
+export const USE_OPENCODE_SDK = process.env.USE_OPENCODE_SDK === '1' && !!process.env.OPENCODE_URL;
 
 export type { TransformedMessage, MessagePart };

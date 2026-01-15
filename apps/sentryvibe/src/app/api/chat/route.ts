@@ -14,9 +14,11 @@ import { existsSync, mkdirSync } from 'fs';
 
 /**
  * Check if OpenCode SDK should be used
+ * Default: Claude Agent SDK
+ * Set USE_OPENCODE_SDK=1 to enable OpenCode multi-provider support
  */
 function useOpenCodeSDK(): boolean {
-  return process.env.USE_LEGACY_CLAUDE_SDK !== '1' && !!process.env.OPENCODE_URL;
+  return process.env.USE_OPENCODE_SDK === '1' && !!process.env.OPENCODE_URL;
 }
 
 /**
