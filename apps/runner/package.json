@@ -79,7 +79,6 @@
     "picocolors": "^1.1.1",
     "react": "19.1.0",
     "simple-git": "^3.28.0",
-    "update-notifier": "^7.3.1",
     "ws": "^8.18.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.6"
@@ -93,7 +92,6 @@
     "@types/http-proxy": "^1.17.16",
     "@types/node": "^20",
     "@types/react": "^19",
-    "@types/update-notifier": "^6.0.8",
     "@types/ws": "^8.5.10",
     "rollup": "^4.28.0",
     "tsx": "^4.19.1",

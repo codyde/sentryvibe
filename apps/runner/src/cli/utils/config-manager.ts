@@ -12,6 +12,7 @@ export interface RunnerConfig {
   monorepoPath?: string; // Path to cloned sentryvibe repository
   databaseUrl?: string; // PostgreSQL connection string
   apiUrl?: string; // API base URL (e.g., http://localhost:3000)
+  autoUpdate?: boolean; // Enable automatic CLI updates (default: true)
   // Server connection config (formerly "broker" - now connects directly to Next.js)
   server: {
     wsUrl: string; // WebSocket URL (e.g., ws://localhost:3000/ws/runner)

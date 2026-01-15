@@ -76,7 +76,6 @@ const external = [
   'server-only',
   'simple-git',
   'tailwind-merge',
-  'update-notifier',
   'ws',
   'zod',
   'zod-to-json-schema',
