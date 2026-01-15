@@ -68,12 +68,10 @@ export async function GET(
     // This runs every time a user reconnects/refreshes, providing natural cleanup
     // without requiring external cronjobs or scheduled tasks
     // NOTE: 15 minutes of INACTIVITY (no events), not total build time
-    try {
-      await cleanupStuckBuilds(15); // Finalize builds inactive for 15+ minutes
-    } catch (cleanupError) {
-      // Don't block the request if cleanup fails
+    // PERF: Fire-and-forget - don't block the response on cleanup
+    cleanupStuckBuilds(15).catch((cleanupError) => {
       console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);
-    }
+    });
 
     const projectMessages = await db
       .select()

@@ -569,11 +569,13 @@ function HomeContent() {
       pendingAutoPushRef.current = { projectId: currentProject.id, buildId: generationState.id };
     }
     
-    // CRITICAL FIX: Clear local generationState immediately when build completes
-    // This prevents the build from appearing in BOTH active section AND history
-    // The refetch will populate serverBuilds/buildHistory with the DB version
-    console.log('🧹 [State Cleanup] Clearing local generationState (build completed):', generationState.id);
-    setGenerationState(null);
+    // NOTE: We intentionally do NOT clear generationState here anymore.
+    // The completed build state (with todos and summary) should remain visible
+    // until the refetch completes and serverBuilds/buildHistory is populated.
+    // This prevents the "blank state" flash that occurred when we cleared state
+    // before the DB data arrived. The buildHistory useMemo already handles
+    // deduplication to prevent the same build appearing twice.
+    console.log('✅ [State Preserved] Keeping completed build in state until server data arrives:', generationState.id);
   }, [generationState, currentProject?.id, refetchProjectMessages, queryClient, serverBuilds, githubStatus]);
 
   const updateGenerationState = useCallback(
@@ -808,16 +810,12 @@ function HomeContent() {
         return merged;
       });
       
-      // CRITICAL: Invalidate messages query so build plans/summaries show up
-      // Without this, new messages won't appear until manual refresh
-      if (currentProject?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ['projects', currentProject.id, 'messages'],
-          refetchType: 'active',
-        });
-      }
+      // NOTE: Query invalidation removed from here - it was causing unnecessary refetches
+      // during active builds. The build completion effect (line ~538) handles the final
+      // sync when a build completes. During active builds, WebSocket state is the source
+      // of truth and doesn't need DB sync on every update.
     }
-  }, [wsState, wsConnected, currentProject?.id, queryClient]);
+  }, [wsState, wsConnected, currentProject?.id, queryClient, clearAutoFixState]);
 
   const ensureGenerationState = useCallback(
     (prevState: GenerationState | null): GenerationState | null => {
@@ -1234,20 +1232,27 @@ function HomeContent() {
       );
 
       // Save to database so it's included in conversation history
-      try {
-        await saveMessageMutation.mutateAsync({
+      // PERF: Fire-and-forget - don't block UI on DB write
+      // The optimistic cache update above already shows the message immediately
+      saveMessageMutation.mutate(
+        {
           id: crypto.randomUUID(),
           projectId: projectId,
           type: 'user',
           content: prompt, // Always save text content as string
           parts: messageParts && messageParts.length > 0 ? messageParts : undefined, // Save parts separately if they exist
           timestamp: Date.now(),
-        });
-        if (DEBUG_PAGE) console.log("💾 User message saved to database");
-      } catch (error) {
-        console.error("Failed to save user message:", error);
-        // Continue anyway - message is in local state
-      }
+        },
+        {
+          onSuccess: () => {
+            if (DEBUG_PAGE) console.log("💾 User message saved to database");
+          },
+          onError: (error) => {
+            console.error("Failed to save user message:", error);
+            // Continue anyway - message is in local state and build still happens
+          },
+        }
+      );
     }
 
     // Find project and detect operation type
