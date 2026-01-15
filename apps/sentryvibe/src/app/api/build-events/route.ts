@@ -529,35 +529,123 @@ export async function POST(request: Request) {
 
         // Check for GitHub repo info in tool output (gh repo view --json output)
         // This parses the output server-side so frontend doesn't need to handle it
+        // IMPORTANT: Only match actual repository URLs, not issues/PRs/etc
         if (event.output && typeof event.output === 'string') {
-          const ghRepoMatch = event.output.match(/"url"\s*:\s*"(https:\/\/github\.com\/([^\/]+)\/([^"]+))"/);
-          if (ghRepoMatch) {
-            const [, url, owner, repoName] = ghRepoMatch;
-            
-            // Try to extract branch from the output
-            // Check for defaultBranchRef in gh repo view output (if --json includes it)
-            let branch = 'main'; // fallback
-            const branchMatch = event.output.match(/"defaultBranchRef"\s*:\s*{\s*"name"\s*:\s*"([^"]+)"/);
-            if (branchMatch) {
-              branch = branchMatch[1];
+          // First, check if this looks like gh repo view JSON output (has defaultBranchRef which is repo-specific)
+          // This prevents matching gh issue view or gh pr view output
+          const hasDefaultBranch = event.output.includes('"defaultBranchRef"');
+          
+          // Only try to extract repo URL if this looks like repo data
+          if (hasDefaultBranch) {
+            // Match repo URL - must be exactly owner/repo format, not owner/repo/issues/123 etc
+            const ghRepoMatch = event.output.match(/"url"\s*:\s*"(https:\/\/github\.com\/([^\/]+)\/([^"\/]+))"/);
+            if (ghRepoMatch) {
+              const [, url, owner, repoName] = ghRepoMatch;
+              
+              // Double-check: skip if this looks like an issue/PR URL somehow
+              if (url.includes('/issues/') || url.includes('/pull/') || url.includes('/discussions/')) {
+                console.log(`🐙 [build-events] Skipping non-repo URL: ${url}`);
+              } else {
+                // Try to extract branch from the output
+                // Check for defaultBranchRef in gh repo view output
+                let branch = 'main'; // fallback
+                const branchMatch = event.output.match(/"defaultBranchRef"\s*:\s*{\s*"name"\s*:\s*"([^"]+)"/);
+                if (branchMatch) {
+                  branch = branchMatch[1];
+                }
+                
+                console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName} (branch: ${branch})`);
+                
+                // Update project with GitHub info
+                try {
+                  await db.update(projects)
+                    .set({
+                      githubRepo: `${owner}/${repoName}`,
+                      githubUrl: url,
+                      githubBranch: branch,
+                      githubLastPushedAt: timestamp,
+                      updatedAt: timestamp,
+                    })
+                    .where(eq(projects.id, projectId));
+                  console.log(`🐙 [build-events] Updated project ${projectId} with GitHub info`);
+                } catch (e) {
+                  console.error('[build-events] Failed to update project GitHub info:', e);
+                }
+              }
             }
-            
-            console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName} (branch: ${branch})`);
-            
-            // Update project with GitHub info
+          }
+
+          // Check for NeonDB/get-db CLI output in Bash command output
+          // The CLI outputs: DATABASE_URL=postgresql://... and claim URL
+          // Example output:
+          // # Claimable DB expires at: Sun, 05 Oct 2025 23:11:33 GMT
+          // # Claim it now to your account: https://neon.new/database/xxx
+          // DATABASE_URL=postgresql://neondb_owner:password@ep-xxx.region.aws.neon.tech/neondb?...
+          const databaseUrlMatch = event.output.match(/DATABASE_URL=postgresql:\/\/([^:]+):([^@]+)@([^\/]+)\/([^\s?]+)/);
+          const claimUrlMatch = event.output.match(/https:\/\/neon\.new\/database\/[a-f0-9-]+/);
+          const expiresMatch = event.output.match(/Claimable DB expires at:\s*([^\n]+)/);
+          
+          if (databaseUrlMatch) {
             try {
+              const [fullMatch, username, password, host, database] = databaseUrlMatch;
+              const connectionString = `postgresql://${username}:${password}@${host}/${database}`;
+              const claimUrl = claimUrlMatch ? claimUrlMatch[0] : null;
+              
+              // Parse expiration date or default to 72 hours from now
+              let expiresAt: Date;
+              if (expiresMatch) {
+                const parsedDate = new Date(expiresMatch[1].trim());
+                expiresAt = isNaN(parsedDate.getTime()) 
+                  ? new Date(Date.now() + 72 * 60 * 60 * 1000)
+                  : parsedDate;
+              } else {
+                expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+              }
+              
+              console.log(`🐘 [build-events] Found NeonDB setup in CLI output: ${host}/${database}`);
+              
               await db.update(projects)
                 .set({
-                  githubRepo: `${owner}/${repoName}`,
-                  githubUrl: url,
-                  githubBranch: branch,
-                  githubLastPushedAt: timestamp,
+                  neondbHost: host,
+                  neondbDatabase: database,
+                  neondbClaimUrl: claimUrl,
+                  neondbConnectionString: connectionString,
+                  neondbCreatedAt: timestamp,
+                  neondbExpiresAt: expiresAt,
                   updatedAt: timestamp,
                 })
                 .where(eq(projects.id, projectId));
-              console.log(`🐙 [build-events] Updated project ${projectId} with GitHub info`);
+              console.log(`🐘 [build-events] Updated project ${projectId} with NeonDB info`);
             } catch (e) {
-              console.error('[build-events] Failed to update project GitHub info:', e);
+              console.error('[build-events] Failed to parse/update NeonDB result:', e);
+            }
+          }
+
+          // Also check for explicit NEONDB_RESULT marker (skill output)
+          const neondbMarkerMatch = event.output.match(/NEONDB_RESULT:(\{[^}]+\})/);
+          if (neondbMarkerMatch && !databaseUrlMatch) {
+            try {
+              const neonResult = JSON.parse(neondbMarkerMatch[1]);
+              if (neonResult.success) {
+                console.log(`🐘 [build-events] Found NeonDB result marker in output`);
+                
+                const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+                
+                await db.update(projects)
+                  .set({
+                    neondbHost: neonResult.host || null,
+                    neondbDatabase: neonResult.database || 'neondb',
+                    neondbClaimUrl: neonResult.claimUrl || null,
+                    neondbConnectionString: neonResult.connectionString || null,
+                    neondbCreatedAt: timestamp,
+                    neondbExpiresAt: expiresAt,
+                    updatedAt: timestamp,
+                  })
+                  .where(eq(projects.id, projectId));
+                console.log(`🐘 [build-events] Updated project ${projectId} with NeonDB info from marker`);
+              }
+            } catch (e) {
+              console.error('[build-events] Failed to parse NeonDB marker:', e);
             }
           }
         }

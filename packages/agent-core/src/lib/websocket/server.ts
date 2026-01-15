@@ -919,6 +919,31 @@ class BuildWebSocketServer {
     this.flushBatch(key);
   }
 
+  broadcastBuildSummary(
+    projectId: string,
+    sessionId: string,
+    summary: string
+  ) {
+    const key = `${projectId}-${sessionId}`;
+
+    if (!this.pendingUpdates.has(key)) {
+      this.pendingUpdates.set(key, {
+        projectId,
+        sessionId,
+        updates: [],
+      });
+    }
+
+    const batch = this.pendingUpdates.get(key)!;
+    batch.updates.push({
+      type: 'build-summary',
+      data: { summary },
+      timestamp: Date.now(),
+    });
+
+    this.flushBatch(key);
+  }
+
   /**
    * Process and send batched updates
    */

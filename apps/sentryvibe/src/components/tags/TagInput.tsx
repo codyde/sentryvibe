@@ -161,7 +161,7 @@ export function TagInput({
           <Button
             variant="outline"
             size="sm"
-            className="h-7 px-2 bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600 font-mono text-xs"
+            className="btn-add-tag-theme h-7 px-2 font-mono text-xs"
           >
             <Plus className="w-3 h-3 mr-1" />
             Add Tag

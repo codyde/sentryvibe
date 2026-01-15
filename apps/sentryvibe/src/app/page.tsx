@@ -65,6 +65,7 @@ import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { GitHubButton, getGitHubSetupMessage, getGitHubPushMessage, type RepoVisibility } from "@/components/github";
+import { NeonDBButton, getNeonDBSetupMessage } from "@/components/neondb";
 
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
@@ -568,11 +569,13 @@ function HomeContent() {
       pendingAutoPushRef.current = { projectId: currentProject.id, buildId: generationState.id };
     }
     
-    // CRITICAL FIX: Clear local generationState immediately when build completes
-    // This prevents the build from appearing in BOTH active section AND history
-    // The refetch will populate serverBuilds/buildHistory with the DB version
-    console.log('🧹 [State Cleanup] Clearing local generationState (build completed):', generationState.id);
-    setGenerationState(null);
+    // NOTE: We intentionally do NOT clear generationState here anymore.
+    // The completed build state (with todos and summary) should remain visible
+    // until the refetch completes and serverBuilds/buildHistory is populated.
+    // This prevents the "blank state" flash that occurred when we cleared state
+    // before the DB data arrived. The buildHistory useMemo already handles
+    // deduplication to prevent the same build appearing twice.
+    console.log('✅ [State Preserved] Keeping completed build in state until server data arrives:', generationState.id);
   }, [generationState, currentProject?.id, refetchProjectMessages, queryClient, serverBuilds, githubStatus]);
 
   const updateGenerationState = useCallback(
@@ -727,21 +730,27 @@ function HomeContent() {
       }
       
       setGenerationState((prevState) => {
-// If no previous state, use WebSocket state ONLY if build is active
-          // Don't restore completed builds - they belong in serverBuilds/buildHistory
-          if (!prevState) {
-            if (!wsState.isActive) {
-              if (DEBUG_PAGE) console.log('   Skipping completed build from WebSocket (should be in DB)');
-              return null;
+        // If no previous state, use WebSocket state ONLY if build is active OR has new summary
+        // Don't restore completed builds without summaries - they belong in serverBuilds/buildHistory
+        if (!prevState) {
+          if (!wsState.isActive) {
+            // EXCEPTION: If this is a summary update for a just-completed build, accept it
+            // This handles the race where build-complete clears state before build-summary arrives
+            if (wsState.buildSummary) {
+              if (DEBUG_PAGE) console.log('   Accepting completed build from WebSocket (has summary)');
+              return wsState;
             }
-            if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
-            // Clear autoFixState when auto-fix session starts
-            if (wsState.isAutoFix) {
-              console.log('🔧 [Auto-Fix Session] Clearing autoFixState - session started');
-              clearAutoFixState();
-            }
-            return wsState;
+            if (DEBUG_PAGE) console.log('   Skipping completed build from WebSocket (should be in DB)');
+            return null;
           }
+          if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
+          // Clear autoFixState when auto-fix session starts
+          if (wsState.isAutoFix) {
+            console.log('🔧 [Auto-Fix Session] Clearing autoFixState - session started');
+            clearAutoFixState();
+          }
+          return wsState;
+        }
         
         // CRITICAL FIX: Check if buildId changed (new build started)
         // If buildId changed, REPLACE old state instead of merging
@@ -775,6 +784,7 @@ function HomeContent() {
             hasSummary: !!wsState.buildSummary,
             summaryLength: wsState.buildSummary?.length,
           });
+          
           // Return the completed state (including buildSummary) instead of null
           return {
             ...prevState,
@@ -807,16 +817,48 @@ function HomeContent() {
         return merged;
       });
       
-      // CRITICAL: Invalidate messages query so build plans/summaries show up
-      // Without this, new messages won't appear until manual refresh
-      if (currentProject?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ['projects', currentProject.id, 'messages'],
-          refetchType: 'active',
-        });
-      }
+      // NOTE: Query invalidation removed from here - it was causing unnecessary refetches
+      // during active builds. The build completion effect (line ~538) handles the final
+      // sync when a build completes. During active builds, WebSocket state is the source
+      // of truth and doesn't need DB sync on every update.
     }
-  }, [wsState, wsConnected, currentProject?.id, queryClient]);
+  }, [wsState, wsConnected, currentProject?.id, queryClient, clearAutoFixState]);
+
+  // Track previous wsState values to detect important transitions
+  const prevWsStateIsActiveRef = useRef<boolean | undefined>(undefined);
+  const prevWsStateSummaryRef = useRef<string | undefined>(undefined);
+  
+  // Effect to invalidate queries when build completes OR summary arrives via WebSocket
+  // This is separate from the state sync effect to avoid side effects in state setters
+  useEffect(() => {
+    const wasActive = prevWsStateIsActiveRef.current;
+    const isNowActive = wsState?.isActive;
+    const prevSummary = prevWsStateSummaryRef.current;
+    const currentSummary = wsState?.buildSummary;
+    
+    // Detect transition from active to inactive (build completed)
+    if (wasActive === true && isNowActive === false && currentProject?.id) {
+      console.log('🔄 [Build Completed] WebSocket state transitioned to inactive - invalidating queries');
+      queryClient.invalidateQueries({
+        queryKey: ['projects', currentProject.id, 'messages'],
+        refetchType: 'all',
+      });
+    }
+    
+    // Detect when summary arrives (late-arriving summary after build-complete)
+    // This ensures the UI refreshes to show the summary from DB
+    if (!prevSummary && currentSummary && !isNowActive && currentProject?.id) {
+      console.log('📝 [Build Summary] Summary arrived after completion - invalidating queries');
+      queryClient.invalidateQueries({
+        queryKey: ['projects', currentProject.id, 'messages'],
+        refetchType: 'all',
+      });
+    }
+    
+    // Update refs for next comparison
+    prevWsStateIsActiveRef.current = isNowActive;
+    prevWsStateSummaryRef.current = currentSummary;
+  }, [wsState?.isActive, wsState?.buildSummary, currentProject?.id, queryClient]);
 
   const ensureGenerationState = useCallback(
     (prevState: GenerationState | null): GenerationState | null => {
@@ -1233,20 +1275,33 @@ function HomeContent() {
       );
 
       // Save to database so it's included in conversation history
-      try {
-        await saveMessageMutation.mutateAsync({
+      // PERF: Fire-and-forget - don't block UI on DB write
+      // The optimistic cache update above already shows the message immediately
+      saveMessageMutation.mutate(
+        {
           id: crypto.randomUUID(),
           projectId: projectId,
           type: 'user',
           content: prompt, // Always save text content as string
           parts: messageParts && messageParts.length > 0 ? messageParts : undefined, // Save parts separately if they exist
           timestamp: Date.now(),
-        });
-        if (DEBUG_PAGE) console.log("💾 User message saved to database");
-      } catch (error) {
-        console.error("Failed to save user message:", error);
-        // Continue anyway - message is in local state
-      }
+        },
+        {
+          onSuccess: () => {
+            if (DEBUG_PAGE) console.log("💾 User message saved to database");
+          },
+          onError: (error) => {
+            console.error("Failed to save user message:", error);
+            // Notify user - message is in UI but may not persist after refresh
+            addToast({
+              title: "Message may not be saved",
+              description: "Your message is visible but may not persist after refresh.",
+              variant: "warning",
+            });
+            // Continue anyway - message is in local state and build still happens
+          },
+        }
+      );
     }
 
     // Find project and detect operation type
@@ -2692,30 +2747,43 @@ function HomeContent() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {/* GitHub Integration - show when project is selected and completed */}
+            {/* Integrations - show when project is selected and completed */}
             {currentProject && currentProject.status === 'completed' && (
-              <GitHubButton
-                projectId={currentProject.id}
-                projectSlug={currentProject.slug}
-                isGenerating={isGenerating}
-                onSetupClick={(visibility: RepoVisibility) => {
-                  // Switch to Build tab to show the setup progress
-                  switchTab("build");
-                  // Send the GitHub setup message via the chat flow with visibility
-                  startGeneration(currentProject.id, getGitHubSetupMessage(visibility), {
-                    addUserMessage: true,
-                  });
-                }}
-                onPushClick={() => {
-                  // Switch to Build tab to show the push progress
-                  switchTab("build");
-                  // Send the GitHub push message via the chat flow
-                  startGeneration(currentProject.id, getGitHubPushMessage(), {
-                    addUserMessage: true,
-                  });
-                }}
-                variant="default"
-              />
+              <>
+                <NeonDBButton
+                  projectId={currentProject.id}
+                  isGenerating={isGenerating}
+                  onSetupClick={() => {
+                    switchTab("build");
+                    startGeneration(currentProject.id, getNeonDBSetupMessage(), {
+                      addUserMessage: true,
+                    });
+                  }}
+                  variant="default"
+                />
+                <GitHubButton
+                  projectId={currentProject.id}
+                  projectSlug={currentProject.slug}
+                  isGenerating={isGenerating}
+                  onSetupClick={(visibility: RepoVisibility) => {
+                    // Switch to Build tab to show the setup progress
+                    switchTab("build");
+                    // Send the GitHub setup message via the chat flow with visibility
+                    startGeneration(currentProject.id, getGitHubSetupMessage(visibility), {
+                      addUserMessage: true,
+                    });
+                  }}
+                  onPushClick={() => {
+                    // Switch to Build tab to show the push progress
+                    switchTab("build");
+                    // Send the GitHub push message via the chat flow
+                    startGeneration(currentProject.id, getGitHubPushMessage(), {
+                      addUserMessage: true,
+                    });
+                  }}
+                  variant="default"
+                />
+              </>
             )}
             <AuthHeader />
           </div>
@@ -2781,7 +2849,7 @@ function HomeContent() {
                           ))}
                         </div>
                       )}
-                      <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                      <div className="relative input-theme border rounded-lg shadow-2xl overflow-hidden hover:border-[var(--theme-input-border-focus)] transition-all duration-300">
                         <textarea
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
@@ -3165,7 +3233,7 @@ function HomeContent() {
                               ))}
                             </div>
                           )}
-                          <div className="relative bg-gray-900 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                          <div className="relative input-theme border rounded-lg overflow-hidden hover:border-[var(--theme-input-border-focus)] transition-all duration-300">
                             <textarea
                               value={input}
                               onChange={(e) => setInput(e.target.value)}

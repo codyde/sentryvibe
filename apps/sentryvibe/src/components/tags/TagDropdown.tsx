@@ -57,7 +57,7 @@ export function TagDropdown({
       const def = getTagDefinitions().find(d => d.key === existingTagKey);
       if (def) {
         // If it's a top-level tag with options, go directly to select view
-        if (def.inputType === 'select') {
+        if (def.inputType === 'select' || def.inputType === 'multi-select') {
           return [{ type: 'select', definition: def }];
         }
         // If it's a nested tag (like design/brand), navigate through the hierarchy
@@ -182,7 +182,7 @@ export function TagDropdown({
               onClick={() => {
                 if (def.inputType === 'nested' && def.children) {
                   pushView({ type: 'nested', definition: def });
-                } else if (def.inputType === 'select') {
+                } else if (def.inputType === 'select' || def.inputType === 'multi-select') {
                   pushView({ type: 'select', definition: def });
                 }
               }}

@@ -43,8 +43,8 @@ export default function ChatUpdate({
 
   const toneClasses =
     tone === 'user'
-      ? 'bg-gradient-to-br from-[var(--theme-primary)]/35 via-[var(--theme-primary)]/25 to-[var(--theme-primary)]/15 border-theme-primary/40 text-white'
-      : 'bg-zinc-900/70 border-zinc-700 text-zinc-100';
+      ? 'chat-user-theme text-white'
+      : 'chat-agent-theme text-zinc-100';
 
   const variantClasses =
     variant === 'history'

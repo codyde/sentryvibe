@@ -134,6 +134,14 @@
   --theme-accent: #c084fc;
   --theme-glow: rgba(168, 85, 247, 0.25);
   --theme-glow-hover: rgba(168, 85, 247, 0.4);
+  --theme-button-text: #ffffff;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(0, 0, 0, 0.4);
+  --theme-input-border: rgba(168, 85, 247, 0.3);
+  --theme-input-border-focus: rgba(168, 85, 247, 0.6);
+  --theme-terminal-bg: #181225;
+  --theme-chat-user-bg: rgba(168, 85, 247, 0.25);
+  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
 }
 
 /* Ocean Theme - Blue/Cyan */
@@ -148,6 +156,14 @@
   --theme-accent: #60a5fa;
   --theme-glow: rgba(59, 130, 246, 0.25);
   --theme-glow-hover: rgba(59, 130, 246, 0.4);
+  --theme-button-text: #ffffff;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(0, 0, 0, 0.4);
+  --theme-input-border: rgba(59, 130, 246, 0.3);
+  --theme-input-border-focus: rgba(59, 130, 246, 0.6);
+  --theme-terminal-bg: #0c1929;
+  --theme-chat-user-bg: rgba(59, 130, 246, 0.25);
+  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
 }
 
 /* Ember Theme - Orange/Red */
@@ -162,6 +178,14 @@
   --theme-accent: #fb923c;
   --theme-glow: rgba(249, 115, 22, 0.25);
   --theme-glow-hover: rgba(249, 115, 22, 0.4);
+  --theme-button-text: #ffffff;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(0, 0, 0, 0.4);
+  --theme-input-border: rgba(249, 115, 22, 0.3);
+  --theme-input-border-focus: rgba(249, 115, 22, 0.6);
+  --theme-terminal-bg: #1a0f0a;
+  --theme-chat-user-bg: rgba(249, 115, 22, 0.25);
+  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
 }
 
 /* Forest Theme - Green/Lime */
@@ -176,6 +200,14 @@
   --theme-accent: #34d399;
   --theme-glow: rgba(16, 185, 129, 0.25);
   --theme-glow-hover: rgba(16, 185, 129, 0.4);
+  --theme-button-text: #ffffff;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(0, 0, 0, 0.4);
+  --theme-input-border: rgba(16, 185, 129, 0.3);
+  --theme-input-border-focus: rgba(16, 185, 129, 0.6);
+  --theme-terminal-bg: #0a1810;
+  --theme-chat-user-bg: rgba(16, 185, 129, 0.25);
+  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
 }
 
 /* Noir Theme - Monochrome */
@@ -190,6 +222,14 @@
   --theme-accent: #d4d4d8;
   --theme-glow: rgba(255, 255, 255, 0.1);
   --theme-glow-hover: rgba(255, 255, 255, 0.2);
+  --theme-button-text: #000000;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(255, 255, 255, 0.05);
+  --theme-input-border: rgba(255, 255, 255, 0.2);
+  --theme-input-border-focus: rgba(255, 255, 255, 0.4);
+  --theme-terminal-bg: #0a0a0a;
+  --theme-chat-user-bg: rgba(255, 255, 255, 0.1);
+  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
 }
 
 @keyframes swing-up {
@@ -422,7 +462,7 @@
   /* Theme button primary */
   .btn-theme-primary {
     background: linear-gradient(to right, var(--theme-primary), var(--theme-secondary));
-    color: white;
+    color: var(--theme-button-text, white);
     transition: all 0.2s;
   }
 
@@ -446,6 +486,83 @@
   /* Main content background */
   .bg-theme-content {
     background: linear-gradient(to top right, var(--sidebar-gradient-from), var(--sidebar-gradient-to));
+  }
+
+  /* Theme input styling */
+  .input-theme {
+    background-color: var(--theme-input-bg, rgba(0, 0, 0, 0.4));
+    border-color: var(--theme-input-border, rgba(255, 255, 255, 0.1));
+    color: white;
+    transition: border-color 0.2s;
+  }
+
+  .input-theme::placeholder {
+    color: rgba(156, 163, 175, 0.7);
+  }
+
+  .input-theme:focus {
+    border-color: var(--theme-input-border-focus, var(--theme-primary));
+    outline: none;
+  }
+
+  /* Theme terminal styling */
+  .terminal-theme {
+    background-color: var(--theme-terminal-bg, #181225);
+  }
+
+  /* Theme chat message styling */
+  .chat-user-theme {
+    background: linear-gradient(to bottom right, 
+      var(--theme-chat-user-bg, rgba(168, 85, 247, 0.25)), 
+      color-mix(in srgb, var(--theme-primary) 15%, transparent));
+    border-color: color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  }
+
+  .chat-agent-theme {
+    background-color: var(--theme-chat-agent-bg, rgba(39, 39, 42, 0.7));
+    border-color: rgba(63, 63, 70, 1);
+  }
+
+  /* Theme tag badge styling */
+  .tag-badge-theme {
+    background-color: var(--theme-input-bg, rgba(0, 0, 0, 0.4));
+    border-color: var(--theme-input-border, rgba(255, 255, 255, 0.1));
+    color: white;
+    transition: border-color 0.2s;
+  }
+
+  .tag-badge-theme:hover {
+    border-color: color-mix(in srgb, var(--theme-primary) 50%, transparent);
+  }
+
+  .tag-badge-theme .tag-key {
+    color: var(--theme-primary);
+  }
+
+  .tag-badge-theme .tag-value {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .tag-badge-theme .tag-remove {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .tag-badge-theme .tag-remove:hover {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  /* Theme add tag button */
+  .btn-add-tag-theme {
+    background-color: var(--theme-input-bg, rgba(0, 0, 0, 0.4));
+    border-color: var(--theme-input-border, rgba(255, 255, 255, 0.1));
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.2s;
+  }
+
+  .btn-add-tag-theme:hover {
+    background-color: color-mix(in srgb, var(--theme-primary) 15%, transparent);
+    border-color: color-mix(in srgb, var(--theme-primary) 50%, transparent);
+    color: var(--theme-primary);
   }
 }
 

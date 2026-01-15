@@ -30,16 +30,16 @@ export default function CodeBlock({ children, className }: CodeBlockProps) {
 
   return (
     <div className="relative group">
-      <pre className={`bg-[#181225] text-white p-4 rounded-lg overflow-x-auto border border-[#7553FF]/30 shadow-lg ${className}`}>
+      <pre className={`terminal-theme text-white p-4 rounded-lg overflow-x-auto border border-theme-primary/30 shadow-lg ${className}`}>
         {children}
       </pre>
       <button
         onClick={handleCopy}
-        className="absolute top-2 right-2 p-2 bg-[#7553FF]/80 hover:bg-[#7553FF] text-white rounded-md opacity-0 group-hover:opacity-100 transition-all duration-200 border border-[#7553FF]/50"
+        className="absolute top-2 right-2 p-2 bg-theme-primary/80 hover:bg-theme-primary text-white rounded-md opacity-0 group-hover:opacity-100 transition-all duration-200 border border-theme-primary/50"
         title={copied ? 'Copied!' : 'Copy code'}
       >
         {copied ? (
-          <Check className="w-4 h-4 text-[#92DD00]" />
+          <Check className="w-4 h-4 text-theme-accent" />
         ) : (
           <Copy className="w-4 h-4" />
         )}

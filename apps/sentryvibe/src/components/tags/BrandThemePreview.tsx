@@ -1,6 +1,7 @@
 'use client';
 
 import { getBrandLogo } from '@/lib/brand-logos';
+import { getContrastTextColor } from '@/lib/utils';
 import Image from 'next/image';
 
 interface BrandThemePreviewProps {
@@ -49,8 +50,11 @@ export function BrandThemePreview({ brand }: BrandThemePreviewProps) {
       <div className="space-y-2">
         <div className="text-xs text-gray-400">Primary Button</div>
         <button
-          className="w-full px-4 py-2 rounded-lg text-sm font-medium text-white transition-opacity hover:opacity-90"
-          style={{ backgroundColor: primaryColor }}
+          className="w-full px-4 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-90"
+          style={{ 
+            backgroundColor: primaryColor,
+            color: getContrastTextColor(primaryColor, neutralLight, neutralDark)
+          }}
         >
           Get Started
         </button>
@@ -138,8 +142,11 @@ export function BrandThemePreview({ brand }: BrandThemePreviewProps) {
         <div className="text-xs text-gray-400">Components</div>
         <div className="flex gap-2 flex-wrap">
           <span
-            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium text-white"
-            style={{ backgroundColor: primaryColor }}
+            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: primaryColor,
+              color: getContrastTextColor(primaryColor, neutralLight, neutralDark)
+            }}
           >
             Badge
           </span>

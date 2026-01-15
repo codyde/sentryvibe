@@ -5,6 +5,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, generationSessions, serverOperations } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, desc, and, inArray, or, isNull } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
+import { buildWebSocketServer } from '@sentryvibe/agent-core/lib/websocket/server';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
@@ -772,6 +773,44 @@ IMPORTANT:
                 console.log(`[events] ⏭️ Skipping auto-start - server already running (HMR will handle file changes)`);
               }
             }
+            break;
+          }
+          case 'build-summary': {
+            const payload = ('payload' in event && event.payload && typeof event.payload === 'object')
+              ? event.payload as { summary?: string }
+              : {};
+            const buildSummary = typeof payload.summary === 'string' ? payload.summary.trim() : '';
+
+            if (!buildSummary) {
+              break;
+            }
+
+            // IMPORTANT: Only use the sessionId provided by the runner
+            // DO NOT fall back to querying for the latest session - this causes race conditions
+            // where a summary from build A could be attached to build B if user starts a new build quickly
+            const targetSessionId = (event as { sessionId?: string }).sessionId;
+
+            if (!targetSessionId) {
+              console.warn(`[events] ⚠️ build-summary missing sessionId - cannot safely save summary`);
+              console.warn(`[events]    Summary preview: ${buildSummary.slice(0, 100)}...`);
+              // Still broadcast via WebSocket so the UI can display it even if not saved to DB
+              // The frontend can use the summary from WebSocket state
+              buildWebSocketServer.broadcastBuildSummary(event.projectId, '', buildSummary);
+              break;
+            }
+
+            try {
+              await db.update(generationSessions)
+                .set({
+                  summary: buildSummary,
+                  updatedAt: new Date(),
+                })
+                .where(eq(generationSessions.id, targetSessionId));
+              buildWebSocketServer.broadcastBuildSummary(event.projectId, targetSessionId, buildSummary);
+            } catch (err) {
+              console.error(`[events] ❌ Failed to save build summary:`, err);
+            }
+
             break;
           }
           case 'build-failed':

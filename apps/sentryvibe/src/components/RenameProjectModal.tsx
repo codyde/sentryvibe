@@ -93,7 +93,7 @@ export default function RenameProjectModal({
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-900 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-theme-primary transition-colors"
+                className="w-full px-4 py-2 input-theme border rounded-lg focus:outline-none transition-colors"
                 placeholder="Enter new name"
                 autoFocus
               />

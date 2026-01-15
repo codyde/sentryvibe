@@ -35,6 +35,7 @@ export type RunnerEventType =
   | 'process-exited'
   | 'build-progress'
   | 'build-completed'
+  | 'build-summary'
   | 'build-failed'
   | 'runner-status'
   | 'build-stream'
@@ -251,6 +252,7 @@ export interface BaseEvent {
   type: RunnerEventType;
   commandId?: string;
   projectId?: string;
+  sessionId?: string;
   timestamp: string;
   _sentry?: {
     trace?: string;
@@ -331,6 +333,13 @@ export interface BuildCompletedEvent extends BaseEvent {
     }>;
     summary?: string;
     detectedFramework?: string | null; // Framework detected from project files
+  };
+}
+
+export interface BuildSummaryEvent extends BaseEvent {
+  type: 'build-summary';
+  payload: {
+    summary: string;
   };
 }
 
@@ -477,6 +486,7 @@ export type RunnerEvent =
   | ProcessExitedEvent
   | BuildProgressEvent
   | BuildCompletedEvent
+  | BuildSummaryEvent
   | BuildFailedEvent
   | RunnerStatusEvent
   | BuildStreamEvent

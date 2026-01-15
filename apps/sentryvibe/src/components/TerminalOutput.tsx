@@ -450,7 +450,7 @@ export default function TerminalOutput({ projectId, onPortDetected }: TerminalOu
       </div>
 
       {/* Terminal Content */}
-      <div className="flex-1 overflow-y-auto p-4 bg-[#181225] font-mono text-sm">
+      <div className="flex-1 overflow-y-auto p-4 terminal-theme font-mono text-sm">
         {logs.length === 0 ? (
           <div className="text-gray-500 flex items-center justify-center h-full">
             {projectId ? 'No output yet. Start the dev server to see logs.' : 'Select a project to view terminal output'}

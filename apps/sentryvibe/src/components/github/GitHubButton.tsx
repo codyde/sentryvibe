@@ -112,8 +112,9 @@ export function GitHubButton({
     );
   }
 
-  // Show running state during generation or setup
-  const isRunning = isSettingUp || isGenerating;
+  // Only show "Setting up" when user explicitly clicked setup
+  // Don't show it during regular generations (that was confusing)
+  const isRunning = isSettingUp;
 
   // Not connected - show setup button with dropdown
   return (

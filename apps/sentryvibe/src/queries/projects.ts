@@ -204,6 +204,7 @@ export function useProjectMessages(projectId: string | undefined | null) {
     queryKey: ['projects', projectId, 'messages'],
     queryFn: () => fetchProjectMessages(projectId!),
     enabled: !!projectId,
-    staleTime: 30000,
+    staleTime: 5000, // 5 seconds - reduced to ensure invalidations take effect quickly
+    refetchOnWindowFocus: true,
   });
 }
