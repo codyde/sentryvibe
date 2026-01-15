@@ -73,22 +73,24 @@ export async function GET(
       console.error('[messages-route] Cleanup failed (non-fatal):', cleanupError);
     });
 
-    const projectMessages = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.projectId, id))
-      .orderBy(messages.createdAt);
+    // PERF: Run messages and sessions queries in parallel (they're independent)
+    const [projectMessages, sessions] = await Promise.all([
+      db
+        .select()
+        .from(messages)
+        .where(eq(messages.projectId, id))
+        .orderBy(messages.createdAt),
+      db
+        .select()
+        .from(generationSessions)
+        .where(eq(generationSessions.projectId, id))
+        .orderBy(desc(generationSessions.startedAt)),
+    ]);
 
     const formattedMessages = projectMessages.map(msg => ({
       ...msg,
       content: parseMessageContent(msg.content),
     }));
-
-    const sessions = await db
-      .select()
-      .from(generationSessions)
-      .where(eq(generationSessions.projectId, id))
-      .orderBy(desc(generationSessions.startedAt));
 
     const sessionIds = sessions.map(session => session.id);
 

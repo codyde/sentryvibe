@@ -778,6 +778,7 @@ function HomeContent() {
             hasSummary: !!wsState.buildSummary,
             summaryLength: wsState.buildSummary?.length,
           });
+          
           // Return the completed state (including buildSummary) instead of null
           return {
             ...prevState,
@@ -816,6 +817,28 @@ function HomeContent() {
       // of truth and doesn't need DB sync on every update.
     }
   }, [wsState, wsConnected, currentProject?.id, queryClient, clearAutoFixState]);
+
+  // Track previous wsState.isActive to detect completion transitions
+  const prevWsStateIsActiveRef = useRef<boolean | undefined>(undefined);
+  
+  // Effect to invalidate queries when build completes via WebSocket
+  // This is separate from the state sync effect to avoid side effects in state setters
+  useEffect(() => {
+    const wasActive = prevWsStateIsActiveRef.current;
+    const isNowActive = wsState?.isActive;
+    
+    // Detect transition from active to inactive (build completed)
+    if (wasActive === true && isNowActive === false && currentProject?.id) {
+      console.log('🔄 [Build Completed] WebSocket state transitioned to inactive - invalidating queries');
+      queryClient.invalidateQueries({
+        queryKey: ['projects', currentProject.id, 'messages'],
+        refetchType: 'all',
+      });
+    }
+    
+    // Update ref for next comparison
+    prevWsStateIsActiveRef.current = isNowActive;
+  }, [wsState?.isActive, currentProject?.id, queryClient]);
 
   const ensureGenerationState = useCallback(
     (prevState: GenerationState | null): GenerationState | null => {
