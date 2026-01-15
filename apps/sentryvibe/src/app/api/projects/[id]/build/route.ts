@@ -272,7 +272,7 @@ export async function POST(
     const frameworkTag = body.tags?.find(t => t.key === 'framework');
     Sentry.metrics.count('build.started', 1, {
       attributes: {
-        project_id: params.id,
+        project_id: id,
         model: agentId === 'claude-code' ? claudeModel : agentId,
         framework: templateMetadata?.framework || 'unknown',
         runner: runnerId,
