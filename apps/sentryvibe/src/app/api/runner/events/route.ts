@@ -785,29 +785,30 @@ IMPORTANT:
               break;
             }
 
-            let targetSessionId = (event as { sessionId?: string }).sessionId;
+            // IMPORTANT: Only use the sessionId provided by the runner
+            // DO NOT fall back to querying for the latest session - this causes race conditions
+            // where a summary from build A could be attached to build B if user starts a new build quickly
+            const targetSessionId = (event as { sessionId?: string }).sessionId;
 
             if (!targetSessionId) {
-              const [latestSession] = await db.select()
-                .from(generationSessions)
-                .where(eq(generationSessions.projectId, event.projectId))
-                .orderBy(desc(generationSessions.createdAt))
-                .limit(1);
-              targetSessionId = latestSession?.id;
+              console.warn(`[events] ⚠️ build-summary missing sessionId - cannot safely save summary`);
+              console.warn(`[events]    Summary preview: ${buildSummary.slice(0, 100)}...`);
+              // Still broadcast via WebSocket so the UI can display it even if not saved to DB
+              // The frontend can use the summary from WebSocket state
+              buildWebSocketServer.broadcastBuildSummary(event.projectId, '', buildSummary);
+              break;
             }
 
-            if (targetSessionId) {
-              try {
-                await db.update(generationSessions)
-                  .set({
-                    summary: buildSummary,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(generationSessions.id, targetSessionId));
-                buildWebSocketServer.broadcastBuildSummary(event.projectId, targetSessionId, buildSummary);
-              } catch (err) {
-                console.error(`[events] ❌ Failed to save build summary:`, err);
-              }
+            try {
+              await db.update(generationSessions)
+                .set({
+                  summary: buildSummary,
+                  updatedAt: new Date(),
+                })
+                .where(eq(generationSessions.id, targetSessionId));
+              buildWebSocketServer.broadcastBuildSummary(event.projectId, targetSessionId, buildSummary);
+            } catch (err) {
+              console.error(`[events] ❌ Failed to save build summary:`, err);
             }
 
             break;

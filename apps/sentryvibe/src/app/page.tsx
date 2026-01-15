@@ -1292,6 +1292,12 @@ function HomeContent() {
           },
           onError: (error) => {
             console.error("Failed to save user message:", error);
+            // Notify user - message is in UI but may not persist after refresh
+            addToast({
+              title: "Message may not be saved",
+              description: "Your message is visible but may not persist after refresh.",
+              variant: "warning",
+            });
             // Continue anyway - message is in local state and build still happens
           },
         }
