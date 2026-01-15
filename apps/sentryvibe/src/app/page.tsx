@@ -730,21 +730,27 @@ function HomeContent() {
       }
       
       setGenerationState((prevState) => {
-// If no previous state, use WebSocket state ONLY if build is active
-          // Don't restore completed builds - they belong in serverBuilds/buildHistory
-          if (!prevState) {
-            if (!wsState.isActive) {
-              if (DEBUG_PAGE) console.log('   Skipping completed build from WebSocket (should be in DB)');
-              return null;
+        // If no previous state, use WebSocket state ONLY if build is active OR has new summary
+        // Don't restore completed builds without summaries - they belong in serverBuilds/buildHistory
+        if (!prevState) {
+          if (!wsState.isActive) {
+            // EXCEPTION: If this is a summary update for a just-completed build, accept it
+            // This handles the race where build-complete clears state before build-summary arrives
+            if (wsState.buildSummary) {
+              if (DEBUG_PAGE) console.log('   Accepting completed build from WebSocket (has summary)');
+              return wsState;
             }
-            if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
-            // Clear autoFixState when auto-fix session starts
-            if (wsState.isAutoFix) {
-              console.log('🔧 [Auto-Fix Session] Clearing autoFixState - session started');
-              clearAutoFixState();
-            }
-            return wsState;
+            if (DEBUG_PAGE) console.log('   Skipping completed build from WebSocket (should be in DB)');
+            return null;
           }
+          if (DEBUG_PAGE) console.log('   No previous state, using WebSocket state directly');
+          // Clear autoFixState when auto-fix session starts
+          if (wsState.isAutoFix) {
+            console.log('🔧 [Auto-Fix Session] Clearing autoFixState - session started');
+            clearAutoFixState();
+          }
+          return wsState;
+        }
         
         // CRITICAL FIX: Check if buildId changed (new build started)
         // If buildId changed, REPLACE old state instead of merging
@@ -818,14 +824,17 @@ function HomeContent() {
     }
   }, [wsState, wsConnected, currentProject?.id, queryClient, clearAutoFixState]);
 
-  // Track previous wsState.isActive to detect completion transitions
+  // Track previous wsState values to detect important transitions
   const prevWsStateIsActiveRef = useRef<boolean | undefined>(undefined);
+  const prevWsStateSummaryRef = useRef<string | undefined>(undefined);
   
-  // Effect to invalidate queries when build completes via WebSocket
+  // Effect to invalidate queries when build completes OR summary arrives via WebSocket
   // This is separate from the state sync effect to avoid side effects in state setters
   useEffect(() => {
     const wasActive = prevWsStateIsActiveRef.current;
     const isNowActive = wsState?.isActive;
+    const prevSummary = prevWsStateSummaryRef.current;
+    const currentSummary = wsState?.buildSummary;
     
     // Detect transition from active to inactive (build completed)
     if (wasActive === true && isNowActive === false && currentProject?.id) {
@@ -836,9 +845,20 @@ function HomeContent() {
       });
     }
     
-    // Update ref for next comparison
+    // Detect when summary arrives (late-arriving summary after build-complete)
+    // This ensures the UI refreshes to show the summary from DB
+    if (!prevSummary && currentSummary && !isNowActive && currentProject?.id) {
+      console.log('📝 [Build Summary] Summary arrived after completion - invalidating queries');
+      queryClient.invalidateQueries({
+        queryKey: ['projects', currentProject.id, 'messages'],
+        refetchType: 'all',
+      });
+    }
+    
+    // Update refs for next comparison
     prevWsStateIsActiveRef.current = isNowActive;
-  }, [wsState?.isActive, currentProject?.id, queryClient]);
+    prevWsStateSummaryRef.current = currentSummary;
+  }, [wsState?.isActive, wsState?.buildSummary, currentProject?.id, queryClient]);
 
   const ensureGenerationState = useCallback(
     (prevState: GenerationState | null): GenerationState | null => {
