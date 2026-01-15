@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { getContrastTextColor } from '@/lib/utils';
 
 interface LivePreviewProps {
   colors: {
@@ -83,7 +84,7 @@ export default function LivePreview({ colors, typography, colorMode }: LivePrevi
         <button
           style={{
             backgroundColor: colors.primary,
-            color: colors.neutralLight,
+            color: getContrastTextColor(colors.primary, colors.neutralLight, colors.neutralDark),
             padding: '0.375rem 0.75rem',
             borderRadius: '0.375rem',
             border: 'none',
@@ -98,7 +99,7 @@ export default function LivePreview({ colors, typography, colorMode }: LivePrevi
         <button
           style={{
             backgroundColor: colors.secondary,
-            color: colors.neutralLight,
+            color: getContrastTextColor(colors.secondary, colors.neutralLight, colors.neutralDark),
             padding: '0.375rem 0.75rem',
             borderRadius: '0.375rem',
             border: 'none',
@@ -113,7 +114,7 @@ export default function LivePreview({ colors, typography, colorMode }: LivePrevi
         <button
           style={{
             backgroundColor: colors.accent,
-            color: colorMode === 'dark' ? colors.neutralDark : colors.neutralLight,
+            color: getContrastTextColor(colors.accent, colors.neutralLight, colors.neutralDark),
             padding: '0.375rem 0.75rem',
             borderRadius: '0.375rem',
             border: 'none',

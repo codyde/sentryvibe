@@ -2781,7 +2781,7 @@ function HomeContent() {
                           ))}
                         </div>
                       )}
-                      <div className="relative bg-gray-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                      <div className="relative input-theme border rounded-lg shadow-2xl overflow-hidden hover:border-[var(--theme-input-border-focus)] transition-all duration-300">
                         <textarea
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
@@ -3165,7 +3165,7 @@ function HomeContent() {
                               ))}
                             </div>
                           )}
-                          <div className="relative bg-gray-900 border border-white/10 rounded-lg overflow-hidden hover:border-white/20 focus-within:border-white/30 transition-all duration-300">
+                          <div className="relative input-theme border rounded-lg overflow-hidden hover:border-[var(--theme-input-border-focus)] transition-all duration-300">
                             <textarea
                               value={input}
                               onChange={(e) => setInput(e.target.value)}
