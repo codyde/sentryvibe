@@ -594,6 +594,7 @@ export async function POST(
       projectId: id,
       timestamp: new Date().toISOString(),
       payload: {
+        sessionId, // Pass sessionId to runner for event correlation
         operationType: body.operationType,
         prompt: body.prompt,
         messageParts: body.messageParts,

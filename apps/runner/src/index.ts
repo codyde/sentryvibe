@@ -2434,7 +2434,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           const buildContextId = command.id;
           activeBuildContexts.set(buildContextId, {
             commandId: command.id,
-            sessionId: '', // Server will look up from buildId
+            sessionId: command.payload.sessionId || '', // Use sessionId from command if provided
             projectId: command.projectId,
             buildId: `build-${command.id}`, // Correlation ID for session lookup
             agentId: agent,

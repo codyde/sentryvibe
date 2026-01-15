@@ -69,6 +69,7 @@ export interface BaseCommand {
 export interface StartBuildCommand extends BaseCommand {
   type: 'start-build';
   payload: {
+    sessionId?: string; // Session ID for correlating events
     prompt: string;
     operationType: string;
     projectSlug: string;
