@@ -4,135 +4,167 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
-  contents: write  # Needed to create tags and releases
+  contents: write
+  pull-requests: read
 
 jobs:
-  check-and-release:
+  auto-release:
     runs-on: ubuntu-latest
     
-    # Only run if this is a merge commit (has more than one parent) or manual trigger
-    # This prevents releases on direct pushes to main
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for tag comparison
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Get version from package.json
-        id: package_version
+      - name: Check for [skip ci] in commit message
+        id: skip_ci
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if [[ "$COMMIT_MSG" == *"[skip ci]"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping - commit contains [skip ci]"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get merged PR number
+        id: pr
+        if: steps.skip_ci.outputs.skip == 'false'
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          # Match "Merge pull request #123" pattern
+          PR_NUM=$(echo "$COMMIT_MSG" | grep -oP 'Merge pull request #\K\d+' || echo "")
+          echo "number=$PR_NUM" >> $GITHUB_OUTPUT
+          if [ -n "$PR_NUM" ]; then
+            echo "📋 Found PR #$PR_NUM"
+          else
+            echo "📋 No PR found (direct push to main)"
+          fi
+
+      - name: Get PR labels
+        id: labels
+        if: steps.skip_ci.outputs.skip == 'false' && steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LABELS=$(gh pr view ${{ steps.pr.outputs.number }} --json labels -q '.labels[].name' | tr '\n' ',' || echo "")
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+          echo "🏷️ PR Labels: $LABELS"
+
+      - name: Check for skip-release label
+        id: skip_release
+        if: steps.skip_ci.outputs.skip == 'false'
+        run: |
+          LABELS="${{ steps.labels.outputs.labels }}"
+          if [[ "$LABELS" == *"skip-release"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping release (skip-release label found)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine version bump type
+        id: bump_type
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: |
+          # Manual workflow_dispatch trigger takes precedence
+          if [ -n "${{ inputs.bump_type }}" ]; then
+            echo "type=${{ inputs.bump_type }}" >> $GITHUB_OUTPUT
+            echo "📦 Manual trigger: ${{ inputs.bump_type }}"
+            exit 0
+          fi
+          
+          # Check PR labels for version bump type
+          LABELS="${{ steps.labels.outputs.labels }}"
+          
+          if [[ "$LABELS" == *"major"* ]]; then
+            echo "type=major" >> $GITHUB_OUTPUT
+            echo "📦 Version bump: MAJOR (from PR label)"
+          elif [[ "$LABELS" == *"minor"* ]]; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+            echo "📦 Version bump: MINOR (from PR label)"
+          else
+            echo "type=patch" >> $GITHUB_OUTPUT
+            echo "📦 Version bump: PATCH (default)"
+          fi
+
+      - name: Get current version
+        id: current
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Current package.json version: $VERSION"
+          echo "📌 Current version: $VERSION"
 
-      - name: Check if tag already exists
-        id: check_tag
+      - name: Bump version in all package.json files
+        id: version
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         run: |
-          VERSION="${{ steps.package_version.outputs.version }}"
-          TAG_NAME="v$VERSION"
+          echo "Running version bump script..."
+          node scripts/bump-version.js ${{ steps.bump_type.outputs.type }}
           
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Tag $TAG_NAME already exists"
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Tag $TAG_NAME does not exist - will create release"
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-          
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ New version: $NEW_VERSION"
 
-      - name: Get merged PR info
-        id: pr_info
-        if: steps.check_tag.outputs.exists == 'false'
+      - name: Commit version bump
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         run: |
-          # Get the commit message which usually contains PR info
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "Commit message: $COMMIT_MSG"
-          
-          # Extract PR number if present (e.g., "Merge pull request #123")
-          PR_NUM=$(echo "$COMMIT_MSG" | grep -oP '#\d+' | head -1 | tr -d '#')
-          
-          if [ -n "$PR_NUM" ]; then
-            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
-            echo "Found PR #$PR_NUM"
-          else
-            echo "pr_number=" >> $GITHUB_OUTPUT
-            echo "No PR number found in commit message"
-          fi
-          
-          # Get a summary of changes since last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            echo "Last tag: $LAST_TAG"
-            CHANGES=$(git log $LAST_TAG..HEAD --oneline --no-merges | head -20)
-          else
-            echo "No previous tags found"
-            CHANGES=$(git log --oneline --no-merges -20)
-          fi
-          
-          # Save changes to file for multiline output
-          echo "$CHANGES" > /tmp/changes.txt
-          echo "changes_file=/tmp/changes.txt" >> $GITHUB_OUTPUT
-
-      - name: Create Release Tag
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
-          TAG_NAME="${{ steps.check_tag.outputs.tag_name }}"
+          VERSION="${{ steps.version.outputs.new_version }}"
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-          git push origin "$TAG_NAME"
+          git add -A
+          git commit -m "chore: release v${VERSION} [skip ci]"
+          git push origin main
           
-          echo "✅ Created and pushed tag: $TAG_NAME"
+          echo "✅ Committed version bump to main"
 
-      - name: Generate Release Notes
-        if: steps.check_tag.outputs.exists == 'false'
-        id: release_notes
+      - name: Create and push tag
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         run: |
-          VERSION="${{ steps.package_version.outputs.version }}"
-          PR_NUM="${{ steps.pr_info.outputs.pr_number }}"
+          VERSION="${{ steps.version.outputs.new_version }}"
+          TAG="v${VERSION}"
           
-          # Build release notes
-          NOTES="## What's Changed\n\n"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
           
-          if [ -n "$PR_NUM" ]; then
-            NOTES="${NOTES}Merged PR #${PR_NUM}\n\n"
-          fi
-          
-          NOTES="${NOTES}### Commits in this release\n\n"
-          
-          if [ -f "/tmp/changes.txt" ]; then
-            while IFS= read -r line; do
-              NOTES="${NOTES}- ${line}\n"
-            done < /tmp/changes.txt
-          fi
-          
-          NOTES="${NOTES}\n---\n\n"
-          NOTES="${NOTES}## Installation\n\n"
-          NOTES="${NOTES}\`\`\`bash\n"
-          NOTES="${NOTES}curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash\n"
-          NOTES="${NOTES}\`\`\`\n\n"
-          NOTES="${NOTES}Or install directly:\n\n"
-          NOTES="${NOTES}\`\`\`bash\n"
-          NOTES="${NOTES}npm install -g https://github.com/codyde/sentryvibe/releases/download/v${VERSION}/sentryvibe-cli.tgz\n"
-          NOTES="${NOTES}\`\`\`\n"
-          
-          # Save to file for multiline
-          echo -e "$NOTES" > /tmp/release_notes.md
-          cat /tmp/release_notes.md
+          echo "✅ Created and pushed tag: $TAG"
+          echo ""
+          echo "🚀 The release-cli.yml workflow will now build and publish the release"
 
-      - name: Trigger Release Workflow
-        if: steps.check_tag.outputs.exists == 'false'
+      - name: Summary
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         run: |
-          echo "✅ Tag created - the release-cli.yml workflow will now build and publish the release"
-          echo "Tag: ${{ steps.check_tag.outputs.tag_name }}"
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Previous Version | ${{ steps.current.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New Version | ${{ steps.version.outputs.new_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bump Type | ${{ steps.bump_type.outputs.type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | v${{ steps.version.outputs.new_version }} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.pr.outputs.number }}" ]; then
+            echo "| PR | #${{ steps.pr.outputs.number }} |" >> $GITHUB_STEP_SUMMARY
+          fi
