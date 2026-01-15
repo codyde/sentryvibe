@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronLeft, Cpu, Layout, Zap, Palette, Sparkles, Paintbrush, Sliders, Plug } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Cpu, Layout, Zap, Palette, Sparkles, Paintbrush, Sliders } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { Button } from '@/components/ui/button';
@@ -165,8 +165,6 @@ export function TagDropdown({
         return <Zap className="w-5 h-5 text-gray-400" />;
       case 'design':
         return <Palette className="w-5 h-5 text-gray-400" />;
-      case 'addons':
-        return <Plug className="w-5 h-5 text-gray-400" />;
       default:
         return null;
     }

@@ -25,7 +25,7 @@ export interface TagDefinition {
   key: string;
   label: string;
   description: string;
-  category: 'model' | 'framework' | 'design' | 'runner' | 'addons';
+  category: 'model' | 'framework' | 'design' | 'runner';
   inputType: 'select' | 'color' | 'nested' | 'multi-select';
   options?: TagOption[];
   // For nested tags like "design" -> "primaryColor"
@@ -134,26 +134,6 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
     category: 'runner',
     inputType: 'select',
     options: [] // Populated dynamically from connected runners
-  },
-
-  // Addons Selection (multi-select for infrastructure/integrations)
-  {
-    key: 'addons',
-    label: 'Addons',
-    description: 'Infrastructure and integration addons',
-    category: 'addons',
-    inputType: 'multi-select',
-    allowMultiple: true,
-    options: [
-      {
-        value: 'neondb',
-        label: 'NeonDB',
-        description: 'Serverless Postgres database powered by Neon',
-        logo: '/logos/neon.svg',
-      }
-      // Future addons: 'vercel', 'supabase', 'stripe', etc.
-    ],
-    promptTemplate: 'Configure the following infrastructure addons: {values}'
   },
 
   // Design Configuration (nested)

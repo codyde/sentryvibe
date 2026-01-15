@@ -99,7 +99,7 @@ export function NeonDBButton({
         <Database className="w-3.5 h-3.5" />
       )}
       {variant === 'default' && (
-        <span>{isRunning ? 'Setting up...' : 'Setup Database'}</span>
+        <span>{isRunning ? 'Setting up...' : 'Add Database'}</span>
       )}
     </motion.button>
   );

@@ -34,9 +34,6 @@ export interface ResolvedTags {
 
   // Track which brand was used (if any)
   brand?: string;
-
-  // Addons (infrastructure/integrations)
-  addons?: string[];
 }
 
 /**
