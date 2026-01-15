@@ -174,7 +174,7 @@ Remember: This is an iterative chat about an existing project, not a full build 
     async start(controller) {
       try {
         if (useOpenCode) {
-          // Use OpenCode SDK
+          // Use OpenCode SDK with streaming via event subscription
           const client = getOpenCodeClient();
           const { provider: providerID, model: modelID } = parseModelId(selectedModel);
           
@@ -189,8 +189,12 @@ Remember: This is an iterative chat about an existing project, not a full build 
           
           const sessionId = sessionResult.data.id;
           
-          // Send prompt and get response
-          const result = await client.session.prompt({
+          // Subscribe to events for streaming
+          const eventSubscription = await client.event.subscribe();
+          
+          // Send prompt asynchronously (non-blocking)
+          // Using type assertion as SDK types may have evolved
+          const promptPromise = (client.session as any).promptAsync({
             path: { id: sessionId },
             body: {
               model: { providerID, modelID },
@@ -199,18 +203,53 @@ Remember: This is an iterative chat about an existing project, not a full build 
             },
           });
           
-          // Process response parts
-          if (result.data?.parts) {
-            for (const part of result.data.parts) {
-              if (part.type === 'text' && part.text) {
-                const data = JSON.stringify({
-                  type: 'text-delta',
-                  textDelta: part.text,
-                });
-                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          // Track if we've received the complete response
+          let isComplete = false;
+          
+          // Stream events as they arrive
+          try {
+            for await (const event of eventSubscription.stream) {
+              // Check if this event is for our session
+              const eventData = event as Record<string, unknown>;
+              
+              // Handle text parts from message events
+              if (eventData.type === 'message.part.updated' || eventData.type === 'message.updated') {
+                const properties = eventData.properties as Record<string, unknown> | undefined;
+                if (properties?.sessionID === sessionId) {
+                  const part = properties.part as Record<string, unknown> | undefined;
+                  if (part?.type === 'text' && typeof part.text === 'string') {
+                    const data = JSON.stringify({
+                      type: 'text-delta',
+                      textDelta: part.text,
+                    });
+                    controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                  }
+                }
+              }
+              
+              // Check for session completion
+              if (eventData.type === 'session.updated') {
+                const properties = eventData.properties as Record<string, unknown> | undefined;
+                if (properties?.session) {
+                  const session = properties.session as Record<string, unknown>;
+                  if (session.id === sessionId && !session.active) {
+                    isComplete = true;
+                    break;
+                  }
+                }
               }
             }
+          } catch (streamError) {
+            // Stream ended or errored, check if prompt completed
+            Sentry.logger.warn(
+              Sentry.logger.fmt`OpenCode event stream ended ${{
+                error: streamError instanceof Error ? streamError.message : String(streamError),
+              }}`
+            );
           }
+          
+          // Ensure prompt completed
+          await promptPromise.catch(() => {});
           
           // Clean up session
           await client.session.delete({ path: { id: sessionId } }).catch(() => {});
