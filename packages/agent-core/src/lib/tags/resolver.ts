@@ -149,12 +149,12 @@ Set up the project structure according to ${resolved.framework} best practices a
 
   // Addon section - natural language triggers for skill detection
   if (resolved.addons && resolved.addons.length > 0) {
-    sections.push('\n## Infrastructure Addons\n');
-    sections.push('After the template is set up and dependencies are installed, configure the following addons:\n');
+    sections.push('\n## Infrastructure Addons (REQUIRED)\n');
+    sections.push('After the template is set up and dependencies are installed, configure the following:\n');
     
     resolved.addons.forEach(addon => {
       if (addon === 'neondb') {
-        sections.push('- Configure a NeonDB PostgreSQL database for this project.');
+        sections.push('- Set up a NeonDB serverless PostgreSQL database for this project with Drizzle ORM.');
       }
       // Future addons would have similar natural language triggers
     });

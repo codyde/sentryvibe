@@ -11,11 +11,12 @@ Provision a NeonDB serverless PostgreSQL database and configure Drizzle ORM.
 
 ## Setup Steps
 
-1. **Run the neondb CLI:**
+1. **Run the get-db CLI to provision database:**
    ```bash
-   npx neondb -y
+   npx get-db -y
    ```
    This instantly creates a database and writes `DATABASE_URL` to `.env`.
+   The output includes the connection string and claim URL - these are automatically detected by SentryVibe.
 
 2. **Install PostgreSQL and Drizzle packages:**
    ```bash
@@ -80,15 +81,10 @@ Provision a NeonDB serverless PostgreSQL database and configure Drizzle ORM.
    npm run db:push
    ```
 
-8. **Output the result** (MANDATORY):
-   ```
-   NEONDB_RESULT:{"success":true,"action":"setup"}
-   ```
-
 ## Important
 
 - Database expires in 72 hours unless claimed
-- Claim URL is in the `.env` file - inform the user to save it
+- Claim URL is shown in CLI output and saved to `.env` - inform the user to save it
 - Ensure `.env` is in `.gitignore`
 - Use `db:push` for development, `db:generate` + `db:migrate` for production
 
@@ -99,15 +95,3 @@ After success, remove this skill:
 rm -rf .claude/skills/neondb-setup
 rmdir .claude/skills .claude 2>/dev/null
 ```
-
-## NEONDB_RESULT Schema
-
-```typescript
-{
-  success: boolean;
-  action: "setup" | "error";
-  error?: string;
-}
-```
-
-Your response MUST include `NEONDB_RESULT:{...}` for the UI to update.

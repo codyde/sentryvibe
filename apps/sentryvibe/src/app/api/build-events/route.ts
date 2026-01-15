@@ -561,15 +561,60 @@ export async function POST(request: Request) {
             }
           }
 
-          // Check for NeonDB result marker in output
-          const neondbMatch = event.output.match(/NEONDB_RESULT:(\{[^}]+\})/);
-          if (neondbMatch) {
+          // Check for NeonDB/get-db CLI output in Bash command output
+          // The CLI outputs: DATABASE_URL=postgresql://... and claim URL
+          // Example output:
+          // # Claimable DB expires at: Sun, 05 Oct 2025 23:11:33 GMT
+          // # Claim it now to your account: https://neon.new/database/xxx
+          // DATABASE_URL=postgresql://neondb_owner:password@ep-xxx.region.aws.neon.tech/neondb?...
+          const databaseUrlMatch = event.output.match(/DATABASE_URL=postgresql:\/\/([^:]+):([^@]+)@([^\/]+)\/([^\s?]+)/);
+          const claimUrlMatch = event.output.match(/https:\/\/neon\.new\/database\/[a-f0-9-]+/);
+          const expiresMatch = event.output.match(/Claimable DB expires at:\s*([^\n]+)/);
+          
+          if (databaseUrlMatch) {
             try {
-              const neonResult = JSON.parse(neondbMatch[1]);
+              const [fullMatch, username, password, host, database] = databaseUrlMatch;
+              const connectionString = `postgresql://${username}:${password}@${host}/${database}`;
+              const claimUrl = claimUrlMatch ? claimUrlMatch[0] : null;
+              
+              // Parse expiration date or default to 72 hours from now
+              let expiresAt: Date;
+              if (expiresMatch) {
+                const parsedDate = new Date(expiresMatch[1].trim());
+                expiresAt = isNaN(parsedDate.getTime()) 
+                  ? new Date(Date.now() + 72 * 60 * 60 * 1000)
+                  : parsedDate;
+              } else {
+                expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+              }
+              
+              console.log(`🐘 [build-events] Found NeonDB setup in CLI output: ${host}/${database}`);
+              
+              await db.update(projects)
+                .set({
+                  neondbHost: host,
+                  neondbDatabase: database,
+                  neondbClaimUrl: claimUrl,
+                  neondbConnectionString: connectionString,
+                  neondbCreatedAt: timestamp,
+                  neondbExpiresAt: expiresAt,
+                  updatedAt: timestamp,
+                })
+                .where(eq(projects.id, projectId));
+              console.log(`🐘 [build-events] Updated project ${projectId} with NeonDB info`);
+            } catch (e) {
+              console.error('[build-events] Failed to parse/update NeonDB result:', e);
+            }
+          }
+
+          // Also check for explicit NEONDB_RESULT marker (skill output)
+          const neondbMarkerMatch = event.output.match(/NEONDB_RESULT:(\{[^}]+\})/);
+          if (neondbMarkerMatch && !databaseUrlMatch) {
+            try {
+              const neonResult = JSON.parse(neondbMarkerMatch[1]);
               if (neonResult.success) {
-                console.log(`🐘 [build-events] Found NeonDB setup result in output`);
+                console.log(`🐘 [build-events] Found NeonDB result marker in output`);
                 
-                // Calculate expiration (72 hours from now for unclaimed DBs)
                 const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
                 
                 await db.update(projects)
@@ -583,10 +628,10 @@ export async function POST(request: Request) {
                     updatedAt: timestamp,
                   })
                   .where(eq(projects.id, projectId));
-                console.log(`🐘 [build-events] Updated project ${projectId} with NeonDB info`);
+                console.log(`🐘 [build-events] Updated project ${projectId} with NeonDB info from marker`);
               }
             } catch (e) {
-              console.error('[build-events] Failed to parse/update NeonDB result:', e);
+              console.error('[build-events] Failed to parse NeonDB marker:', e);
             }
           }
         }
