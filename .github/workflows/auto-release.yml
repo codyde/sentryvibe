@@ -1,0 +1,138 @@
+name: Auto Release on Main Merge
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write  # Needed to create tags and releases
+
+jobs:
+  check-and-release:
+    runs-on: ubuntu-latest
+    
+    # Only run if this is a merge commit (has more than one parent) or manual trigger
+    # This prevents releases on direct pushes to main
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for tag comparison
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version from package.json
+        id: package_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current package.json version: $VERSION"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          VERSION="${{ steps.package_version.outputs.version }}"
+          TAG_NAME="v$VERSION"
+          
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $TAG_NAME does not exist - will create release"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Get merged PR info
+        id: pr_info
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          # Get the commit message which usually contains PR info
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+          
+          # Extract PR number if present (e.g., "Merge pull request #123")
+          PR_NUM=$(echo "$COMMIT_MSG" | grep -oP '#\d+' | head -1 | tr -d '#')
+          
+          if [ -n "$PR_NUM" ]; then
+            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+            echo "Found PR #$PR_NUM"
+          else
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            echo "No PR number found in commit message"
+          fi
+          
+          # Get a summary of changes since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            echo "Last tag: $LAST_TAG"
+            CHANGES=$(git log $LAST_TAG..HEAD --oneline --no-merges | head -20)
+          else
+            echo "No previous tags found"
+            CHANGES=$(git log --oneline --no-merges -20)
+          fi
+          
+          # Save changes to file for multiline output
+          echo "$CHANGES" > /tmp/changes.txt
+          echo "changes_file=/tmp/changes.txt" >> $GITHUB_OUTPUT
+
+      - name: Create Release Tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          TAG_NAME="${{ steps.check_tag.outputs.tag_name }}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+          git push origin "$TAG_NAME"
+          
+          echo "✅ Created and pushed tag: $TAG_NAME"
+
+      - name: Generate Release Notes
+        if: steps.check_tag.outputs.exists == 'false'
+        id: release_notes
+        run: |
+          VERSION="${{ steps.package_version.outputs.version }}"
+          PR_NUM="${{ steps.pr_info.outputs.pr_number }}"
+          
+          # Build release notes
+          NOTES="## What's Changed\n\n"
+          
+          if [ -n "$PR_NUM" ]; then
+            NOTES="${NOTES}Merged PR #${PR_NUM}\n\n"
+          fi
+          
+          NOTES="${NOTES}### Commits in this release\n\n"
+          
+          if [ -f "/tmp/changes.txt" ]; then
+            while IFS= read -r line; do
+              NOTES="${NOTES}- ${line}\n"
+            done < /tmp/changes.txt
+          fi
+          
+          NOTES="${NOTES}\n---\n\n"
+          NOTES="${NOTES}## Installation\n\n"
+          NOTES="${NOTES}\`\`\`bash\n"
+          NOTES="${NOTES}curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash\n"
+          NOTES="${NOTES}\`\`\`\n\n"
+          NOTES="${NOTES}Or install directly:\n\n"
+          NOTES="${NOTES}\`\`\`bash\n"
+          NOTES="${NOTES}npm install -g https://github.com/codyde/sentryvibe/releases/download/v${VERSION}/sentryvibe-cli.tgz\n"
+          NOTES="${NOTES}\`\`\`\n"
+          
+          # Save to file for multiline
+          echo -e "$NOTES" > /tmp/release_notes.md
+          cat /tmp/release_notes.md
+
+      - name: Trigger Release Workflow
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          echo "✅ Tag created - the release-cli.yml workflow will now build and publish the release"
+          echo "Tag: ${{ steps.check_tag.outputs.tag_name }}"
