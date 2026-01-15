@@ -412,7 +412,7 @@ export function createOpenCodeQuery(
         yield {
           type: 'result',
           result: 'completed',
-          session_id: sessionId,
+          session_id: sessionId ?? undefined,
           subtype: 'success',
         };
       }
