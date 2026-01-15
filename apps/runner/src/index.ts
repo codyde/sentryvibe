@@ -1498,6 +1498,7 @@ export async function startRunner(options: RunnerOptions = {}) {
   const DB_WORTHY_RUNNER_EVENTS = [
     'project-metadata',
     'build-completed',
+    'build-summary',
     'build-failed',
     'tunnel-created',
     'tunnel-closed',
@@ -1575,7 +1576,7 @@ export async function startRunner(options: RunnerOptions = {}) {
         type: event.type,
         projectId: event.projectId,
         commandId: event.commandId,
-        sessionId: context?.sessionId,
+        sessionId: (event as { sessionId?: string }).sessionId ?? context?.sessionId,
       };
       
       // Include event-specific fields
@@ -2887,59 +2888,62 @@ export async function startRunner(options: RunnerOptions = {}) {
             log(`[build] Failed to detect framework:`, error);
           }
 
-          // ============================================================
-          // GENERATE BUILD SUMMARY VIA AI
-          // ============================================================
-          // Use a dedicated AI call to generate a clean, consistent summary
-          // based on the original prompt, files modified, and tasks completed
-          let buildSummary = 'Build completed successfully.';
-          
-          try {
-            const filesArray = Array.from(filesModified);
-            const hasChanges = filesArray.length > 0 || completedTodos.length > 0;
-            
-            if (hasChanges) {
-              buildLog(` 📝 Generating build summary via AI...`);
-              buildLog(`    Files modified: ${filesArray.length}`);
-              buildLog(`    Tasks completed: ${completedTodos.length}`);
-              
-              const summaryPrompt = `You are a build summary generator. Generate a concise 1-3 sentence summary of what was built or changed.
+          const completedContext = activeBuildContexts.get(command.id);
+          const sessionId = completedContext?.sessionId;
 
-Original request: "${command.payload.prompt}"
-
-${filesArray.length > 0 ? `Files modified:\n${filesArray.map(f => `- ${f}`).join('\n')}` : 'No files were modified.'}
-
-${completedTodos.length > 0 ? `Tasks completed:\n${completedTodos.map(t => `- ${t}`).join('\n')}` : ''}
-
-Write a brief, professional summary (1-3 sentences) describing what was accomplished. Focus on the outcome, not the process. Do not use phrases like "I did" or "The assistant". Just describe what was built or changed.`;
-
-              const summaryResult = await generateText({
-                model: claudeCode("claude-haiku-4-5"),
-                prompt: summaryPrompt,
-              });
-              
-              if (summaryResult.text && summaryResult.text.trim().length > 0) {
-                buildSummary = summaryResult.text.trim();
-                buildLog(` ✅ AI summary generated (${buildSummary.length} chars)`);
-              }
-            } else {
-              buildLog(` 📝 No files modified or tasks tracked - using default summary`);
-            }
-          } catch (summaryError) {
-            log(`[build] Failed to generate AI summary:`, summaryError);
-            buildLog(` ⚠️ AI summary failed, using default`);
-            // Keep the default "Build completed successfully." message
-          }
-          
           sendEvent({
             type: "build-completed",
             ...buildEventBase(command.projectId, command.id),
             payload: {
               todos: [],
-              summary: buildSummary,
-              detectedFramework, // Send detected framework to API
+              detectedFramework,
             },
           });
+
+          const filesArray = Array.from(filesModified);
+          const completedTodoSnapshot = [...completedTodos];
+          const hasChanges = filesArray.length > 0 || completedTodoSnapshot.length > 0;
+
+          if (hasChanges) {
+            void (async () => {
+              try {
+                buildLog(` 📝 Generating build summary via AI...`);
+                buildLog(`    Files modified: ${filesArray.length}`);
+                buildLog(`    Tasks completed: ${completedTodoSnapshot.length}`);
+
+                const summaryPrompt = `You are a build summary generator. Generate a concise 1-3 sentence summary of what was built or changed.
+
+Original request: "${command.payload.prompt}"
+
+${filesArray.length > 0 ? `Files modified:\n${filesArray.map(f => `- ${f}`).join('\n')}` : 'No files were modified.'}
+
+${completedTodoSnapshot.length > 0 ? `Tasks completed:\n${completedTodoSnapshot.map(t => `- ${t}`).join('\n')}` : ''}
+
+Write a brief, professional summary (1-3 sentences) describing what was accomplished. Focus on the outcome, not the process. Do not use phrases like "I did" or "The assistant". Just describe what was built or changed.`;
+
+                const summaryResult = await generateText({
+                  model: claudeCode("claude-haiku-4-5"),
+                  prompt: summaryPrompt,
+                });
+
+                const summaryText = summaryResult.text?.trim();
+                if (summaryText) {
+                  buildLog(` ✅ AI summary generated (${summaryText.length} chars)`);
+                  sendEvent({
+                    type: "build-summary",
+                    sessionId,
+                    ...buildEventBase(command.projectId, command.id),
+                    payload: {
+                      summary: summaryText,
+                    },
+                  });
+                }
+              } catch (summaryError) {
+                log(`[build] Failed to generate AI summary:`, summaryError);
+                buildLog(` ⚠️ AI summary failed`);
+              }
+            })();
+          }
 
           // Print event summary
           printEventSummary();
@@ -2949,8 +2953,7 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
           // ============================================================
           // Note: The dev server will be started by the API via the start route
           // which handles proper port allocation. We just send an event to trigger it.
-          const buildContext = activeBuildContexts.get(command.id);
-          if (buildContext?.projectDirectory && detectedFramework) {
+          if (completedContext?.projectDirectory && detectedFramework) {
             log(`🚀 Build complete - dev server will be started via API with proper port allocation`);
 
             // Send an event to signal the frontend/API to start the dev server
@@ -2963,7 +2966,6 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
           }
 
           // Clean up build context and session tracking
-          const completedContext = activeBuildContexts.get(command.id);
           if (completedContext) {
             startedSessions.delete(completedContext.sessionId);
           }

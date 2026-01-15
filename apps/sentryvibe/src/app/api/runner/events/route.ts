@@ -5,6 +5,7 @@ import { db } from '@sentryvibe/agent-core/lib/db/client';
 import { projects, generationSessions, serverOperations } from '@sentryvibe/agent-core/lib/db/schema';
 import { eq, desc, and, inArray, or, isNull } from 'drizzle-orm';
 import { publishRunnerEvent } from '@sentryvibe/agent-core/lib/runner/event-stream';
+import { buildWebSocketServer } from '@sentryvibe/agent-core/lib/websocket/server';
 import { appendRunnerLog, markRunnerLogExit } from '@sentryvibe/agent-core/lib/runner/log-store';
 import { sendCommandToRunner } from '@sentryvibe/agent-core/lib/runner/broker-state';
 import { getProjectRunnerId } from '@/lib/runner-utils';
@@ -772,6 +773,43 @@ IMPORTANT:
                 console.log(`[events] ⏭️ Skipping auto-start - server already running (HMR will handle file changes)`);
               }
             }
+            break;
+          }
+          case 'build-summary': {
+            const payload = ('payload' in event && event.payload && typeof event.payload === 'object')
+              ? event.payload as { summary?: string }
+              : {};
+            const buildSummary = typeof payload.summary === 'string' ? payload.summary.trim() : '';
+
+            if (!buildSummary) {
+              break;
+            }
+
+            let targetSessionId = (event as { sessionId?: string }).sessionId;
+
+            if (!targetSessionId) {
+              const [latestSession] = await db.select()
+                .from(generationSessions)
+                .where(eq(generationSessions.projectId, event.projectId))
+                .orderBy(desc(generationSessions.createdAt))
+                .limit(1);
+              targetSessionId = latestSession?.id;
+            }
+
+            if (targetSessionId) {
+              try {
+                await db.update(generationSessions)
+                  .set({
+                    summary: buildSummary,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(generationSessions.id, targetSessionId));
+                buildWebSocketServer.broadcastBuildSummary(event.projectId, targetSessionId, buildSummary);
+              } catch (err) {
+                console.error(`[events] ❌ Failed to save build summary:`, err);
+              }
+            }
+
             break;
           }
           case 'build-failed':

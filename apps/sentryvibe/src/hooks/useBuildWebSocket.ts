@@ -323,6 +323,13 @@ export function useBuildWebSocket({
             }
             break;
 
+          case 'build-summary':
+            const summaryData = update.data as { summary?: string };
+            if (summaryData.summary) {
+              newState.buildSummary = summaryData.summary;
+            }
+            break;
+
           case 'state-update':
             // Legacy: Merge state update and normalize dates
             const normalizedUpdate = normalizeDates(update.data);
