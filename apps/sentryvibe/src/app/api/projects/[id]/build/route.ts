@@ -135,6 +135,16 @@ export async function POST(
       }
     }
 
+    // PRIORITY 3: Extract addons from tags (for logging/tracking)
+    let activeAddons: string[] = [];
+    if (body.tags && body.tags.length > 0) {
+      const addonTags = body.tags.filter(t => t.key === 'addons');
+      if (addonTags.length > 0) {
+        activeAddons = addonTags.map(t => t.value);
+        console.log('[build-route] ✓ Addons selected:', activeAddons.join(', '));
+      }
+    }
+
     console.log('[build-route] Using agent for build:', agentId);
     if (agentId === 'claude-code') {
       console.log('[build-route] Claude model selected:', claudeModel);

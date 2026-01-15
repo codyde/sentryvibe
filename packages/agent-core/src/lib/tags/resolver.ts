@@ -81,6 +81,12 @@ export function resolveTags(appliedTags: AppliedTag[]): ResolvedTags {
     resolved.bodyFont = bodyFontTag.value;
   }
 
+  // Addon tags (multiple allowed)
+  const addonTags = appliedTags.filter(t => t.key === 'addons');
+  if (addonTags.length > 0) {
+    resolved.addons = addonTags.map(t => t.value);
+  }
+
   return resolved;
   } catch (error) {
     console.error('[resolveTags] Error resolving tags:', error);
@@ -262,6 +268,19 @@ Set up the project structure according to ${resolved.framework} best practices a
     // Even with no design tags, enforce icon usage
     sections.push('\n**UI Guidelines:**');
     sections.push('- NEVER use emojis in the UI. Instead, use Lucide React icons for all visual elements');
+  }
+
+  // Addon section - natural language triggers for skill detection
+  if (resolved.addons && resolved.addons.length > 0) {
+    sections.push('\n## Infrastructure Addons\n');
+    sections.push('After the template is set up and dependencies are installed, configure the following addons:\n');
+    
+    resolved.addons.forEach(addon => {
+      if (addon === 'neondb') {
+        sections.push('- Configure a NeonDB PostgreSQL database for this project.');
+      }
+      // Future addons would have similar natural language triggers
+    });
   }
 
   return sections.filter(s => s).join('\n');
