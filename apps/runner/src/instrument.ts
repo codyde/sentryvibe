@@ -14,11 +14,14 @@ if (typeof Sentry.httpIntegration === "function") {
 }
 
 // Add custom integrations if available (vendored SDK only)
+// Use 'opencode' as agent name when OpenCode SDK is enabled for better Sentry visibility
+const useOpenCodeSdk = process.env.USE_OPENCODE_SDK === '1' && !!process.env.OPENCODE_URL;
 if (typeof SentryAny.claudeCodeAgentSdkIntegration === "function") {
   integrations.push(
     SentryAny.claudeCodeAgentSdkIntegration({
       recordInputs: true,
       recordOutputs: true,
+      agentName: useOpenCodeSdk ? 'opencode' : 'claude-code',
     })
   );
 }
