@@ -560,6 +560,35 @@ export async function POST(request: Request) {
               console.error('[build-events] Failed to update project GitHub info:', e);
             }
           }
+
+          // Check for NeonDB result marker in output
+          const neondbMatch = event.output.match(/NEONDB_RESULT:(\{[^}]+\})/);
+          if (neondbMatch) {
+            try {
+              const neonResult = JSON.parse(neondbMatch[1]);
+              if (neonResult.success) {
+                console.log(`🐘 [build-events] Found NeonDB setup result in output`);
+                
+                // Calculate expiration (72 hours from now for unclaimed DBs)
+                const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+                
+                await db.update(projects)
+                  .set({
+                    neondbHost: neonResult.host || null,
+                    neondbDatabase: neonResult.database || 'neondb',
+                    neondbClaimUrl: neonResult.claimUrl || null,
+                    neondbConnectionString: neonResult.connectionString || null,
+                    neondbCreatedAt: timestamp,
+                    neondbExpiresAt: expiresAt,
+                    updatedAt: timestamp,
+                  })
+                  .where(eq(projects.id, projectId));
+                console.log(`🐘 [build-events] Updated project ${projectId} with NeonDB info`);
+              }
+            } catch (e) {
+              console.error('[build-events] Failed to parse/update NeonDB result:', e);
+            }
+          }
         }
 
         // WebSocket: Broadcast tool completion WITH COMPLETE DATA

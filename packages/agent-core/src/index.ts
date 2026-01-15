@@ -14,6 +14,12 @@ export type {
   GitHubChatMessageType
 } from './types/github';
 export { GITHUB_CHAT_MESSAGES } from './types/github';
+export type { 
+  NeonDBStatus,
+  NeonDBSetupResult,
+  NeonDBChatMessageType
+} from './types/neondb';
+export { NEONDB_CHAT_MESSAGES } from './types/neondb';
 
 // Only export specific items from agents to prevent bundling server-only code
 export { resolveAgentStrategy } from './lib/agents';

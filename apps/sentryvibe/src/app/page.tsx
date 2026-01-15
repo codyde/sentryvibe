@@ -65,6 +65,7 @@ import { AuthHeader } from "@/components/auth/AuthHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { GitHubButton, getGitHubSetupMessage, getGitHubPushMessage, type RepoVisibility } from "@/components/github";
+import { NeonDBButton, getNeonDBSetupMessage } from "@/components/neondb";
 
 import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
 import {
@@ -2692,30 +2693,43 @@ function HomeContent() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {/* GitHub Integration - show when project is selected and completed */}
+            {/* Integrations - show when project is selected and completed */}
             {currentProject && currentProject.status === 'completed' && (
-              <GitHubButton
-                projectId={currentProject.id}
-                projectSlug={currentProject.slug}
-                isGenerating={isGenerating}
-                onSetupClick={(visibility: RepoVisibility) => {
-                  // Switch to Build tab to show the setup progress
-                  switchTab("build");
-                  // Send the GitHub setup message via the chat flow with visibility
-                  startGeneration(currentProject.id, getGitHubSetupMessage(visibility), {
-                    addUserMessage: true,
-                  });
-                }}
-                onPushClick={() => {
-                  // Switch to Build tab to show the push progress
-                  switchTab("build");
-                  // Send the GitHub push message via the chat flow
-                  startGeneration(currentProject.id, getGitHubPushMessage(), {
-                    addUserMessage: true,
-                  });
-                }}
-                variant="default"
-              />
+              <>
+                <NeonDBButton
+                  projectId={currentProject.id}
+                  isGenerating={isGenerating}
+                  onSetupClick={() => {
+                    switchTab("build");
+                    startGeneration(currentProject.id, getNeonDBSetupMessage(), {
+                      addUserMessage: true,
+                    });
+                  }}
+                  variant="default"
+                />
+                <GitHubButton
+                  projectId={currentProject.id}
+                  projectSlug={currentProject.slug}
+                  isGenerating={isGenerating}
+                  onSetupClick={(visibility: RepoVisibility) => {
+                    // Switch to Build tab to show the setup progress
+                    switchTab("build");
+                    // Send the GitHub setup message via the chat flow with visibility
+                    startGeneration(currentProject.id, getGitHubSetupMessage(visibility), {
+                      addUserMessage: true,
+                    });
+                  }}
+                  onPushClick={() => {
+                    // Switch to Build tab to show the push progress
+                    switchTab("build");
+                    // Send the GitHub push message via the chat flow
+                    startGeneration(currentProject.id, getGitHubPushMessage(), {
+                      addUserMessage: true,
+                    });
+                  }}
+                  variant="default"
+                />
+              </>
             )}
             <AuthHeader />
           </div>

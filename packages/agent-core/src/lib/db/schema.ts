@@ -115,6 +115,13 @@ export const projects = pgTable('projects', {
   githubAutoPush: boolean('github_auto_push').default(false), // Auto-push after builds
   githubLastSyncAt: timestamp('github_last_sync_at'), // Last time we synced repo info
   githubMeta: jsonb('github_meta'), // Additional metadata (issues count, recent commits, etc.)
+  // NeonDB integration fields
+  neondbConnectionString: text('neondb_connection_string'), // DATABASE_URL (encrypted/partial)
+  neondbClaimUrl: text('neondb_claim_url'), // URL to claim the database
+  neondbHost: text('neondb_host'), // Database host endpoint
+  neondbDatabase: text('neondb_database'), // Database name
+  neondbCreatedAt: timestamp('neondb_created_at'), // When database was provisioned
+  neondbExpiresAt: timestamp('neondb_expires_at'), // When unclaimed DB expires (72 hours)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
