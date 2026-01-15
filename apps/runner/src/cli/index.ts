@@ -75,7 +75,6 @@ if (!isLinkedDevelopment) {
 // This ensures instrumentation happens before any ESM module resolution
 
 import { Command } from 'commander';
-import updateNotifier from 'update-notifier';
 import { displayBanner } from './utils/banner.js';
 import { setupGlobalErrorHandlers, globalErrorHandler } from './utils/error-handler.js';
 import { setupShutdownHandler } from './utils/shutdown-handler.js';
@@ -113,17 +112,20 @@ if (!isTUIMode) {
   displayBanner();
 }
 
-// Check for updates with custom message (skip for TUI modes)
-const notifier = updateNotifier({
-  pkg: packageJson,
-  updateCheckInterval: 1000 * 60 * 60 * 24 // Check once per day
-});
-
-if (notifier.update && !isTUIMode) {
-  console.log();
-  console.log(`  Update available: ${notifier.update.current} → ${notifier.update.latest}`);
-  console.log(`  Run: sentryvibe upgrade`);
-  console.log();
+// Auto-update check (skip for TUI modes to avoid disrupting interactive sessions)
+// This replaces the old update-notifier which only showed a message
+if (!isTUIMode && !process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
+  const { checkAndAutoUpdate } = await import('./utils/auto-update.js');
+  
+  try {
+    const didUpdate = await checkAndAutoUpdate(packageJson.version);
+    if (didUpdate) {
+      // CLI will be relaunched by auto-update, exit this process
+      process.exit(0);
+    }
+  } catch {
+    // Auto-update failed silently, continue with current version
+  }
 }
 
 const program = new Command();
