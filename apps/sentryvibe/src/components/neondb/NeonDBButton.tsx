@@ -75,7 +75,9 @@ export function NeonDBButton({
     );
   }
 
-  const isRunning = isSettingUp || isGenerating;
+  // Only show "Setting up" when user explicitly clicked setup
+  // Don't show it during regular generations (that was confusing)
+  const isRunning = isSettingUp;
 
   // Not connected - show setup button
   return (

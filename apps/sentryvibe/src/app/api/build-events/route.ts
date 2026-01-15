@@ -529,35 +529,49 @@ export async function POST(request: Request) {
 
         // Check for GitHub repo info in tool output (gh repo view --json output)
         // This parses the output server-side so frontend doesn't need to handle it
+        // IMPORTANT: Only match actual repository URLs, not issues/PRs/etc
         if (event.output && typeof event.output === 'string') {
-          const ghRepoMatch = event.output.match(/"url"\s*:\s*"(https:\/\/github\.com\/([^\/]+)\/([^"]+))"/);
-          if (ghRepoMatch) {
-            const [, url, owner, repoName] = ghRepoMatch;
-            
-            // Try to extract branch from the output
-            // Check for defaultBranchRef in gh repo view output (if --json includes it)
-            let branch = 'main'; // fallback
-            const branchMatch = event.output.match(/"defaultBranchRef"\s*:\s*{\s*"name"\s*:\s*"([^"]+)"/);
-            if (branchMatch) {
-              branch = branchMatch[1];
-            }
-            
-            console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName} (branch: ${branch})`);
-            
-            // Update project with GitHub info
-            try {
-              await db.update(projects)
-                .set({
-                  githubRepo: `${owner}/${repoName}`,
-                  githubUrl: url,
-                  githubBranch: branch,
-                  githubLastPushedAt: timestamp,
-                  updatedAt: timestamp,
-                })
-                .where(eq(projects.id, projectId));
-              console.log(`🐙 [build-events] Updated project ${projectId} with GitHub info`);
-            } catch (e) {
-              console.error('[build-events] Failed to update project GitHub info:', e);
+          // First, check if this looks like gh repo view JSON output (has defaultBranchRef which is repo-specific)
+          // This prevents matching gh issue view or gh pr view output
+          const hasDefaultBranch = event.output.includes('"defaultBranchRef"');
+          
+          // Only try to extract repo URL if this looks like repo data
+          if (hasDefaultBranch) {
+            // Match repo URL - must be exactly owner/repo format, not owner/repo/issues/123 etc
+            const ghRepoMatch = event.output.match(/"url"\s*:\s*"(https:\/\/github\.com\/([^\/]+)\/([^"\/]+))"/);
+            if (ghRepoMatch) {
+              const [, url, owner, repoName] = ghRepoMatch;
+              
+              // Double-check: skip if this looks like an issue/PR URL somehow
+              if (url.includes('/issues/') || url.includes('/pull/') || url.includes('/discussions/')) {
+                console.log(`🐙 [build-events] Skipping non-repo URL: ${url}`);
+              } else {
+                // Try to extract branch from the output
+                // Check for defaultBranchRef in gh repo view output
+                let branch = 'main'; // fallback
+                const branchMatch = event.output.match(/"defaultBranchRef"\s*:\s*{\s*"name"\s*:\s*"([^"]+)"/);
+                if (branchMatch) {
+                  branch = branchMatch[1];
+                }
+                
+                console.log(`🐙 [build-events] Found GitHub repo in tool output: ${owner}/${repoName} (branch: ${branch})`);
+                
+                // Update project with GitHub info
+                try {
+                  await db.update(projects)
+                    .set({
+                      githubRepo: `${owner}/${repoName}`,
+                      githubUrl: url,
+                      githubBranch: branch,
+                      githubLastPushedAt: timestamp,
+                      updatedAt: timestamp,
+                    })
+                    .where(eq(projects.id, projectId));
+                  console.log(`🐙 [build-events] Updated project ${projectId} with GitHub info`);
+                } catch (e) {
+                  console.error('[build-events] Failed to update project GitHub info:', e);
+                }
+              }
             }
           }
 
