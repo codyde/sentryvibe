@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { streamText, generateText, type TextPart, type ImagePart, type ToolSet } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 import { createNativeClaudeQuery, USE_NATIVE_SDK } from "./lib/native-claude-sdk.js";
+import { createOpenCodeQuery, USE_OPENCODE_SDK } from "./lib/opencode-sdk.js";
 import WebSocket from "ws";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
@@ -20,10 +21,13 @@ import {
   CLAUDE_SYSTEM_PROMPT,
   CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
   DEFAULT_CLAUDE_MODEL_ID,
+  DEFAULT_OPENCODE_MODEL_ID,
+  normalizeModelId,
   type RunnerCommand,
   type RunnerEvent,
   type AgentId,
   type ClaudeModelId,
+  type OpenCodeModelId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
 import { CLAUDE_CLI_TOOL_REGISTRY } from "@sentryvibe/agent-core/lib/claude/tools";
@@ -849,21 +853,28 @@ function createCodexQuery(): BuildQueryFn {
 
 function createBuildQuery(
   agent: AgentId,
-  claudeModel?: ClaudeModelId
+  modelId?: ClaudeModelId | OpenCodeModelId
 ): BuildQueryFn {
   if (agent === "openai-codex") {
     return createCodexQuery();
   }
 
+  // Use OpenCode SDK when enabled (OPENCODE_URL is set)
+  if (USE_OPENCODE_SDK) {
+    const normalizedModel = modelId ? normalizeModelId(modelId) : DEFAULT_OPENCODE_MODEL_ID;
+    console.log(`[runner] 🔄 Using OpenCode SDK (multi-provider) - Model: ${normalizedModel}`);
+    return createOpenCodeQuery(normalizedModel);
+  }
+
   // Use legacy AI SDK path when explicitly requested
   if (!USE_NATIVE_SDK) {
     console.log('[runner] 🔄 Using AI SDK with claude-code provider (legacy mode)');
-    return createClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+    return createClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID);
   }
 
   // Default: Use native Claude Agent SDK (direct integration)
   console.log('[runner] 🔄 Using NATIVE Claude Agent SDK v0.1.76');
-  return createNativeClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+  return createNativeClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID);
 }
 
 /**

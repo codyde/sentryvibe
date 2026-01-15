@@ -1,0 +1,34 @@
+{
+  "name": "@sentryvibe/opencode-client",
+  "version": "0.27.3",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepare": "pnpm run build",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

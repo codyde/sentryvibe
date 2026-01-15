@@ -1,10 +1,23 @@
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
-import { DEFAULT_CLAUDE_MODEL_ID } from "@sentryvibe/agent-core/types/agent";
-import type { ClaudeModelId } from "@sentryvibe/agent-core/types/agent";
+import { 
+  DEFAULT_CLAUDE_MODEL_ID,
+  DEFAULT_OPENCODE_MODEL_ID,
+  normalizeModelId,
+  parseModelId,
+} from "@sentryvibe/agent-core/types/agent";
+import type { ClaudeModelId, OpenCodeModelId } from "@sentryvibe/agent-core/types/agent";
+import { getOpenCodeClient, getOpenCodeUrl } from "@sentryvibe/opencode-client";
 import * as Sentry from "@sentry/nextjs";
 import * as os from 'os';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
+
+/**
+ * Check if OpenCode SDK should be used
+ */
+function useOpenCodeSDK(): boolean {
+  return process.env.USE_LEGACY_CLAUDE_SDK !== '1' && !!process.env.OPENCODE_URL;
+}
 
 /**
  * Get a clean env object with only string values (filter out undefined)
@@ -62,20 +75,33 @@ export async function POST(req: Request) {
   const {
     messages,
     claudeModel,
+    modelId, // New: OpenCode model format (provider/model)
     projectContext,
   }: { 
     messages: ChatMessage[]; 
     claudeModel?: ClaudeModelId;
+    modelId?: OpenCodeModelId;
     projectContext?: ProjectContext;
   } = await req.json();
+  
+  const useOpenCode = useOpenCodeSDK();
   
   Sentry.logger.info(
     Sentry.logger.fmt`Processing chat messages ${{
       messageCount: messages.length,
       claudeModel,
+      modelId,
       hasProjectContext: !!projectContext,
+      useOpenCode,
     }}`
   );
+
+  // Determine model to use
+  const selectedModel = modelId 
+    ? normalizeModelId(modelId)
+    : claudeModel 
+      ? normalizeModelId(claudeModel)
+      : useOpenCode ? DEFAULT_OPENCODE_MODEL_ID : DEFAULT_CLAUDE_MODEL_ID;
 
   const selectedClaudeModel: ClaudeModelId =
     claudeModel === "claude-haiku-4-5" || claudeModel === "claude-sonnet-4-5" || claudeModel === "claude-opus-4-5"
@@ -145,16 +171,61 @@ Remember: This is an iterative chat about an existing project, not a full build 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
-          if (message.type === 'assistant') {
-            for (const block of message.message.content) {
-              if (block.type === 'text') {
-                // Format as SSE data event
+        if (useOpenCode) {
+          // Use OpenCode SDK
+          const client = getOpenCodeClient();
+          const { provider: providerID, model: modelID } = parseModelId(selectedModel);
+          
+          // Create a session
+          const sessionResult = await client.session.create({
+            body: { title: `Chat ${Date.now()}` }
+          });
+          
+          if (!sessionResult.data) {
+            throw new Error('Failed to create OpenCode session');
+          }
+          
+          const sessionId = sessionResult.data.id;
+          
+          // Send prompt and get response
+          const result = await client.session.prompt({
+            path: { id: sessionId },
+            body: {
+              model: { providerID, modelID },
+              system: systemPrompt,
+              parts: [{ type: 'text', text: lastUserMessage?.content || '' }],
+            },
+          });
+          
+          // Process response parts
+          if (result.data?.parts) {
+            for (const part of result.data.parts) {
+              if (part.type === 'text' && part.text) {
                 const data = JSON.stringify({
                   type: 'text-delta',
-                  textDelta: block.text,
+                  textDelta: part.text,
                 });
                 controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              }
+            }
+          }
+          
+          // Clean up session
+          await client.session.delete({ path: { id: sessionId } }).catch(() => {});
+          
+        } else {
+          // Use legacy Claude SDK
+          for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
+            if (message.type === 'assistant') {
+              for (const block of message.message.content) {
+                if (block.type === 'text') {
+                  // Format as SSE data event
+                  const data = JSON.stringify({
+                    type: 'text-delta',
+                    textDelta: block.text,
+                  });
+                  controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                }
               }
             }
           }

@@ -1,6 +1,19 @@
 export { CLAUDE_SYSTEM_PROMPT, CODEX_SYSTEM_PROMPT } from './lib/prompts';
 export * from './shared/runner/messages';
-export { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID, type AgentId, type ClaudeModelId } from './types/agent';
+export { 
+  DEFAULT_AGENT_ID, 
+  DEFAULT_CLAUDE_MODEL_ID, 
+  DEFAULT_OPENCODE_MODEL_ID,
+  LEGACY_MODEL_MAP,
+  MODEL_METADATA,
+  normalizeModelId,
+  parseModelId,
+  getModelLabel,
+  type AgentId, 
+  type ClaudeModelId,
+  type OpenCodeModelId,
+  type ModelMetadata,
+} from './types/agent';
 export type { ProjectSummary, ProjectStatus } from './types/project';
 export type { 
   GitHubCommit, 

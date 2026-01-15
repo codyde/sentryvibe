@@ -1,5 +1,9 @@
 /**
  * Native Claude Agent SDK Integration
+ * 
+ * @deprecated This module is deprecated in favor of opencode-sdk.ts
+ * It is kept for backwards compatibility when USE_LEGACY_CLAUDE_SDK=1 is set.
+ * New features should be added to opencode-sdk.ts instead.
  *
  * This module provides direct integration with the official @anthropic-ai/claude-agent-sdk
  * without going through the AI SDK or community provider layers.
