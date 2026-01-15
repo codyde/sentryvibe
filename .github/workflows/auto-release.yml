@@ -39,10 +39,13 @@ jobs:
       - name: Check for [skip ci] in commit message
         id: skip_ci
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          if [[ "$COMMIT_MSG" == *"[skip ci]"* ]]; then
+          # Only check the first line (subject) of the commit message
+          # This prevents false positives from [skip ci] mentioned in the body
+          COMMIT_SUBJECT=$(git log -1 --pretty=%s)
+          echo "Commit subject: $COMMIT_SUBJECT"
+          if [[ "$COMMIT_SUBJECT" == *"[skip ci]"* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⏭️ Skipping - commit contains [skip ci]"
+            echo "⏭️ Skipping - commit subject contains [skip ci]"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
