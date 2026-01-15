@@ -36,6 +36,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
       - name: Check for [skip ci] in commit message
         id: skip_ci
         run: |
@@ -154,13 +159,179 @@ jobs:
           git push origin "$TAG"
           
           echo "✅ Created and pushed tag: $TAG"
+
+      # ============================================================
+      # BUILD AND RELEASE STEPS (from release-cli.yml)
+      # ============================================================
+
+      - name: Install dependencies
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: pnpm install
+
+      - name: Build agent-core
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: |
+          echo "Building agent-core..."
+          pnpm --filter @sentryvibe/agent-core build
+
+      - name: Verify vendor packages
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Verifying vendor packages in apps/runner/vendor/"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ ! -d "apps/runner/vendor" ]; then
+            echo "ERROR: apps/runner/vendor/ directory not found!"
+            exit 1
+          fi
+
           echo ""
-          echo "🚀 The release-cli.yml workflow will now build and publish the release"
+          echo "Vendor files (should all be committed to git):"
+          ls -lh apps/runner/vendor/
+
+          VENDOR_COUNT=$(ls -1 apps/runner/vendor/*.tgz 2>/dev/null | wc -l | tr -d ' ')
+          echo ""
+          echo "Total .tgz files: $VENDOR_COUNT"
+
+          REQUIRED_FILES=(
+            "sentry-core-LOCAL.tgz"
+            "sentry-node-LOCAL.tgz"
+            "sentry-node-core-LOCAL.tgz"
+            "sentry-nextjs-LOCAL.tgz"
+            "ai-sdk-provider-claude-code-LOCAL.tgz"
+          )
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "apps/runner/vendor/$file" ]; then
+              echo "❌ MISSING: $file"
+              echo "ERROR: Required vendor file not found!"
+              exit 1
+            else
+              echo "✓ Found: $file"
+            fi
+          done
+
+          if [ "$VENDOR_COUNT" -ne 5 ]; then
+            echo ""
+            echo "ERROR: Expected 5 vendor files, found $VENDOR_COUNT"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ All required vendor packages verified"
+
+      - name: Build CLI
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: pnpm run build:cli
+
+      - name: Prepare package.json for publishing
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Replacing file: dependencies with npm versions"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          node apps/runner/scripts/prepare-release.js
+
+          echo ""
+          echo "Verifying updated package.json dependencies:"
+          cat apps/runner/package.json | jq '.dependencies'
+
+      - name: Create tarball
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: |
+          cd apps/runner
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Pre-pack verification:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          echo ""
+          echo "1. Checking vendor/ directory:"
+          if [ -d "vendor" ]; then
+            ls -lh vendor/
+            echo "  File count: $(ls -1 vendor/ | wc -l)"
+          else
+            echo "  ERROR: vendor/ directory does not exist!"
+            exit 1
+          fi
+
+          echo ""
+          echo "2. Checking dist/ directory:"
+          if [ -d "dist" ]; then
+            echo "  ✓ dist/ exists"
+            echo "  File count: $(find dist/ -type f | wc -l)"
+          else
+            echo "  ERROR: dist/ directory does not exist!"
+            exit 1
+          fi
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Creating tarball with pnpm pack..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          pnpm pack
+
+          echo ""
+          echo "Created tarball:"
+          ls -lh *.tgz
+
+          mv *.tgz sentryvibe-cli.tgz
+
+          echo ""
+          echo "Verifying tarball contents:"
+          tar -tzf sentryvibe-cli.tgz | grep "vendor/" | head -10 || echo "⚠️ No vendor/ files found!"
+
+          echo ""
+          echo "✓ Package created: sentryvibe-cli.tgz"
+
+      - name: Create GitHub Release
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          name: SentryVibe CLI ${{ steps.version.outputs.new_version }}
+          body: |
+            # SentryVibe CLI ${{ steps.version.outputs.new_version }}
+
+            AI-powered project generation with local runner support.
+
+            ## What's Changed
+
+            - Version bump: ${{ steps.current.outputs.version }} → ${{ steps.version.outputs.new_version }} (${{ steps.bump_type.outputs.type }})
+            ${{ steps.pr.outputs.number != '' && format('- Merged PR #{0}', steps.pr.outputs.number) || '- Direct push to main' }}
+
+            ## Installation
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
+            ```
+
+            Or install directly:
+
+            ```bash
+            npm install -g https://github.com/codyde/sentryvibe/releases/download/v${{ steps.version.outputs.new_version }}/sentryvibe-cli.tgz
+            ```
+
+            ## Quick Start
+
+            ```bash
+            sentryvibe init -y
+            sentryvibe run
+            ```
+
+            See [full documentation](https://github.com/codyde/sentryvibe/blob/main/apps/runner/README.md) for details.
+          files: |
+            apps/runner/sentryvibe-cli.tgz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -171,3 +342,5 @@ jobs:
           if [ -n "${{ steps.pr.outputs.number }}" ]; then
             echo "| PR | #${{ steps.pr.outputs.number }} |" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Release published successfully!" >> $GITHUB_STEP_SUMMARY
