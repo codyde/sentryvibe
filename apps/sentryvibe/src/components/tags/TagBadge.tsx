@@ -34,9 +34,9 @@ export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBa
   // Render color value with swatch
   const renderColorValue = (color: string) => (
     <span className="inline-flex items-center gap-1">
-      <span className="text-gray-400">{color}</span>
+      <span className="tag-value">{color}</span>
       <span
-        className="inline-block w-3 h-3 rounded border border-gray-600"
+        className="inline-block w-3 h-3 rounded border border-white/20"
         style={{ backgroundColor: color }}
       />
     </span>
@@ -47,7 +47,7 @@ export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBa
     if (def.inputType === 'color') {
       return renderColorValue(tag.value);
     }
-    return <span className="text-gray-400">{tag.value}</span>;
+    return <span className="tag-value">{tag.value}</span>;
   };
 
   // For brand tags, show expanded colors in hover card
@@ -63,7 +63,7 @@ export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBa
   };
 
   const badge = (
-    <div className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono hover:border-gray-600 transition-colors cursor-pointer">
+    <div className="tag-badge-theme inline-flex items-center gap-1 px-2 py-1 border rounded text-sm font-mono cursor-pointer">
       {brandLogo && (
         <img
           src={brandLogo}
@@ -85,14 +85,14 @@ export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBa
           className="w-3.5 h-3.5 object-contain mr-1"
         />
       )}
-      <span className="text-gray-300">{tag.key}:</span>
+      <span className="tag-key">{tag.key}:</span>
       {renderValue()}
       <button
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
         }}
-        className="ml-1 text-gray-500 hover:text-gray-300 transition-colors"
+        className="tag-remove ml-1 transition-colors"
         aria-label="Remove tag"
       >
         <X className="w-3 h-3" />
