@@ -855,15 +855,21 @@ function createBuildQuery(
   agent: AgentId,
   modelId?: ClaudeModelId | OpenCodeModelId
 ): BuildQueryFn {
-  if (agent === "openai-codex") {
-    return createCodexQuery();
-  }
-
-  // Use OpenCode SDK when enabled (OPENCODE_URL is set)
+  // When OpenCode SDK is enabled, route ALL requests through it (including Codex)
   if (USE_OPENCODE_SDK) {
-    const normalizedModel = modelId ? normalizeModelId(modelId) : DEFAULT_OPENCODE_MODEL_ID;
+    // Map openai-codex agent to the correct OpenCode model
+    const normalizedModel = agent === "openai-codex"
+      ? "openai/gpt-5.2-codex"
+      : modelId ? normalizeModelId(modelId) : DEFAULT_OPENCODE_MODEL_ID;
+    
     console.log(`[runner] 🔄 Using OpenCode SDK (multi-provider) - Model: ${normalizedModel}`);
     return createOpenCodeQuery(normalizedModel);
+  }
+
+  // Fallback: Direct Codex SDK with thread resumption (when OpenCode is disabled)
+  if (agent === "openai-codex") {
+    console.log('[runner] 🔄 Using direct Codex SDK (fallback mode)');
+    return createCodexQuery();
   }
 
   // Use legacy AI SDK path when explicitly requested

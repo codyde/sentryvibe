@@ -32,6 +32,8 @@ export const LEGACY_MODEL_MAP: Record<string, OpenCodeModelId> = {
   'claude-haiku-4-5': 'anthropic/claude-haiku-4-5',
   'claude-sonnet-4-5': 'anthropic/claude-sonnet-4-5',
   'claude-opus-4-5': 'anthropic/claude-opus-4-5',
+  'gpt-5-codex': 'openai/gpt-5.2-codex',
+  'gpt-5.2-codex': 'openai/gpt-5.2-codex',
 };
 
 /**
@@ -122,6 +124,11 @@ export const MODEL_METADATA: Record<string, ModelMetadata> = {
     label: 'DeepSeek Reasoner',
     description: 'DeepSeek reasoning model',
     provider: 'deepseek',
+  },
+  'openai/gpt-5.2-codex': {
+    label: 'GPT-5.2 Codex',
+    description: 'OpenAI Codex - Advanced code generation',
+    provider: 'openai',
   },
 };
 

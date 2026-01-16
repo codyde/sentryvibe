@@ -72,12 +72,12 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         model: 'claude-haiku-4-5'
       },
       {
-        value: 'gpt-5-codex',
-        label: 'GPT-5 Codex',
+        value: 'gpt-5.2-codex',
+        label: 'GPT-5.2 Codex',
         description: 'OpenAI Codex - Advanced code generation',
         logo: '/openai.png',
         provider: 'openai-codex',
-        model: 'gpt-5-codex'
+        model: 'openai/gpt-5.2-codex'
       }
     ]
   },
