@@ -379,8 +379,19 @@ export function createOpenCodeQuery(
               if (!event) continue;
               
               // Only process events for our session
-              if (event.properties?.sessionId && event.properties.sessionId !== sessionId) {
-                continue;
+              // Skip events that have a sessionId that doesn't match ours
+              // Also skip events with no sessionId unless they reference our session in properties
+              const eventSessionId = event.properties?.sessionId || event.properties?.session?.id;
+              if (eventSessionId && eventSessionId !== sessionId) {
+                continue; // Event belongs to a different session
+              }
+              if (!eventSessionId && sessionId) {
+                // Event has no session identifier - skip it to avoid cross-session contamination
+                // unless it's a global event type we explicitly want to handle
+                const globalEventTypes = ['ping', 'connected', 'error'];
+                if (!globalEventTypes.includes(event.type)) {
+                  continue;
+                }
               }
 
               const transformed = transformOpenCodeEvent(event, sessionId!);
