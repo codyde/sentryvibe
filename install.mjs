@@ -248,6 +248,28 @@ function printFailure(error) {
   console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log();
   
+  // Show the actual error details
+  if (error.stderr) {
+    console.log(`  ${c.dimGray}Error output:${c.reset}`);
+    // Show relevant parts of stderr (trim long output)
+    const stderrLines = error.stderr.trim().split('\n');
+    const relevantLines = stderrLines
+      .filter(line => line.includes('error') || line.includes('Error') || line.includes('404') || line.includes('ERESOLVE'))
+      .slice(0, 10);
+    if (relevantLines.length > 0) {
+      relevantLines.forEach(line => console.log(`  ${c.error}${line}${c.reset}`));
+    } else {
+      // Show last few lines if no obvious error lines found
+      stderrLines.slice(-5).forEach(line => console.log(`  ${c.dimGray}${line}${c.reset}`));
+    }
+    console.log();
+  }
+  
+  if (error.message && !error.stderr) {
+    console.log(`  ${c.error}${error.message}${c.reset}`);
+    console.log();
+  }
+  
   if (error.stderr?.includes('heap out of memory') || error.stderr?.includes('ENOMEM')) {
     console.log(`  ${c.warning}Out of memory error detected.${c.reset}`);
     console.log();

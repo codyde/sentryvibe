@@ -112,16 +112,27 @@ if (!isTUIMode) {
   displayBanner();
 }
 
-// Auto-update check (skip for TUI modes to avoid disrupting interactive sessions)
-// This replaces the old update-notifier which only showed a message
-if (!isTUIMode && !process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
-  const { checkAndAutoUpdate } = await import('./utils/auto-update.js');
+// Auto-update check
+// For TUI modes: check only and store result for display (don't auto-update to avoid disruption)
+// For CLI modes: full auto-update with restart
+if (!process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
+  const { checkAndAutoUpdate, checkForUpdate } = await import('./utils/auto-update.js');
   
   try {
-    const didUpdate = await checkAndAutoUpdate(packageJson.version);
-    if (didUpdate) {
-      // CLI will be relaunched by auto-update, exit this process
-      process.exit(0);
+    if (isTUIMode) {
+      // TUI mode: just check for updates, store result for TUI to display
+      const updateInfo = await checkForUpdate(packageJson.version);
+      if (updateInfo?.updateAvailable) {
+        // Store update info for TUI components to access
+        process.env.SENTRYVIBE_UPDATE_AVAILABLE = updateInfo.latestVersion;
+      }
+    } else {
+      // CLI mode: full auto-update
+      const didUpdate = await checkAndAutoUpdate(packageJson.version);
+      if (didUpdate) {
+        // CLI will be relaunched by auto-update, exit this process
+        process.exit(0);
+      }
     }
   } catch {
     // Auto-update failed silently, continue with current version
