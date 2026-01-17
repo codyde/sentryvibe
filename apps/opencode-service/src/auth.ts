@@ -6,7 +6,9 @@
  */
 
 import { createHash } from 'crypto';
-import { db, getDb } from '@sentryvibe/agent-core';
+import { db } from '@sentryvibe/agent-core';
+import { runnerKeys } from '@sentryvibe/agent-core/lib/db/schema';
+import { eq, and, isNull } from 'drizzle-orm';
 
 /**
  * Check if running in local mode
@@ -53,37 +55,37 @@ export async function authenticateRunnerKey(key: string): Promise<AuthResult> {
   }
 
   try {
-    const database = getDb();
-    if (!database) {
-      // No database configured - fall back to shared secret only
-      return {
-        authenticated: false,
-        error: 'Database not configured for runner key auth',
-      };
-    }
-
     const keyHash = hashRunnerKey(key);
     
-    // Query the runner_keys table
-    const result = await database.execute({
-      sql: `SELECT id, user_id FROM runner_keys WHERE key_hash = $1 AND revoked_at IS NULL`,
-      args: [keyHash],
-    });
+    // Query the runner_keys table using drizzle ORM
+    const result = await db
+      .select({
+        id: runnerKeys.id,
+        userId: runnerKeys.userId,
+      })
+      .from(runnerKeys)
+      .where(
+        and(
+          eq(runnerKeys.keyHash, keyHash),
+          isNull(runnerKeys.revokedAt)
+        )
+      )
+      .limit(1);
 
-    if (result.rows && result.rows.length > 0) {
-      const row = result.rows[0] as { id: string; user_id: string };
+    if (result.length > 0) {
+      const row = result[0];
       
       // Update last used timestamp (fire and forget)
-      database.execute({
-        sql: `UPDATE runner_keys SET last_used_at = NOW() WHERE id = $1`,
-        args: [row.id],
-      }).catch(() => {
-        // Ignore update errors
-      });
+      db.update(runnerKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(runnerKeys.id, row.id))
+        .catch(() => {
+          // Ignore update errors
+        });
 
       return {
         authenticated: true,
-        userId: row.user_id,
+        userId: row.userId,
         keyId: row.id,
       };
     }

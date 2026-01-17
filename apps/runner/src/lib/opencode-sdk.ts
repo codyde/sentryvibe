@@ -314,7 +314,9 @@ export function createOpenCodeQuery(
       debugLog(`[runner] [opencode-sdk] Session created: ${sessionId}`);
       
       // Update span with session info
-      aiSpan?.setAttribute('opencode.session_id', sessionId);
+      if (sessionId) {
+        aiSpan?.setAttribute('opencode.session_id', sessionId);
+      }
 
       // Step 2: Subscribe to events
       debugLog('[runner] [opencode-sdk] Subscribing to events...');
