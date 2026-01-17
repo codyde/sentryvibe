@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 // Accept anything by default – Claude CLI already validates tool payloads.
 const genericInput = z.any();
-const genericObject = z.record(z.any());
+const genericObject = z.record(z.string(), z.any());
 
 type ClaudeToolDescriptor = {
   description?: string;
   type?: 'dynamic';
-  inputSchema: z.ZodTypeAny;
+  inputSchema: z.ZodType;
 };
 
 const dynamicMcpTool: ClaudeToolDescriptor = {
