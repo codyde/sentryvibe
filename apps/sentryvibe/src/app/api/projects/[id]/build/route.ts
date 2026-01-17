@@ -272,7 +272,7 @@ export async function POST(
     const frameworkTag = body.tags?.find(t => t.key === 'framework');
     Sentry.metrics.count('build.started', 1, {
       attributes: {
-        project_id: params.id,
+        project_id: id,
         model: agentId === 'claude-code' ? claudeModel : agentId,
         framework: templateMetadata?.framework || 'unknown',
         runner: runnerId,
@@ -594,6 +594,7 @@ export async function POST(
       projectId: id,
       timestamp: new Date().toISOString(),
       payload: {
+        sessionId, // Pass sessionId to runner for event correlation
         operationType: body.operationType,
         prompt: body.prompt,
         messageParts: body.messageParts,

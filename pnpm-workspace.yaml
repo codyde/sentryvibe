@@ -1,4 +1,6 @@
 packages:
   - apps/sentryvibe
   - apps/runner
+  - apps/opencode-service
   - packages/agent-core
+  - packages/opencode-client

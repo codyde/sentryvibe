@@ -1,0 +1,30 @@
+{
+  "name": "@sentryvibe/opencode-service",
+  "version": "0.27.3",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "opencode-service": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "prepare": "pnpm run build"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.0.0",
+    "@sentryvibe/agent-core": "workspace:*",
+    "@sentry/node": "file:../sentryvibe/vendor/sentry-node-LOCAL.tgz",
+    "express": "^4.21.0",
+    "http-proxy-middleware": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3"
+  }
+}

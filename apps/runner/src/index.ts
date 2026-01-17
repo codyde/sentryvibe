@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { streamText, generateText, type TextPart, type ImagePart, type ToolSet } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 import { createNativeClaudeQuery, USE_NATIVE_SDK } from "./lib/native-claude-sdk.js";
+import { createOpenCodeQuery, USE_OPENCODE_SDK } from "./lib/opencode-sdk.js";
 import WebSocket from "ws";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
@@ -20,10 +21,13 @@ import {
   CLAUDE_SYSTEM_PROMPT,
   CODEX_SYSTEM_PROMPT, // Codex-specific prompt without TodoWrite tool references
   DEFAULT_CLAUDE_MODEL_ID,
+  DEFAULT_OPENCODE_MODEL_ID,
+  normalizeModelId,
   type RunnerCommand,
   type RunnerEvent,
   type AgentId,
   type ClaudeModelId,
+  type OpenCodeModelId,
   setTemplatesPath,
 } from "@sentryvibe/agent-core";
 import { CLAUDE_CLI_TOOL_REGISTRY } from "@sentryvibe/agent-core/lib/claude/tools";
@@ -849,21 +853,34 @@ function createCodexQuery(): BuildQueryFn {
 
 function createBuildQuery(
   agent: AgentId,
-  claudeModel?: ClaudeModelId
+  modelId?: ClaudeModelId | OpenCodeModelId
 ): BuildQueryFn {
+  // When OpenCode SDK is enabled, route ALL requests through it (including Codex)
+  if (USE_OPENCODE_SDK) {
+    // Map openai-codex agent to the correct OpenCode model
+    const normalizedModel = agent === "openai-codex"
+      ? "openai/gpt-5.2-codex"
+      : modelId ? normalizeModelId(modelId) : DEFAULT_OPENCODE_MODEL_ID;
+    
+    console.log(`[runner] 🔄 Using OpenCode SDK (multi-provider) - Model: ${normalizedModel}`);
+    return createOpenCodeQuery(normalizedModel);
+  }
+
+  // Fallback: Direct Codex SDK with thread resumption (when OpenCode is disabled)
   if (agent === "openai-codex") {
+    console.log('[runner] 🔄 Using direct Codex SDK (fallback mode)');
     return createCodexQuery();
   }
 
   // Use legacy AI SDK path when explicitly requested
   if (!USE_NATIVE_SDK) {
     console.log('[runner] 🔄 Using AI SDK with claude-code provider (legacy mode)');
-    return createClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+    return createClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID);
   }
 
   // Default: Use native Claude Agent SDK (direct integration)
   console.log('[runner] 🔄 Using NATIVE Claude Agent SDK v0.1.76');
-  return createNativeClaudeQuery(claudeModel ?? DEFAULT_CLAUDE_MODEL_ID);
+  return createNativeClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID);
 }
 
 /**
@@ -2423,7 +2440,7 @@ export async function startRunner(options: RunnerOptions = {}) {
           const buildContextId = command.id;
           activeBuildContexts.set(buildContextId, {
             commandId: command.id,
-            sessionId: '', // Server will look up from buildId
+            sessionId: command.payload.sessionId || '', // Use sessionId from command if provided
             projectId: command.projectId,
             buildId: `build-${command.id}`, // Correlation ID for session lookup
             agentId: agent,
