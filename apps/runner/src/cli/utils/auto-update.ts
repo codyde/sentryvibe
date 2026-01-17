@@ -314,6 +314,69 @@ export async function checkAndAutoUpdate(currentVersion: string): Promise<boolea
 }
 
 /**
+ * Check for updates without auto-updating (for TUI modes)
+ * Returns version info that can be displayed in the TUI
+ * 
+ * @param currentVersion - Current CLI version from package.json
+ * @returns Update info or null if no update available
+ */
+export async function checkForUpdate(currentVersion: string): Promise<{
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+} | null> {
+  // Skip if update check is disabled via env var
+  if (process.env.SENTRYVIBE_NO_UPDATE === '1' || process.env.SENTRYVIBE_SKIP_UPDATE_CHECK === '1') {
+    return null;
+  }
+
+  // Skip if disabled in config
+  const config = configManager.get();
+  if (config.autoUpdate === false) {
+    return null;
+  }
+
+  let latestVersion: string | null = null;
+
+  // Check cache first to avoid hitting GitHub API too often
+  const cache = readUpdateCache();
+  const now = Date.now();
+
+  if (cache && (now - cache.lastCheck) < CACHE_TTL_MS) {
+    // Use cached version
+    latestVersion = cache.latestVersion;
+  } else {
+    // Fetch from GitHub (with timeout)
+    latestVersion = await fetchLatestVersion();
+    
+    if (latestVersion) {
+      // Update cache
+      saveUpdateCache({
+        lastCheck: now,
+        latestVersion,
+        pendingAppUpgrade: cache?.pendingAppUpgrade,
+      });
+    } else if (cache) {
+      // Fetch failed, use stale cache
+      latestVersion = cache.latestVersion;
+    }
+  }
+
+  // If we couldn't determine latest version, return null
+  if (!latestVersion) {
+    return null;
+  }
+
+  const updateAvailable = isNewerVersion(currentVersion, latestVersion);
+  
+  return {
+    currentVersion,
+    latestVersion,
+    updateAvailable,
+  };
+}
+
+/**
  * Clear the update cache (useful for testing or forcing a fresh check)
  */
 export function clearUpdateCache(): void {

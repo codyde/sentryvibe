@@ -40,12 +40,15 @@ for (const [pkg, version] of Object.entries(replacements)) {
   }
 }
 
-// REMOVE @sentryvibe/agent-core - it's now bundled into dist/ by tsup
-// This eliminates the npm 404 error since the package doesn't exist on npm
-if (packageJson.dependencies['@sentryvibe/agent-core']) {
-  console.log(`  Removing @sentryvibe/agent-core (bundled by tsup)`);
-  delete packageJson.dependencies['@sentryvibe/agent-core'];
-  modified = true;
+// REMOVE workspace dependencies - they're bundled into dist/ by rollup
+// This eliminates npm 404 errors since these packages don't exist on npm
+const workspaceDeps = ['@sentryvibe/agent-core', '@sentryvibe/opencode-client'];
+for (const dep of workspaceDeps) {
+  if (packageJson.dependencies[dep]) {
+    console.log(`  Removing ${dep} (bundled by rollup)`);
+    delete packageJson.dependencies[dep];
+    modified = true;
+  }
 }
 
 // Remove bundledDependencies if it exists (no longer needed)

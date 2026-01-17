@@ -65,11 +65,14 @@ export async function generateStructuredOutput<T extends z.ZodType>(
 ): Promise<{ object: z.infer<T> }> {
   const modelName = resolveModelName(options.model);
   
+  // Use Zod 4's built-in JSON Schema conversion
+  const jsonSchema = z.toJSONSchema(options.schema);
+  
   // Build the prompt that instructs Claude to output valid JSON
   const jsonInstructions = `You must respond with ONLY valid JSON that matches this schema. Do not include any text before or after the JSON object. Do not wrap in markdown code blocks.
 
 JSON Schema:
-${JSON.stringify(zodToJsonSchema(options.schema), null, 2)}
+${JSON.stringify(jsonSchema, null, 2)}
 
 CRITICAL: Your response must START with { and END with }. Output only the JSON object.`;
 
@@ -211,75 +214,4 @@ export async function* streamTextWithSDK(options: {
       }
     }
   }
-}
-
-/**
- * Convert a Zod schema to a JSON Schema representation for the prompt
- * This is a simplified conversion - extend as needed
- */
-function zodToJsonSchema(schema: z.ZodType): object {
-  // Handle ZodObject
-  if (schema instanceof z.ZodObject) {
-    const shape = schema.shape;
-    const properties: Record<string, object> = {};
-    const required: string[] = [];
-
-    for (const [key, value] of Object.entries(shape)) {
-      properties[key] = zodToJsonSchema(value as z.ZodType);
-      // Check if field is required (not optional)
-      if (!(value instanceof z.ZodOptional)) {
-        required.push(key);
-      }
-    }
-
-    return {
-      type: 'object',
-      properties,
-      required: required.length > 0 ? required : undefined,
-    };
-  }
-
-  // Handle ZodString
-  if (schema instanceof z.ZodString) {
-    return { type: 'string' };
-  }
-
-  // Handle ZodNumber
-  if (schema instanceof z.ZodNumber) {
-    return { type: 'number' };
-  }
-
-  // Handle ZodBoolean
-  if (schema instanceof z.ZodBoolean) {
-    return { type: 'boolean' };
-  }
-
-  // Handle ZodArray
-  if (schema instanceof z.ZodArray) {
-    return {
-      type: 'array',
-      items: zodToJsonSchema(schema.element),
-    };
-  }
-
-  // Handle ZodEnum
-  if (schema instanceof z.ZodEnum) {
-    return {
-      type: 'string',
-      enum: schema.options,
-    };
-  }
-
-  // Handle ZodOptional
-  if (schema instanceof z.ZodOptional) {
-    return zodToJsonSchema(schema.unwrap());
-  }
-
-  // Handle ZodDefault
-  if (schema instanceof z.ZodDefault) {
-    return zodToJsonSchema(schema._def.innerType);
-  }
-
-  // Fallback
-  return { type: 'string' };
 }
