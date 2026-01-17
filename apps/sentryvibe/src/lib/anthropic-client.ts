@@ -92,6 +92,10 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     env: getCleanEnv(),
+    // Capture stderr for debugging
+    stderr: (data: string) => {
+      console.error('[anthropic-client] SDK stderr:', data);
+    },
   };
 
   let responseText = '';
@@ -99,6 +103,15 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
   try {
     // Collect text from the SDK stream
     for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
+      // Log message types for debugging
+      if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
+        console.log('[anthropic-client] SDK initialized:', {
+          model: message.model,
+          apiKeySource: message.apiKeySource,
+          tools: message.tools?.length || 0,
+        });
+      }
+      
       if (message.type === 'assistant') {
         for (const block of message.message.content) {
           if (block.type === 'text') {
@@ -106,9 +119,27 @@ CRITICAL: Your response must START with { and END with }. Output only the JSON o
           }
         }
       }
+      
+      // Log result messages for debugging
+      if (message.type === 'result') {
+        if (message.subtype !== 'success') {
+          console.error('[anthropic-client] SDK result error:', message.subtype, 'errors' in message ? message.errors : '');
+        }
+      }
     }
   } catch (error) {
     console.error('[anthropic-client] SDK query failed:', error);
+    // Log more context about the error
+    if (error instanceof Error) {
+      console.error('[anthropic-client] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      });
+    }
+    // Check if ANTHROPIC_API_KEY is set
+    const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+    console.error('[anthropic-client] ANTHROPIC_API_KEY present:', hasApiKey);
     throw error;
   }
 
@@ -160,6 +191,10 @@ export async function generateText(options: {
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     env: getCleanEnv(),
+    // Capture stderr for debugging
+    stderr: (data: string) => {
+      console.error('[anthropic-client] SDK stderr:', data);
+    },
   };
 
   let responseText = '';
@@ -203,6 +238,10 @@ export async function* streamTextWithSDK(options: {
     allowDangerouslySkipPermissions: true,
     includePartialMessages: true, // Enable streaming deltas
     env: getCleanEnv(),
+    // Capture stderr for debugging
+    stderr: (data: string) => {
+      console.error('[anthropic-client] SDK stderr:', data);
+    },
   };
 
   for await (const message of query({ prompt: fullPrompt, options: sdkOptions })) {
