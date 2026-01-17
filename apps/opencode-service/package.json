@@ -17,6 +17,7 @@
     "@opencode-ai/sdk": "^1.0.0",
     "@sentryvibe/agent-core": "workspace:*",
     "@sentry/node": "file:../sentryvibe/vendor/sentry-node-LOCAL.tgz",
+    "drizzle-orm": "^0.43.1",
     "express": "^4.21.0",
     "http-proxy-middleware": "^3.0.0"
   },
