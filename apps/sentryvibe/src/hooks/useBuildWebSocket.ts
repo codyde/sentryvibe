@@ -24,6 +24,8 @@ interface WebSocketMessage {
   }>;
   timestamp?: number;
   clientId?: string;
+  error?: string; // For error messages like state-recovery-failed
+  sessionStatus?: string; // Status from state recovery
 }
 
 interface UseBuildWebSocketOptions {
@@ -48,6 +50,8 @@ interface UseBuildWebSocketReturn {
   reconnect: () => void;
   clearAutoFixState: () => void;
   clearState: () => void; // Clear the build state (used when starting a new build to prevent stale data)
+  cancelBuild: () => Promise<boolean>; // Cancel the current build
+  isCancelling: boolean; // Whether a cancel is in progress
   sentryTrace: { trace?: string; baggage?: string } | null; // Current trace context from last WebSocket message
 }
 
@@ -64,6 +68,7 @@ export function useBuildWebSocket({
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [sentryTrace, setSentryTrace] = useState<{ trace?: string; baggage?: string } | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -88,6 +93,42 @@ export function useBuildWebSocket({
     if (DEBUG) console.log('[useBuildWebSocket] Clearing state for new build');
     setState(null);
   }, []);
+
+  /**
+   * Cancel the current build
+   */
+  const cancelBuild = useCallback(async (): Promise<boolean> => {
+    if (!projectId || !state?.isActive) {
+      if (DEBUG) console.log('[useBuildWebSocket] No active build to cancel');
+      return false;
+    }
+
+    setIsCancelling(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/cancel-build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'User cancelled' }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('[useBuildWebSocket] Cancel failed:', error);
+        return false;
+      }
+
+      if (DEBUG) console.log('[useBuildWebSocket] Build cancelled successfully');
+      
+      // Clear the active state
+      setState(prev => prev ? { ...prev, isActive: false } : null);
+      return true;
+    } catch (err) {
+      console.error('[useBuildWebSocket] Failed to cancel build:', err);
+      return false;
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [projectId, state?.isActive]);
   
   /**
    * Calculate reconnect delay with exponential backoff
@@ -493,6 +534,24 @@ export function useBuildWebSocket({
           // Heartbeat acknowledged
           break;
         
+        case 'state-recovery':
+          // Server sent recovered state on reconnect
+          if (DEBUG) console.log('[useBuildWebSocket] State recovery received:', message);
+          if (message.state) {
+            const recoveredState = normalizeDates(message.state) as GenerationState;
+            // Only set if it's an active build or we don't have state
+            if (recoveredState.isActive || !state) {
+              setState(recoveredState);
+              if (DEBUG) console.log('[useBuildWebSocket] State recovered successfully');
+            }
+          }
+          break;
+        
+        case 'state-recovery-failed':
+          // State recovery failed - log but don't error out
+          console.warn('[useBuildWebSocket] State recovery failed:', message.error);
+          break;
+        
         default:
           if (DEBUG) console.log('[useBuildWebSocket] Unknown message type:', message.type);
       }
@@ -536,6 +595,15 @@ export function useBuildWebSocket({
         setIsReconnecting(false);
         setError(null);
         reconnectAttemptsRef.current = 0;
+        
+        // Request state recovery on connect/reconnect
+        // This ensures we get the latest state from DB after any disconnection
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'get-state' }));
+            if (DEBUG) console.log('[useBuildWebSocket] Requested state recovery');
+          }
+        }, 100);
       };
       
       ws.onmessage = handleMessage;
@@ -651,6 +719,8 @@ export function useBuildWebSocket({
     reconnect,
     clearAutoFixState,
     clearState,
+    cancelBuild,
+    isCancelling,
     sentryTrace,
   };
 }

@@ -190,97 +190,27 @@ export default function PreviewPanel({
     prevStoppingServerRef.current = isStoppingServer;
   }, [isStoppingTunnel, isStoppingServer, refetch]);
 
-  // Tunnel loading with client-side DNS verification
+  // Tunnel URL handling - skip DNS verification, use URL directly
+  // DNS verification was causing 30+ second delays due to Chrome cache issues
   useEffect(() => {
     const currentTunnelUrl = currentProject?.tunnelUrl;
 
-    // Show loading while tunnel is being created
+    // Show brief loading while tunnel is being created
     if (isStartingTunnel) {
       setIsTunnelLoading(true);
-      setDnsVerificationAttempt(0);
-      setDnsTroubleshooting(false); // Clear troubleshooting screen
       return;
     }
 
-    // Verify tunnel URL is resolvable in browser before showing iframe
-    // CRITICAL: Don't expose URL to DOM until verified to prevent Chrome DNS prefetch
+    // When tunnel URL arrives, use it immediately
     if (currentTunnelUrl && currentTunnelUrl !== lastTunnelUrlRef.current) {
-      if (DEBUG_PREVIEW) console.log('🔗 Tunnel URL received, starting verification (URL hidden from DOM)');
+      if (DEBUG_PREVIEW) console.log('🔗 Tunnel URL received, using directly:', currentTunnelUrl);
       lastTunnelUrlRef.current = currentTunnelUrl;
-      setIsTunnelLoading(true);
-      setVerifiedTunnelUrl(null); // Clear old verified URL - keeps iframe blank
-      setDnsVerificationAttempt(0);
-
-      // Verify browser can actually reach the tunnel
-      (async () => {
-        const maxAttempts = 10; // 10 attempts × 3s = 30 seconds max
-        let resolved = false;
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          try {
-            if (DEBUG_PREVIEW) console.log(`   🔍 DNS check attempt ${attempt}/${maxAttempts}...`);
-            setDnsVerificationAttempt(attempt);
-
-            // IMPORTANT: Use the actual URL (no cache-bust on verification)
-            // We want to know when the REAL URL resolves, not a cache-busted variant
-            // NOTE: Do not set custom request headers when using `mode: 'no-cors'` -
-            // browsers will reject the request with a TypeError ("Failed to fetch").
-            // Use an AbortController to bound the check time and rely on the
-            // opaque response from `no-cors` to indicate reachability.
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
-            try {
-              await fetch(currentTunnelUrl, {
-                method: 'HEAD',
-                mode: 'no-cors',
-                cache: 'no-store',
-                signal: controller.signal,
-              });
-            } finally {
-              clearTimeout(timeoutId);
-            }
-
-            if (DEBUG_PREVIEW) console.log(`✅ Browser DNS verified in ${attempt} attempt(s)`);
-            resolved = true;
-
-            // Wait an extra 2 seconds after DNS resolves to let Chrome's cache update
-            if (DEBUG_PREVIEW) console.log('⏳ Waiting 2 extra seconds for Chrome DNS cache refresh...');
-            await new Promise(r => setTimeout(r, 2000));
-
-            // NOW expose the URL to the DOM and reload iframe
-            if (DEBUG_PREVIEW) console.log('✅ Exposing verified URL to iframe');
-            setVerifiedTunnelUrl(currentTunnelUrl);
-            setDnsVerificationAttempt(maxAttempts); // Show complete
-            setIsTunnelLoading(false);
-
-            // Force iframe to reload with tunnel-proxied content
-            setKey(prev => prev + 1);
-            if (DEBUG_PREVIEW) console.log('🔄 Reloading iframe with tunnel URL');
-            return;
-          } catch (error: any) {
-            if (DEBUG_PREVIEW) console.log(`   ⏳ Attempt ${attempt} failed: ${error.message}`);
-
-            // Wait 3 seconds between attempts
-            if (attempt < maxAttempts) {
-              await new Promise(r => setTimeout(r, 3000));
-            }
-          }
-        }
-
-        if (!resolved) {
-          console.error(`❌ Tunnel DNS verification timeout after 30s (${maxAttempts} attempts)`);
-          console.error('   This may be a Chrome DNS cache issue.');
-
-          // Show troubleshooting screen instead of loading iframe
-          setDnsTroubleshooting(true);
-          setIsTunnelLoading(false);
-          // Don't set verifiedTunnelUrl - keep it null so iframe doesn't load
-          return;
-        }
-        setIsTunnelLoading(false);
-        setDnsTroubleshooting(false);
-      })();
-
+      setVerifiedTunnelUrl(currentTunnelUrl);
+      setIsTunnelLoading(false);
+      setDnsTroubleshooting(false);
+      
+      // Force iframe to reload with tunnel URL
+      setKey(prev => prev + 1);
       return;
     }
 
@@ -290,7 +220,6 @@ export default function PreviewPanel({
       setVerifiedTunnelUrl(null);
       setIsTunnelLoading(false);
       setDnsTroubleshooting(false);
-      setDnsVerificationAttempt(0);
     }
 
     // Hide loading if not starting

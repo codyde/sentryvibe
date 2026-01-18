@@ -101,3 +101,43 @@ export function WebSocketStatusBadge({
   );
 }
 
+/**
+ * Simple dot indicator for headers - shows connection state with just a colored dot
+ * Green = connected, Yellow (pulsing) = reconnecting, Red = disconnected
+ */
+export function WebSocketStatusDot({
+  isConnected,
+  isReconnecting,
+  onClick,
+  className = '',
+}: Pick<WebSocketStatusProps, 'isConnected' | 'isReconnecting'> & {
+  onClick?: () => void;
+  className?: string;
+}) {
+  const getStatusStyles = () => {
+    if (isReconnecting) return 'bg-yellow-400 shadow-yellow-400/50 animate-pulse';
+    if (isConnected) return 'bg-green-400 shadow-green-400/50';
+    return 'bg-red-400 shadow-red-400/50';
+  };
+
+  const getTitle = () => {
+    if (isReconnecting) return 'Reconnecting to server...';
+    if (isConnected) return 'Connected - receiving live updates';
+    return 'Disconnected - click to reconnect';
+  };
+
+  return (
+    <button
+      onClick={!isConnected && !isReconnecting ? onClick : undefined}
+      disabled={isConnected || isReconnecting}
+      title={getTitle()}
+      className={`
+        w-2.5 h-2.5 rounded-full shadow-lg transition-all duration-300
+        ${getStatusStyles()}
+        ${!isConnected && !isReconnecting ? 'cursor-pointer hover:scale-125' : 'cursor-default'}
+        ${className}
+      `}
+    />
+  );
+}
+

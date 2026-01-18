@@ -7,6 +7,7 @@ export type ClaudeModelId = CoreClaudeModelId;
 
 export type RunnerCommandType =
   | 'start-build'
+  | 'cancel-build'
   | 'start-dev-server'
   | 'stop-dev-server'
   | 'start-tunnel'
@@ -37,6 +38,7 @@ export type RunnerEventType =
   | 'build-completed'
   | 'build-summary'
   | 'build-failed'
+  | 'build-cancelled'
   | 'runner-status'
   | 'build-stream'
   | 'project-metadata'
@@ -98,6 +100,14 @@ export interface StartBuildCommand extends BaseCommand {
     }>; // Recent conversation messages for context in enhancements
     isAutoFix?: boolean; // Flag for auto-fix sessions triggered by startup/runtime errors
     autoFixError?: string; // The error message that triggered the auto-fix
+  };
+}
+
+export interface CancelBuildCommand extends BaseCommand {
+  type: 'cancel-build';
+  payload: {
+    sessionId?: string; // Session ID to cancel
+    reason?: string; // Optional reason for cancellation
   };
 }
 
@@ -232,6 +242,7 @@ export interface GithubPushCommand extends BaseCommand {
 
 export type RunnerCommand =
   | StartBuildCommand
+  | CancelBuildCommand
   | StartDevServerCommand
   | StopDevServerCommand
   | StartTunnelCommand
@@ -348,6 +359,11 @@ export interface BuildFailedEvent extends BaseEvent {
   type: 'build-failed';
   error: string;
   stack?: string;
+}
+
+export interface BuildCancelledEvent extends BaseEvent {
+  type: 'build-cancelled';
+  reason?: string;
 }
 
 export interface RunnerStatusEvent extends BaseEvent {
@@ -489,6 +505,7 @@ export type RunnerEvent =
   | BuildCompletedEvent
   | BuildSummaryEvent
   | BuildFailedEvent
+  | BuildCancelledEvent
   | RunnerStatusEvent
   | BuildStreamEvent
   | ProjectMetadataEvent
@@ -511,6 +528,7 @@ export type RunnerMessage = RunnerCommand | RunnerEvent;
 
 const COMMAND_TYPES: RunnerCommandType[] = [
   'start-build',
+  'cancel-build',
   'start-dev-server',
   'stop-dev-server',
   'start-tunnel',
