@@ -26,11 +26,12 @@ import { publishRunnerEvent } from '../runner/event-stream';
 import * as Sentry from '@sentry/node';
 import { buildLogger } from '../logging/build-logger';
 import { db } from '../db/client';
-import { runnerKeys } from '../db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { runnerKeys, generationSessions, generationTodos, generationToolCalls } from '../db/schema';
+import { eq, and, isNull, desc } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { httpProxyManager } from './http-proxy-manager';
 import { hmrProxyManager } from './hmr-proxy-manager';
+import { commandQueue } from '../runner/command-queue';
 
 interface ClientSubscription {
   ws: WebSocket;
@@ -212,6 +213,11 @@ class BuildWebSocketServer {
       this.cleanupStaleRunnerConnections();
     }, 60000); // Check every 60s
 
+    // Initialize command queue with our send function
+    commandQueue.setSendFunction((runnerId, command) => {
+      return this.sendCommandToRunner(runnerId, command);
+    });
+
     buildLogger.websocket.serverInitialized(path, '/ws/runner');
   }
 
@@ -354,6 +360,16 @@ class BuildWebSocketServer {
       level: 'info',
     });
 
+    // Process any queued commands for this runner
+    const queueResult = commandQueue.processQueue(runnerId);
+    if (queueResult.sent > 0 || queueResult.failed > 0) {
+      buildLogger.log('info', 'websocket', `Runner ${runnerId} reconnected - processed queued commands`, {
+        sent: queueResult.sent,
+        failed: queueResult.failed,
+        remaining: queueResult.remaining,
+      });
+    }
+
     // Handle pong (heartbeat response)
     ws.on('pong', () => {
       const conn = this.runnerConnections.get(runnerId);
@@ -453,7 +469,24 @@ class BuildWebSocketServer {
   }
 
   /**
-   * Send a command to a specific runner
+   * Queue a command for reliable delivery to a runner
+   * Automatically retries if runner is disconnected, with configurable TTL
+   */
+  queueCommandToRunner(
+    runnerId: string,
+    command: RunnerCommand,
+    options?: {
+      ttlMs?: number;
+      maxAttempts?: number;
+      onSuccess?: () => void;
+      onFailure?: (error: string) => void;
+    }
+  ): { sent: boolean; queued: boolean } {
+    return commandQueue.enqueue(runnerId, command, options);
+  }
+
+  /**
+   * Send a command to a specific runner (immediate, no queueing)
    */
   sendCommandToRunner(runnerId: string, command: RunnerCommand): boolean {
     const connection = this.runnerConnections.get(runnerId);
@@ -1013,15 +1046,150 @@ class BuildWebSocketServer {
 
   /**
    * Send current state to a client (on reconnect)
+   * Fetches the active build session from database and sends full state
    */
   private async sendCurrentState(client: ClientSubscription) {
-    // This will be implemented to fetch from database
-    // For now, just acknowledge the request
-    this.sendMessage(client.ws, {
-      type: 'state-response',
-      message: 'State fetch from database coming soon',
-      timestamp: Date.now(),
-    });
+    if (!client.projectId) {
+      this.sendMessage(client.ws, {
+        type: 'state-recovery',
+        state: null,
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    try {
+      // Fetch active session for this project
+      const sessions = await db
+        .select()
+        .from(generationSessions)
+        .where(
+          and(
+            eq(generationSessions.projectId, client.projectId),
+            eq(generationSessions.status, 'active')
+          )
+        )
+        .orderBy(desc(generationSessions.updatedAt))
+        .limit(1);
+
+      if (sessions.length === 0) {
+        // No active session - check for recently completed session
+        const recentSessions = await db
+          .select()
+          .from(generationSessions)
+          .where(eq(generationSessions.projectId, client.projectId))
+          .orderBy(desc(generationSessions.updatedAt))
+          .limit(1);
+
+        if (recentSessions.length > 0 && recentSessions[0].rawState) {
+          buildLogger.log('debug', 'websocket', `Sending completed session state for project ${client.projectId}`);
+          this.sendMessage(client.ws, {
+            type: 'state-recovery',
+            state: recentSessions[0].rawState,
+            sessionStatus: recentSessions[0].status,
+            timestamp: Date.now(),
+          });
+          return;
+        }
+
+        // No session at all
+        this.sendMessage(client.ws, {
+          type: 'state-recovery',
+          state: null,
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      const session = sessions[0];
+
+      // If rawState exists, send it directly (most efficient)
+      if (session.rawState) {
+        buildLogger.log('debug', 'websocket', `Sending active session state for project ${client.projectId}`);
+        this.sendMessage(client.ws, {
+          type: 'state-recovery',
+          state: session.rawState,
+          sessionId: session.id,
+          sessionStatus: session.status,
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // Fallback: Reconstruct state from related tables
+      const [todos, toolCalls] = await Promise.all([
+        db
+          .select()
+          .from(generationTodos)
+          .where(eq(generationTodos.sessionId, session.id))
+          .orderBy(generationTodos.todoIndex),
+        db
+          .select()
+          .from(generationToolCalls)
+          .where(eq(generationToolCalls.sessionId, session.id)),
+      ]);
+
+      // Group tool calls by todo index
+      const toolsByTodo: Record<number, typeof toolCalls> = {};
+      for (const tool of toolCalls) {
+        if (!toolsByTodo[tool.todoIndex]) {
+          toolsByTodo[tool.todoIndex] = [];
+        }
+        toolsByTodo[tool.todoIndex].push(tool);
+      }
+
+      // Find active todo index
+      const activeTodoIndex = todos.findIndex(t => t.status === 'in_progress');
+
+      const reconstructedState = {
+        id: session.buildId,
+        projectId: session.projectId,
+        operationType: session.operationType || 'continuation',
+        todos: todos.map(t => ({
+          content: t.content,
+          status: t.status as 'pending' | 'in_progress' | 'completed',
+          activeForm: t.activeForm || t.content,
+        })),
+        toolsByTodo: Object.fromEntries(
+          Object.entries(toolsByTodo).map(([idx, tools]) => [
+            idx,
+            tools.map(t => ({
+              id: t.toolCallId,
+              name: t.name,
+              input: t.input,
+              output: t.output,
+              state: t.state,
+              startTime: t.startedAt,
+              endTime: t.endedAt,
+            })),
+          ])
+        ),
+        textByTodo: {},
+        activeTodoIndex: activeTodoIndex >= 0 ? activeTodoIndex : todos.length - 1,
+        isActive: session.status === 'active',
+        startTime: session.startedAt,
+        endTime: session.endedAt,
+        buildSummary: session.summary,
+        isAutoFix: session.isAutoFix,
+        autoFixError: session.autoFixError,
+      };
+
+      buildLogger.log('debug', 'websocket', `Sending reconstructed state for project ${client.projectId}`);
+      this.sendMessage(client.ws, {
+        type: 'state-recovery',
+        state: reconstructedState,
+        sessionId: session.id,
+        sessionStatus: session.status,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      buildLogger.websocket.error('Failed to fetch state for recovery', error, { projectId: client.projectId });
+      this.sendMessage(client.ws, {
+        type: 'state-recovery-failed',
+        error: 'Failed to recover state from database',
+        timestamp: Date.now(),
+      });
+    }
   }
 
   /**
@@ -1112,7 +1280,17 @@ class BuildWebSocketServer {
       this.runnerWss.close();
     }
 
+    // Shutdown command queue
+    commandQueue.shutdown();
+
     buildLogger.websocket.shutdownComplete();
+  }
+
+  /**
+   * Get command queue stats
+   */
+  getCommandQueueStats() {
+    return commandQueue.getStats();
   }
 }
 
