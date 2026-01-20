@@ -45,24 +45,29 @@ export async function POST(
     const runnerId = project.runnerId || process.env.RUNNER_DEFAULT_ID || 'default';
 
     // Send cancel command to runner
+    // Note: Runner looks up active build by projectId, so buildCommandId is optional
     const commandId = randomUUID();
-    // Type assertion needed until agent-core package is rebuilt
     const cancelCommand = {
       id: commandId,
       type: 'cancel-build' as const,
       projectId: id,
       timestamp: new Date().toISOString(),
       payload: {
+        buildCommandId: session.buildId, // Use buildId as correlation ID
         sessionId: session.id,
         reason,
       },
-    } as unknown as RunnerCommand;
+    } as RunnerCommand;
     
-    const sent = sendCommandToRunner(runnerId, cancelCommand);
-
-    if (!sent) {
-      // Runner not connected - mark as cancelled in DB directly
-      console.log('[cancel-build] Runner not connected, marking session as cancelled directly');
+    let runnerNotified = false;
+    try {
+      await sendCommandToRunner(runnerId, cancelCommand);
+      runnerNotified = true;
+      console.log(`[cancel-build] Cancel command sent to runner ${runnerId}`);
+    } catch (err) {
+      // Runner not connected - we'll still mark as cancelled in DB
+      // The build process will fail when it tries to report progress
+      console.log('[cancel-build] Runner not connected, marking session as cancelled directly:', err);
     }
 
     // Update session status in database
@@ -86,8 +91,9 @@ export async function POST(
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: 'Build cancelled',
+      message: runnerNotified ? 'Build cancelled' : 'Build marked as cancelled (runner not connected)',
       sessionId: session.id,
+      runnerNotified,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
