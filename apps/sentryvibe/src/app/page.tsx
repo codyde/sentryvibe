@@ -67,7 +67,7 @@ import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { GitHubButton, getGitHubSetupMessage, getGitHubPushMessage, type RepoVisibility } from "@/components/github";
 import { NeonDBButton, getNeonDBSetupMessage } from "@/components/neondb";
 
-import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink } from "lucide-react";
+import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink, Loader2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -318,6 +318,8 @@ function HomeContent() {
     reconnect: wsReconnect,
     clearAutoFixState,
     clearState: clearWsState,
+    cancelBuild,
+    isCancelling,
     sentryTrace: wsSentryTrace,
   } = useBuildWebSocket({
     projectId: currentProject?.id || '',
@@ -3043,10 +3045,24 @@ function HomeContent() {
                                         {/* Planning Phase - only show for current active build */}
                                         {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && (
                                           <div className="space-y-3">
-                                            <PlanningPhase
-                                              activePlanningTool={generationState?.activePlanningTool}
-                                              projectName={currentProject.name}
-                                            />
+                                            <div className="flex items-center justify-between">
+                                              <PlanningPhase
+                                                activePlanningTool={generationState?.activePlanningTool}
+                                                projectName={currentProject.name}
+                                              />
+                                              <button
+                                                onClick={cancelBuild}
+                                                disabled={isCancelling}
+                                                className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={isCancelling ? 'Cancelling...' : 'Stop Build'}
+                                              >
+                                                {isCancelling ? (
+                                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                  <Square className="w-4 h-4" />
+                                                )}
+                                              </button>
+                                            </div>
                                           </div>
                                         )}
 
@@ -3081,6 +3097,18 @@ function HomeContent() {
                                                 <div className="text-sm font-semibold text-theme-primary">
                                                   {Math.round((generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100)}%
                                                 </div>
+                                                <button
+                                                  onClick={cancelBuild}
+                                                  disabled={isCancelling}
+                                                  className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                  title={isCancelling ? 'Cancelling...' : 'Stop Build'}
+                                                >
+                                                  {isCancelling ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                  ) : (
+                                                    <Square className="w-4 h-4" />
+                                                  )}
+                                                </button>
                                               </div>
                                             </div>
                                             <div className="h-1 overflow-hidden rounded-full bg-white/10">

@@ -13,6 +13,8 @@ interface BuildProgressProps {
   state: GenerationState;
   defaultCollapsed?: boolean;
   onClose?: () => void;
+  onCancel?: () => void;
+  isCancelling?: boolean;
   onViewFiles?: () => void;
   onStartServer?: () => void;
   templateInfo?: {
@@ -90,6 +92,8 @@ export default function BuildProgress({
   state,
   defaultCollapsed = false,
   onClose,
+  onCancel,
+  isCancelling = false,
   onViewFiles,
   onStartServer,
   templateInfo,
@@ -228,6 +232,8 @@ export default function BuildProgress({
         isCardExpanded={isCardExpanded}
         onToggleExpand={() => setIsCardExpanded(!isCardExpanded)}
         onClose={onClose}
+        onCancel={onCancel}
+        isCancelling={isCancelling}
         templateInfo={templateInfo}
       />
 
