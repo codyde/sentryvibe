@@ -1165,7 +1165,7 @@ class BuildWebSocketServer {
           ])
         ),
         textByTodo: {},
-        activeTodoIndex: activeTodoIndex >= 0 ? activeTodoIndex : todos.length - 1,
+        activeTodoIndex: activeTodoIndex,  // -1 if no todo is in_progress
         isActive: session.status === 'active',
         startTime: session.startedAt,
         endTime: session.endedAt,
