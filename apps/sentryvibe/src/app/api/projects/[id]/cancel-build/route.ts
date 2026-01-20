@@ -70,8 +70,9 @@ export async function POST(
       console.log('[cancel-build] Runner not connected, marking session as cancelled directly:', err);
     }
 
-    // Update session status in database
-    await db
+    // Update session status in database - only if still active
+    // This prevents overwriting 'completed' status if build finished during cancellation
+    const updatedRows = await db
       .update(generationSessions)
       .set({
         status: 'cancelled',
@@ -79,21 +80,34 @@ export async function POST(
         summary: `Build cancelled: ${reason}`,
         updatedAt: new Date(),
       })
-      .where(eq(generationSessions.id, session.id));
+      .where(
+        and(
+          eq(generationSessions.id, session.id),
+          eq(generationSessions.status, 'active')
+        )
+      )
+      .returning({ id: generationSessions.id });
 
-    // Broadcast cancellation to WebSocket clients
-    buildWebSocketServer.broadcastBuildComplete(
-      id,
-      session.id,
-      'failed',
-      `Build cancelled: ${reason}`
-    );
+    const wasCancelled = updatedRows.length > 0;
+
+    if (wasCancelled) {
+      // Broadcast cancellation to WebSocket clients only if we actually cancelled
+      buildWebSocketServer.broadcastBuildComplete(
+        id,
+        session.id,
+        'failed',
+        `Build cancelled: ${reason}`
+      );
+    }
 
     return new Response(JSON.stringify({ 
-      success: true, 
-      message: runnerNotified ? 'Build cancelled' : 'Build marked as cancelled (runner not connected)',
+      success: wasCancelled, 
+      message: wasCancelled 
+        ? (runnerNotified ? 'Build cancelled' : 'Build marked as cancelled (runner not connected)')
+        : 'Build already completed before cancellation took effect',
       sessionId: session.id,
       runnerNotified,
+      wasCancelled,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
