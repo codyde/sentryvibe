@@ -539,11 +539,13 @@ export function useBuildWebSocket({
           if (DEBUG) console.log('[useBuildWebSocket] State recovery received:', message);
           if (message.state) {
             const recoveredState = normalizeDates(message.state) as GenerationState;
-            // Only set if it's an active build or we don't have state
-            if (recoveredState.isActive || !state) {
-              setState(recoveredState);
-              if (DEBUG) console.log('[useBuildWebSocket] State recovered successfully');
-            }
+            // Always trust server state on recovery - it's the source of truth
+            // This handles cases where:
+            // 1. Client disconnected and missed build completion/cancellation
+            // 2. Client has stale local state that doesn't match server
+            // 3. Client has no state and needs initial sync
+            setState(recoveredState);
+            if (DEBUG) console.log('[useBuildWebSocket] State recovered successfully, isActive:', recoveredState.isActive);
           }
           break;
         
