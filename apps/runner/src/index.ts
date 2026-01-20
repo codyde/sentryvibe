@@ -853,7 +853,8 @@ function createCodexQuery(): BuildQueryFn {
 
 function createBuildQuery(
   agent: AgentId,
-  modelId?: ClaudeModelId | OpenCodeModelId
+  modelId?: ClaudeModelId | OpenCodeModelId,
+  abortController?: AbortController
 ): BuildQueryFn {
   // When OpenCode SDK is enabled, route ALL requests through it (including Codex)
   if (USE_OPENCODE_SDK) {
@@ -880,7 +881,7 @@ function createBuildQuery(
 
   // Default: Use native Claude Agent SDK (direct integration)
   console.log('[runner] 🔄 Using NATIVE Claude Agent SDK v0.1.76');
-  return createNativeClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID);
+  return createNativeClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID, abortController);
 }
 
 /**
@@ -1290,6 +1291,8 @@ export async function startRunner(options: RunnerOptions = {}) {
     projectDirectory?: string;
     projectSlug?: string;
     detectedFramework?: string;
+    // For cancellation support
+    abortController?: AbortController;
   }
 
   const activeBuildContexts = new Map<string, BuildContext>();
@@ -2435,6 +2438,9 @@ export async function startRunner(options: RunnerOptions = {}) {
               ? command.payload.claudeModel
               : DEFAULT_CLAUDE_MODEL_ID;
 
+          // Create AbortController for cancellation support
+          const buildAbortController = new AbortController();
+
           // Register build context for HTTP persistence
           // Using commandId as correlation key (server will look up sessionId)
           const buildContextId = command.id;
@@ -2448,13 +2454,15 @@ export async function startRunner(options: RunnerOptions = {}) {
             // Store for auto-start after build completion
             projectDirectory,
             projectSlug,
+            // Store abort controller for cancellation
+            abortController: buildAbortController,
           });
 
           if (agent === "claude-code") {
             log("claude model:", claudeModel);
           }
 
-          const agentQuery = createBuildQuery(agent, claudeModel);
+          const agentQuery = createBuildQuery(agent, claudeModel, buildAbortController);
 
           // Reset transformer state for new build
           resetTransformerState();
@@ -3148,6 +3156,75 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
           timestamp: new Date().toISOString(),
           message: 'GitHub push command received (not yet implemented)',
         });
+        break;
+      }
+      case "cancel-build": {
+        // Cancel an active build by aborting the Claude Agent SDK query
+        const { reason } = command.payload;
+        const projectId = command.projectId;
+        console.log(`[runner] Cancel build requested for project: ${projectId}`);
+        
+        // Find the build context by project ID (there can only be one active build per project)
+        let buildContext: BuildContext | undefined;
+        let buildContextId: string | undefined;
+        
+        for (const [id, ctx] of activeBuildContexts) {
+          if (ctx.projectId === projectId) {
+            buildContext = ctx;
+            buildContextId = id;
+            break;
+          }
+        }
+        
+        if (!buildContext || !buildContextId) {
+          console.log(`[runner] No active build found for project: ${projectId}`);
+          sendEvent({
+            type: "build-cancelled",
+            commandId: command.id,
+            projectId: command.projectId,
+            timestamp: new Date().toISOString(),
+            payload: {
+              buildCommandId: '',
+              success: false,
+              reason: 'Build not found or already completed',
+            },
+          } as RunnerEvent);
+          break;
+        }
+        
+        // Abort the build using the stored AbortController
+        if (buildContext.abortController) {
+          console.log(`[runner] Aborting build ${buildContextId} via AbortController`);
+          buildContext.abortController.abort();
+          
+          // Clean up the build context
+          activeBuildContexts.delete(buildContextId);
+          
+          sendEvent({
+            type: "build-cancelled",
+            commandId: command.id,
+            projectId: command.projectId,
+            timestamp: new Date().toISOString(),
+            payload: {
+              buildCommandId: buildContextId,
+              success: true,
+              reason: reason || 'Build cancelled by user',
+            },
+          } as RunnerEvent);
+        } else {
+          console.log(`[runner] Build ${buildContextId} has no AbortController (may be using legacy SDK)`);
+          sendEvent({
+            type: "build-cancelled",
+            commandId: command.id,
+            projectId: command.projectId,
+            timestamp: new Date().toISOString(),
+            payload: {
+              buildCommandId: buildContextId,
+              success: false,
+              reason: 'Build cannot be cancelled (no abort controller)',
+            },
+          } as RunnerEvent);
+        }
         break;
       }
       default:

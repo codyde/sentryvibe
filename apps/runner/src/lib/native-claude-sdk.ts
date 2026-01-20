@@ -179,7 +179,8 @@ function buildPromptWithImages(prompt: string, messageParts?: MessagePart[]): st
  * query() SDK function -> minimal transformation -> output
  */
 export function createNativeClaudeQuery(
-  modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
+  modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID,
+  abortController?: AbortController
 ) {
   return async function* nativeClaudeQuery(
     prompt: string,
@@ -242,6 +243,8 @@ export function createNativeClaudeQuery(
       },
       // Use preset tools from Claude Code
       tools: { type: 'preset', preset: 'claude_code' },
+      // Pass abort controller for cancellation support
+      abortController,
     };
 
     debugLog('[runner] [native-sdk] 🚀 Starting SDK query stream\n');

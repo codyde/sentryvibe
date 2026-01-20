@@ -106,7 +106,8 @@ export interface StartBuildCommand extends BaseCommand {
 export interface CancelBuildCommand extends BaseCommand {
   type: 'cancel-build';
   payload: {
-    sessionId?: string; // Session ID to cancel
+    buildCommandId: string; // The command ID of the build to cancel
+    sessionId?: string; // Session ID for correlation
     reason?: string; // Optional reason for cancellation
   };
 }
@@ -363,7 +364,11 @@ export interface BuildFailedEvent extends BaseEvent {
 
 export interface BuildCancelledEvent extends BaseEvent {
   type: 'build-cancelled';
-  reason?: string;
+  payload: {
+    buildCommandId: string; // The command ID of the cancelled build
+    success: boolean; // Whether the cancellation succeeded
+    reason: string; // Reason for success/failure
+  };
 }
 
 export interface RunnerStatusEvent extends BaseEvent {
