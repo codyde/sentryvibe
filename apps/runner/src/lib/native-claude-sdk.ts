@@ -179,7 +179,8 @@ function buildPromptWithImages(prompt: string, messageParts?: MessagePart[]): st
  * query() SDK function -> minimal transformation -> output
  */
 export function createNativeClaudeQuery(
-  modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
+  modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID,
+  abortController?: AbortController
 ) {
   return async function* nativeClaudeQuery(
     prompt: string,
@@ -242,6 +243,13 @@ export function createNativeClaudeQuery(
       },
       // Use preset tools from Claude Code
       tools: { type: 'preset', preset: 'claude_code' },
+      // Pass abort controller for cancellation support
+      // NOTE: There is a known bug in the Claude Agent SDK where AbortController
+      // signals are not fully respected. When abort() is called, the SDK may
+      // continue processing for several more turns before stopping.
+      // See: https://github.com/anthropics/claude-code/issues/2970
+      // See: https://github.com/anthropics/claude-agent-sdk-typescript/issues/46
+      abortController,
     };
 
     debugLog('[runner] [native-sdk] 🚀 Starting SDK query stream\n');

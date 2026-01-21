@@ -4,7 +4,9 @@ import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { createOpencode } from '@opencode-ai/sdk';
 import * as Sentry from '@sentry/node';
 import { createHash } from 'crypto';
-import { getDb } from '@sentryvibe/agent-core';
+import { db } from '@sentryvibe/agent-core';
+import { runnerKeys } from '@sentryvibe/agent-core/lib/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 
 function isLocalMode() {
   return process.env.SENTRYVIBE_LOCAL_MODE === "true";
@@ -27,28 +29,23 @@ async function authenticateRunnerKey(key) {
     };
   }
   try {
-    const database = getDb();
-    if (!database) {
-      return {
-        authenticated: false,
-        error: "Database not configured for runner key auth"
-      };
-    }
     const keyHash = hashRunnerKey(key);
-    const result = await database.execute({
-      sql: `SELECT id, user_id FROM runner_keys WHERE key_hash = $1 AND revoked_at IS NULL`,
-      args: [keyHash]
-    });
-    if (result.rows && result.rows.length > 0) {
-      const row = result.rows[0];
-      database.execute({
-        sql: `UPDATE runner_keys SET last_used_at = NOW() WHERE id = $1`,
-        args: [row.id]
-      }).catch(() => {
+    const result = await db.select({
+      id: runnerKeys.id,
+      userId: runnerKeys.userId
+    }).from(runnerKeys).where(
+      and(
+        eq(runnerKeys.keyHash, keyHash),
+        isNull(runnerKeys.revokedAt)
+      )
+    ).limit(1);
+    if (result.length > 0) {
+      const row = result[0];
+      db.update(runnerKeys).set({ lastUsedAt: /* @__PURE__ */ new Date() }).where(eq(runnerKeys.id, row.id)).catch(() => {
       });
       return {
         authenticated: true,
-        userId: row.user_id,
+        userId: row.userId,
         keyId: row.id
       };
     }

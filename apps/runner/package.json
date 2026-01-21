@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",
-    "@anthropic-ai/claude-agent-sdk": "^0.2.11",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.12",
     "@clack/prompts": "^0.11.0",
     "@openai/codex-sdk": "^0.53.0",
     "@sentry/core": "file:./vendor/sentry-core-LOCAL.tgz",

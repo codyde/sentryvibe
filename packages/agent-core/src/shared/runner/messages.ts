@@ -7,6 +7,7 @@ export type ClaudeModelId = CoreClaudeModelId;
 
 export type RunnerCommandType =
   | 'start-build'
+  | 'cancel-build'
   | 'start-dev-server'
   | 'stop-dev-server'
   | 'start-tunnel'
@@ -37,6 +38,7 @@ export type RunnerEventType =
   | 'build-completed'
   | 'build-summary'
   | 'build-failed'
+  | 'build-cancelled'
   | 'runner-status'
   | 'build-stream'
   | 'project-metadata'
@@ -98,6 +100,15 @@ export interface StartBuildCommand extends BaseCommand {
     }>; // Recent conversation messages for context in enhancements
     isAutoFix?: boolean; // Flag for auto-fix sessions triggered by startup/runtime errors
     autoFixError?: string; // The error message that triggered the auto-fix
+  };
+}
+
+export interface CancelBuildCommand extends BaseCommand {
+  type: 'cancel-build';
+  payload: {
+    buildCommandId: string; // The command ID of the build to cancel
+    sessionId?: string; // Session ID for correlation
+    reason?: string; // Optional reason for cancellation
   };
 }
 
@@ -232,6 +243,7 @@ export interface GithubPushCommand extends BaseCommand {
 
 export type RunnerCommand =
   | StartBuildCommand
+  | CancelBuildCommand
   | StartDevServerCommand
   | StopDevServerCommand
   | StartTunnelCommand
@@ -348,6 +360,15 @@ export interface BuildFailedEvent extends BaseEvent {
   type: 'build-failed';
   error: string;
   stack?: string;
+}
+
+export interface BuildCancelledEvent extends BaseEvent {
+  type: 'build-cancelled';
+  payload: {
+    buildCommandId: string; // The command ID of the cancelled build
+    success: boolean; // Whether the cancellation succeeded
+    reason: string; // Reason for success/failure
+  };
 }
 
 export interface RunnerStatusEvent extends BaseEvent {
@@ -489,6 +510,7 @@ export type RunnerEvent =
   | BuildCompletedEvent
   | BuildSummaryEvent
   | BuildFailedEvent
+  | BuildCancelledEvent
   | RunnerStatusEvent
   | BuildStreamEvent
   | ProjectMetadataEvent
@@ -511,6 +533,7 @@ export type RunnerMessage = RunnerCommand | RunnerEvent;
 
 const COMMAND_TYPES: RunnerCommandType[] = [
   'start-build',
+  'cancel-build',
   'start-dev-server',
   'stop-dev-server',
   'start-tunnel',
