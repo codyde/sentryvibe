@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { genericOAuth } from "better-auth/plugins";
 import { db } from "@sentryvibe/agent-core";
 import { users, sessions, accounts, verifications } from "@sentryvibe/agent-core/lib/db/schema";
 
@@ -72,6 +73,33 @@ function createAuth() {
       minPasswordLength: 8,
       maxPasswordLength: 128,
     },
+    // Sentry OAuth plugin
+    plugins: [
+      genericOAuth({
+        config: [
+          {
+            providerId: "sentry",
+            clientId: process.env.SENTRY_OAUTH_CLIENT_ID!,
+            clientSecret: process.env.SENTRY_OAUTH_CLIENT_SECRET!,
+            authorizationUrl: "https://sentry.io/oauth/authorize/",
+            tokenUrl: "https://sentry.io/oauth/token/",
+            scopes: ["openid", "profile", "email"],
+            pkce: true,
+            getUserInfo: async (tokens) => {
+              // Sentry returns user info in the token response
+              const raw = tokens.raw as Record<string, unknown>;
+              const user = raw.user as { id: string; name: string; email: string };
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                emailVerified: true,
+              };
+            },
+          },
+        ],
+      }),
+    ],
     trustedOrigins: getTrustedOrigins(),
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
+import { genericOAuthClient } from "better-auth/client/plugins";
 
 /**
  * Better-auth client for React
@@ -8,6 +9,7 @@ import { createAuthClient } from "better-auth/react";
  */
 export const authClient = createAuthClient({
   baseURL: typeof window !== "undefined" ? window.location.origin : "",
+  plugins: [genericOAuthClient()],
 });
 
 export const {

@@ -13,6 +13,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Mail, Lock, User, AlertCircle } from "lucide-react";
 
+// Sentry logo SVG component (official mark)
+function SentryLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 222 66"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M39.8,57.5c0,0-1.2-0.9-3.4-0.9c-4.4,0-7.3,3.5-7.3,7.8H24c0-6.5,5-11.7,11.5-11.7c3.1,0,5.5,1.1,5.5,1.1l4.7-8.1 c0,0-3.5-2-10.2-2c-11.4,0-20.7,9-20.7,20.4v0.3H5.6c0,0-0.1-0.2,0-0.3c0-16.9,13.6-30.9,30.3-31.5c0.6,0,1.1,0,1.7,0 c5.5,0,10.8,1.4,15.2,4l4.7-8.2c-5.8-3.5-12.5-5.5-19.8-5.5c-0.7,0-1.4,0-2.1,0C15.2,23.3,0.1,38.7,0,59.1v5.4h9.4v-5.4 c0-0.1,0-0.2,0-0.3c0-4,0.6-7.9,1.7-11.4l-6.9,12c-0.9,1.5-0.4,3.5,1.2,4.4c0.5,0.3,1.1,0.4,1.7,0.4h5.9c0.1,0,0.2,0,0.3,0h28.1 c0.2,0,0.4,0,0.6,0c1.8,0,3.2-1.4,3.2-3.2c0-0.6-0.2-1.2-0.5-1.7L39.8,57.5z" />
+    </svg>
+  );
+}
+
 interface LoginModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,6 +42,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSentryLoading, setIsSentryLoading] = useState(false);
 
   const resetForm = () => {
     setEmail("");
@@ -103,6 +118,21 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
     setError(null);
   };
 
+  const handleSentryLogin = async () => {
+    setError(null);
+    setIsSentryLoading(true);
+    try {
+      await signIn.oauth2({
+        providerId: "sentry",
+        callbackURL: "/",
+      });
+    } catch (err) {
+      console.error("Sentry OAuth error:", err);
+      setError("Failed to initiate Sentry login. Please try again.");
+      setIsSentryLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800">
@@ -117,7 +147,41 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        {/* Sentry OAuth Button - Primary Auth Method */}
+        <div className="mt-4">
+          <Button
+            type="button"
+            onClick={handleSentryLogin}
+            disabled={isSentryLoading || isLoading}
+            className="w-full bg-[#362d59] hover:bg-[#4a3d7a] text-white border-0"
+          >
+            {isSentryLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Connecting to Sentry...
+              </>
+            ) : (
+              <>
+                <SentryLogo className="h-5 w-5 mr-2" />
+                Sign in with Sentry
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Divider */}
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-zinc-800" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-zinc-950 px-2 text-zinc-500">
+              or continue with email
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "signup" && (
             <div className="space-y-2">
               <label
