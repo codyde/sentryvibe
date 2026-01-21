@@ -288,19 +288,6 @@
   }
 }
 
-@keyframes gradient-x {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.animate-gradient-x {
-  animation: gradient-x 3s ease infinite;
-}
-
 @layer utilities {
   /* Theme-aware shimmer using CSS variables */
   .shimmer-text {
@@ -580,6 +567,44 @@
     background-color: color-mix(in srgb, var(--theme-primary) 15%, transparent);
     border-color: color-mix(in srgb, var(--theme-primary) 50%, transparent);
     color: var(--theme-primary);
+  }
+
+  /* Connect Runner button with gradient pulse */
+  .connect-runner-btn {
+    position: relative;
+    overflow: visible;
+  }
+
+  .connect-runner-btn::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 8px;
+    background: linear-gradient(
+      90deg,
+      var(--theme-primary),
+      var(--theme-accent),
+      var(--theme-primary)
+    );
+    opacity: 0;
+    filter: blur(8px);
+    animation: gradient-pulse 2s ease-in-out infinite;
+    z-index: -1;
+  }
+
+  .connect-runner-btn:hover::before {
+    opacity: 0.6;
+  }
+
+  @keyframes gradient-pulse {
+    0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(1.02);
+    }
   }
 }
 
