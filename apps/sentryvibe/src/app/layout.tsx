@@ -19,20 +19,20 @@ const rubik = Rubik({
 });
 
 export const metadata: Metadata = {
-  title: "SentryVibe",
-  description: "Stop copy-pasting from ChatGPT. SentryVibe builds full-stack apps from your prompts - code that actually runs, not code you have to fix.",
+  title: "SentryVibe - Code breaks, build it anyways",
+  description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
   metadataBase: new URL("https://sentryvibe.app"),
   openGraph: {
-    title: "SentryVibe - AI that writes code you won't have to fix",
-    description: "Stop copy-pasting from ChatGPT. Describe what you want, get a working app. Built by devs who got tired of debugging AI-generated spaghetti.",
+    title: "SentryVibe - Code breaks, build it anyways",
+    description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
     url: "https://sentryvibe.app",
     siteName: "SentryVibe",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "SentryVibe - AI that writes code you won't have to fix",
-    description: "Stop copy-pasting from ChatGPT. Describe what you want, get a working app. Built by devs who got tired of debugging AI-generated spaghetti.",
+    title: "SentryVibe - Code breaks, build it anyways",
+    description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
   },
   keywords: ["AI", "app builder", "code generation", "full-stack", "developer tools", "Sentry", "vibe coding"],
 };
