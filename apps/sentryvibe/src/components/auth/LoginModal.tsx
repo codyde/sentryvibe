@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { signIn, signUp } from "@/lib/auth-client";
 import {
   Dialog,
@@ -12,20 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Mail, Lock, User, AlertCircle, ArrowLeft } from "lucide-react";
-
-// Sentry logo SVG component (official mark) - white version for dark backgrounds
-function SentryLogo({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 72 66"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M41.6,1.4c-1.7-1-3.9-1-5.6,0l-0.3,0.2l-0.3,0.2c-1,0.7-1.8,1.6-2.4,2.7l-0.2,0.3L3,59.2c-0.8,1.5-0.9,3.3-0.1,4.9l0.1,0.2l0.1,0.2c0.7,1.1,1.8,1.9,3.1,2.1l0.3,0l0.3,0c0.2,0,0.4,0,0.6,0l0.3,0l0.3,0l0.4,0h10.4c0.1-4.7,3.5-8.6,8.2-10.4c0.9-0.3,1.9-0.5,2.9-0.5c1.5,0,2.9,0.4,4.1,1l0.3,0.2l0.2,0.2l4.8-8.2l-0.2-0.2c-2.7-1.8-5.9-2.8-9.2-2.8c-9.7,0-17.6,7.3-18.6,16.6l-0.1,0.7l0,0.7h0c0,0,0,0,0,0l0-0.4l0.1-0.4c0.7-6.6,5.7-12,12-13.4l0.5-0.1l0.5,0h0.1c0.3,0,0.6,0,0.9,0l0.5,0.1l0.5,0.1c3.8,1,7.1,3.3,9.2,6.5l0.2,0.3l0.2,0.3l4.8-8.2l-0.2-0.2c-3.7-3.5-8.5-6.1-14-6.8l-0.6-0.1l-0.6,0c-10.5,0-19.6,7.8-21.4,18.1l-0.1,0.7l-0.1,0.8c0,0.4,0,0.9,0.1,1.3l0.1,0.5l0.1,0.5h-3l-0.1-0.5l-0.1-0.5c-0.1-0.9-0.1-1.9,0.1-2.8l0.1-0.6l0.2-0.5L31.2,4.3l0.1-0.3l0.3-0.4c1-1.4,2.5-2.5,4.2-2.9l0.3-0.1l0.4-0.1c1.9-0.3,3.9,0.1,5.5,1.1l0.3,0.2l0.2,0.2l27.3,49.1c0.2,0.3,0.4,0.7,0.5,1.1l0.1,0.4l0.1,0.5c0.1,0.9-0.1,1.8-0.5,2.6l-0.2,0.3l-0.3,0.3l-4.8,8.2l-0.3,0.3l-0.3,0.3c-0.8,0.5-1.6,0.9-2.5,1l-0.4,0l-0.5,0H50.1c-0.9-4.7-4.2-8.6-8.9-10.4l-0.4-0.1l-0.4-0.1c-1.1-0.2-2.3-0.3-3.5-0.3c-1.5,0-2.9,0.4-4.1,1l-0.3,0.2l-0.2,0.2l-4.9-8.2l0.2-0.2c2.8-1.8,6-2.8,9.3-2.8c9.7,0,17.6,7.3,18.6,16.6l0.1,0.7l0,0.7h0c0,0,0,0,0,0l0-0.4l-0.1-0.4c-0.7-6.6-5.7-12-12-13.4l-0.5-0.1l-0.5,0h-0.1c-0.3,0-0.6,0-0.9,0l-0.5,0.1l-0.5,0.1c-3.8,1-7.1,3.3-9.2,6.5l-0.2,0.3l-0.2,0.3l-4.8-8.2l0.2-0.2c3.7-3.5,8.5-6.1,14-6.8l0.6-0.1l0.6,0c10.5,0,19.6,7.8,21.4,18.1l0.1,0.7l0.1,0.8c0,0.4,0,0.9-0.1,1.3l-0.1,0.5l-0.1,0.5h3l0.1-0.5l0.1-0.5c0.1-0.9,0.1-1.9-0.1-2.8l-0.1-0.6l-0.2-0.5L37.8,4.3l-0.1-0.3l-0.3-0.4c-1-1.4-2.5-2.5-4.2-2.9l-0.3-0.1L32.5,0.5c-1.9-0.3-3.9,0.1-5.5,1.1l-0.3,0.2l-0.2,0.2" />
-    </svg>
-  );
-}
 
 interface LoginModalProps {
   open: boolean;
@@ -163,12 +150,18 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
                 type="button"
                 onClick={handleSentryLogin}
                 disabled={isSentryLoading || isLoading}
-                className="w-16 h-16 rounded-lg bg-[#2b2233] hover:bg-[#3d3347] text-white border-0 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-16 h-16 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-700 hover:border-zinc-600 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSentryLoading ? (
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <Loader2 className="h-8 w-8 animate-spin text-white" />
                 ) : (
-                  <SentryLogo className="h-8 w-8" />
+                  <Image
+                    src="/sentryglyph.png"
+                    alt="Sentry"
+                    width={32}
+                    height={32}
+                    className="h-8 w-8"
+                  />
                 )}
               </button>
             </div>
