@@ -10,7 +10,6 @@ export async function isSentryVibeRepo(path: string = process.cwd()): Promise<bo
     // Check for key indicators
     const packageJsonPath = join(path, 'package.json');
     const runnerPath = join(path, 'apps/runner');
-    const brokerPath = join(path, 'apps/broker');
     const sentryVibePath = join(path, 'apps/sentryvibe');
 
     // Must have package.json
@@ -18,8 +17,8 @@ export async function isSentryVibeRepo(path: string = process.cwd()): Promise<bo
       return false;
     }
 
-    // Must have the three app directories
-    if (!existsSync(runnerPath) || !existsSync(brokerPath) || !existsSync(sentryVibePath)) {
+    // Must have the core app directories
+    if (!existsSync(runnerPath) || !existsSync(sentryVibePath)) {
       return false;
     }
 

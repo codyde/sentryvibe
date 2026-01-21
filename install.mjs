@@ -128,7 +128,7 @@ async function getLatestVersion() {
     }
     
     // Fallback to npm registry
-    const npmResponse = await fetch('https://registry.npmjs.org/@sentryvibe/runner-cli/latest');
+    const npmResponse = await fetch('https://registry.npmjs.org/@sentryvibe/cli/latest');
     if (npmResponse.ok) {
       const data = await npmResponse.json();
       const version = `v${data.version}`;
@@ -452,10 +452,10 @@ function printFailure(error) {
     console.log(`  ${c.warning}Out of memory error detected.${c.reset}`);
     console.log();
     console.log(`  ${c.dimGray}Try running with increased memory:${c.reset}`);
-    console.log(`    ${c.cyan}NODE_OPTIONS="--max-old-space-size=8192" pnpm add -g @sentryvibe/runner-cli${c.reset}`);
+    console.log(`    ${c.cyan}NODE_OPTIONS="--max-old-space-size=8192" pnpm add -g @sentryvibe/cli${c.reset}`);
   } else {
     console.log(`  ${c.dimGray}Try manual installation:${c.reset}`);
-    console.log(`    ${c.cyan}pnpm add -g @sentryvibe/runner-cli${c.reset}`);
+    console.log(`    ${c.cyan}pnpm add -g @sentryvibe/cli${c.reset}`);
   }
   console.log();
   console.log(`  ${c.dimGray}If the problem persists, please report it at:${c.reset}`);

@@ -29,7 +29,7 @@ function findPackageRoot(): string {
       try {
         const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
         // Verify this is the runner package
-        if (pkg.name === '@sentryvibe/runner-cli') {
+        if (pkg.name === '@sentryvibe/cli') {
           return path;
         }
       } catch {

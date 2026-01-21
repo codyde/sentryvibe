@@ -19,7 +19,6 @@ interface UpgradeOptions {
 
 interface EnvBackup {
   runner: { env?: string; envLocal?: string };
-  broker: { env?: string; envLocal?: string };
   sentryvibe: { env?: string; envLocal?: string };
 }
 
@@ -103,7 +102,6 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   const envBackup: EnvBackup = {
     runner: {},
-    broker: {},
     sentryvibe: {},
   };
 
@@ -111,8 +109,6 @@ export async function upgradeCommand(options: UpgradeOptions) {
   const envPaths = [
     { app: 'runner', path: join(monorepoRoot, 'apps/runner/.env') },
     { app: 'runner', pathLocal: join(monorepoRoot, 'apps/runner/.env.local') },
-    { app: 'broker', path: join(monorepoRoot, 'apps/broker/.env') },
-    { app: 'broker', pathLocal: join(monorepoRoot, 'apps/broker/.env.local') },
     { app: 'sentryvibe', path: join(monorepoRoot, 'apps/sentryvibe/.env') },
     { app: 'sentryvibe', pathLocal: join(monorepoRoot, 'apps/sentryvibe/.env.local') },
   ];
@@ -188,8 +184,6 @@ export async function upgradeCommand(options: UpgradeOptions) {
   const restorePaths = [
     { app: 'runner' as const, file: '.env', dir: join(tempDir, 'apps/runner') },
     { app: 'runner' as const, file: '.env.local', dir: join(tempDir, 'apps/runner') },
-    { app: 'broker' as const, file: '.env', dir: join(tempDir, 'apps/broker') },
-    { app: 'broker' as const, file: '.env.local', dir: join(tempDir, 'apps/broker') },
     { app: 'sentryvibe' as const, file: '.env', dir: join(tempDir, 'apps/sentryvibe') },
     { app: 'sentryvibe' as const, file: '.env.local', dir: join(tempDir, 'apps/sentryvibe') },
   ];

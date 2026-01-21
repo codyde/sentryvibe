@@ -51,8 +51,8 @@ echo "  sentryvibe --help     # Show help"
 echo ""
 echo "To unlink later:"
 if command -v pnpm &> /dev/null; then
-  echo "  pnpm remove -g @sentryvibe/runner-cli"
+  echo "  pnpm remove -g @sentryvibe/cli"
 else
-  echo "  npm unlink -g @sentryvibe/runner-cli"
+  echo "  npm unlink -g @sentryvibe/cli"
 fi
 echo ""

@@ -1,7 +1,7 @@
 {
-  "name": "@sentryvibe/runner-cli",
+  "name": "@sentryvibe/cli",
   "version": "0.27.0",
-  "description": "SentryVibe Runner CLI - Execute AI-powered builds locally",
+  "description": "SentryVibe CLI - AI-powered app builder",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
