@@ -27,9 +27,9 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "30rem"
+const SIDEBAR_WIDTH = "20rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
+const SIDEBAR_WIDTH_ICON = "4rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContextProps = {
@@ -87,44 +87,6 @@ function SidebarProvider({
     },
     [setOpenProp, open]
   )
-
-  // Auto-expand on hover near left edge (15px trigger zone)
-  React.useEffect(() => {
-    if (isMobile) return // Only for desktop
-
-    const enterThreshold = 15
-    const exitThreshold = 40 // Give more space before closing
-
-    const handleMouseMove = (e: MouseEvent) => {
-      // If mouse is within threshold of left edge, open sidebar
-      if (e.clientX <= enterThreshold && !open) {
-        setOpen(true)
-        return
-      }
-
-      // Check if there are any open dropdowns or dialogs
-      const hasOpenDropdown = document.querySelector('[data-state="open"][role="menu"]')
-      const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]')
-
-      // Don't close if user is interacting with dropdowns/dialogs
-      if (hasOpenDropdown || hasOpenDialog) {
-        return
-      }
-
-      // Get sidebar element to check bounds
-      const sidebarElement = document.querySelector('[data-slot="sidebar-container"]')
-      if (sidebarElement && open) {
-        const sidebarRect = sidebarElement.getBoundingClientRect()
-        // Close only if mouse is beyond sidebar + exit threshold
-        if (e.clientX > sidebarRect.right + exitThreshold) {
-          setOpen(false)
-        }
-      }
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [isMobile, open, setOpen])
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {

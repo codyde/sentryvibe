@@ -61,7 +61,7 @@ import { useBuildWebSocket } from "@/hooks/useBuildWebSocket";
 import { WebSocketStatus } from "@/components/WebSocketStatus";
 import { useProjectStatusSSE } from "@/hooks/useProjectStatusSSE";
 import { useAuthGate } from "@/components/auth/AuthGate";
-import { AuthHeader } from "@/components/auth/AuthHeader";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
 import { GitHubButton, getGitHubSetupMessage, getGitHubPushMessage, type RepoVisibility } from "@/components/github";
@@ -156,6 +156,17 @@ function normalizeHydratedState(state: unknown): GenerationState {
       })) ?? [];
   }
 
+  // CRITICAL: Data loaded from database (sessions) should NEVER be marked as active
+  // Active state is only valid during live WebSocket connections
+  // This prevents stale "Analyzing project" UI from appearing for completed/interrupted builds
+  const isActiveFromServer = Boolean(stateObj.isActive);
+  const todos = Array.isArray(stateObj.todos) ? (stateObj.todos as TodoItem[]) : [];
+  
+  // A build can only be considered active if it has in-progress todos
+  // If there are no todos or all todos are complete, it's not active
+  const hasInProgressTodo = todos.some(t => t.status === 'in_progress');
+  const isActuallyActive = isActiveFromServer && hasInProgressTodo;
+
   const result: GenerationState = {
     id: (stateObj.id as string) ?? '',
     projectId: (stateObj.projectId as string) ?? '',
@@ -163,11 +174,11 @@ function normalizeHydratedState(state: unknown): GenerationState {
     operationType: (stateObj.operationType as GenerationState['operationType']) ?? 'continuation',
     agentId: stateObj.agentId as GenerationState['agentId'],
     claudeModelId: stateObj.claudeModelId as GenerationState['claudeModelId'],
-    todos: Array.isArray(stateObj.todos) ? (stateObj.todos as TodoItem[]) : [],
+    todos: todos,
     toolsByTodo: normalizedTools,
     textByTodo: normalizedText,
     activeTodoIndex: (stateObj.activeTodoIndex as number) ?? -1,
-    isActive: Boolean(stateObj.isActive),
+    isActive: isActuallyActive,
     startTime: toDate(stateObj.startTime) ?? new Date(),
     endTime: toDate(stateObj.endTime),
     buildSummary: stateObj.buildSummary as string | undefined,
@@ -1104,6 +1115,10 @@ function HomeContent() {
 
           if (restored && validateGenerationState(restored)) {
             if (DEBUG_PAGE) console.log("   ✅ Valid state, todos:", restored.todos.length);
+            // CRITICAL: Force isActive to false when restoring from DB
+            // If we're loading from DB, there's no active WebSocket connection driving the build
+            // This prevents stuck "Analyzing project" states from interrupted builds
+            restored.isActive = false;
             updateGenerationState(restored);
           }
         }
@@ -2710,42 +2725,27 @@ function HomeContent() {
           />
         )}
         <SidebarInset className="bg-theme-content pt-2">
-        {/* Top Header Bar - Logo, Breadcrumb, and Auth */}
+        {/* Top Header Bar - Breadcrumb and Auth */}
         <header className="flex h-10 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            {/* Logo - Click to go home */}
-            <button
-              onClick={() => router.push('/')}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-theme-gradient-br p-1 hover:opacity-80 transition-opacity cursor-pointer"
-              title="Go to home"
-            >
-              <img
-                src="/sentryglyph.png"
-                alt="SentryVibe"
-                className="h-full w-full object-contain"
-              />
-            </button>
-            {/* Breadcrumb */}
+            {/* Breadcrumb - Project name with status indicator */}
             {currentProject && (
-              <>
-                <span className="text-gray-500">/</span>
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      currentProject.status === "pending"
-                        ? "bg-[#7553FF]"
-                        : currentProject.status === "in_progress"
-                        ? "bg-[#FFD00E] animate-pulse"
-                        : currentProject.status === "completed"
-                        ? "bg-[#92DD00]"
-                        : "bg-[#FF45A8]"
-                    }`}
-                  />
-                  <span className="text-sm font-medium text-white truncate max-w-[200px]">
-                    {currentProject.name}
-                  </span>
-                </div>
-              </>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    currentProject.status === "pending"
+                      ? "bg-[#7553FF]"
+                      : currentProject.status === "in_progress"
+                      ? "bg-[#FFD00E] animate-pulse"
+                      : currentProject.status === "completed"
+                      ? "bg-[#92DD00]"
+                      : "bg-[#FF45A8]"
+                  }`}
+                />
+                <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                  {currentProject.name}
+                </span>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -2787,7 +2787,6 @@ function HomeContent() {
                 />
               </>
             )}
-            <AuthHeader />
           </div>
         </header>
         
@@ -3045,24 +3044,28 @@ function HomeContent() {
                                         {/* Planning Phase - only show for current active build */}
                                         {isLastMessage && isThinking && currentProject && !generationState?.buildPlan && (
                                           <div className="space-y-3">
-                                            <div className="flex items-center justify-between">
-                                              <PlanningPhase
-                                                activePlanningTool={generationState?.activePlanningTool}
-                                                projectName={currentProject.name}
-                                              />
-                                              <button
-                                                onClick={cancelBuild}
-                                                disabled={isCancelling}
-                                                className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title={isCancelling ? 'Cancelling...' : 'Stop Build'}
-                                              >
-                                                {isCancelling ? (
+                                            <PlanningPhase
+                                              activePlanningTool={generationState?.activePlanningTool}
+                                              projectName={currentProject.name}
+                                            />
+                                            {/* Stop Build button - below the planning phase */}
+                                            <button
+                                              onClick={cancelBuild}
+                                              disabled={isCancelling}
+                                              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-red-400 transition-colors rounded-lg border border-white/10 hover:border-red-500/30 hover:bg-red-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                              {isCancelling ? (
+                                                <>
                                                   <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
+                                                  <span>Cancelling...</span>
+                                                </>
+                                              ) : (
+                                                <>
                                                   <Square className="w-4 h-4" />
-                                                )}
-                                              </button>
-                                            </div>
+                                                  <span>Stop Build</span>
+                                                </>
+                                              )}
+                                            </button>
                                           </div>
                                         )}
 
@@ -3097,18 +3100,6 @@ function HomeContent() {
                                                 <div className="text-sm font-semibold text-theme-primary">
                                                   {Math.round((generationState.todos.filter(t => t.status === 'completed').length / generationState.todos.length) * 100)}%
                                                 </div>
-                                                <button
-                                                  onClick={cancelBuild}
-                                                  disabled={isCancelling}
-                                                  className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                  title={isCancelling ? 'Cancelling...' : 'Stop Build'}
-                                                >
-                                                  {isCancelling ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                  ) : (
-                                                    <Square className="w-4 h-4" />
-                                                  )}
-                                                </button>
                                               </div>
                                             </div>
                                             <div className="h-1 overflow-hidden rounded-full bg-white/10">
@@ -3139,6 +3130,25 @@ function HomeContent() {
                                                 activeTodoIndex={generationState.activeTodoIndex}
                                               />
                                             )}
+
+                                            {/* Stop Build button - below the task list */}
+                                            <button
+                                              onClick={cancelBuild}
+                                              disabled={isCancelling}
+                                              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-red-400 transition-colors rounded-lg border border-white/10 hover:border-red-500/30 hover:bg-red-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                              {isCancelling ? (
+                                                <>
+                                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                                  <span>Cancelling...</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Square className="w-4 h-4" />
+                                                  <span>Stop Build</span>
+                                                </>
+                                              )}
+                                            </button>
                                           </div>
                                         )}
 

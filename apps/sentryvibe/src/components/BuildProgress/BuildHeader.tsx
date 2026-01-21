@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { CheckCircle2, Sparkles, ChevronDown, ChevronUp, X, Square, Loader2 } from 'lucide-react';
+import { CheckCircle2, Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react';
 import {
   getClaudeModelLabel,
   DEFAULT_CLAUDE_MODEL_ID,
@@ -21,8 +21,6 @@ interface BuildHeaderProps {
   isCardExpanded: boolean;
   onToggleExpand: () => void;
   onClose?: () => void;
-  onCancel?: () => void;
-  isCancelling?: boolean;
   templateInfo?: {
     name: string;
     framework: string;
@@ -42,8 +40,6 @@ export function BuildHeader({
   isCardExpanded,
   onToggleExpand,
   onClose,
-  onCancel,
-  isCancelling = false,
   templateInfo,
 }: BuildHeaderProps) {
   // Agent values validated
@@ -120,23 +116,6 @@ export function BuildHeader({
                   <ChevronDown className="w-5 h-5 text-gray-400" />
                 )}
               </div>
-            )}
-            {isActive && onCancel && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCancel();
-                }}
-                disabled={isCancelling}
-                className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={isCancelling ? 'Cancelling...' : 'Stop Build'}
-              >
-                {isCancelling ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Square className="w-4 h-4" />
-                )}
-              </button>
             )}
             {!isActive && onClose && (
               <button

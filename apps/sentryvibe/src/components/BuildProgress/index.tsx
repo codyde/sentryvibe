@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, CheckCircle2, ChevronDown, ChevronUp, Square } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { GenerationState, TodoItem } from '@/types/generation';
 import { BuildHeader } from './BuildHeader';
@@ -232,8 +232,6 @@ export default function BuildProgress({
         isCardExpanded={isCardExpanded}
         onToggleExpand={() => setIsCardExpanded(!isCardExpanded)}
         onClose={onClose}
-        onCancel={onCancel}
-        isCancelling={isCancelling}
         templateInfo={templateInfo}
       />
 
@@ -277,6 +275,29 @@ export default function BuildProgress({
                   onViewFiles={onViewFiles}
                   onStartServer={onStartServer}
                 />
+              )}
+              
+              {/* Stop Build button - below the task list */}
+              {state.isActive && onCancel && (
+                <div className="px-4 pb-4">
+                  <button
+                    onClick={onCancel}
+                    disabled={isCancelling}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-red-400 transition-colors rounded-lg border border-white/10 hover:border-red-500/30 hover:bg-red-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCancelling ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Cancelling...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Square className="w-4 h-4" />
+                        <span>Stop Build</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           ) : (

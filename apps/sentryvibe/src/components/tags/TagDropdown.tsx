@@ -217,15 +217,6 @@ export function TagDropdown({
           </button>
         </div>
 
-        {/* Header */}
-        <div className="px-2 py-3 border-b border-gray-800">
-          <div className="flex items-center gap-2 mb-1">
-            {getCategoryIcon(def.category, def.key)}
-            <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">{def.description}</p>
-        </div>
-
         {/* Options */}
         <div className="p-1 space-y-1 max-h-80 overflow-y-auto">
           {def.options?.map(option => {
@@ -325,12 +316,6 @@ export function TagDropdown({
             <ChevronLeft className="w-4 h-4" />
             Back
           </button>
-        </div>
-
-        {/* Header */}
-        <div className="px-2 py-3 border-b border-gray-800">
-          <h3 className="font-semibold text-sm text-gray-200">{def.label}</h3>
-          <p className="text-xs text-gray-400 mt-1">{def.description}</p>
         </div>
 
         {/* Child options */}
