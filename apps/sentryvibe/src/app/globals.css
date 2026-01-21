@@ -569,51 +569,18 @@
     color: var(--theme-primary);
   }
 
-  /* Connect Runner button with gradient pulse */
-  .connect-runner-btn {
-    position: relative;
-    overflow: visible;
+  /* Pulsing gradient glow animation for Connect Runner button */
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
   }
 
-  .connect-runner-btn::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 8px;
-    background: linear-gradient(
-      90deg,
-      var(--theme-primary),
-      var(--theme-accent),
-      var(--theme-primary)
-    );
-    filter: blur(6px);
-    animation: gradient-pulse 2s ease-in-out infinite;
-    z-index: -1;
-  }
-
-  .connect-runner-btn:hover::before {
-    filter: blur(8px);
-    animation: gradient-pulse-hover 1.5s ease-in-out infinite;
-  }
-
-  @keyframes gradient-pulse {
+  @keyframes pulse-glow {
     0%, 100% {
       opacity: 0.4;
       transform: scale(1);
     }
     50% {
-      opacity: 0.6;
-      transform: scale(1.03);
-    }
-  }
-
-  @keyframes gradient-pulse-hover {
-    0%, 100% {
-      opacity: 0.6;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
+      opacity: 0.7;
       transform: scale(1.05);
     }
   }
