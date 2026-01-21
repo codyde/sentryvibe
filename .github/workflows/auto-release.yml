@@ -60,8 +60,8 @@ jobs:
         if: steps.skip_ci.outputs.skip == 'false'
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
-          # Match "Merge pull request #123" pattern
-          PR_NUM=$(echo "$COMMIT_MSG" | grep -oP 'Merge pull request #\K\d+' || echo "")
+          # Match both "Merge pull request #123" and squash merge "(#123)" formats
+          PR_NUM=$(echo "$COMMIT_MSG" | grep -oE '#[0-9]+' | head -1 | sed 's/#//g' || echo "")
           echo "number=$PR_NUM" >> $GITHUB_OUTPUT
           if [ -n "$PR_NUM" ]; then
             echo "📋 Found PR #$PR_NUM"
