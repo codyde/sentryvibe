@@ -20,21 +20,21 @@ const rubik = Rubik({
 
 export const metadata: Metadata = {
   title: "SentryVibe",
-  description: "AI-powered app builder. Describe your idea, watch it come to life. Build full-stack applications with natural language.",
+  description: "Stop copy-pasting from ChatGPT. SentryVibe builds full-stack apps from your prompts - code that actually runs, not code you have to fix.",
   metadataBase: new URL("https://sentryvibe.app"),
   openGraph: {
-    title: "SentryVibe - AI App Builder",
-    description: "Describe your idea, watch it come to life. Build full-stack applications with natural language in minutes.",
+    title: "SentryVibe - AI that writes code you won't have to fix",
+    description: "Stop copy-pasting from ChatGPT. Describe what you want, get a working app. Built by devs who got tired of debugging AI-generated spaghetti.",
     url: "https://sentryvibe.app",
     siteName: "SentryVibe",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "SentryVibe - AI App Builder",
-    description: "Describe your idea, watch it come to life. Build full-stack applications with natural language in minutes.",
+    title: "SentryVibe - AI that writes code you won't have to fix",
+    description: "Stop copy-pasting from ChatGPT. Describe what you want, get a working app. Built by devs who got tired of debugging AI-generated spaghetti.",
   },
-  keywords: ["AI", "app builder", "code generation", "full-stack", "natural language", "developer tools", "Sentry"],
+  keywords: ["AI", "app builder", "code generation", "full-stack", "developer tools", "Sentry", "vibe coding"],
 };
 
 export default function RootLayout({

@@ -249,13 +249,36 @@ function printPnpmInstallError(error) {
   console.log(`${c.error}  ${c.bold}Failed to install pnpm${c.reset}`);
   console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log();
-  if (error.stderr) {
-    console.log(`  ${c.dimGray}${error.stderr.trim()}${c.reset}`);
+  
+  // Check for permission error
+  const isPermissionError = error.stderr?.includes('EACCES') || error.stderr?.includes('permission denied');
+  
+  if (isPermissionError) {
+    console.log(`  ${c.warning}Permission denied when installing to global node_modules.${c.reset}`);
+    console.log();
+    console.log(`  ${c.dimGray}This usually means npm's global directory isn't writable.${c.reset}`);
+    console.log(`  ${c.dimGray}You have a few options:${c.reset}`);
+    console.log();
+    console.log(`  ${c.white}Option 1: Use sudo (quick fix)${c.reset}`);
+    console.log(`    ${c.cyan}sudo npm install -g pnpm${c.reset}`);
+    console.log();
+    console.log(`  ${c.white}Option 2: Fix npm permissions (recommended)${c.reset}`);
+    console.log(`    ${c.cyan}mkdir -p ~/.npm-global${c.reset}`);
+    console.log(`    ${c.cyan}npm config set prefix '~/.npm-global'${c.reset}`);
+    console.log(`    ${c.dimGray}Then add ~/.npm-global/bin to your PATH${c.reset}`);
+    console.log();
+    console.log(`  ${c.white}Option 3: Use a Node version manager${c.reset}`);
+    console.log(`    ${c.dimGray}nvm, fnm, or volta handle permissions automatically${c.reset}`);
+    console.log();
+  } else {
+    if (error.stderr) {
+      console.log(`  ${c.dimGray}${error.stderr.trim()}${c.reset}`);
+      console.log();
+    }
+    console.log(`  ${c.dimGray}Please install pnpm manually:${c.reset}`);
+    console.log(`    ${c.cyan}npm install -g pnpm${c.reset}`);
     console.log();
   }
-  console.log(`  ${c.dimGray}Please install pnpm manually:${c.reset}`);
-  console.log(`    ${c.cyan}npm install -g pnpm${c.reset}`);
-  console.log();
   console.log(`  ${c.dimGray}Then run this installer again.${c.reset}`);
   console.log();
 }
