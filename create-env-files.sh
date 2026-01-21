@@ -59,7 +59,7 @@ echo ""
 
 # 2. Create runner/.env.local
 echo "📝 Creating apps/runner/.env.local..."
-create_env_file "apps/runner/.env.local" "# SentryVibe Runner CLI Environment Configuration
+create_env_file "apps/runner/.env.local" "# SentryVibe CLI Environment Configuration
 # =================================================
 
 # Runner Identity
@@ -107,5 +107,5 @@ echo ""
 echo "Or use your preferred editor:"
 echo "  code apps/sentryvibe/.env.local"
 echo ""
-echo "📖 See ENV_SETUP_GUIDE.md for detailed configuration info"
+echo "📖 See apps/runner/README.md for detailed configuration info"
 echo ""

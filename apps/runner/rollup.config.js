@@ -115,12 +115,12 @@ const commonPlugins = [
 
 // Banner to inject CJS compatibility shim for OpenTelemetry/Sentry instrumentation
 // The Sentry SDK uses require-in-the-middle which needs `require` and `require.cache`
-const cjsShimBanner = `// SentryVibe Runner CLI - Built with Rollup
+const cjsShimBanner = `// SentryVibe CLI - Built with Rollup
 import { createRequire as __createRequire } from 'node:module';
 const require = __createRequire(import.meta.url);
 `;
 
-const defaultBanner = '// SentryVibe Runner CLI - Built with Rollup';
+const defaultBanner = '// SentryVibe CLI - Built with Rollup';
 
 export default {
   input: {

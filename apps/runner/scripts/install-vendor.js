@@ -15,18 +15,18 @@ const packageRoot = path.join(__dirname, '..');
 const vendorDir = path.join(packageRoot, 'vendor');
 
 // Detect the correct node_modules location for both npm and pnpm
-// The vendor packages MUST be installed in the same node_modules tree as the runner-cli
+// The vendor packages MUST be installed in the same node_modules tree as the CLI
 // to ensure proper Node.js module resolution. npm may create empty placeholder directories
 // in nested node_modules, so we need to install there to override them.
 function findNodeModules() {
   // Local node_modules inside the package (npm style for bundled deps)
   const localNodeModules = path.join(packageRoot, 'node_modules');
 
-  // Parent node_modules (pnpm global style: @sentryvibe/runner-cli -> @sentryvibe -> node_modules)
+  // Parent node_modules (pnpm global style: @sentryvibe/cli -> @sentryvibe -> node_modules)
   const parentNodeModules = path.join(packageRoot, '..', '..');
 
   // Always prefer local node_modules if it exists - this ensures vendor packages
-  // are in the same resolution tree as the runner-cli package
+  // are in the same resolution tree as the CLI package
   if (existsSync(localNodeModules)) {
     return localNodeModules;
   }

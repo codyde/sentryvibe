@@ -1,6 +1,6 @@
-# SentryVibe Runner CLI
+# SentryVibe CLI
 
-The SentryVibe Runner is a command-line tool that executes AI-powered project builds locally on your machine. It connects to the SentryVibe broker via WebSocket and executes Claude AI builds in an isolated workspace.
+The SentryVibe CLI is a command-line tool for building AI-powered applications locally on your machine. It connects to the SentryVibe server and uses Claude AI to generate and build projects in an isolated workspace.
 
 ## Table of Contents
 
@@ -723,7 +723,7 @@ sentryvibe --runner  # Test runner mode
 sentryvibe run       # Test full stack mode
 
 # Unlink when done
-npm unlink -g @sentryvibe/runner-cli
+npm unlink -g @sentryvibe/cli
 ```
 
 ### Project Structure
@@ -1000,7 +1000,7 @@ sentryvibe config set workspace ~/new-location
 **Q: How do I update the CLI?**
 A: Reinstall from npm:
 ```bash
-npm update -g @sentryvibe/runner-cli
+npm update -g @sentryvibe/cli
 ```
 
 **Q: Does the runner need to stay running?**
@@ -1032,7 +1032,7 @@ A:
 sentryvibe cleanup --all
 
 # Uninstall CLI
-npm uninstall -g @sentryvibe/runner-cli
+npm uninstall -g @sentryvibe/cli
 
 # Remove config (optional)
 rm -rf ~/Library/Application\ Support/sentryvibe

@@ -1,4 +1,4 @@
-# Railway-optimized Dockerfile for SentryVibe Runner
+# Railway-optimized Dockerfile for SentryVibe CLI
 FROM node:20-slim
 
 # Install pnpm and Claude Code CLI globally
@@ -43,7 +43,7 @@ COPY packages/agent-core/src ./packages/agent-core/src
 RUN pnpm install --frozen-lockfile
 
 # Build runner (agent-core already built by prepare script)
-RUN pnpm --filter @sentryvibe/runner-cli build
+RUN pnpm --filter @sentryvibe/cli build
 
 # Create workspace directory (will be mounted as volume in Railway)
 RUN mkdir -p /data/workspace
