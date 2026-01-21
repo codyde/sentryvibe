@@ -53,9 +53,8 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
               What does this install?
             </p>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-theme-accent">sentryvibe</code> CLI 
-              runs locally on your machine. It connects to your AI provider (Claude, GPT) using your own API keys,
-              keeping your code and credentials secure.
+              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-theme-accent">sentryvibe</code> runner 
+              runs locally on your machine. It leverages your local Claude Code or Codex credentials to build your application.
             </p>
           </div>
         </div>
