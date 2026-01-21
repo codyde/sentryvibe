@@ -20,7 +20,30 @@ const rubik = Rubik({
 
 export const metadata: Metadata = {
   title: "SentryVibe",
-  description: "Build projects with Claude Code",
+  description: "AI-powered app builder. Describe your idea, watch it come to life. Build full-stack applications with natural language.",
+  metadataBase: new URL("https://sentryvibe.app"),
+  openGraph: {
+    title: "SentryVibe - AI App Builder",
+    description: "Describe your idea, watch it come to life. Build full-stack applications with natural language in minutes.",
+    url: "https://sentryvibe.app",
+    siteName: "SentryVibe",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SentryVibe - AI App Builder",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SentryVibe - AI App Builder",
+    description: "Describe your idea, watch it come to life. Build full-stack applications with natural language in minutes.",
+    images: ["/og-image.png"],
+  },
+  keywords: ["AI", "app builder", "code generation", "full-stack", "natural language", "developer tools", "Sentry"],
 };
 
 export default function RootLayout({
