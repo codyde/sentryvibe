@@ -445,6 +445,11 @@ function verifyInstallation() {
 
 // Print success message
 function printSuccess() {
+  // In quiet mode (auto-update), show minimal output
+  if (isQuietMode) {
+    return;
+  }
+  
   console.log();
   console.log(`${c.success}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log(`${c.success}  ${c.bold}Installation complete!${c.reset}`);
@@ -512,9 +517,15 @@ function printFailure(error) {
   console.log();
 }
 
+// Check for quiet mode (used during auto-update to avoid banner spam)
+const isQuietMode = process.env.SENTRYVIBE_QUIET_INSTALL === '1';
+
 // Main installer
 async function main() {
-  printBanner();
+  // Skip banner in quiet mode (auto-update) to avoid banner spam
+  if (!isQuietMode) {
+    printBanner();
+  }
   
   console.log(`  ${c.dim}Installing SentryVibe CLI${c.reset}`);
   console.log();
