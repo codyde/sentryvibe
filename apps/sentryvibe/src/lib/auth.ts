@@ -44,8 +44,22 @@ function getAuthSecret(): string {
 // This prevents errors during Next.js build/page collection phases
 let _auth: ReturnType<typeof betterAuth> | null = null;
 
+// Get the base URL for OAuth redirects
+function getBaseURL(): string {
+  // Use explicitly set base URL if available (for production)
+  if (process.env.BETTER_AUTH_URL) {
+    return process.env.BETTER_AUTH_URL;
+  }
+  // Fallback to NEXT_PUBLIC_APP_URL or localhost
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  return "http://localhost:3000";
+}
+
 function createAuth() {
   return betterAuth({
+    baseURL: getBaseURL(),
     secret: getAuthSecret(),
     database: drizzleAdapter(db, {
       provider: "pg",
