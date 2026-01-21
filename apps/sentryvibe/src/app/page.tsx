@@ -2895,7 +2895,7 @@ function HomeContent() {
                               label: r.runnerId,
                               description: `Runner: ${r.runnerId}`
                             }))}
-                            prompt={input}
+                            hasConnectedRunners={availableRunners.length > 0}
                           />
                         </div>
                       )}

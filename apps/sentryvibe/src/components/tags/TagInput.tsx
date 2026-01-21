@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Plus, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Plug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TagBadge } from './TagBadge';
 import { TagDropdown } from './TagDropdown';
 import { AppliedTag } from '@sentryvibe/agent-core/types/tags';
 import { TagOption, findTagDefinition } from '@sentryvibe/agent-core/config/tags';
 import { validateTagSet } from '@sentryvibe/agent-core/lib/tags/resolver';
-import { useTagSuggestions } from '@/mutations/tags';
+import { ConnectRunnerWizard } from '@/components/runner';
 
 // Priority order for tags: runner first, model second, then others
 const TAG_PRIORITY: Record<string, number> = {
@@ -29,7 +29,8 @@ interface TagInputProps {
   onTagsChange: (tags: AppliedTag[]) => void;
   runnerOptions?: TagOption[];
   className?: string;
-  prompt?: string; // User's project prompt for AI suggestions
+  /** Whether any runners are currently connected */
+  hasConnectedRunners?: boolean;
 }
 
 export function TagInput({
@@ -37,13 +38,11 @@ export function TagInput({
   onTagsChange,
   runnerOptions,
   className = '',
-  prompt
+  hasConnectedRunners = true,
 }: TagInputProps) {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const [validationErrors, setValidationErrors] = React.useState<string[]>([]);
-
-  // TanStack Query mutation for AI tag suggestions
-  const tagSuggestionsMutation = useTagSuggestions();
+  const [showConnectWizard, setShowConnectWizard] = React.useState(false);
 
   const handleAddTag = (key: string, value: string, expandedValues?: Record<string, string>) => {
     const def = findTagDefinition(key);
@@ -113,30 +112,6 @@ export function TagInput({
     setValidationErrors(validation.errors);
   }, [tags]);
 
-  // AI-powered tag suggestions
-  const handleSuggestTags = async () => {
-    if (!prompt || prompt.trim().length === 0) {
-      return;
-    }
-
-    try {
-      const result = await tagSuggestionsMutation.mutateAsync(prompt);
-
-      // Apply suggested tags
-      if (Array.isArray(result.tags) && result.tags.length > 0) {
-        const newTags = result.tags.map((tag) => ({
-          key: tag.key,
-          value: tag.value,
-          expandedValues: tag.expandedValues,
-          appliedAt: new Date()
-        }));
-        onTagsChange(sortTagsByPriority(newTags));
-      }
-    } catch (error) {
-      console.error('[TagInput] Failed to get tag suggestions:', error);
-    }
-  };
-
   return (
     <div className={className}>
       <div className="flex items-center gap-2 flex-wrap">
@@ -151,44 +126,34 @@ export function TagInput({
           />
         ))}
 
-        {/* Add tag button */}
-        <TagDropdown
-          open={dropdownOpen}
-          onOpenChange={setDropdownOpen}
-          onSelectTag={handleAddTag}
-          runnerOptions={runnerOptions}
-        >
+        {/* Show Connect Runner button if no runners connected */}
+        {!hasConnectedRunners ? (
           <Button
             variant="outline"
             size="sm"
-            className="btn-add-tag-theme h-7 px-2 font-mono text-xs"
+            onClick={() => setShowConnectWizard(true)}
+            className="h-7 px-3 font-mono text-xs border-2 border-dashed border-theme-primary/50 bg-theme-primary/5 hover:bg-theme-primary/10 hover:border-theme-primary text-theme-primary"
           >
-            <Plus className="w-3 h-3 mr-1" />
-            Add Tag
+            <Plug className="w-3 h-3 mr-1.5" />
+            Connect a Runner
           </Button>
-        </TagDropdown>
-
-        {/* AI suggestion button */}
-        {prompt && prompt.trim().length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSuggestTags}
-            disabled={tagSuggestionsMutation.isPending}
-            className="h-7 px-2 bg-theme-primary-muted border-theme-primary/50 hover:bg-theme-primary-muted/70 hover:border-theme-primary/60 font-mono text-xs text-theme-primary"
+        ) : (
+          /* Add tag button */
+          <TagDropdown
+            open={dropdownOpen}
+            onOpenChange={setDropdownOpen}
+            onSelectTag={handleAddTag}
+            runnerOptions={runnerOptions}
           >
-            {tagSuggestionsMutation.isPending ? (
-              <>
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                Suggesting...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3 h-3 mr-1" />
-                Suggest Tags
-              </>
-            )}
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 font-mono text-xs border-2 border-zinc-600 bg-zinc-900/50 hover:bg-zinc-800 hover:border-zinc-500 text-zinc-300"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Add Tag
+            </Button>
+          </TagDropdown>
         )}
       </div>
 
@@ -203,6 +168,12 @@ export function TagInput({
           ))}
         </div>
       )}
+
+      {/* Connect Runner Wizard Modal */}
+      <ConnectRunnerWizard
+        open={showConnectWizard}
+        onOpenChange={setShowConnectWizard}
+      />
     </div>
   );
 }

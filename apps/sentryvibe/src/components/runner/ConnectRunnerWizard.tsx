@@ -1,0 +1,119 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { AnimatePresence } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import { useRunner } from "@/contexts/RunnerContext";
+import { ConnectRunnerStepProgress } from "./ConnectRunnerStepProgress";
+import { InstallStep } from "../onboarding/steps/InstallStep";
+import { CreateKeyStep } from "../onboarding/steps/CreateKeyStep";
+import { ConnectStep } from "../onboarding/steps/ConnectStep";
+import { RunnerConnectedStep } from "./RunnerConnectedStep";
+
+type Step = 1 | 2 | 3 | 4;
+
+interface ConnectRunnerWizardProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onComplete?: () => void;
+}
+
+export function ConnectRunnerWizard({ open, onOpenChange, onComplete }: ConnectRunnerWizardProps) {
+  const { availableRunners } = useRunner();
+  const [currentStep, setCurrentStep] = useState<Step>(1);
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // If a runner connects while modal is open, jump to complete step
+  useEffect(() => {
+    if (availableRunners.length > 0 && currentStep < 4 && hasInitialized) {
+      setCurrentStep(4);
+    }
+  }, [availableRunners.length, currentStep, hasInitialized]);
+
+  // Initialize state when modal first opens
+  useEffect(() => {
+    if (open && !hasInitialized) {
+      if (createdKey) {
+        // User has a key from previous session - resume where they left off
+      } else if (availableRunners.length > 0) {
+        // If runners are already connected, start at complete
+        setCurrentStep(4);
+      } else {
+        // Fresh start
+        setCurrentStep(1);
+      }
+      setHasInitialized(true);
+    } else if (!open) {
+      setHasInitialized(false);
+    }
+  }, [open, availableRunners.length, hasInitialized, createdKey]);
+
+  const handleClose = () => {
+    onOpenChange(false);
+  };
+
+  const handleComplete = () => {
+    // Reset state on completion
+    setCurrentStep(1);
+    setCreatedKey(null);
+    onComplete?.();
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl bg-zinc-950 border-zinc-800 p-0 gap-0 overflow-hidden">
+        {/* Header with progress */}
+        <div className="p-6 pb-4 border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950">
+          <h2 className="text-lg font-semibold text-white mb-4">Connect a Runner</h2>
+          <ConnectRunnerStepProgress currentStep={currentStep} />
+        </div>
+
+        {/* Content */}
+        <div className="p-6 min-h-[400px]">
+          <AnimatePresence mode="wait">
+            {currentStep === 1 && (
+              <InstallStep
+                key="install"
+                onNext={() => setCurrentStep(2)}
+                onSkip={handleClose}
+              />
+            )}
+
+            {currentStep === 2 && (
+              <CreateKeyStep
+                key="create-key"
+                onNext={(key) => {
+                  setCreatedKey(key);
+                  setCurrentStep(3);
+                }}
+                onBack={() => setCurrentStep(1)}
+              />
+            )}
+
+            {currentStep === 3 && (
+              <ConnectStep
+                key="connect"
+                runnerKey={createdKey || "<your-key>"}
+                onNext={() => setCurrentStep(4)}
+                onBack={() => setCurrentStep(2)}
+                onSkip={handleClose}
+              />
+            )}
+
+            {currentStep === 4 && (
+              <RunnerConnectedStep 
+                key="complete"
+                onComplete={handleComplete} 
+              />
+            )}
+          </AnimatePresence>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
