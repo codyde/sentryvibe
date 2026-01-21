@@ -64,10 +64,12 @@ import { useAuthGate } from "@/components/auth/AuthGate";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingModal, LocalModeOnboarding } from "@/components/onboarding";
+import { LoginModal as LoginModalComponent } from "@/components/auth/LoginModal";
+import { Button } from "@/components/ui/button";
 import { GitHubButton, getGitHubSetupMessage, getGitHubPushMessage, type RepoVisibility } from "@/components/github";
 import { NeonDBButton, getNeonDBSetupMessage } from "@/components/neondb";
 
-import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink, Loader2 } from "lucide-react";
+import { Monitor, Code, Terminal, MousePointer2, RefreshCw, Copy, Check, Smartphone, Tablet, Cloud, Play, Square, ExternalLink, Loader2, User } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -228,6 +230,7 @@ function HomeContent() {
   } | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [showProcessModal, setShowProcessModal] = useState(false);
+  const [showHeaderLoginModal, setShowHeaderLoginModal] = useState(false);
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
@@ -2630,6 +2633,12 @@ function HomeContent() {
       {/* Login Modal - shown when auth is required */}
       {LoginModal}
       
+      {/* Header Login Modal - for sign in button in top right */}
+      <LoginModalComponent
+        open={showHeaderLoginModal}
+        onOpenChange={setShowHeaderLoginModal}
+      />
+      
       {/* Onboarding Modal - shown for new users */}
       {/* Debug: Add ?forceHostedOnboarding=true to URL to test SaaS modal in local mode */}
       {isLocalMode && !forceHostedOnboarding ? (
@@ -2786,6 +2795,18 @@ function HomeContent() {
                   variant="default"
                 />
               </>
+            )}
+            {/* Sign in button - show when not authenticated and not in local mode */}
+            {!isAuthenticated && !isLocalMode && (
+              <Button
+                onClick={() => setShowHeaderLoginModal(true)}
+                variant="outline"
+                size="sm"
+                className="bg-transparent border-white/20 text-white hover:bg-white/10 hover:border-white/30"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Sign in
+              </Button>
             )}
           </div>
         </header>

@@ -21,6 +21,7 @@ const baseColors = {
   success: '#22c55e',
   error: '#ef4444',
   warning: '#f59e0b',
+  cyan: '#06b6d4',
   white: '#ffffff',
   gray: '#6b7280',
   dimGray: '#4b5563',
@@ -883,10 +884,24 @@ export function Dashboard({ serviceManager, apiUrl, webPort, logFilePath }: Dash
     );
   }
 
+  // Check for available update (set by auto-update check in index.ts)
+  const updateAvailable = process.env.SENTRYVIBE_UPDATE_AVAILABLE;
+
   // Main dashboard view
   return (
     <Box flexDirection="column" height={terminalHeight} width={terminalWidth}>
       <Banner />
+
+      {/* Update notification banner */}
+      {updateAvailable && (
+        <Box justifyContent="center" paddingY={0}>
+          <Text color={baseColors.cyan}>⬆ Update available: </Text>
+          <Text color={baseColors.success}>{updateAvailable}</Text>
+          <Text color={themeColors.textMuted}> — Run </Text>
+          <Text color={baseColors.cyan}>sentryvibe upgrade</Text>
+          <Text color={themeColors.textMuted}> to update</Text>
+        </Box>
+      )}
 
       <Box
         borderStyle="single"

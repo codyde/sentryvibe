@@ -66,7 +66,17 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
     }
   }, [open, availableRunners.length, forceStartAtStepOne, hasInitialized, createdKey]);
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    // Mark onboarding as complete even when skipping, so it doesn't show again
+    try {
+      const response = await fetch("/api/user/onboarding", { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      onComplete();
+    } catch (error) {
+      console.error("Failed to mark onboarding complete on skip:", error);
+    }
     onOpenChange(false);
   };
 
@@ -94,6 +104,7 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
       <DialogContent className="sm:max-w-xl bg-zinc-950 border-zinc-800 p-0 gap-0 overflow-hidden">
         {/* Header with progress */}
         <div className="p-6 pb-4 border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950">
+          <h2 className="text-lg font-semibold text-white mb-4">Get Started</h2>
           <StepProgress currentStep={currentStep} />
         </div>
 

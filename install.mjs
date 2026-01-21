@@ -494,7 +494,11 @@ async function main() {
 }
 
 // Run
-main().catch((error) => {
+main().then(() => {
+  // Explicitly exit to ensure the process terminates
+  // This is important when the script is piped via curl | bash
+  process.exit(0);
+}).catch((error) => {
   console.error(`\n  ${S.error} Unexpected error: ${error.message}\n`);
   process.exit(1);
 });

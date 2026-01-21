@@ -29,9 +29,12 @@ const modeOptions: CardOption[] = [
 export function ModeSelectScreen({ onSelect, onEscape }: ModeSelectScreenProps) {
   const { stdout } = useStdout();
   
+  // Check for available update (set by auto-update check in index.ts)
+  const updateAvailable = process.env.SENTRYVIBE_UPDATE_AVAILABLE;
+  
   // Calculate vertical centering
   const terminalHeight = stdout?.rows || 24;
-  const contentHeight = 18;
+  const contentHeight = updateAvailable ? 20 : 18; // Extra space for update notice
   const topPadding = Math.max(0, Math.floor((terminalHeight - contentHeight) / 3));
 
   const handleSelect = (option: CardOption) => {
@@ -42,6 +45,17 @@ export function ModeSelectScreen({ onSelect, onEscape }: ModeSelectScreenProps) 
     <Box flexDirection="column" alignItems="center" paddingTop={topPadding}>
       {/* Banner */}
       <Banner />
+      
+      {/* Update available notice */}
+      {updateAvailable && (
+        <Box marginTop={1}>
+          <Text color={colors.cyan}>⬆ Update available: </Text>
+          <Text color={colors.success}>{updateAvailable}</Text>
+          <Text color={colors.dimGray}> — Run </Text>
+          <Text color={colors.cyan}>sentryvibe upgrade</Text>
+          <Text color={colors.dimGray}> to update</Text>
+        </Box>
+      )}
       
       {/* Spacer */}
       <Box marginTop={2} />
