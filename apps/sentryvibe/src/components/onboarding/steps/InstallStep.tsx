@@ -53,8 +53,9 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
               What does this install?
             </p>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-theme-accent">sentryvibe</code> runner 
-              runs locally on your machine. It leverages your local Claude Code or Codex credentials to build your application.
+              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-theme-accent">sentryvibe</code> CLI 
+              allows you to run SentryVibe locally, or start this runner to deploy using the SaaS SentryVibe. 
+              It leverages your local Claude Code, Codex, or OpenCode Zen (experimental) subscription to build your applications.
             </p>
           </div>
         </div>
