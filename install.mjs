@@ -153,6 +153,50 @@ function hasPnpm() {
   }
 }
 
+// Check if npm is available
+function hasNpm() {
+  try {
+    execSync('npm --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Install pnpm using npm
+async function installPnpm() {
+  const spinner = new Spinner('Installing pnpm...').start();
+  
+  return new Promise((resolve, reject) => {
+    const proc = spawn('npm', ['install', '-g', 'pnpm'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    
+    let stderr = '';
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    proc.on('close', (code) => {
+      if (code === 0) {
+        spinner.success('pnpm installed');
+        resolve(true);
+      } else {
+        spinner.error('Failed to install pnpm');
+        const error = new Error(`npm install -g pnpm failed with code ${code}`);
+        error.stderr = stderr;
+        reject(error);
+      }
+    });
+    
+    proc.on('error', (err) => {
+      spinner.error('Failed to install pnpm');
+      const error = new Error(`npm install -g pnpm failed: ${err.message}`);
+      reject(error);
+    });
+  });
+}
+
 // Check if pnpm is properly configured (PNPM_HOME is set)
 function isPnpmConfigured() {
   return !!process.env.PNPM_HOME;
@@ -192,22 +236,42 @@ async function runPnpmSetup() {
   });
 }
 
+// Track if pnpm was installed during this run (for terminal restart reminder)
+let pnpmWasInstalled = false;
+
 // Track if pnpm setup was run (for terminal restart reminder)
 let pnpmSetupWasRun = false;
 
-// Print pnpm not found error
-function printPnpmNotFoundError() {
+// Print pnpm install error
+function printPnpmInstallError(error) {
   console.log();
   console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
-  console.log(`${c.error}  ${c.bold}pnpm is required${c.reset}`);
+  console.log(`${c.error}  ${c.bold}Failed to install pnpm${c.reset}`);
   console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log();
-  console.log(`  ${c.dimGray}SentryVibe requires pnpm for installation.${c.reset}`);
-  console.log();
-  console.log(`  ${c.dimGray}Install pnpm:${c.reset}`);
+  if (error.stderr) {
+    console.log(`  ${c.dimGray}${error.stderr.trim()}${c.reset}`);
+    console.log();
+  }
+  console.log(`  ${c.dimGray}Please install pnpm manually:${c.reset}`);
   console.log(`    ${c.cyan}npm install -g pnpm${c.reset}`);
   console.log();
   console.log(`  ${c.dimGray}Then run this installer again.${c.reset}`);
+  console.log();
+}
+
+// Print npm not found error
+function printNpmNotFoundError() {
+  console.log();
+  console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
+  console.log(`${c.error}  ${c.bold}npm is required${c.reset}`);
+  console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
+  console.log();
+  console.log(`  ${c.dimGray}SentryVibe requires npm to install pnpm.${c.reset}`);
+  console.log(`  ${c.dimGray}npm should be included with Node.js.${c.reset}`);
+  console.log();
+  console.log(`  ${c.dimGray}Please reinstall Node.js from:${c.reset}`);
+  console.log(`    ${c.cyan}https://nodejs.org${c.reset}`);
   console.log();
 }
 
@@ -233,10 +297,25 @@ function printPnpmSetupError(error) {
 async function installCLI(version) {
   const downloadUrl = `https://github.com/codyde/sentryvibe/releases/download/${version}/sentryvibe-cli.tgz`;
   
-  // Check pnpm availability - pnpm is required
+  // Check pnpm availability - install if not present
   if (!hasPnpm()) {
-    printPnpmNotFoundError();
-    process.exit(1);
+    console.log(`  ${S.info} pnpm not found, installing...`);
+    
+    // Check if npm is available to install pnpm
+    if (!hasNpm()) {
+      printNpmNotFoundError();
+      process.exit(1);
+    }
+    
+    try {
+      await installPnpm();
+      pnpmWasInstalled = true;
+    } catch (error) {
+      printPnpmInstallError(error);
+      process.exit(1);
+    }
+  } else {
+    console.log(`  ${S.success} pnpm ${c.dimGray}found${c.reset}`);
   }
   
   // Check if pnpm is properly configured
@@ -323,9 +402,9 @@ function printSuccess() {
   console.log(`${c.success}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log();
   
-  // Remind user to restart terminal if pnpm setup was run
-  if (pnpmSetupWasRun) {
-    console.log(`  ${S.warning} ${c.warning}Important: pnpm was configured during install.${c.reset}`);
+  // Remind user to restart terminal if pnpm was installed or setup was run
+  if (pnpmWasInstalled || pnpmSetupWasRun) {
+    console.log(`  ${S.warning} ${c.warning}Important: pnpm was ${pnpmWasInstalled ? 'installed' : 'configured'} during this install.${c.reset}`);
     console.log(`  ${c.warning}Please restart your terminal or run:${c.reset}`);
     console.log(`    ${c.cyan}source ~/.bashrc${c.reset}  ${c.dimGray}(or ~/.zshrc, ~/.profile, etc.)${c.reset}`);
     console.log();
