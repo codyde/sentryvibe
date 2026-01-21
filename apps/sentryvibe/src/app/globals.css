@@ -223,6 +223,7 @@
   --theme-glow: rgba(255, 255, 255, 0.1);
   --theme-glow-hover: rgba(255, 255, 255, 0.2);
   --theme-button-text: #000000;
+  --theme-logo-filter: invert(1);
   /* Input/Chat/Terminal */
   --theme-input-bg: rgba(255, 255, 255, 0.05);
   --theme-input-border: rgba(255, 255, 255, 0.2);

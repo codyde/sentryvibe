@@ -536,16 +536,31 @@ export function useBuildWebSocket({
         
         case 'state-recovery':
           // Server sent recovered state on reconnect
-          if (DEBUG) console.log('[useBuildWebSocket] State recovery received:', message);
+          console.log('[useBuildWebSocket] State recovery received:', {
+            hasState: !!message.state,
+            sessionStatus: message.sessionStatus,
+            isActiveInState: message.state?.isActive,
+          });
           if (message.state) {
             const recoveredState = normalizeDates(message.state) as GenerationState;
-            // Always trust server state on recovery - it's the source of truth
-            // This handles cases where:
-            // 1. Client disconnected and missed build completion/cancellation
-            // 2. Client has stale local state that doesn't match server
-            // 3. Client has no state and needs initial sync
-            setState(recoveredState);
-            if (DEBUG) console.log('[useBuildWebSocket] State recovered successfully, isActive:', recoveredState.isActive);
+            
+            // CRITICAL FIX: Override isActive based on session status from server
+            // The rawState stored in DB may have stale isActive=true from when the build was running
+            // The session.status column is the source of truth for whether a build is active
+            if (message.sessionStatus && message.sessionStatus !== 'active') {
+              console.log('[useBuildWebSocket] ⚠️ Overriding isActive from', recoveredState.isActive, 'to false (session status:', message.sessionStatus + ')');
+              recoveredState.isActive = false;
+            }
+            
+            // Only restore state if the build is actually active
+            // Completed builds should be loaded from serverBuilds/buildHistory, not WebSocket state
+            if (recoveredState.isActive) {
+              console.log('[useBuildWebSocket] ✅ Restoring active build state');
+              setState(recoveredState);
+            } else {
+              console.log('[useBuildWebSocket] ⏭️ Skipping completed build (belongs in serverBuilds)');
+              // Don't set state - completed builds are shown from DB via serverBuilds
+            }
           }
           break;
         

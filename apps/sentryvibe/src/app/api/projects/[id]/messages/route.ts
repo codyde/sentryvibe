@@ -145,6 +145,9 @@ export async function GET(
         if (hydratedState) {
           hydratedState.isAutoFix = sessionWithAutoFix.isAutoFix ?? hydratedState.isAutoFix ?? false;
           hydratedState.autoFixError = sessionWithAutoFix.autoFixError ?? hydratedState.autoFixError ?? undefined;
+          // CRITICAL: Override isActive based on session status, not stored value
+          // This prevents stuck "Analyzing project" states from interrupted builds
+          hydratedState.isActive = session.status === 'active';
         }
       }
 
@@ -222,10 +225,20 @@ export async function GET(
         const isCompletedWithoutTodos = hydratedState.todos.length === 0 && 
           (session.summary || session.endedAt);
 
-        if (allTodosComplete || isCompletedWithoutTodos) {
-          console.log(`[messages-route] 🔄 Detected completed build with active session: ${session.id}`, {
+        // Check for stale "analyzing" sessions - no todos, no recent updates, older than 2 minutes
+        // These are builds that got stuck during the planning phase (user closed browser, etc.)
+        const sessionAge = session.updatedAt ? Date.now() - new Date(session.updatedAt).getTime() : 0;
+        const isStaleAnalyzing = hydratedState.todos.length === 0 && 
+          !session.summary && 
+          !session.endedAt &&
+          sessionAge > 2 * 60 * 1000; // 2 minutes
+
+        if (allTodosComplete || isCompletedWithoutTodos || isStaleAnalyzing) {
+          console.log(`[messages-route] 🔄 Detected stale/completed build with active session: ${session.id}`, {
             allTodosComplete,
             isCompletedWithoutTodos,
+            isStaleAnalyzing,
+            sessionAge: Math.round(sessionAge / 1000) + 's',
             hasSummary: !!session.summary,
             hasEndedAt: !!session.endedAt,
           });
@@ -235,7 +248,7 @@ export async function GET(
           // Update session status in background (don't block response)
           db.update(generationSessions)
             .set({
-              status: 'completed',
+              status: isStaleAnalyzing ? 'failed' : 'completed',
               endedAt: hydratedState.endTime,
               updatedAt: new Date()
             })
