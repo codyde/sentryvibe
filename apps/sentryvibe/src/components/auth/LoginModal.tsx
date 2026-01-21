@@ -157,26 +157,20 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
 
         {authMethod === "sentry" ? (
           <>
-            {/* Sentry OAuth Button - Primary Auth Method */}
-            <div className="mt-4">
-              <Button
+            {/* Sentry OAuth Button - Square icon with logo */}
+            <div className="mt-4 flex justify-center">
+              <button
                 type="button"
                 onClick={handleSentryLogin}
                 disabled={isSentryLoading || isLoading}
-                className="w-full bg-[#2b2233] hover:bg-[#3d3347] text-white border-0"
+                className="w-16 h-16 rounded-lg bg-[#2b2233] hover:bg-[#3d3347] text-white border-0 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSentryLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Connecting to Sentry...
-                  </>
+                  <Loader2 className="h-8 w-8 animate-spin" />
                 ) : (
-                  <>
-                    <SentryLogo className="h-5 w-5 mr-2" />
-                    Sign in with Sentry
-                  </>
+                  <SentryLogo className="h-8 w-8" />
                 )}
-              </Button>
+              </button>
             </div>
 
             {/* Divider */}
