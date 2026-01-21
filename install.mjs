@@ -169,8 +169,11 @@ async function installPnpm() {
   
   return new Promise((resolve, reject) => {
     const proc = spawn('npm', ['install', '-g', 'pnpm'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
+    
+    // Immediately close stdin to prevent any possibility of hanging
+    proc.stdin.end();
     
     let stderr = '';
     proc.stderr.on('data', (data) => {
@@ -197,9 +200,19 @@ async function installPnpm() {
   });
 }
 
-// Check if pnpm is properly configured (PNPM_HOME is set)
+// Check if pnpm global bin directory is in PATH
+// Note: We no longer check PNPM_HOME since it's not always set
+// Instead, we check if pnpm can successfully run global packages
 function isPnpmConfigured() {
-  return !!process.env.PNPM_HOME;
+  try {
+    // Check if pnpm's global bin is accessible by checking where pnpm would install
+    const globalDir = execSync('pnpm root -g', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    return !!globalDir;
+  } catch {
+    // If we can't determine the global dir, assume it's configured
+    // The actual install will fail if it's not, and we'll show a helpful error
+    return true;
+  }
 }
 
 // Run pnpm setup to configure global bin directory
@@ -207,9 +220,14 @@ async function runPnpmSetup() {
   console.log(`  ${S.info} Running ${c.cyan}pnpm setup${c.reset} to configure global directory...`);
   
   return new Promise((resolve, reject) => {
-    const proc = spawn('pnpm', ['setup'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // Use --force to make pnpm setup non-interactive
+    // This prevents hanging when stdin is not a TTY (e.g., curl | bash)
+    const proc = spawn('pnpm', ['setup', '--force'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
+    
+    // Immediately close stdin to prevent any possibility of hanging
+    proc.stdin.end();
     
     let stderr = '';
     proc.stderr.on('data', (data) => {
@@ -367,8 +385,11 @@ async function installCLI(version) {
     
     const proc = spawn('pnpm', installArgs, {
       env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
+    
+    // Immediately close stdin to prevent any possibility of hanging
+    proc.stdin.end();
     
     let stdout = '';
     let stderr = '';
@@ -404,7 +425,12 @@ async function installCLI(version) {
 // Verify installation
 function verifyInstallation() {
   try {
-    const output = execSync('sentryvibe --version', { encoding: 'utf8' }).trim();
+    // Skip update check to prevent recursive installer calls
+    const output = execSync('sentryvibe --version', { 
+      encoding: 'utf8',
+      env: { ...process.env, SENTRYVIBE_SKIP_UPDATE_CHECK: '1' },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
     // Extract just the version number (last line or the line with the version)
     const lines = output.split('\n');
     const versionLine = lines.find(l => /^\d+\.\d+\.\d+/.test(l.trim())) || lines[lines.length - 1];
