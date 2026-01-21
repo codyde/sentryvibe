@@ -1,6 +1,6 @@
 {
   "name": "sentryvibe",
-  "version": "0.27.23",
+  "version": "0.28.0",
   "description": "AI-powered project generation web application with real-time build tracking and code preview",
   "private": true,
   "author": "Cody De Arkland",
