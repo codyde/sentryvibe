@@ -1,4 +1,6 @@
 name: Auto Release on Main Merge
+# Automatically bumps version and creates release on main merge based on PR labels
+# Supports both regular merge and squash merge formats
 
 on:
   push:
