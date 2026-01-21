@@ -107,14 +107,10 @@ if (isTUIMode) {
   process.env.SILENT_MODE = '1';
 }
 
-// Display splash screen banner (skip for TUI modes)
-if (!isTUIMode) {
-  displayBanner();
-}
-
-// Auto-update check
+// Auto-update check - do this BEFORE displaying banner to avoid double banners
 // For TUI modes: check only and store result for display (don't auto-update to avoid disruption)
 // For CLI modes: full auto-update with restart
+let willAutoUpdate = false;
 if (!process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
   const { checkAndAutoUpdate, checkForUpdate } = await import('./utils/auto-update.js');
   
@@ -128,14 +124,26 @@ if (!process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
       }
     } else {
       // CLI mode: full auto-update
+      // Show banner first since we're in CLI mode and might not auto-update
+      displayBanner();
       const didUpdate = await checkAndAutoUpdate(packageJson.version);
       if (didUpdate) {
         // CLI will be relaunched by auto-update, exit this process
+        willAutoUpdate = true;
         process.exit(0);
       }
     }
   } catch {
     // Auto-update failed silently, continue with current version
+    // Show banner if we haven't yet (non-TUI mode)
+    if (!isTUIMode) {
+      // Banner already shown above before checkAndAutoUpdate
+    }
+  }
+} else {
+  // Update check skipped, show banner for CLI mode
+  if (!isTUIMode) {
+    displayBanner();
   }
 }
 

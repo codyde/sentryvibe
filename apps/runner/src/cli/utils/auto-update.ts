@@ -118,10 +118,14 @@ function isNewerVersion(current: string, latest: string): boolean {
  */
 function performCLIUpdate(): boolean {
   try {
-    // Run the install command
+    // Run the install command with quiet mode to avoid banner spam
     execSync(INSTALL_COMMAND, {
       stdio: 'inherit',
       shell: '/bin/bash',
+      env: {
+        ...process.env,
+        SENTRYVIBE_QUIET_INSTALL: '1', // Suppress banner in installer
+      },
     });
     return true;
   } catch {
@@ -172,14 +176,24 @@ function relaunchCLI(): void {
   const args = process.argv.slice(2);
   
   try {
-    // Use spawnSync with inherit to seamlessly continue
-    const result = spawnSync('sentryvibe', args, {
+    // Get the actual path to sentryvibe to avoid shell hash caching issues
+    // This ensures we run the newly installed version, not a cached path
+    let sentryVibePath = 'sentryvibe';
+    try {
+      // Use 'command -v' to get the actual path, bypassing shell hash
+      sentryVibePath = execSync('command -v sentryvibe', { encoding: 'utf-8' }).trim();
+    } catch {
+      // Fallback to just 'sentryvibe' if command -v fails
+    }
+    
+    // Use spawnSync with the explicit path to ensure we get the new version
+    const result = spawnSync(sentryVibePath, args, {
       stdio: 'inherit',
       env: { 
         ...process.env, 
         SENTRYVIBE_SKIP_UPDATE_CHECK: '1' // Prevent update loop
       },
-      shell: true,
+      // Don't use shell: true to avoid shell hash caching
     });
     
     // Exit with the same code as the relaunched process
