@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/cli",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "description": "SentryVibe CLI - AI-powered app builder",
   "private": false,
   "type": "module",
