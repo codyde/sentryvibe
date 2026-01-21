@@ -153,27 +153,117 @@ function hasPnpm() {
   }
 }
 
+// Check if pnpm is properly configured (PNPM_HOME is set)
+function isPnpmConfigured() {
+  return !!process.env.PNPM_HOME;
+}
+
+// Run pnpm setup to configure global bin directory
+async function runPnpmSetup() {
+  console.log(`  ${S.info} Running ${c.cyan}pnpm setup${c.reset} to configure global directory...`);
+  
+  return new Promise((resolve, reject) => {
+    const proc = spawn('pnpm', ['setup'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    
+    let stderr = '';
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    proc.on('close', (code) => {
+      if (code === 0) {
+        console.log(`  ${S.success} pnpm setup completed`);
+        console.log(`  ${S.warning} ${c.warning}Note: You may need to restart your terminal after install${c.reset}`);
+        console.log();
+        resolve(true);
+      } else {
+        const error = new Error(`pnpm setup failed with code ${code}`);
+        error.stderr = stderr;
+        reject(error);
+      }
+    });
+    
+    proc.on('error', (err) => {
+      const error = new Error(`pnpm setup failed: ${err.message}`);
+      reject(error);
+    });
+  });
+}
+
+// Track if pnpm setup was run (for terminal restart reminder)
+let pnpmSetupWasRun = false;
+
+// Print pnpm not found error
+function printPnpmNotFoundError() {
+  console.log();
+  console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
+  console.log(`${c.error}  ${c.bold}pnpm is required${c.reset}`);
+  console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
+  console.log();
+  console.log(`  ${c.dimGray}SentryVibe requires pnpm for installation.${c.reset}`);
+  console.log();
+  console.log(`  ${c.dimGray}Install pnpm:${c.reset}`);
+  console.log(`    ${c.cyan}npm install -g pnpm${c.reset}`);
+  console.log();
+  console.log(`  ${c.dimGray}Then run this installer again.${c.reset}`);
+  console.log();
+}
+
+// Print pnpm setup error
+function printPnpmSetupError(error) {
+  console.log();
+  console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
+  console.log(`${c.error}  ${c.bold}pnpm setup failed${c.reset}`);
+  console.log(`${c.error}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
+  console.log();
+  if (error.stderr) {
+    console.log(`  ${c.dimGray}${error.stderr.trim()}${c.reset}`);
+    console.log();
+  }
+  console.log(`  ${c.dimGray}Please run the following command manually:${c.reset}`);
+  console.log(`    ${c.cyan}pnpm setup${c.reset}`);
+  console.log();
+  console.log(`  ${c.dimGray}Then restart your terminal and run this installer again.${c.reset}`);
+  console.log();
+}
+
 // Install the CLI
 async function installCLI(version) {
   const downloadUrl = `https://github.com/codyde/sentryvibe/releases/download/${version}/sentryvibe-cli.tgz`;
   
+  // Check pnpm availability - pnpm is required
+  if (!hasPnpm()) {
+    printPnpmNotFoundError();
+    process.exit(1);
+  }
+  
+  // Check if pnpm is properly configured
+  if (!isPnpmConfigured()) {
+    // pnpm exists but PNPM_HOME not set - run pnpm setup
+    try {
+      await runPnpmSetup();
+      pnpmSetupWasRun = true;
+    } catch (error) {
+      printPnpmSetupError(error);
+      process.exit(1);
+    }
+  }
+  
   const spinner = new Spinner('Installing SentryVibe CLI...').start();
   
-  // Prefer pnpm if available, fall back to npm
-  const usePnpm = hasPnpm();
-  const packageManager = usePnpm ? 'pnpm' : 'npm';
-  const installArgs = usePnpm 
-    ? ['add', '-g', downloadUrl]
-    : ['install', '-g', downloadUrl];
+  const installArgs = ['add', '-g', downloadUrl];
   
   return new Promise((resolve, reject) => {
-    // Set increased heap size for large packages
+    // Set increased heap size for large packages and suppress DEP0190 warning
+    // DEP0190: Passing args to child_process spawn with shell:true (comes from package managers)
     const env = {
       ...process.env,
-      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=8192`.trim(),
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=8192 --disable-warning=DEP0190`.trim(),
     };
     
-    const proc = spawn(packageManager, installArgs, {
+    const proc = spawn('pnpm', installArgs, {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -195,7 +285,7 @@ async function installCLI(version) {
         resolve();
       } else {
         spinner.error('Installation failed');
-        const error = new Error(`${packageManager} install failed with code ${code}`);
+        const error = new Error(`pnpm install failed with code ${code}`);
         error.stdout = stdout;
         error.stderr = stderr;
         reject(error);
@@ -232,6 +322,15 @@ function printSuccess() {
   console.log(`${c.success}  ${c.bold}Installation complete!${c.reset}`);
   console.log(`${c.success}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log();
+  
+  // Remind user to restart terminal if pnpm setup was run
+  if (pnpmSetupWasRun) {
+    console.log(`  ${S.warning} ${c.warning}Important: pnpm was configured during install.${c.reset}`);
+    console.log(`  ${c.warning}Please restart your terminal or run:${c.reset}`);
+    console.log(`    ${c.cyan}source ~/.bashrc${c.reset}  ${c.dimGray}(or ~/.zshrc, ~/.profile, etc.)${c.reset}`);
+    console.log();
+  }
+  
   console.log(`  ${c.dimGray}Get started:${c.reset}`);
   console.log();
   console.log(`    ${c.cyan}sentryvibe${c.reset}          Launch the interactive TUI`);
@@ -278,8 +377,6 @@ function printFailure(error) {
   } else {
     console.log(`  ${c.dimGray}Try manual installation:${c.reset}`);
     console.log(`    ${c.cyan}pnpm add -g @sentryvibe/runner-cli${c.reset}`);
-    console.log(`  ${c.dimGray}Or with npm:${c.reset}`);
-    console.log(`    ${c.cyan}npm install -g @sentryvibe/runner-cli${c.reset}`);
   }
   console.log();
   console.log(`  ${c.dimGray}If the problem persists, please report it at:${c.reset}`);
