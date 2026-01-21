@@ -14,6 +14,7 @@ import {
   SidebarHeader,
   SidebarFooter,
   SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
 import {
@@ -197,66 +198,70 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           </HoverCard>
         ) : (
           // Expanded header
-          <>
-            <div className="flex items-center gap-3">
-              <div 
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-2 border border-white/20"
-                style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
-              >
-                <img
-                  src="/sentryglyph.png"
-                  alt="SentryVibe"
-                  className="h-full w-full object-contain"
-                  style={{ filter: 'var(--theme-logo-filter, none)' }}
-                />
-              </div>
-              <div className="flex-1">
-                <h1 className="text-lg font-bold text-white">
-                  SentryVibe
-                </h1>
-                <p className="text-xs text-gray-500">AI App Builder</p>
-              </div>
-            </div>
-
-            {/* New Project Button */}
-            <a
-              href="/"
-              className="flex items-center justify-center gap-2 w-full mt-4 px-4 py-2.5 text-sm font-medium rounded-lg transition-all border border-white/20 hover:border-white/40"
-              style={{ 
-                background: `linear-gradient(to right, var(--theme-primary), var(--theme-secondary))`,
-                color: 'var(--theme-button-text, white)'
-              }}
+          <div className="flex items-center gap-3">
+            <div 
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-2 border border-white/20"
+              style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
             >
-              <Plus className="w-4 h-4" />
-              <span>New Project</span>
-            </a>
-          </>
-        )}
-        
-        {/* Collapsed New Project Button */}
-        {isCollapsed && (
-          <HoverCard openDelay={0} closeDelay={0}>
-            <HoverCardTrigger asChild>
-              <a
-                href="/"
-                className="flex items-center justify-center mt-2 p-2.5 rounded-lg transition-all border border-white/20 hover:border-white/40"
-                style={{ 
-                  background: `linear-gradient(to right, var(--theme-primary), var(--theme-secondary))`,
-                  color: 'var(--theme-button-text, white)'
-                }}
-              >
-                <Plus className="w-5 h-5" />
-              </a>
-            </HoverCardTrigger>
-            <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-black/90 border-white/10">
-              <p className="text-sm text-white whitespace-nowrap">New Project</p>
-            </HoverCardContent>
-          </HoverCard>
+              <img
+                src="/sentryglyph.png"
+                alt="SentryVibe"
+                className="h-full w-full object-contain"
+                style={{ filter: 'var(--theme-logo-filter, none)' }}
+              />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-lg font-bold text-white">
+                SentryVibe
+              </h1>
+              <p className="text-xs text-gray-500">AI App Builder</p>
+            </div>
+          </div>
         )}
       </SidebarHeader>
 
       {/* Content - Project List */}
       <SidebarContent className="px-0">
+        {/* New Project Button - only show when signed in */}
+        {canViewProjects && (
+          <>
+            <div className={isCollapsed ? 'p-2' : 'p-3'}>
+              {isCollapsed ? (
+                <HoverCard openDelay={0} closeDelay={0}>
+                  <HoverCardTrigger asChild>
+                    <a
+                      href="/"
+                      className="flex items-center justify-center w-8 h-8 mx-auto rounded-md transition-all border border-white/20 hover:border-white/40"
+                      style={{ 
+                        background: `linear-gradient(to right, var(--theme-primary), var(--theme-secondary))`,
+                        color: 'var(--theme-button-text, white)'
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </a>
+                  </HoverCardTrigger>
+                  <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-black/90 border-white/10">
+                    <p className="text-sm text-white whitespace-nowrap">New Project</p>
+                  </HoverCardContent>
+                </HoverCard>
+              ) : (
+                <a
+                  href="/"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium rounded-lg transition-all border border-white/20 hover:border-white/40"
+                  style={{ 
+                    background: `linear-gradient(to right, var(--theme-primary), var(--theme-secondary))`,
+                    color: 'var(--theme-button-text, white)'
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Project</span>
+                </a>
+              )}
+            </div>
+            <SidebarSeparator className="bg-white/10" />
+          </>
+        )}
+
         {!canViewProjects ? (
           // Not authenticated - show sign in prompt
           isCollapsed ? (
