@@ -74,10 +74,12 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
         throw new Error(`API returned ${response.status}`);
       }
       onComplete();
+      onOpenChange(false);
     } catch (error) {
       console.error("Failed to mark onboarding complete on skip:", error);
+      // Don't close modal if API call failed - keeps UI in sync with database
+      // User can try again or complete the onboarding flow
     }
-    onOpenChange(false);
   };
 
   const handleComplete = async () => {
