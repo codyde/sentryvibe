@@ -578,7 +578,7 @@
   .connect-runner-btn::before {
     content: '';
     position: absolute;
-    inset: -2px;
+    inset: -3px;
     border-radius: 8px;
     background: linear-gradient(
       90deg,
@@ -586,24 +586,35 @@
       var(--theme-accent),
       var(--theme-primary)
     );
-    opacity: 0;
-    filter: blur(8px);
+    filter: blur(6px);
     animation: gradient-pulse 2s ease-in-out infinite;
     z-index: -1;
   }
 
   .connect-runner-btn:hover::before {
-    opacity: 0.6;
+    filter: blur(8px);
+    animation: gradient-pulse-hover 1.5s ease-in-out infinite;
   }
 
   @keyframes gradient-pulse {
     0%, 100% {
-      opacity: 0.3;
+      opacity: 0.4;
       transform: scale(1);
     }
     50% {
-      opacity: 0.5;
-      transform: scale(1.02);
+      opacity: 0.6;
+      transform: scale(1.03);
+    }
+  }
+
+  @keyframes gradient-pulse-hover {
+    0%, 100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.05);
     }
   }
 }
