@@ -19,8 +19,22 @@ const rubik = Rubik({
 });
 
 export const metadata: Metadata = {
-  title: "SentryVibe",
-  description: "Build projects with Claude Code",
+  title: "SentryVibe - Code breaks, build it anyways",
+  description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
+  metadataBase: new URL("https://sentryvibe.app"),
+  openGraph: {
+    title: "SentryVibe - Code breaks, build it anyways",
+    description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
+    url: "https://sentryvibe.app",
+    siteName: "SentryVibe",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "SentryVibe - Code breaks, build it anyways",
+    description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
+  },
+  keywords: ["AI", "app builder", "code generation", "full-stack", "developer tools", "Sentry", "vibe coding"],
 };
 
 export default function RootLayout({

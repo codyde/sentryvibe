@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Terminal, Key, Plug, Sparkles } from "lucide-react";
+import { Check, Terminal, Key, Plug } from "lucide-react";
 
 interface Step {
   id: number;
@@ -13,7 +13,6 @@ const steps: Step[] = [
   { id: 1, label: "Install", icon: <Terminal className="w-4 h-4" /> },
   { id: 2, label: "Create Key", icon: <Key className="w-4 h-4" /> },
   { id: 3, label: "Connect", icon: <Plug className="w-4 h-4" /> },
-  { id: 4, label: "Ready", icon: <Sparkles className="w-4 h-4" /> },
 ];
 
 interface StepProgressProps {
@@ -21,6 +20,9 @@ interface StepProgressProps {
 }
 
 export function StepProgress({ currentStep }: StepProgressProps) {
+  // Map step 4 (complete) to show all steps as completed
+  const displayStep = currentStep === 4 ? 4 : currentStep;
+  
   return (
     <div className="w-full">
       <div className="flex items-center justify-between relative">
@@ -32,15 +34,15 @@ export function StepProgress({ currentStep }: StepProgressProps) {
           className="absolute top-5 left-8 h-0.5 bg-theme-gradient"
           initial={{ width: 0 }}
           animate={{ 
-            width: `calc(${((currentStep - 1) / (steps.length - 1)) * 100}% - 4rem)` 
+            width: `calc(${((Math.min(displayStep, steps.length) - 1) / (steps.length - 1)) * 100}% - 4rem)` 
           }}
           transition={{ duration: 0.4, ease: "easeInOut" }}
         />
 
         {steps.map((step) => {
-          const isCompleted = step.id < currentStep;
-          const isCurrent = step.id === currentStep;
-          const isPending = step.id > currentStep;
+          const isCompleted = step.id < displayStep || displayStep === 4;
+          const isCurrent = step.id === displayStep && displayStep !== 4;
+          const isPending = step.id > displayStep;
 
           return (
             <div key={step.id} className="flex flex-col items-center z-10">
