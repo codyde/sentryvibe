@@ -128,19 +128,15 @@ export function TagInput({
 
         {/* Show Connect Runner button if no runners connected */}
         {!hasConnectedRunners ? (
-          <div className="relative inline-flex p-1">
-            {/* Pulsing gradient glow */}
-            <div className="absolute inset-0 m-0.5 rounded-md bg-gradient-to-r from-theme-primary via-theme-accent to-theme-primary blur-sm animate-pulse-glow" />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowConnectWizard(true)}
-              className="relative h-7 px-3 font-mono text-xs border border-theme-primary/60 bg-zinc-950 hover:bg-zinc-900 text-theme-primary z-10"
-            >
-              <Plug className="w-3 h-3 mr-1.5" />
-              Connect a Runner
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowConnectWizard(true)}
+            className="h-7 px-3 font-mono text-xs border border-zinc-600 bg-zinc-900/50 hover:bg-zinc-800 hover:border-zinc-500 text-zinc-300"
+          >
+            <Plug className="w-3 h-3 mr-1.5" />
+            Connect a Runner
+          </Button>
         ) : (
           /* Add tag button */
           <TagDropdown
