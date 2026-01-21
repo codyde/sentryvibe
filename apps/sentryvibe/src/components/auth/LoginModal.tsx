@@ -11,18 +11,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail, Lock, User, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Lock, User, AlertCircle, ArrowLeft } from "lucide-react";
 
-// Sentry logo SVG component (official mark)
+// Sentry logo SVG component (official mark) - white version for dark backgrounds
 function SentryLogo({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 222 66"
+      viewBox="0 0 72 66"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M39.8,57.5c0,0-1.2-0.9-3.4-0.9c-4.4,0-7.3,3.5-7.3,7.8H24c0-6.5,5-11.7,11.5-11.7c3.1,0,5.5,1.1,5.5,1.1l4.7-8.1 c0,0-3.5-2-10.2-2c-11.4,0-20.7,9-20.7,20.4v0.3H5.6c0,0-0.1-0.2,0-0.3c0-16.9,13.6-30.9,30.3-31.5c0.6,0,1.1,0,1.7,0 c5.5,0,10.8,1.4,15.2,4l4.7-8.2c-5.8-3.5-12.5-5.5-19.8-5.5c-0.7,0-1.4,0-2.1,0C15.2,23.3,0.1,38.7,0,59.1v5.4h9.4v-5.4 c0-0.1,0-0.2,0-0.3c0-4,0.6-7.9,1.7-11.4l-6.9,12c-0.9,1.5-0.4,3.5,1.2,4.4c0.5,0.3,1.1,0.4,1.7,0.4h5.9c0.1,0,0.2,0,0.3,0h28.1 c0.2,0,0.4,0,0.6,0c1.8,0,3.2-1.4,3.2-3.2c0-0.6-0.2-1.2-0.5-1.7L39.8,57.5z" />
+      <path d="M41.6,1.4c-1.7-1-3.9-1-5.6,0l-0.3,0.2l-0.3,0.2c-1,0.7-1.8,1.6-2.4,2.7l-0.2,0.3L3,59.2c-0.8,1.5-0.9,3.3-0.1,4.9l0.1,0.2l0.1,0.2c0.7,1.1,1.8,1.9,3.1,2.1l0.3,0l0.3,0c0.2,0,0.4,0,0.6,0l0.3,0l0.3,0l0.4,0h10.4c0.1-4.7,3.5-8.6,8.2-10.4c0.9-0.3,1.9-0.5,2.9-0.5c1.5,0,2.9,0.4,4.1,1l0.3,0.2l0.2,0.2l4.8-8.2l-0.2-0.2c-2.7-1.8-5.9-2.8-9.2-2.8c-9.7,0-17.6,7.3-18.6,16.6l-0.1,0.7l0,0.7h0c0,0,0,0,0,0l0-0.4l0.1-0.4c0.7-6.6,5.7-12,12-13.4l0.5-0.1l0.5,0h0.1c0.3,0,0.6,0,0.9,0l0.5,0.1l0.5,0.1c3.8,1,7.1,3.3,9.2,6.5l0.2,0.3l0.2,0.3l4.8-8.2l-0.2-0.2c-3.7-3.5-8.5-6.1-14-6.8l-0.6-0.1l-0.6,0c-10.5,0-19.6,7.8-21.4,18.1l-0.1,0.7l-0.1,0.8c0,0.4,0,0.9,0.1,1.3l0.1,0.5l0.1,0.5h-3l-0.1-0.5l-0.1-0.5c-0.1-0.9-0.1-1.9,0.1-2.8l0.1-0.6l0.2-0.5L31.2,4.3l0.1-0.3l0.3-0.4c1-1.4,2.5-2.5,4.2-2.9l0.3-0.1l0.4-0.1c1.9-0.3,3.9,0.1,5.5,1.1l0.3,0.2l0.2,0.2l27.3,49.1c0.2,0.3,0.4,0.7,0.5,1.1l0.1,0.4l0.1,0.5c0.1,0.9-0.1,1.8-0.5,2.6l-0.2,0.3l-0.3,0.3l-4.8,8.2l-0.3,0.3l-0.3,0.3c-0.8,0.5-1.6,0.9-2.5,1l-0.4,0l-0.5,0H50.1c-0.9-4.7-4.2-8.6-8.9-10.4l-0.4-0.1l-0.4-0.1c-1.1-0.2-2.3-0.3-3.5-0.3c-1.5,0-2.9,0.4-4.1,1l-0.3,0.2l-0.2,0.2l-4.9-8.2l0.2-0.2c2.8-1.8,6-2.8,9.3-2.8c9.7,0,17.6,7.3,18.6,16.6l0.1,0.7l0,0.7h0c0,0,0,0,0,0l0-0.4l-0.1-0.4c-0.7-6.6-5.7-12-12-13.4l-0.5-0.1l-0.5,0h-0.1c-0.3,0-0.6,0-0.9,0l-0.5,0.1l-0.5,0.1c-3.8,1-7.1,3.3-9.2,6.5l-0.2,0.3l-0.2,0.3l-4.8-8.2l0.2-0.2c3.7-3.5,8.5-6.1,14-6.8l0.6-0.1l0.6,0c10.5,0,19.6,7.8,21.4,18.1l0.1,0.7l0.1,0.8c0,0.4,0,0.9-0.1,1.3l-0.1,0.5l-0.1,0.5h3l0.1-0.5l0.1-0.5c0.1-0.9,0.1-1.9-0.1-2.8l-0.1-0.6l-0.2-0.5L37.8,4.3l-0.1-0.3l-0.3-0.4c-1-1.4-2.5-2.5-4.2-2.9l-0.3-0.1L32.5,0.5c-1.9-0.3-3.9,0.1-5.5,1.1l-0.3,0.2l-0.2,0.2" />
     </svg>
   );
 }
@@ -34,9 +34,11 @@ interface LoginModalProps {
 }
 
 type Mode = "login" | "signup";
+type AuthMethod = "sentry" | "email";
 
 export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const [mode, setMode] = useState<Mode>("login");
+  const [authMethod, setAuthMethod] = useState<AuthMethod>("sentry");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -133,6 +135,12 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
     }
   };
 
+  const handleBackToSentry = () => {
+    setAuthMethod("sentry");
+    setError(null);
+    resetForm();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800">
@@ -147,155 +155,189 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Sentry OAuth Button - Primary Auth Method */}
-        <div className="mt-4">
-          <Button
-            type="button"
-            onClick={handleSentryLogin}
-            disabled={isSentryLoading || isLoading}
-            className="w-full bg-[#362d59] hover:bg-[#4a3d7a] text-white border-0"
-          >
-            {isSentryLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Connecting to Sentry...
-              </>
-            ) : (
-              <>
-                <SentryLogo className="h-5 w-5 mr-2" />
-                Sign in with Sentry
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Divider */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-zinc-800" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-zinc-950 px-2 text-zinc-500">
-              or continue with email
-            </span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === "signup" && (
-            <div className="space-y-2">
-              <label
-                htmlFor="name"
-                className="text-sm font-medium text-zinc-300"
+        {authMethod === "sentry" ? (
+          <>
+            {/* Sentry OAuth Button - Primary Auth Method */}
+            <div className="mt-4">
+              <Button
+                type="button"
+                onClick={handleSentryLogin}
+                disabled={isSentryLoading || isLoading}
+                className="w-full bg-[#2b2233] hover:bg-[#3d3347] text-white border-0"
               >
-                Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
-                />
+                {isSentryLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Connecting to Sentry...
+                  </>
+                ) : (
+                  <>
+                    <SentryLogo className="h-5 w-5 mr-2" />
+                    Sign in with Sentry
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-zinc-800" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-zinc-950 px-2 text-zinc-500">or</span>
               </div>
             </div>
-          )}
 
-          <div className="space-y-2">
-            <label
-              htmlFor="email"
-              className="text-sm font-medium text-zinc-300"
+            {/* Email/Password Button */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAuthMethod("email")}
+              disabled={isSentryLoading}
+              className="w-full bg-transparent border-zinc-700 hover:bg-zinc-900 hover:border-zinc-600 text-zinc-300"
             >
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="password"
-              className="text-sm font-medium text-zinc-300"
+              <Mail className="h-4 w-4 mr-2" />
+              Email / Password
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* Back button */}
+            <button
+              type="button"
+              onClick={handleBackToSentry}
+              className="flex items-center gap-1 text-sm text-zinc-400 hover:text-white transition-colors mt-2 mb-4"
             >
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-              <Input
-                id="password"
-                type="password"
-                placeholder={mode === "signup" ? "Min 8 characters" : "Enter your password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-                className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
-              />
+              <ArrowLeft className="h-4 w-4" />
+              Back to sign in options
+            </button>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === "signup" && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="name"
+                    className="text-sm font-medium text-zinc-300"
+                  >
+                    Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="email"
+                  className="text-sm font-medium text-zinc-300"
+                >
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-zinc-300"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder={mode === "signup" ? "Min 8 characters" : "Enter your password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
+                  />
+                </div>
+                {mode === "signup" && (
+                  <p className="text-xs text-zinc-500">
+                    Must include uppercase, lowercase, and a number
+                  </p>
+                )}
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full btn-theme-primary"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {mode === "login" ? "Signing in..." : "Creating account..."}
+                  </>
+                ) : mode === "login" ? (
+                  "Sign in"
+                ) : (
+                  "Create account"
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={toggleMode}
+                className="text-sm text-zinc-400 hover:text-white transition-colors"
+              >
+                {mode === "login" ? (
+                  <>
+                    Don&apos;t have an account?{" "}
+                    <span className="text-theme-primary hover:text-theme-accent">Sign up</span>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{" "}
+                    <span className="text-theme-primary hover:text-theme-accent">Sign in</span>
+                  </>
+                )}
+              </button>
             </div>
-            {mode === "signup" && (
-              <p className="text-xs text-zinc-500">
-                Must include uppercase, lowercase, and a number
-              </p>
-            )}
+          </>
+        )}
+
+        {/* Error display for Sentry auth */}
+        {authMethod === "sentry" && error && (
+          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg mt-4">
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+            <p className="text-sm text-red-400">{error}</p>
           </div>
-
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className="w-full btn-theme-primary"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {mode === "login" ? "Signing in..." : "Creating account..."}
-              </>
-            ) : mode === "login" ? (
-              "Sign in"
-            ) : (
-              "Create account"
-            )}
-          </Button>
-        </form>
-
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={toggleMode}
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            {mode === "login" ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <span className="text-theme-primary hover:text-theme-accent">Sign up</span>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <span className="text-theme-primary hover:text-theme-accent">Sign in</span>
-              </>
-            )}
-          </button>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
