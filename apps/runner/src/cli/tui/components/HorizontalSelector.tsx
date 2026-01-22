@@ -20,7 +20,7 @@ interface HorizontalSelectorProps {
  * ┌─────────────────┐     ┌─────────────────┐
  * │   Local Mode    │     │   Runner Mode   │
  * │                 │     │                 │
- * │ Run SentryVibe  │     │ Connect to a    │
+ * │ Run ShipBuilder  │     │ Connect to a    │
  * │ locally         │     │ remote server   │
  * └─────────────────┘     └─────────────────┘
  *       [SELECTED]

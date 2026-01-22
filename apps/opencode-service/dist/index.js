@@ -4,12 +4,12 @@ import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { createOpencode } from '@opencode-ai/sdk';
 import * as Sentry from '@sentry/node';
 import { createHash } from 'crypto';
-import { db } from '@sentryvibe/agent-core';
-import { runnerKeys } from '@sentryvibe/agent-core/lib/db/schema';
+import { db } from '@shipbuilder/agent-core';
+import { runnerKeys } from '@shipbuilder/agent-core/lib/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 
 function isLocalMode() {
-  return process.env.SENTRYVIBE_LOCAL_MODE === "true";
+  return process.env.SHIPBUILDER_LOCAL_MODE === "true";
 }
 function hashRunnerKey(key) {
   return createHash("sha256").update(key).digest("hex");

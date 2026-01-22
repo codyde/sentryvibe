@@ -1,5 +1,5 @@
 {
-  "name": "@sentryvibe/opencode-client",
+  "name": "@shipbuilder/opencode-client",
   "version": "0.27.3",
   "private": true,
   "type": "module",

@@ -76,14 +76,14 @@ Sentry.init({
     /^https?:\/\/localhost:\d+$/,
 
     // Production domains
-    "sentryvibe.app",
-    "sentryvibe.up.railway.app",
-    "broker.sentryvibe.app",
+    "shipbuilder.app",
+    "shipbuilder.up.railway.app",
+    "broker.shipbuilder.app",
     "broker.up.railway.app",
 
     // Wildcard patterns for Railway
     /^https?:\/\/.*\.railway\.app/, // Railway deployments
     /^https?:\/\/.*\.up\.railway\.app/, // Railway preview deployments
-    /^https?:\/\/.*\.sentryvibe\.app/, // Custom domain subdomains
+    /^https?:\/\/.*\.shipbuilder\.app/, // Custom domain subdomains
   ],
 });

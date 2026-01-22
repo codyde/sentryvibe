@@ -113,7 +113,7 @@ export const errors = {
       context: { port, process },
       suggestions: [
         `Stop the existing process: lsof -ti:${port} | xargs kill`,
-        `Or let SentryVibe kill it: sentryvibe run --force`,
+        `Or let ShipBuilder kill it: shipbuilder run --force`,
         process ? `The port is being used by: ${process}` : 'Check what process is using the port: lsof -i:' + port,
       ],
     });
@@ -135,22 +135,22 @@ export const errors = {
       context: { host, error: cause.message },
       cause,
       suggestions: [
-        'Verify your connection string: sentryvibe config get databaseUrl',
+        'Verify your connection string: shipbuilder config get databaseUrl',
         'Test the connection manually: psql <connection-string>',
-        'Reset database setup: sentryvibe db setup --force',
+        'Reset database setup: shipbuilder db setup --force',
       ],
-      docs: 'https://github.com/codyde/sentryvibe#database-setup',
+      docs: 'https://github.com/OWNER/REPO#database-setup',
     });
   },
 
   monorepoNotFound: (searchedPaths: string[]): CLIError => {
     return new CLIError({
       code: 'MONOREPO_NOT_FOUND',
-      message: 'SentryVibe monorepo not found',
+      message: 'ShipBuilder monorepo not found',
       context: { searchedPaths },
       suggestions: [
-        'Run initialization: sentryvibe init',
-        'Or specify path: sentryvibe run --monorepo ~/sentryvibe',
+        'Run initialization: shipbuilder init',
+        'Or specify path: shipbuilder run --monorepo ~/shipbuilder',
       ],
     });
   },
@@ -160,10 +160,10 @@ export const errors = {
       code: 'CONFIG_NOT_FOUND',
       message: 'Configuration not found',
       suggestions: [
-        'Initialize SentryVibe: sentryvibe init',
+        'Initialize ShipBuilder: shipbuilder init',
         'This will create your configuration file',
       ],
-      docs: 'https://github.com/codyde/sentryvibe#getting-started',
+      docs: 'https://github.com/OWNER/REPO#getting-started',
     });
   },
 
@@ -174,8 +174,8 @@ export const errors = {
       context: { path },
       suggestions: [
         'Create the directory: mkdir -p ' + path,
-        'Or reconfigure workspace: sentryvibe config set workspace <path>',
-        'Or re-run init: sentryvibe init',
+        'Or reconfigure workspace: shipbuilder config set workspace <path>',
+        'Or re-run init: shipbuilder init',
       ],
     });
   },
@@ -187,9 +187,9 @@ export const errors = {
       context: { service },
       cause,
       suggestions: [
-        'Check if dependencies are installed: cd ~/.sentryvibe-monorepo && pnpm install',
+        'Check if dependencies are installed: cd ~/.shipbuilder-monorepo && pnpm install',
         'Check if ports are available: lsof -i:3000 -i:4000',
-        'Try restarting: sentryvibe run --force',
+        'Try restarting: shipbuilder run --force',
       ],
     });
   },
@@ -200,7 +200,7 @@ export const errors = {
       message: `Invalid argument: ${arg}`,
       context: { argument: arg, reason },
       suggestions: [
-        'Check the command usage: sentryvibe --help',
+        'Check the command usage: shipbuilder --help',
       ],
     });
   },

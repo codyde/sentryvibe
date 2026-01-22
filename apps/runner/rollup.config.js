@@ -91,8 +91,8 @@ function isExternal(id) {
     if (id.startsWith(ext + '/')) return true;
   }
   
-  // Never externalize @sentryvibe/agent-core - we bundle it
-  if (id.startsWith('@sentryvibe/agent-core')) return false;
+  // Never externalize @shipbuilder/agent-core - we bundle it
+  if (id.startsWith('@shipbuilder/agent-core')) return false;
   
   return false;
 }
@@ -115,12 +115,12 @@ const commonPlugins = [
 
 // Banner to inject CJS compatibility shim for OpenTelemetry/Sentry instrumentation
 // The Sentry SDK uses require-in-the-middle which needs `require` and `require.cache`
-const cjsShimBanner = `// SentryVibe CLI - Built with Rollup
+const cjsShimBanner = `// ShipBuilder CLI - Built with Rollup
 import { createRequire as __createRequire } from 'node:module';
 const require = __createRequire(import.meta.url);
 `;
 
-const defaultBanner = '// SentryVibe CLI - Built with Rollup';
+const defaultBanner = '// ShipBuilder CLI - Built with Rollup';
 
 export default {
   input: {

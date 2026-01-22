@@ -55,8 +55,8 @@ export async function cleanupCommand(options: CleanupOptions) {
   logger.log(`  ${chalk.cyan('--processes')}       Kill all dev servers (requires running runner)`);
   logger.log('');
   logger.info('Examples:');
-  logger.log(`  sentryvibe-cli cleanup --project my-project`);
-  logger.log(`  sentryvibe-cli cleanup --all`);
+  logger.log(`  shipbuilder-cli cleanup --project my-project`);
+  logger.log(`  shipbuilder-cli cleanup --all`);
 }
 
 async function cleanupProject(workspace: string, slug: string) {

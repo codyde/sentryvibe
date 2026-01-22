@@ -1,5 +1,5 @@
 packages:
-  - apps/sentryvibe
+  - apps/shipbuilder
   - apps/runner
   - apps/opencode-service
   - packages/agent-core

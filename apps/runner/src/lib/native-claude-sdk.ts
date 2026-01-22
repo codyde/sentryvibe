@@ -23,7 +23,7 @@ import {
   CLAUDE_SYSTEM_PROMPT,
   type ClaudeModelId,
   DEFAULT_CLAUDE_MODEL_ID,
-} from '@sentryvibe/agent-core';
+} from '@shipbuilder/agent-core';
 
 // Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)
 const debugLog = (message: string) => {

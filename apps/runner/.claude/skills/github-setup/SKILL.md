@@ -1,7 +1,7 @@
 ---
 name: github-setup
 description: |
-  Set up GitHub repository integration for a SentryVibe project.
+  Set up GitHub repository integration for a ShipBuilder project.
   Use this skill when the user wants to:
   - Connect their project to GitHub
   - Create a new GitHub repository for their project
@@ -13,7 +13,7 @@ description: |
 
 # GitHub Repository Setup Skill
 
-You are helping set up GitHub integration for a SentryVibe project. This skill uses the `gh` CLI tool which authenticates locally on the user's machine.
+You are helping set up GitHub integration for a ShipBuilder project. This skill uses the `gh` CLI tool which authenticates locally on the user's machine.
 
 ## ⚠️ MANDATORY: You MUST Output GITHUB_RESULT
 
@@ -91,7 +91,7 @@ When the user wants to set up GitHub for their project:
 3. **Create initial commit:**
    ```bash
    git add .
-   git commit -m "Initial commit from SentryVibe"
+   git commit -m "Initial commit from ShipBuilder"
    ```
 
 4. **Create the GitHub repository and push:**
@@ -133,7 +133,7 @@ When the user wants to push changes to an existing repository:
 1. **Stage and commit changes:**
    ```bash
    git add .
-   git commit -m "Update from SentryVibe"
+   git commit -m "Update from ShipBuilder"
    ```
 
 2. **Push to remote:**
@@ -208,4 +208,4 @@ GITHUB_RESULT:{"success":true,"repo":"username/project-name","url":"https://gith
 
 ## ⚠️ REMINDER: Don't Forget GITHUB_RESULT!
 
-Your response MUST end with the `GITHUB_RESULT:{...}` line containing the actual repo info from `gh repo view --json`. Without it, the SentryVibe UI cannot update to show the GitHub connection.
+Your response MUST end with the `GITHUB_RESULT:{...}` line containing the actual repo info from `gh repo view --json`. Without it, the ShipBuilder UI cannot update to show the GitHub connection.

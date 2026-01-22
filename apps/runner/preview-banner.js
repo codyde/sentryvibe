@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Quick preview script to see the SentryVibe banners
+ * Quick preview script to see the ShipBuilder banners
  * Run with: node preview-banner.js
  */
 
@@ -50,18 +50,18 @@ ${colors.white}                       Setup is complete! 🎉${colors.reset}
 console.log(setupCompleteBanner);
 
 // Show sample info output
-console.log(colors.cyan + 'ℹ' + colors.reset + ' Config file: ' + colors.cyan + '~/.config/sentryvibe/config.json' + colors.reset);
-console.log(colors.cyan + 'ℹ' + colors.reset + ' Workspace: ' + colors.cyan + '~/sentryvibe-workspace' + colors.reset);
-console.log(colors.cyan + 'ℹ' + colors.reset + ' Repository: ' + colors.cyan + '/Users/username/sentryvibe' + colors.reset);
+console.log(colors.cyan + 'ℹ' + colors.reset + ' Config file: ' + colors.cyan + '~/.config/shipbuilder/config.json' + colors.reset);
+console.log(colors.cyan + 'ℹ' + colors.reset + ' Workspace: ' + colors.cyan + '~/shipbuilder-workspace' + colors.reset);
+console.log(colors.cyan + 'ℹ' + colors.reset + ' Repository: ' + colors.cyan + '/Users/username/shipbuilder' + colors.reset);
 console.log('');
 
 // Show next steps
 console.log(colors.cyan + 'ℹ' + colors.reset + ' Next steps:');
-console.log('  1. Run ' + colors.cyan + 'sentryvibe run' + colors.reset + ' to start the full stack');
-console.log('  2. Or ' + colors.cyan + 'sentryvibe --runner' + colors.reset + ' for runner only');
+console.log('  1. Run ' + colors.cyan + 'shipbuilder run' + colors.reset + ' to start the full stack');
+console.log('  2. Or ' + colors.cyan + 'shipbuilder --runner' + colors.reset + ' for runner only');
 console.log('');
 console.log('');
 
 // Show help reference
-console.log(colors.cyan + 'ℹ' + colors.reset + ' Run ' + colors.cyan + 'sentryvibe --help' + colors.reset + ' to see all available commands and options');
+console.log(colors.cyan + 'ℹ' + colors.reset + ' Run ' + colors.cyan + 'shipbuilder --help' + colors.reset + ' to see all available commands and options');
 console.log('\n');

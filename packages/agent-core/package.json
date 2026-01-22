@@ -1,5 +1,5 @@
 {
-  "name": "@sentryvibe/agent-core",
+  "name": "@shipbuilder/agent-core",
   "version": "0.31.5",
   "private": true,
   "type": "module",
@@ -180,7 +180,7 @@
   ],
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.11",
-    "@sentry/node": "file:../../apps/sentryvibe/vendor/sentry-node-LOCAL.tgz",
+    "@sentry/node": "file:../../apps/shipbuilder/vendor/sentry-node-LOCAL.tgz",
     "ai": "^5.0.79",
     "better-auth": "^1.4.9",
     "clsx": "^2.1.1",

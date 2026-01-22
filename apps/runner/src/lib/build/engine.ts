@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import type { AgentId, ClaudeModelId } from '@sentryvibe/agent-core/types/agent';
-import { resolveAgentStrategy } from '@sentryvibe/agent-core/lib/agents';
+import type { AgentId, ClaudeModelId } from '@shipbuilder/agent-core/types/agent';
+import { resolveAgentStrategy } from '@shipbuilder/agent-core/lib/agents';
 import { ensureProjectSkills } from '../skills.js';
 
 // Debug logging helper - suppressed in TUI mode (SILENT_MODE=1)

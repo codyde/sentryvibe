@@ -146,7 +146,7 @@ export function RunnerDashboard({ config, onQuit }: RunnerDashboardProps) {
   const showBuildPanel = buildState.currentBuild !== null;
 
   // Check for available update (set by auto-update check in index.ts)
-  const updateAvailable = process.env.SENTRYVIBE_UPDATE_AVAILABLE;
+  const updateAvailable = process.env.SHIPBUILDER_UPDATE_AVAILABLE;
 
   return (
     <Box flexDirection="column" height={terminalHeight} width={terminalWidth}>
@@ -159,7 +159,7 @@ export function RunnerDashboard({ config, onQuit }: RunnerDashboardProps) {
           <Text color={colors.cyan}>⬆ Update available: </Text>
           <Text color={colors.success}>{updateAvailable}</Text>
           <Text color={colors.dimGray}> — Run </Text>
-          <Text color={colors.cyan}>sentryvibe upgrade</Text>
+          <Text color={colors.cyan}>shipbuilder upgrade</Text>
           <Text color={colors.dimGray}> to update</Text>
         </Box>
       )}

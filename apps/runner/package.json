@@ -1,13 +1,13 @@
 {
-  "name": "@sentryvibe/cli",
+  "name": "@shipbuilder/cli",
   "version": "0.31.5",
-  "description": "SentryVibe CLI - AI-powered app builder",
+  "description": "ShipBuilder CLI - AI-powered app builder",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "sentryvibe-cli": "./bin/sentryvibe.js",
-    "sentryvibe": "./bin/sentryvibe.js"
+    "shipbuilder-cli": "./bin/shipbuilder.js",
+    "shipbuilder": "./bin/shipbuilder.js"
   },
   "files": [
     "bin/",
@@ -22,7 +22,7 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "sentryvibe",
+    "shipbuilder",
     "runner",
     "cli",
     "ai",
@@ -32,13 +32,13 @@
   "author": "Cody De Arkland",
   "repository": {
     "type": "git",
-    "url": "https://github.com/codyde/sentryvibe.git",
+    "url": "https://github.com/OWNER/REPO.git",
     "directory": "apps/runner"
   },
   "bugs": {
-    "url": "https://github.com/codyde/sentryvibe/issues"
+    "url": "https://github.com/OWNER/REPO/issues"
   },
-  "homepage": "https://github.com/codyde/sentryvibe#readme",
+  "homepage": "https://github.com/OWNER/REPO#readme",
   "preferGlobal": true,
   "scripts": {
     "postinstall": "node scripts/install-vendor.js",
@@ -58,8 +58,8 @@
     "@sentry/nextjs": "file:./vendor/sentry-nextjs-LOCAL.tgz",
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
-    "@sentryvibe/agent-core": "workspace:*",
-    "@sentryvibe/opencode-client": "workspace:*",
+    "@shipbuilder/agent-core": "workspace:*",
+    "@shipbuilder/opencode-client": "workspace:*",
     "ai": "^5.0.79",
     "ai-sdk-provider-claude-code": "file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz",
     "chalk": "^5.6.2",

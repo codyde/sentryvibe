@@ -7,7 +7,7 @@ export interface StartPromptScreenProps {
 }
 
 /**
- * Post-init prompt asking if user wants to start SentryVibe now
+ * Post-init prompt asking if user wants to start ShipBuilder now
  */
 export function StartPromptScreen({ onSelect }: StartPromptScreenProps) {
   const { stdout } = useStdout();
@@ -56,7 +56,7 @@ export function StartPromptScreen({ onSelect }: StartPromptScreenProps) {
       {/* Success message */}
       <Box flexDirection="column" alignItems="center">
         <Text color={colors.success} bold>
-          {symbols.check} SentryVibe is ready!
+          {symbols.check} ShipBuilder is ready!
         </Text>
       </Box>
       
@@ -66,7 +66,7 @@ export function StartPromptScreen({ onSelect }: StartPromptScreenProps) {
       {/* Prompt */}
       <Box flexDirection="column" alignItems="center">
         <Text color={colors.white}>
-          Start SentryVibe now?
+          Start ShipBuilder now?
         </Text>
         
         <Box marginTop={1}>
@@ -82,7 +82,7 @@ export function StartPromptScreen({ onSelect }: StartPromptScreenProps) {
       {/* Info about manual start */}
       <Box flexDirection="column" alignItems="center">
         <Text color={colors.dimGray}>
-          To start later, run: <Text color={colors.cyan}>sentryvibe run</Text>
+          To start later, run: <Text color={colors.cyan}>shipbuilder run</Text>
         </Text>
       </Box>
     </Box>

@@ -1,10 +1,10 @@
 #!/bin/bash
-# SentryVibe CLI Installation Script
+# ShipBuilder CLI Installation Script
 # 
 # This is a thin wrapper that ensures Node.js is available,
 # then runs the Node.js-based installer for a beautiful experience.
 #
-# Usage: curl -fsSL https://sentryvibe.app/install | bash
+# Usage: curl -fsSL https://shipbuilder.app/install | bash
 
 set -e
 
@@ -20,7 +20,7 @@ if ! command -v node &> /dev/null; then
     echo ""
     echo -e "${RED}✖ Node.js not found${NC}"
     echo ""
-    echo "  SentryVibe requires Node.js 20 or later."
+    echo "  ShipBuilder requires Node.js 20 or later."
     echo ""
     echo "  Install Node.js from:"
     echo -e "    ${CYAN}https://nodejs.org${NC}"
@@ -48,4 +48,4 @@ if [ "$NODE_VERSION" -lt 20 ]; then
 fi
 
 # Run the Node.js installer by piping to node stdin
-curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install.mjs | node --input-type=module -
+curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.mjs | node --input-type=module -

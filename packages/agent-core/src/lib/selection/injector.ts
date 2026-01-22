@@ -7,7 +7,7 @@ import { HMR_PROXY_SCRIPT } from './hmr-proxy-script';
 
 // Check if WebSocket proxy is enabled (from env or parent window)
 const USE_WS_PROXY = typeof window !== 'undefined' && 
-  (window as any).__SENTRYVIBE_USE_WS_PROXY === true;
+  (window as any).__SHIPBUILDER_USE_WS_PROXY === true;
 
 export const SELECTION_SCRIPT = `
 (function() {
@@ -35,7 +35,7 @@ export const SELECTION_SCRIPT = `
 
       return '/api/projects/' + projectId + '/proxy?path=';
     } catch (error) {
-      console.warn('⚠️ [SentryVibe CSS] Unable to derive proxy prefix:', error);
+      console.warn('⚠️ [ShipBuilder CSS] Unable to derive proxy prefix:', error);
       return null;
     }
   }
@@ -68,7 +68,7 @@ export const SELECTION_SCRIPT = `
       var proxiedHref = proxyPrefix + encodeURIComponent(trimmed);
       if (link.getAttribute('href') !== proxiedHref) {
         link.setAttribute('href', proxiedHref);
-        console.log('🎨 [SentryVibe CSS] rewrote stylesheet href to proxy:', proxiedHref);
+        console.log('🎨 [ShipBuilder CSS] rewrote stylesheet href to proxy:', proxiedHref);
         return true;
       }
     }
@@ -84,7 +84,7 @@ export const SELECTION_SCRIPT = `
     const logLink = (link, phase) => {
       if (!link) return;
       const href = link.getAttribute('href') || '(no href)';
-      console.log('🎨 [SentryVibe CSS]', phase + ' stylesheet:', href);
+      console.log('🎨 [ShipBuilder CSS]', phase + ' stylesheet:', href);
     };
 
     const logStyle = (style, phase) => {
@@ -93,7 +93,7 @@ export const SELECTION_SCRIPT = `
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 140);
-      console.log('🎨 [SentryVibe CSS]', phase + ' inline style', sample);
+      console.log('🎨 [ShipBuilder CSS]', phase + ' inline style', sample);
     };
 
     const attachLinkListeners = (link, phase) => {
@@ -151,7 +151,7 @@ export const SELECTION_SCRIPT = `
         observer.observe(head, { childList: true, subtree: true });
       }
     } catch (e) {
-      console.warn('⚠️ [SentryVibe CSS] Failed to observe stylesheet mutations:', e);
+      console.warn('⚠️ [ShipBuilder CSS] Failed to observe stylesheet mutations:', e);
     }
 
     // Log existing stylesheet/link elements when script runs
@@ -188,7 +188,7 @@ export const SELECTION_SCRIPT = `
     if (highlightOverlay) return highlightOverlay;
 
     const overlay = document.createElement('div');
-    overlay.id = '__sentryvibe-highlight';
+    overlay.id = '__shipbuilder-highlight';
     overlay.style.cssText = \`
       position: absolute;
       pointer-events: none;
@@ -374,7 +374,7 @@ export const SELECTION_SCRIPT = `
 
     // Send to parent window
     window.parent.postMessage({
-      type: 'sentryvibe:element-selected',
+      type: 'shipbuilder:element-selected',
       data,
     }, '*');
 
@@ -444,13 +444,13 @@ export const SELECTION_SCRIPT = `
 
   // Listen for activation/deactivation from parent
   window.addEventListener('message', (e) => {
-    if (e.data.type === 'sentryvibe:toggle-selection-mode') {
+    if (e.data.type === 'shipbuilder:toggle-selection-mode') {
       setInspectorActive(e.data.enabled);
     }
   });
 
   // Announce ready to parent
-  window.parent.postMessage({ type: 'sentryvibe:ready' }, '*');
+  window.parent.postMessage({ type: 'shipbuilder:ready' }, '*');
 })();
 `;
 
@@ -478,7 +478,7 @@ export function injectSelectionScript(
     }
 
     // Check if script already injected
-    if (iframeDoc.getElementById('__sentryvibe-selection-script')) {
+    if (iframeDoc.getElementById('__shipbuilder-selection-script')) {
       console.log('⚠️  Selection script already injected');
       return true;
     }
@@ -486,9 +486,9 @@ export function injectSelectionScript(
     // Inject HMR proxy script FIRST (if enabled) - before any other scripts run
     // This ensures WebSocket is overridden before Vite's client script loads
     if (options?.enableHmrProxy) {
-      if (!iframeDoc.getElementById('__sentryvibe-hmr-proxy-script')) {
+      if (!iframeDoc.getElementById('__shipbuilder-hmr-proxy-script')) {
         const hmrScript = iframeDoc.createElement('script');
-        hmrScript.id = '__sentryvibe-hmr-proxy-script';
+        hmrScript.id = '__shipbuilder-hmr-proxy-script';
         hmrScript.textContent = HMR_PROXY_SCRIPT;
         // Inject at HEAD start to run before other scripts
         if (iframeDoc.head) {
@@ -502,7 +502,7 @@ export function injectSelectionScript(
 
     // Create and inject selection script element
     const script = iframeDoc.createElement('script');
-    script.id = '__sentryvibe-selection-script';
+    script.id = '__shipbuilder-selection-script';
     script.textContent = SELECTION_SCRIPT;
     iframeDoc.body.appendChild(script);
 
@@ -530,7 +530,7 @@ export function toggleSelectionMode(iframe: HTMLIFrameElement, enabled: boolean)
   }
 
   iframeWindow.postMessage({
-    type: 'sentryvibe:toggle-selection-mode',
+    type: 'shipbuilder:toggle-selection-mode',
     enabled,
   }, '*');
 }

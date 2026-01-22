@@ -181,7 +181,7 @@ export function InitScreen({ onInit, onComplete, onError }: InitScreenProps) {
           
           <Box marginTop={1} />
           <ConfigSummary items={state.config} />
-          <NextSteps command="sentryvibe run" url="http://localhost:3000" />
+          <NextSteps command="shipbuilder run" url="http://localhost:3000" />
         </Box>
       )}
     </Box>

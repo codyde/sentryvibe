@@ -163,13 +163,13 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
   const { join } = await import('path');
   const { existsSync } = await import('fs');
 
-  const sentryvibeAppPath = join(monorepoPath, 'apps/sentryvibe');
-  const configPath = join(sentryvibeAppPath, 'drizzle.config.ts');
+  const shipbuilderAppPath = join(monorepoPath, 'apps/shipbuilder');
+  const configPath = join(shipbuilderAppPath, 'drizzle.config.ts');
 
   // Verify paths exist
-  if (!existsSync(sentryvibeAppPath)) {
+  if (!existsSync(shipbuilderAppPath)) {
     if (!silent) {
-      logger.error(`Directory not found: ${sentryvibeAppPath}`);
+      logger.error(`Directory not found: ${shipbuilderAppPath}`);
     }
     return false;
   }
@@ -182,15 +182,15 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
   }
 
   if (!silent) {
-    spinner.start('Ensuring sentryvibe dependencies are installed...');
+    spinner.start('Ensuring shipbuilder dependencies are installed...');
   }
 
   try {
     execFileSync('pnpm', ['install'], {
-      cwd: sentryvibeAppPath,
+      cwd: shipbuilderAppPath,
       stdio: 'pipe',
     });
-    execFileSync('pnpm', ['--filter', '@sentryvibe/agent-core', 'build'], {
+    execFileSync('pnpm', ['--filter', '@shipbuilder/agent-core', 'build'], {
       cwd: monorepoPath,
       stdio: 'pipe',
     });
@@ -209,7 +209,7 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
 
   return new Promise((resolve) => {
     const proc = spawn('npx', ['drizzle-kit', 'push', '--config=drizzle.config.ts'], {
-      cwd: sentryvibeAppPath,
+      cwd: shipbuilderAppPath,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
       env: {
@@ -270,7 +270,7 @@ export async function connectManualDatabase(): Promise<string | null> {
   const connectionType = await prompts.select(
     'How would you like to connect your database?',
     [
-      'Connect an existing Sentryvibe database',
+      'Connect an existing ShipBuilder database',
       'Provide a connection string directly',
     ]
   );
@@ -279,8 +279,8 @@ export async function connectManualDatabase(): Promise<string | null> {
 
   // Prompt for the connection string
   let message: string;
-  if (connectionType === 'Connect an existing Sentryvibe database') {
-    message = 'Enter your Sentryvibe database connection string:';
+  if (connectionType === 'Connect an existing ShipBuilder database') {
+    message = 'Enter your ShipBuilder database connection string:';
   } else {
     message = 'Enter your PostgreSQL connection string:';
   }

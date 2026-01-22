@@ -1,10 +1,10 @@
 #!/bin/bash
-# SentryVibe Environment Setup Script
+# ShipBuilder Environment Setup Script
 # Creates .env.local files for all services with default values
 
 set -e
 
-echo "🔧 SentryVibe Environment Setup"
+echo "🔧 ShipBuilder Environment Setup"
 echo "================================"
 echo ""
 
@@ -33,13 +33,13 @@ create_env_file() {
     echo -e "${GREEN}✅ Created $file_path${NC}"
 }
 
-# 1. Create sentryvibe/.env.local
-echo "📝 Creating apps/sentryvibe/.env.local..."
-create_env_file "apps/sentryvibe/.env.local" "# SentryVibe Web Application Environment Configuration
+# 1. Create shipbuilder/.env.local
+echo "📝 Creating apps/shipbuilder/.env.local..."
+create_env_file "apps/shipbuilder/.env.local" "# ShipBuilder Web Application Environment Configuration
 # =======================================================
 
 # Database Configuration
-DATABASE_URL=postgresql://user:password@localhost:5432/sentryvibe
+DATABASE_URL=postgresql://user:password@localhost:5432/shipbuilder
 
 # AI Service API Keys
 ANTHROPIC_API_KEY=sk-ant-your-key-here
@@ -59,7 +59,7 @@ echo ""
 
 # 2. Create runner/.env.local
 echo "📝 Creating apps/runner/.env.local..."
-create_env_file "apps/runner/.env.local" "# SentryVibe CLI Environment Configuration
+create_env_file "apps/runner/.env.local" "# ShipBuilder CLI Environment Configuration
 # =================================================
 
 # Runner Identity
@@ -73,7 +73,7 @@ RUNNER_SHARED_SECRET=dev-secret
 API_BASE_URL=http://localhost:3000
 
 # Workspace Configuration
-WORKSPACE_ROOT=~/sentryvibe-workspace
+WORKSPACE_ROOT=~/shipbuilder-workspace
 
 # AI Service API Keys
 ANTHROPIC_API_KEY=sk-ant-your-key-here
@@ -101,11 +101,11 @@ echo "   - RUNNER_SHARED_SECRET is set to 'dev-secret'"
 echo "   - Change this for production!"
 echo ""
 echo "To edit the files:"
-echo "  vim apps/sentryvibe/.env.local"
+echo "  vim apps/shipbuilder/.env.local"
 echo "  vim apps/runner/.env.local"
 echo ""
 echo "Or use your preferred editor:"
-echo "  code apps/sentryvibe/.env.local"
+echo "  code apps/shipbuilder/.env.local"
 echo ""
 echo "📖 See apps/runner/README.md for detailed configuration info"
 echo ""

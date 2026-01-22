@@ -47,7 +47,7 @@ export function ConfigFormScreen({
     setBranch(value);
   };
   const [workspace, setWorkspace] = useState(
-    initialConfig?.workspace || '~/sentryvibe-workspace'
+    initialConfig?.workspace || '~/shipbuilder-workspace'
   );
   const [databaseType, setDatabaseType] = useState<'neon' | 'custom'>(
     initialConfig?.useNeon === false ? 'custom' : 'neon'
@@ -113,7 +113,7 @@ export function ConfigFormScreen({
   const handleSubmit = () => {
     const config: InitFormConfig = {
       branch: branch.trim() || 'main',
-      workspace: workspace.trim() || '~/sentryvibe-workspace',
+      workspace: workspace.trim() || '~/shipbuilder-workspace',
       useNeon: databaseType === 'neon',
       databaseUrl: databaseType === 'custom' ? databaseUrl.trim() : undefined,
     };
@@ -137,7 +137,7 @@ export function ConfigFormScreen({
       <Box marginTop={1} />
       
       {/* Title */}
-      <Text color={colors.cyan} bold>Configure SentryVibe</Text>
+      <Text color={colors.cyan} bold>Configure ShipBuilder</Text>
       
       {/* Spacer */}
       <Box marginTop={2} />
@@ -197,11 +197,11 @@ export function ConfigFormScreen({
               <TextInput
                 value={workspace}
                 onChange={setWorkspace}
-                placeholder="~/sentryvibe-workspace"
+                placeholder="~/shipbuilder-workspace"
               />
             ) : (
               <Text color={workspace ? colors.white : colors.dimGray}>
-                {workspace || '~/sentryvibe-workspace'}
+                {workspace || '~/shipbuilder-workspace'}
               </Text>
             )}
           </Box>

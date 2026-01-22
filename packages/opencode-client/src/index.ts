@@ -37,7 +37,7 @@ export function getOpenCodeUrl(): string {
   const url = process.env.OPENCODE_URL;
   if (!url) {
     // Default to localhost in development
-    if (process.env.NODE_ENV === 'development' || process.env.SENTRYVIBE_LOCAL_MODE === 'true') {
+    if (process.env.NODE_ENV === 'development' || process.env.SHIPBUILDER_LOCAL_MODE === 'true') {
       return 'http://localhost:4096';
     }
     throw new Error(
@@ -55,7 +55,7 @@ export function getOpenCodeUrl(): string {
  * 
  * @example
  * ```typescript
- * import { getOpenCodeClient } from '@sentryvibe/opencode-client';
+ * import { getOpenCodeClient } from '@shipbuilder/opencode-client';
  * 
  * const client = getOpenCodeClient();
  * const session = await client.session.create({ body: {} });

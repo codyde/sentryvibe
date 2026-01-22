@@ -4,7 +4,7 @@
  */
 
 // Use namespace import for buildLogger to work around CommonJS/ESM interop
-import * as AgentCore from '@sentryvibe/agent-core';
+import * as AgentCore from '@shipbuilder/agent-core';
 const { buildLogger } = AgentCore;
 
 interface SSEEvent {

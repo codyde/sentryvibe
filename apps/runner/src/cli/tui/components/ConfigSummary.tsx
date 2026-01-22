@@ -14,7 +14,7 @@ interface ConfigSummaryProps {
 /**
  * Configuration summary display
  * ───────────────────────────────────
- *  Workspace   ~/sentryvibe-workspace
+ *  Workspace   ~/shipbuilder-workspace
  *  Server      http://localhost:3000
  *  Runner      local
  * ───────────────────────────────────

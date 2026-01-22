@@ -1,5 +1,5 @@
 /**
- * Auto-update utility for SentryVibe CLI
+ * Auto-update utility for ShipBuilder CLI
  * 
  * Checks GitHub Releases for newer versions and automatically
  * updates both:
@@ -15,13 +15,13 @@ import pc from 'picocolors';
 import { configManager } from './config-manager.js';
 
 // GitHub API endpoint for releases
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/codyde/sentryvibe/releases/latest';
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/OWNER/REPO/releases/latest';
 
 // Install command for CLI
-const INSTALL_COMMAND = 'curl -fsSL https://sentryvibe.app/install | bash';
+const INSTALL_COMMAND = 'curl -fsSL https://shipbuilder.app/install | bash';
 
 // Cache settings
-const CACHE_DIR = join(homedir(), '.config', 'sentryvibe');
+const CACHE_DIR = join(homedir(), '.config', 'shipbuilder');
 const CACHE_FILE = join(CACHE_DIR, 'update-cache.json');
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -73,7 +73,7 @@ async function fetchLatestVersion(): Promise<string | null> {
     const response = await fetch(GITHUB_RELEASES_URL, {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'SentryVibe-CLI-AutoUpdate',
+        'User-Agent': 'ShipBuilder-CLI-AutoUpdate',
       },
       signal: controller.signal,
     });
@@ -124,7 +124,7 @@ function performCLIUpdate(): boolean {
       shell: '/bin/bash',
       env: {
         ...process.env,
-        SENTRYVIBE_QUIET_INSTALL: '1', // Suppress banner in installer
+        SHIPBUILDER_QUIET_INSTALL: '1', // Suppress banner in installer
       },
     });
     return true;
@@ -135,7 +135,7 @@ function performCLIUpdate(): boolean {
 
 /**
  * Check if the app/monorepo needs upgrading and perform the upgrade
- * This updates the local SentryVibe installation that runs the web app
+ * This updates the local ShipBuilder installation that runs the web app
  */
 function performAppUpgrade(): boolean {
   const config = configManager.get();
@@ -152,13 +152,13 @@ function performAppUpgrade(): boolean {
   console.log();
 
   try {
-    // Run sentryvibe upgrade --force to upgrade the monorepo
+    // Run shipbuilder upgrade --force to upgrade the monorepo
     // Use --force to skip prompts since we're in auto-update mode
-    const result = spawnSync('sentryvibe', ['upgrade', '--force'], {
+    const result = spawnSync('shipbuilder', ['upgrade', '--force'], {
       stdio: 'inherit',
       env: {
         ...process.env,
-        SENTRYVIBE_SKIP_UPDATE_CHECK: '1', // Don't re-check for CLI updates
+        SHIPBUILDER_SKIP_UPDATE_CHECK: '1', // Don't re-check for CLI updates
       },
       shell: true,
     });
@@ -176,14 +176,14 @@ function relaunchCLI(): void {
   const args = process.argv.slice(2);
   
   try {
-    // Get the actual path to sentryvibe to avoid shell hash caching issues
+    // Get the actual path to shipbuilder to avoid shell hash caching issues
     // This ensures we run the newly installed version, not a cached path
-    let sentryVibePath = 'sentryvibe';
+    let sentryVibePath = 'shipbuilder';
     try {
       // Use 'command -v' to get the actual path, bypassing shell hash
-      sentryVibePath = execSync('command -v sentryvibe', { encoding: 'utf-8' }).trim();
+      sentryVibePath = execSync('command -v shipbuilder', { encoding: 'utf-8' }).trim();
     } catch {
-      // Fallback to just 'sentryvibe' if command -v fails
+      // Fallback to just 'shipbuilder' if command -v fails
     }
     
     // Use spawnSync with the explicit path to ensure we get the new version
@@ -191,8 +191,8 @@ function relaunchCLI(): void {
       stdio: 'inherit',
       env: { 
         ...process.env, 
-        SENTRYVIBE_SKIP_UPDATE_CHECK: '1', // Prevent update loop
-        SENTRYVIBE_SKIP_BANNER: '1', // Suppress banner after restart (already shown before update)
+        SHIPBUILDER_SKIP_UPDATE_CHECK: '1', // Prevent update loop
+        SHIPBUILDER_SKIP_BANNER: '1', // Suppress banner after restart (already shown before update)
       },
       // Don't use shell: true to avoid shell hash caching
     });
@@ -218,7 +218,7 @@ function relaunchCLI(): void {
  */
 export async function checkAndAutoUpdate(currentVersion: string): Promise<boolean> {
   // Skip if update check is disabled via env var
-  if (process.env.SENTRYVIBE_NO_UPDATE === '1' || process.env.SENTRYVIBE_SKIP_UPDATE_CHECK === '1') {
+  if (process.env.SHIPBUILDER_NO_UPDATE === '1' || process.env.SHIPBUILDER_SKIP_UPDATE_CHECK === '1') {
     // But check if we have a pending app upgrade from a previous CLI update
     const cache = readUpdateCache();
     if (cache?.pendingAppUpgrade) {
@@ -232,7 +232,7 @@ export async function checkAndAutoUpdate(currentVersion: string): Promise<boolea
         saveUpdateCache({ ...cache, pendingAppUpgrade: false });
         console.log(`  ${pc.green('✓')} ${pc.bold('App upgrade complete!')}`);
       } else {
-        console.log(`  ${pc.yellow('⚠')} ${pc.dim('App upgrade failed. Run manually:')} ${pc.cyan('sentryvibe upgrade')}`);
+        console.log(`  ${pc.yellow('⚠')} ${pc.dim('App upgrade failed. Run manually:')} ${pc.cyan('shipbuilder upgrade')}`);
       }
       console.log();
     }
@@ -293,7 +293,7 @@ export async function checkAndAutoUpdate(currentVersion: string): Promise<boolea
     // CLI update failed, continue with current version
     console.log();
     console.log(`  ${pc.yellow('⚠')} ${pc.dim('CLI update failed. Continuing with current version.')}`);
-    console.log(`  ${pc.dim('You can manually update with:')} ${pc.cyan('curl -fsSL https://sentryvibe.app/install | bash')}`);
+    console.log(`  ${pc.dim('You can manually update with:')} ${pc.cyan('curl -fsSL https://shipbuilder.app/install | bash')}`);
     console.log();
     return false;
   }
@@ -341,7 +341,7 @@ export async function checkForUpdate(currentVersion: string): Promise<{
   updateAvailable: boolean;
 } | null> {
   // Skip if update check is disabled via env var
-  if (process.env.SENTRYVIBE_NO_UPDATE === '1' || process.env.SENTRYVIBE_SKIP_UPDATE_CHECK === '1') {
+  if (process.env.SHIPBUILDER_NO_UPDATE === '1' || process.env.SHIPBUILDER_SKIP_UPDATE_CHECK === '1') {
     return null;
   }
 

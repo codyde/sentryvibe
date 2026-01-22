@@ -5,8 +5,8 @@
  * Combines AI-reported status with inferred state for maximum reliability.
  */
 
-import type { TodoItem } from '@sentryvibe/agent-core/types/generation';
-import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
+import type { TodoItem } from '@shipbuilder/agent-core/types/generation';
+import { buildLogger } from '@shipbuilder/agent-core/lib/logging/build-logger';
 
 export interface SmartTodoTracker {
   todos: TodoItem[];

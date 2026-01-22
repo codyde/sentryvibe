@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 import { configManager } from '../utils/config-manager.js';
 
 export async function statusCommand() {
-  logger.section('SentryVibe Runner Status');
+  logger.section('ShipBuilder Runner Status');
 
   // Check if initialized
   const isInitialized = configManager.isInitialized();
@@ -14,7 +14,7 @@ export async function statusCommand() {
 
   if (!isInitialized) {
     logger.log('');
-    logger.warn('Run "sentryvibe init" to initialize');
+    logger.warn('Run "shipbuilder init" to initialize');
     return;
   }
 
@@ -88,12 +88,12 @@ export async function statusCommand() {
   // Next steps
   if (validation.valid) {
     logger.info('Ready to run! Use:');
-    logger.log(`  ${chalk.cyan('sentryvibe run')}     - Start local full stack`);
-    logger.log(`  ${chalk.cyan('sentryvibe runner')} - Connect to remote server`);
+    logger.log(`  ${chalk.cyan('shipbuilder run')}     - Start local full stack`);
+    logger.log(`  ${chalk.cyan('shipbuilder runner')} - Connect to remote server`);
   } else {
     logger.info('Fix configuration errors with:');
-    logger.log(`  ${chalk.cyan('sentryvibe config set <key> <value>')}`);
-    logger.log(`  or ${chalk.cyan('sentryvibe init')} to reconfigure`);
+    logger.log(`  ${chalk.cyan('shipbuilder config set <key> <value>')}`);
+    logger.log(`  or ${chalk.cyan('shipbuilder init')} to reconfigure`);
   }
   logger.log('');
 }

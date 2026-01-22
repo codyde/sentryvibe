@@ -20,10 +20,10 @@ export const HMR_PROXY_SCRIPT = `
   }
 
   // Track if we've initialized
-  if (window.__sentryvibeHmrProxyInit) {
+  if (window.__shipbuilderHmrProxyInit) {
     return;
   }
-  window.__sentryvibeHmrProxyInit = true;
+  window.__shipbuilderHmrProxyInit = true;
 
   // Store original WebSocket constructor
   const OriginalWebSocket = window.WebSocket;
@@ -101,7 +101,7 @@ export const HMR_PROXY_SCRIPT = `
       
       // Send connect request to parent
       window.parent.postMessage({
-        type: 'sentryvibe:hmr:connect',
+        type: 'shipbuilder:hmr:connect',
         connectionId: this._connectionId,
         port: port,
         protocol: this.protocol,
@@ -115,7 +115,7 @@ export const HMR_PROXY_SCRIPT = `
       
       // Forward message to parent
       window.parent.postMessage({
-        type: 'sentryvibe:hmr:send',
+        type: 'shipbuilder:hmr:send',
         connectionId: this._connectionId,
         message: typeof data === 'string' ? data : JSON.stringify(data),
       }, '*');
@@ -130,7 +130,7 @@ export const HMR_PROXY_SCRIPT = `
       
       // Tell parent to close connection
       window.parent.postMessage({
-        type: 'sentryvibe:hmr:disconnect',
+        type: 'shipbuilder:hmr:disconnect',
         connectionId: this._connectionId,
         code: code,
         reason: reason,
@@ -273,10 +273,10 @@ export const HMR_PROXY_SCRIPT = `
     
     const { type, connectionId, message, code, reason, error, port } = event.data || {};
     
-    if (!type || !type.startsWith('sentryvibe:hmr:')) return;
+    if (!type || !type.startsWith('shipbuilder:hmr:')) return;
     
     // Handle config message to set dev server port
-    if (type === 'sentryvibe:hmr:config') {
+    if (type === 'shipbuilder:hmr:config') {
       if (port && typeof port === 'number') {
         devServerPort = port;
         
@@ -295,25 +295,25 @@ export const HMR_PROXY_SCRIPT = `
     }
     
     switch (type) {
-      case 'sentryvibe:hmr:connected':
+      case 'shipbuilder:hmr:connected':
         conn._onConnected();
         break;
         
-      case 'sentryvibe:hmr:message':
+      case 'shipbuilder:hmr:message':
         conn._onMessage(message);
         break;
         
-      case 'sentryvibe:hmr:closed':
+      case 'shipbuilder:hmr:closed':
         conn._onClosed(code || 1000, reason || '');
         break;
         
-      case 'sentryvibe:hmr:error':
+      case 'shipbuilder:hmr:error':
         conn._onError(error || 'Unknown error');
         break;
     }
   });
   
   // Announce ready to parent
-  window.parent.postMessage({ type: 'sentryvibe:hmr:ready' }, '*');
+  window.parent.postMessage({ type: 'shipbuilder:hmr:ready' }, '*');
 })();
 `;

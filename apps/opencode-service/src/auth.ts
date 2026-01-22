@@ -2,19 +2,19 @@
  * Authentication helpers for OpenCode Service
  * 
  * Validates runner keys and shared secrets for API access.
- * Integrates with the existing SentryVibe auth system.
+ * Integrates with the existing ShipBuilder auth system.
  */
 
 import { createHash } from 'crypto';
-import { db } from '@sentryvibe/agent-core';
-import { runnerKeys } from '@sentryvibe/agent-core/lib/db/schema';
+import { db } from '@shipbuilder/agent-core';
+import { runnerKeys } from '@shipbuilder/agent-core/lib/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 
 /**
  * Check if running in local mode
  */
 export function isLocalMode(): boolean {
-  return process.env.SENTRYVIBE_LOCAL_MODE === 'true';
+  return process.env.SHIPBUILDER_LOCAL_MODE === 'true';
 }
 
 /**
