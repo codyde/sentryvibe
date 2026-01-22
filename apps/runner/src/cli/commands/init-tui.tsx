@@ -213,7 +213,7 @@ async function executeInitFlow(
       setError('Failed to clone repository', [
         'Check your internet connection',
         'Verify git is installed: git --version',
-        'Try: git clone https://github.com/OWNER/REPO.git',
+        'Try: git clone https://github.com/codyde/shipbuilder.git',
       ]);
       throw error;
     }

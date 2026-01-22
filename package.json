@@ -6,7 +6,7 @@
   "packageManager": "pnpm@9.15.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/REPO.git"
+    "url": "https://github.com/codyde/shipbuilder.git"
   },
   "author": "Cody De Arkland",
   "license": "MIT",

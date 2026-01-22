@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const GITHUB_INSTALL_SCRIPT_URL =
-  "https://raw.githubusercontent.com/OWNER/REPO/main/install-cli.sh";
+  "https://raw.githubusercontent.com/codyde/shipbuilder/main/install-cli.sh";
 
 /**
  * GET /install
@@ -25,7 +25,7 @@ export async function GET() {
         response.statusText
       );
       return new NextResponse(
-        "# Error: Failed to fetch install script\necho 'Failed to download install script. Please try again or visit https://github.com/OWNER/REPO'\nexit 1",
+        "# Error: Failed to fetch install script\necho 'Failed to download install script. Please try again or visit https://github.com/codyde/shipbuilder'\nexit 1",
         {
           status: 502,
           headers: {
@@ -49,7 +49,7 @@ export async function GET() {
   } catch (error) {
     console.error("[install] Error proxying install script:", error);
     return new NextResponse(
-      "# Error: Failed to fetch install script\necho 'Failed to download install script. Please try again or visit https://github.com/OWNER/REPO'\nexit 1",
+      "# Error: Failed to fetch install script\necho 'Failed to download install script. Please try again or visit https://github.com/codyde/shipbuilder'\nexit 1",
       {
         status: 500,
         headers: {

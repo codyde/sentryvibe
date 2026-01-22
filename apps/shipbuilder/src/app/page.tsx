@@ -234,7 +234,6 @@ function HomeContent() {
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [appliedTags, setAppliedTags] = useState<AppliedTag[]>([]);
-  const [breaksAnimationClass, setBreaksAnimationClass] = useState<string>("");
   const [generationState, setGenerationState] =
     useState<GenerationState | null>(null);
   const [isStartingServer, setIsStartingServer] = useState(false);
@@ -2152,14 +2151,6 @@ function HomeContent() {
     ); // Close Sentry.startSpan
   };
 
-  const handleBreaksMouseEnter = () => {
-    setBreaksAnimationClass("animate-swing-up");
-  };
-
-  const handleBreaksMouseLeave = () => {
-    setBreaksAnimationClass("animate-shake-fall");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Allow submission if there's either text input or image attachments
@@ -2830,30 +2821,11 @@ function HomeContent() {
                   transition={{ duration: 0.5 }}
                   className="flex-1 flex items-center justify-center p-4"
                 >
-                  <div className="w-full text-center space-y-12 overflow-x-auto">
-                    {/* Title */}
-                    <div className="space-y-4">
-                      <h1 className="text-[3rem] sm:text-[4rem] md:text-[6rem] lg:text-[8rem] font-bold inline-block leading-tight">
-                        <div>
-                          Code{" "}
-                          <span
-                            className={`inline-block origin-bottom-right ${breaksAnimationClass}`}
-                            style={{ color: "#FD44B0", transform: "rotate(-7.5deg)" }}
-                            onMouseEnter={handleBreaksMouseEnter}
-                            onMouseLeave={handleBreaksMouseLeave}
-                          >
-                            breaks
-                          </span>
-                          ,
-                        </div>
-                        <div>build it anyways.</div>
-                      </h1>
-                    </div>
-
+                  <div className="w-full h-full flex items-center justify-center overflow-x-auto">
                     {/* Main Input - Centered */}
                     <form
                       onSubmit={handleSubmit}
-                      className="relative max-w-4xl mx-auto"
+                      className="relative w-full max-w-5xl mx-auto px-4"
                     >
                       {/* Image attachments preview */}
                       {imageAttachments.length > 0 && (
@@ -2878,9 +2850,9 @@ function HomeContent() {
                           onKeyDown={handleKeyDown}
                           onPaste={handlePaste}
                           placeholder="What do you want to build?"
-                          rows={2}
-                          className="w-full px-8 py-6 pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-xl font-light resize-none max-h-[200px] overflow-y-auto"
-                          style={{ minHeight: "80px" }}
+                          rows={3}
+                          className="w-full px-8 py-[calc(1.5rem+3px)] pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-2xl font-light resize-none max-h-[300px] overflow-y-auto"
+                          style={{ minHeight: "150px" }}
                           disabled={isLoading}
                         />
                         <button
@@ -2889,7 +2861,7 @@ function HomeContent() {
                           className="absolute right-4 bottom-4 p-3 text-white hover:text-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed transition-all duration-200"
                         >
                           <svg
-                            className="w-7 h-7"
+                            className="w-8 h-8"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"

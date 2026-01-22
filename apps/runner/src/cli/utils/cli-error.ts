@@ -139,7 +139,7 @@ export const errors = {
         'Test the connection manually: psql <connection-string>',
         'Reset database setup: shipbuilder db setup --force',
       ],
-      docs: 'https://github.com/OWNER/REPO#database-setup',
+      docs: 'https://github.com/codyde/shipbuilder#database-setup',
     });
   },
 
@@ -163,7 +163,7 @@ export const errors = {
         'Initialize ShipBuilder: shipbuilder init',
         'This will create your configuration file',
       ],
-      docs: 'https://github.com/OWNER/REPO#getting-started',
+      docs: 'https://github.com/codyde/shipbuilder#getting-started',
     });
   },
 

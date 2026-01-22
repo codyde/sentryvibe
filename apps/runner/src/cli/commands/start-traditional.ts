@@ -140,7 +140,7 @@ export async function startCommand(options: StartOptions) {
         'Or set manually: shipbuilder config set databaseUrl <url>',
         'Or setup database: shipbuilder db',
       ],
-      docs: 'https://github.com/OWNER/REPO#database-setup',
+      docs: 'https://github.com/codyde/shipbuilder#database-setup',
     });
   }
 

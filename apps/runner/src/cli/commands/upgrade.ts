@@ -54,7 +54,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
         'Or run init first: shipbuilder init',
         config.monorepoPath ? `Configured path not found: ${config.monorepoPath}` : 'No installation path configured',
       ],
-      docs: 'https://github.com/OWNER/REPO#upgrade',
+      docs: 'https://github.com/codyde/shipbuilder#upgrade',
     });
   }
 
@@ -149,7 +149,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   try {
     execSync(
-      `git clone --branch ${branch} --depth 1 https://github.com/OWNER/REPO.git "${tempDir}"`,
+      `git clone --branch ${branch} --depth 1 https://github.com/codyde/shipbuilder.git "${tempDir}"`,
       {
         cwd: parentDir,
         stdio: 'pipe', // Silent
@@ -170,7 +170,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
       message: `Failed to clone branch "${branch}"`,
       suggestions: [
         'Check your internet connection',
-        'Verify the branch exists: https://github.com/OWNER/REPO/tree/' + branch,
+        'Verify the branch exists: https://github.com/codyde/shipbuilder/tree/' + branch,
         'Try upgrading to main: shipbuilder upgrade',
       ],
     });

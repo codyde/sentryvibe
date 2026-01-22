@@ -306,13 +306,13 @@ jobs:
             ## Installation
 
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install-cli.sh | bash
+            curl -fsSL https://raw.githubusercontent.com/codyde/shipbuilder/main/install-cli.sh | bash
             ```
 
             Or install directly:
 
             ```bash
-            npm install -g https://github.com/OWNER/REPO/releases/download/v${{ steps.version.outputs.new_version }}/shipbuilder-cli.tgz
+            npm install -g https://github.com/codyde/shipbuilder/releases/download/v${{ steps.version.outputs.new_version }}/shipbuilder-cli.tgz
             ```
 
             ## Quick Start
@@ -322,7 +322,7 @@ jobs:
             shipbuilder run
             ```
 
-            See [full documentation](https://github.com/OWNER/REPO/blob/main/apps/runner/README.md) for details.
+            See [full documentation](https://github.com/codyde/shipbuilder/blob/main/apps/runner/README.md) for details.
           files: |
             apps/runner/shipbuilder-cli.tgz
           draft: false

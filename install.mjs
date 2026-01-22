@@ -118,7 +118,7 @@ async function getLatestVersion() {
   
   try {
     // Try GitHub releases API first
-    const response = await fetch('https://api.github.com/repos/OWNER/REPO/releases/latest', {
+    const response = await fetch('https://api.github.com/repos/codyde/shipbuilder/releases/latest', {
       headers: { 'Accept': 'application/vnd.github.v3+json' },
     });
     
@@ -338,7 +338,7 @@ function printPnpmSetupError(error) {
 
 // Install the CLI
 async function installCLI(version) {
-  const downloadUrl = `https://github.com/OWNER/REPO/releases/download/${version}/shipbuilder-cli.tgz`;
+  const downloadUrl = `https://github.com/codyde/shipbuilder/releases/download/${version}/shipbuilder-cli.tgz`;
   
   // Check pnpm availability - install if not present
   if (!hasPnpm()) {
@@ -515,7 +515,7 @@ function printFailure(error) {
   }
   console.log();
   console.log(`  ${c.dimGray}If the problem persists, please report it at:${c.reset}`);
-  console.log(`    ${c.purple}https://github.com/OWNER/REPO/issues${c.reset}`);
+  console.log(`    ${c.purple}https://github.com/codyde/shipbuilder/issues${c.reset}`);
   console.log();
 }
 

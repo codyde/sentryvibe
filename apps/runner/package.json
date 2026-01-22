@@ -32,13 +32,13 @@
   "author": "Cody De Arkland",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/REPO.git",
+    "url": "https://github.com/codyde/shipbuilder.git",
     "directory": "apps/runner"
   },
   "bugs": {
-    "url": "https://github.com/OWNER/REPO/issues"
+    "url": "https://github.com/codyde/shipbuilder/issues"
   },
-  "homepage": "https://github.com/OWNER/REPO#readme",
+  "homepage": "https://github.com/codyde/shipbuilder#readme",
   "preferGlobal": true,
   "scripts": {
     "postinstall": "node scripts/install-vendor.js",

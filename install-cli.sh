@@ -48,4 +48,4 @@ if [ "$NODE_VERSION" -lt 20 ]; then
 fi
 
 # Run the Node.js installer by piping to node stdin
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.mjs | node --input-type=module -
+curl -fsSL https://raw.githubusercontent.com/codyde/shipbuilder/main/install.mjs | node --input-type=module -

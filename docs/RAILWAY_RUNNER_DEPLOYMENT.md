@@ -561,7 +561,7 @@ Once your Railway runner is deployed and healthy:
 **Issues?**
 - Check Railway logs: `railway logs --service runner`
 - Review health endpoint: `https://[runner-url].railway.app/health`
-- GitHub Issues: https://github.com/OWNER/REPO/issues
+- GitHub Issues: https://github.com/codyde/shipbuilder/issues
 
 **Performance Issues?**
 - Increase Railway plan (more CPU/RAM)

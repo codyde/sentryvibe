@@ -15,7 +15,7 @@ import pc from 'picocolors';
 import { configManager } from './config-manager.js';
 
 // GitHub API endpoint for releases
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/OWNER/REPO/releases/latest';
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/codyde/shipbuilder/releases/latest';
 
 // Install command for CLI
 const INSTALL_COMMAND = 'curl -fsSL https://shipbuilder.app/install | bash';

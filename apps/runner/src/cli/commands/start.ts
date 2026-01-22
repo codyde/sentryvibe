@@ -185,7 +185,7 @@ export async function startCommand(options: StartOptions) {
         'Run initialization: shipbuilder init',
         'Or set manually: shipbuilder config set databaseUrl <url>',
       ],
-      docs: 'https://github.com/OWNER/REPO#database-setup',
+      docs: 'https://github.com/codyde/shipbuilder#database-setup',
     });
   }
 

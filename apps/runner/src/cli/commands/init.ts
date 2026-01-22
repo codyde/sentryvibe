@@ -308,7 +308,7 @@ export async function initCommand(options: InitOptions) {
               suggestions: [
                 'Check your internet connection',
                 'Verify you have git installed: git --version',
-                'Try cloning manually: git clone https://github.com/OWNER/REPO.git',
+                'Try cloning manually: git clone https://github.com/codyde/shipbuilder.git',
               ],
             });
           }

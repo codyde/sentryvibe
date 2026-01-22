@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { logger } from './logger.js';
 import { spinner } from './spinner.js';
 
-const DEFAULT_REPO_URL = 'https://github.com/OWNER/REPO.git';
+const DEFAULT_REPO_URL = 'https://github.com/codyde/shipbuilder.git';
 const DEFAULT_CLONE_PATH = join(process.cwd(), 'shipbuilder'); // Current directory + /shipbuilder
 
 export interface CloneOptions {

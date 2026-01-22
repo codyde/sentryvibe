@@ -103,7 +103,7 @@ function App({
     const { execSync } = await import('child_process');
     try {
       execSync(
-        `git ls-remote --exit-code --heads https://github.com/OWNER/REPO.git ${config.branch}`,
+        `git ls-remote --exit-code --heads https://github.com/codyde/shipbuilder.git ${config.branch}`,
         { stdio: 'pipe' }
       );
       // Branch exists, proceed with init
