@@ -177,7 +177,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
             <HoverCardTrigger asChild>
               <a href="/" className="flex items-center justify-center">
                 <div 
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-2 border border-white/20"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg p-1 border border-white/20"
                   style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
                 >
                   <img
@@ -199,7 +199,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           // Expanded header
           <div className="flex items-center gap-3">
             <div 
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-2 border border-white/20"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg p-1 border border-white/20"
               style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
             >
               <img
