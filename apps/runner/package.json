@@ -1,6 +1,6 @@
 {
   "name": "@shipbuilder/cli",
-  "version": "0.31.5",
+  "version": "0.31.6",
   "description": "ShipBuilder CLI - AI-powered app builder",
   "private": false,
   "type": "module",
