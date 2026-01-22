@@ -177,13 +177,13 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
             <HoverCardTrigger asChild>
               <a href="/" className="flex items-center justify-center">
                 <div 
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg p-1 border border-white/20"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-white/20"
                   style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
                 >
                   <img
                     src="/openbuilder-logo.png"
                     alt="OpenBuilder"
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-cover"
                   />
                 </div>
               </a>
@@ -199,13 +199,13 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           // Expanded header
           <div className="flex items-center gap-3">
             <div 
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg p-1 border border-white/20"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-white/20"
               style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
             >
               <img
                 src="/openbuilder-logo.png"
                 alt="OpenBuilder"
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
               />
             </div>
             <div className="flex-1">
