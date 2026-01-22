@@ -88,26 +88,9 @@ Apply the current request in context of this conversation.`;
 - ${context.isNewProject ? `Example: bash -lc 'cd ${context.projectName} && npm install'` : 'Use relative paths for file operations'}
 - Provide complete file contents for every modification`);
 
-  sections.push(`## Task Tracking - Internal System (NOT A TOOL)
+  // NOTE: Task tracking instructions are now in the base system prompt (prompts/agents/codex.ts)
 
-IMPORTANT: Task tracking is done by including JSON in your text responses.
-This is NOT a tool to call, NOT a command to run, NOT something to install.
-
-Simply include a JSON code block in your response like this:
-
-\`\`\`json
-{"todos":[
-  {"content":"Clone template","status":"completed","activeForm":"Cloned template"},
-  {"content":"Install dependencies","status":"in_progress","activeForm":"Installing dependencies"},
-  {"content":"Implement features","status":"pending","activeForm":"Implementing features"}
-]}
-\`\`\`
-
-The system automatically extracts this from your response text.
-DO NOT try to call it as a tool, run it as a command, or install it as a binary.
-Just include the JSON code block in your message.`);
-
-  // NEW: Only include template catalog if template wasn't pre-selected
+  // Only include template catalog if template wasn't pre-selected
   if (context.templateSelectionContext && !context.templateMetadata) {
     sections.push(buildCodexTemplateCatalogSection(context.templateSelectionContext));
   }
