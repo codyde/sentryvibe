@@ -181,10 +181,9 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
                 >
                   <img
-                    src="/sentryglyph.png"
+                    src="/openbuilder-logo.png"
                     alt="OpenBuilder"
                     className="h-full w-full object-contain"
-                    style={{ filter: 'var(--theme-logo-filter, none)' }}
                   />
                 </div>
               </a>
@@ -204,10 +203,9 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
             >
               <img
-                src="/sentryglyph.png"
+                src="/openbuilder-logo.png"
                 alt="OpenBuilder"
                 className="h-full w-full object-contain"
-                style={{ filter: 'var(--theme-logo-filter, none)' }}
               />
             </div>
             <div className="flex-1">
