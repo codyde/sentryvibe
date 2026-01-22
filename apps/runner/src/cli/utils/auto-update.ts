@@ -191,7 +191,8 @@ function relaunchCLI(): void {
       stdio: 'inherit',
       env: { 
         ...process.env, 
-        SENTRYVIBE_SKIP_UPDATE_CHECK: '1' // Prevent update loop
+        SENTRYVIBE_SKIP_UPDATE_CHECK: '1', // Prevent update loop
+        SENTRYVIBE_SKIP_BANNER: '1', // Suppress banner after restart (already shown before update)
       },
       // Don't use shell: true to avoid shell hash caching
     });

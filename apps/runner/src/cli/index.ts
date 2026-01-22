@@ -93,25 +93,29 @@ export const shutdownHandler = setupShutdownHandler({
   verbose: true,
 });
 
-// Check if we're running in TUI mode - skip banner if so
+// Check if we're running in TUI mode or version mode - skip banner if so
 const args = process.argv.slice(2);
 const isInitWithYes = args[0] === 'init' && (args.includes('-y') || args.includes('--yes') || args.includes('--non-interactive'));
 const isNoArgs = args.length === 0 || (args.length === 1 && args[0] === '--debug');
 const isRunCommand = args[0] === 'run'; // `sentryvibe run` uses TUI Dashboard
 const isRunnerCommand = args[0] === 'runner' && !args.includes('--no-tui'); // `sentryvibe runner` uses TUI Dashboard (unless --no-tui)
+const isVersionCommand = args.includes('--version') || args.includes('-V'); // Skip banner for version output
+const isSkipBanner = process.env.SENTRYVIBE_SKIP_BANNER === '1'; // Skip banner after auto-update restart
 const isTUIMode = isInitWithYes || isNoArgs || isRunCommand || isRunnerCommand;
+const isSilentMode = isTUIMode || isVersionCommand || isSkipBanner;
 
-// Set SILENT_MODE for TUI to suppress all console output from other modules
+// Set SILENT_MODE for TUI/version to suppress all console output from other modules
 // This must be set early, before modules that use console.log are imported
-if (isTUIMode) {
+if (isSilentMode) {
   process.env.SILENT_MODE = '1';
 }
 
 // Auto-update check - do this BEFORE displaying banner to avoid double banners
 // For TUI modes: check only and store result for display (don't auto-update to avoid disruption)
 // For CLI modes: full auto-update with restart
+// For version mode: skip entirely - just show version
 let willAutoUpdate = false;
-if (!process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
+if (!process.env.SENTRYVIBE_SKIP_UPDATE_CHECK && !isVersionCommand) {
   const { checkAndAutoUpdate, checkForUpdate } = await import('./utils/auto-update.js');
   
   try {
@@ -140,11 +144,9 @@ if (!process.env.SENTRYVIBE_SKIP_UPDATE_CHECK) {
       // Banner already shown above before checkAndAutoUpdate
     }
   }
-} else {
-  // Update check skipped, show banner for CLI mode
-  if (!isTUIMode) {
-    displayBanner();
-  }
+} else if (!isSilentMode) {
+  // Update check skipped, show banner for CLI mode (but not version mode)
+  displayBanner();
 }
 
 const program = new Command();

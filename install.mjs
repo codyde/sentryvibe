@@ -99,6 +99,7 @@ function checkNodeVersion() {
   const major = parseInt(version.slice(1).split('.')[0], 10);
   
   if (major < 20) {
+    // Always show errors, even in quiet mode
     console.log(`  ${S.error} Node.js 20+ required ${c.dimGray}(you have ${version})${c.reset}`);
     console.log();
     console.log(`  ${c.dimGray}Install Node.js 20+ from https://nodejs.org${c.reset}`);
@@ -106,13 +107,14 @@ function checkNodeVersion() {
     process.exit(1);
   }
   
-  console.log(`  ${S.success} Node.js ${c.dimGray}${version}${c.reset}`);
+  log(`  ${S.success} Node.js ${c.dimGray}${version}${c.reset}`);
   return version;
 }
 
 // Get latest release version
 async function getLatestVersion() {
-  const spinner = new Spinner('Fetching latest release...').start();
+  // In quiet mode, skip the spinner
+  const spinner = isQuietMode ? null : new Spinner('Fetching latest release...').start();
   
   try {
     // Try GitHub releases API first
@@ -123,7 +125,7 @@ async function getLatestVersion() {
     if (response.ok) {
       const data = await response.json();
       const version = data.tag_name;
-      spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
+      if (spinner) spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
       return version;
     }
     
@@ -132,13 +134,13 @@ async function getLatestVersion() {
     if (npmResponse.ok) {
       const data = await npmResponse.json();
       const version = `v${data.version}`;
-      spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
+      if (spinner) spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
       return version;
     }
     
     throw new Error('Could not determine latest version');
   } catch (error) {
-    spinner.error('Failed to fetch latest version');
+    if (spinner) spinner.error('Failed to fetch latest version');
     throw error;
   }
 }
@@ -340,7 +342,7 @@ async function installCLI(version) {
   
   // Check pnpm availability - install if not present
   if (!hasPnpm()) {
-    console.log(`  ${S.info} pnpm not found, installing...`);
+    log(`  ${S.info} pnpm not found, installing...`);
     
     // Check if npm is available to install pnpm
     if (!hasNpm()) {
@@ -356,7 +358,7 @@ async function installCLI(version) {
       process.exit(1);
     }
   } else {
-    console.log(`  ${S.success} pnpm ${c.dimGray}found${c.reset}`);
+    log(`  ${S.success} pnpm ${c.dimGray}found${c.reset}`);
   }
   
   // Check if pnpm is properly configured
@@ -371,7 +373,7 @@ async function installCLI(version) {
     }
   }
   
-  const spinner = new Spinner('Installing SentryVibe CLI...').start();
+  const spinner = isQuietMode ? null : new Spinner('Installing SentryVibe CLI...').start();
   
   const installArgs = ['add', '-g', downloadUrl];
   
@@ -404,10 +406,10 @@ async function installCLI(version) {
     
     proc.on('close', (code) => {
       if (code === 0) {
-        spinner.success('SentryVibe CLI installed');
+        if (spinner) spinner.success('SentryVibe CLI installed');
         resolve();
       } else {
-        spinner.error('Installation failed');
+        if (spinner) spinner.error('Installation failed');
         const error = new Error(`pnpm install failed with code ${code}`);
         error.stdout = stdout;
         error.stderr = stderr;
@@ -416,7 +418,7 @@ async function installCLI(version) {
     });
     
     proc.on('error', (error) => {
-      spinner.error('Installation failed');
+      if (spinner) spinner.error('Installation failed');
       reject(error);
     });
   });
@@ -435,10 +437,10 @@ function verifyInstallation() {
     const lines = output.split('\n');
     const versionLine = lines.find(l => /^\d+\.\d+\.\d+/.test(l.trim())) || lines[lines.length - 1];
     const version = versionLine.trim();
-    console.log(`  ${S.success} Verified: ${c.dim}sentryvibe v${version}${c.reset}`);
+    log(`  ${S.success} Verified: ${c.dim}sentryvibe v${version}${c.reset}`);
     return true;
   } catch {
-    console.log(`  ${S.warning} Could not verify installation`);
+    log(`  ${S.warning} Could not verify installation`);
     return false;
   }
 }
@@ -520,15 +522,21 @@ function printFailure(error) {
 // Check for quiet mode (used during auto-update to avoid banner spam)
 const isQuietMode = process.env.SENTRYVIBE_QUIET_INSTALL === '1';
 
+// Helper to conditionally log (respects quiet mode)
+function log(message) {
+  if (!isQuietMode) {
+    console.log(message);
+  }
+}
+
 // Main installer
 async function main() {
-  // Skip banner in quiet mode (auto-update) to avoid banner spam
+  // Skip banner and header in quiet mode (auto-update) to avoid noise
   if (!isQuietMode) {
     printBanner();
+    console.log(`  ${c.dim}Installing SentryVibe CLI${c.reset}`);
+    console.log();
   }
-  
-  console.log(`  ${c.dim}Installing SentryVibe CLI${c.reset}`);
-  console.log();
   
   try {
     // Check prerequisites
@@ -538,7 +546,7 @@ async function main() {
     const version = await getLatestVersion();
     
     // Install
-    console.log();
+    log('');
     await installCLI(version);
     
     // Verify
