@@ -3,14 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * Check if current directory or a given path contains the ShipBuilder monorepo
+ * Check if current directory or a given path contains the OpenBuilder monorepo
  */
-export async function isShipBuilderRepo(path: string = process.cwd()): Promise<boolean> {
+export async function isOpenBuilderRepo(path: string = process.cwd()): Promise<boolean> {
   try {
     // Check for key indicators
     const packageJsonPath = join(path, 'package.json');
     const runnerPath = join(path, 'apps/runner');
-    const sentryVibePath = join(path, 'apps/shipbuilder');
+    const sentryVibePath = join(path, 'apps/openbuilder');
 
     // Must have package.json
     if (!existsSync(packageJsonPath)) {
@@ -24,7 +24,7 @@ export async function isShipBuilderRepo(path: string = process.cwd()): Promise<b
 
     // Verify package.json has correct name
     const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-    if (packageJson.name !== 'shipbuilder-monorepo') {
+    if (packageJson.name !== 'openbuilder-monorepo') {
       return false;
     }
 
@@ -35,7 +35,7 @@ export async function isShipBuilderRepo(path: string = process.cwd()): Promise<b
 }
 
 /**
- * Find the ShipBuilder monorepo root from current location
+ * Find the OpenBuilder monorepo root from current location
  * Searches up the directory tree
  */
 export async function findMonorepoRoot(startPath: string = process.cwd()): Promise<string | null> {
@@ -43,7 +43,7 @@ export async function findMonorepoRoot(startPath: string = process.cwd()): Promi
   const root = '/';
 
   while (currentPath !== root) {
-    if (await isShipBuilderRepo(currentPath)) {
+    if (await isOpenBuilderRepo(currentPath)) {
       return currentPath;
     }
 

@@ -4,7 +4,7 @@
  * 
  * This script:
  * 1. Replaces file: dependencies with npm versions (for Sentry/vendor packages)
- * 2. REMOVES @shipbuilder/agent-core from dependencies (it's bundled by tsup)
+ * 2. REMOVES @openbuilder/agent-core from dependencies (it's bundled by tsup)
  * 
  * The vendor files are still included, and postinstall will replace npm versions with vendor versions
  */
@@ -42,7 +42,7 @@ for (const [pkg, version] of Object.entries(replacements)) {
 
 // REMOVE workspace dependencies - they're bundled into dist/ by rollup
 // This eliminates npm 404 errors since these packages don't exist on npm
-const workspaceDeps = ['@shipbuilder/agent-core', '@shipbuilder/opencode-client'];
+const workspaceDeps = ['@openbuilder/agent-core', '@openbuilder/opencode-client'];
 for (const dep of workspaceDeps) {
   if (packageJson.dependencies[dep]) {
     console.log(`  Removing ${dep} (bundled by rollup)`);

@@ -35,18 +35,18 @@ export function LocalModeScreen({ isInitialized, onSelect, onEscape }: LocalMode
   if (!isInitialized) {
     menuItems.push({
       id: 'init',
-      label: 'Initialize ShipBuilder',
+      label: 'Initialize OpenBuilder',
       description: 'Set up workspace and configuration',
     });
   } else {
     menuItems.push({
       id: 'init',
-      label: 'Reinitialize ShipBuilder',
+      label: 'Reinitialize OpenBuilder',
       description: 'Reset and reconfigure',
     });
     menuItems.push({
       id: 'start',
-      label: 'Start ShipBuilder',
+      label: 'Start OpenBuilder',
       description: 'Launch the full stack',
     });
   }

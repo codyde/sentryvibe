@@ -6,7 +6,7 @@ import { colors } from '../theme.js';
  * Each line is padded to exactly the same width for perfect alignment
  */
 export function Banner() {
-  // Full banner lines - SHIP in cyan, BUILDER in purple
+  // Full banner lines - OPEN in cyan, BUILDER in purple
   // All lines padded to same total width for consistent centering
   const lines = [
     { ship: '███████╗██╗  ██╗██╗██████╗ ', builder: '██████╗ ██╗   ██╗██╗██╗     ██████╗ ███████╗██████╗ ' },

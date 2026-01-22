@@ -1,5 +1,5 @@
 packages:
-  - apps/shipbuilder
+  - apps/openbuilder
   - apps/runner
   - apps/opencode-service
   - packages/agent-core

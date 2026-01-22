@@ -1,5 +1,5 @@
 /**
- * ASCII art banner for ShipBuilder CLI
+ * ASCII art banner for OpenBuilder CLI
  */
 
 // ANSI color codes
@@ -13,7 +13,7 @@ const colors = {
 };
 
 /**
- * Displays the ShipBuilder banner
+ * Displays the OpenBuilder banner
  */
 export function displayBanner(): void {
   const banner = `

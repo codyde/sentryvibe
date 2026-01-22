@@ -1,5 +1,5 @@
 {
-  "name": "@shipbuilder/opencode-service",
+  "name": "@openbuilder/opencode-service",
   "version": "0.27.3",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@opencode-ai/sdk": "^1.0.0",
-    "@shipbuilder/agent-core": "workspace:*",
-    "@sentry/node": "file:../shipbuilder/vendor/sentry-node-LOCAL.tgz",
+    "@openbuilder/agent-core": "workspace:*",
+    "@sentry/node": "file:../openbuilder/vendor/sentry-node-LOCAL.tgz",
     "drizzle-orm": "^0.43.1",
     "express": "^4.21.0",
     "http-proxy-middleware": "^3.0.0"

@@ -16,7 +16,7 @@ interface MenuProps {
 /**
  * Arrow-key navigable menu component
  * 
- * > Initialize ShipBuilder
+ * > Initialize OpenBuilder
  *   Start Runner
  *   Exit
  */

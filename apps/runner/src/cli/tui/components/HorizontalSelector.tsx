@@ -20,7 +20,7 @@ interface HorizontalSelectorProps {
  * ┌─────────────────┐     ┌─────────────────┐
  * │   Local Mode    │     │   Runner Mode   │
  * │                 │     │                 │
- * │ Run ShipBuilder  │     │ Connect to a    │
+ * │ Run OpenBuilder  │     │ Connect to a    │
  * │ locally         │     │ remote server   │
  * └─────────────────┘     └─────────────────┘
  *       [SELECTED]

@@ -82,14 +82,14 @@ function normalizeUrl(url: string): string {
  * Get default workspace path
  */
 function getDefaultWorkspace(): string {
-  return join(process.cwd(), 'shipbuilder-workspace');
+  return join(process.cwd(), 'openbuilder-workspace');
 }
 
 /**
  * Get default monorepo clone path
  */
 function getDefaultMonorepoPath(): string {
-  return join(process.cwd(), 'shipbuilder');
+  return join(process.cwd(), 'openbuilder');
 }
 
 interface InitOptions {
@@ -126,7 +126,7 @@ export async function initCommand(options: InitOptions) {
       // Keep banner visible - don't clear screen
       console.log(); // Just add spacing
 
-      p.intro(pc.bgCyan(pc.black(' ShipBuilder Setup ')));
+      p.intro(pc.bgCyan(pc.black(' OpenBuilder Setup ')));
 
       // Step 1: Check if already initialized
       if (configManager.isInitialized()) {
@@ -151,7 +151,7 @@ export async function initCommand(options: InitOptions) {
 
       // Step 2: Check for monorepo
       const s = p.spinner();
-      s.start('Checking for ShipBuilder repository');
+      s.start('Checking for OpenBuilder repository');
 
       const repoCheck = await isInsideMonorepo();
       let monorepoPath: string | undefined;
@@ -163,7 +163,7 @@ export async function initCommand(options: InitOptions) {
         s.stop('Repository not found in current directory');
 
         const shouldClone = await p.confirm({
-          message: 'Clone ShipBuilder repository?',
+          message: 'Clone OpenBuilder repository?',
           initialValue: true,
         });
 
@@ -206,7 +206,7 @@ export async function initCommand(options: InitOptions) {
 
           if (existingInstallation) {
             const shouldOverwrite = await p.confirm({
-              message: `Existing ShipBuilder installation found. Replace it with fresh install?`,
+              message: `Existing OpenBuilder installation found. Replace it with fresh install?`,
               initialValue: true,
             });
 
@@ -223,7 +223,7 @@ export async function initCommand(options: InitOptions) {
               if (existsSync(clonePath as string)) {
                 if (!safeRemoveDirectory(clonePath as string, rmSync)) {
                   s.stop(pc.red('✗') + ' Cannot remove current working directory');
-                  p.cancel('Please run shipbuilder init from a different directory');
+                  p.cancel('Please run openbuilder init from a different directory');
                   return;
                 }
               }
@@ -232,7 +232,7 @@ export async function initCommand(options: InitOptions) {
               if (existsSync(defaultWorkspace)) {
                 if (!safeRemoveDirectory(defaultWorkspace, rmSync)) {
                   s.stop(pc.red('✗') + ' Cannot remove current working directory');
-                  p.cancel('Please run shipbuilder init from a different directory');
+                  p.cancel('Please run openbuilder init from a different directory');
                   return;
                 }
               }
@@ -257,7 +257,7 @@ export async function initCommand(options: InitOptions) {
             await installDependencies(monorepoPath);
             s.stop(pc.green('✓') + ' Dependencies installed');
 
-            s.start('Building @shipbuilder/agent-core');
+            s.start('Building @openbuilder/agent-core');
             await buildAgentCore(monorepoPath);
             s.stop(pc.green('✓') + ' Build complete');
 
@@ -308,13 +308,13 @@ export async function initCommand(options: InitOptions) {
               suggestions: [
                 'Check your internet connection',
                 'Verify you have git installed: git --version',
-                'Try cloning manually: git clone https://github.com/codyde/shipbuilder.git',
+                'Try cloning manually: git clone https://github.com/codyde/openbuilder.git',
               ],
             });
           }
         } else {
           p.note(
-            'Setup will continue in runner-only mode.\nYou can add the repository path later with:\n  shipbuilder config set monorepoPath <path>',
+            'Setup will continue in runner-only mode.\nYou can add the repository path later with:\n  openbuilder config set monorepoPath <path>',
             'Repository setup skipped'
           );
         }
@@ -501,10 +501,10 @@ export async function initCommand(options: InitOptions) {
       }
 
       // Success!
-      p.outro(pc.green('✨ ShipBuilder is ready!'));
+      p.outro(pc.green('✨ OpenBuilder is ready!'));
 
       p.note(
-        `${pc.cyan('shipbuilder run')}\n\nThen open: ${pc.cyan('http://localhost:3000')}`,
+        `${pc.cyan('openbuilder run')}\n\nThen open: ${pc.cyan('http://localhost:3000')}`,
         'Next Steps'
       );
 

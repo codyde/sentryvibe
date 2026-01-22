@@ -1,6 +1,6 @@
-# Deploying ShipBuilder Runner to Railway
+# Deploying OpenBuilder Runner to Railway
 
-This guide walks through deploying a ShipBuilder runner as a Railway service with persistent storage for project workspaces.
+This guide walks through deploying a OpenBuilder runner as a Railway service with persistent storage for project workspaces.
 
 ---
 
@@ -8,7 +8,7 @@ This guide walks through deploying a ShipBuilder runner as a Railway service wit
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Railway Project: shipbuilder                             │
+│ Railway Project: openbuilder                             │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  ┌──────────────────────────┐   ┌───────────────────┐  │
@@ -34,7 +34,7 @@ This guide walks through deploying a ShipBuilder runner as a Railway service wit
 ## Prerequisites
 
 1. **Existing Railway Project** with:
-   - Web service (shipbuilder Next.js app) - deployed
+   - Web service (openbuilder Next.js app) - deployed
    - Shared secret configured (`RUNNER_SHARED_SECRET`)
 
 2. **GitHub Repository** pushed with latest changes
@@ -54,13 +54,13 @@ This guide walks through deploying a ShipBuilder runner as a Railway service wit
 1. Go to your Railway project: https://railway.app/project/[your-project]
 2. Click **"+ New Service"**
 3. Select **"GitHub Repo"**
-4. Choose your `shipbuilder` repository
+4. Choose your `openbuilder` repository
 5. Railway will detect the Dockerfile automatically
 
 ### Option B: Via Railway CLI
 
 ```bash
-cd /path/to/shipbuilder
+cd /path/to/openbuilder
 railway link  # Link to your existing project
 railway up --service runner
 ```
@@ -256,7 +256,7 @@ curl https://your-runner.railway.app/ready
 ## Step 8: Test the Runner
 
 1. **Check Web App UI:**
-   - Open ShipBuilder web interface
+   - Open OpenBuilder web interface
    - Look in sidebar footer → Runner dropdown
    - Your Railway runner should appear: `railway-runner-prod` with green dot
 
@@ -535,7 +535,7 @@ After deployment:
 | **Cost** | $0 | ~$10/month |
 | **Availability** | Your machine must be on | 24/7 uptime |
 | **Resources** | Uses your CPU/RAM | Dedicated container |
-| **Workspace** | `~/shipbuilder-workspace` | `/data/workspace` (persistent volume) |
+| **Workspace** | `~/openbuilder-workspace` | `/data/workspace` (persistent volume) |
 | **Scaling** | Single machine | Can deploy multiple |
 | **Access** | localhost only | Accessible from anywhere |
 | **Maintenance** | Manual updates | Auto-deploy from Git |
@@ -561,7 +561,7 @@ Once your Railway runner is deployed and healthy:
 **Issues?**
 - Check Railway logs: `railway logs --service runner`
 - Review health endpoint: `https://[runner-url].railway.app/health`
-- GitHub Issues: https://github.com/codyde/shipbuilder/issues
+- GitHub Issues: https://github.com/codyde/openbuilder/issues
 
 **Performance Issues?**
 - Increase Railway plan (more CPU/RAM)

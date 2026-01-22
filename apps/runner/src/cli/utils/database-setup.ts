@@ -163,13 +163,13 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
   const { join } = await import('path');
   const { existsSync } = await import('fs');
 
-  const shipbuilderAppPath = join(monorepoPath, 'apps/shipbuilder');
-  const configPath = join(shipbuilderAppPath, 'drizzle.config.ts');
+  const openbuilderAppPath = join(monorepoPath, 'apps/openbuilder');
+  const configPath = join(openbuilderAppPath, 'drizzle.config.ts');
 
   // Verify paths exist
-  if (!existsSync(shipbuilderAppPath)) {
+  if (!existsSync(openbuilderAppPath)) {
     if (!silent) {
-      logger.error(`Directory not found: ${shipbuilderAppPath}`);
+      logger.error(`Directory not found: ${openbuilderAppPath}`);
     }
     return false;
   }
@@ -182,15 +182,15 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
   }
 
   if (!silent) {
-    spinner.start('Ensuring shipbuilder dependencies are installed...');
+    spinner.start('Ensuring openbuilder dependencies are installed...');
   }
 
   try {
     execFileSync('pnpm', ['install'], {
-      cwd: shipbuilderAppPath,
+      cwd: openbuilderAppPath,
       stdio: 'pipe',
     });
-    execFileSync('pnpm', ['--filter', '@shipbuilder/agent-core', 'build'], {
+    execFileSync('pnpm', ['--filter', '@openbuilder/agent-core', 'build'], {
       cwd: monorepoPath,
       stdio: 'pipe',
     });
@@ -209,7 +209,7 @@ export async function pushDatabaseSchema(monorepoPath: string, databaseUrl: stri
 
   return new Promise((resolve) => {
     const proc = spawn('npx', ['drizzle-kit', 'push', '--config=drizzle.config.ts'], {
-      cwd: shipbuilderAppPath,
+      cwd: openbuilderAppPath,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
       env: {
@@ -270,7 +270,7 @@ export async function connectManualDatabase(): Promise<string | null> {
   const connectionType = await prompts.select(
     'How would you like to connect your database?',
     [
-      'Connect an existing ShipBuilder database',
+      'Connect an existing OpenBuilder database',
       'Provide a connection string directly',
     ]
   );
@@ -279,8 +279,8 @@ export async function connectManualDatabase(): Promise<string | null> {
 
   // Prompt for the connection string
   let message: string;
-  if (connectionType === 'Connect an existing ShipBuilder database') {
-    message = 'Enter your ShipBuilder database connection string:';
+  if (connectionType === 'Connect an existing OpenBuilder database') {
+    message = 'Enter your OpenBuilder database connection string:';
   } else {
     message = 'Enter your PostgreSQL connection string:';
   }
