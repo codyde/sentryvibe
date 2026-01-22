@@ -183,7 +183,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   <img
                     src="/openbuilder-logo.png"
                     alt="OpenBuilder"
-                    className="h-full w-full object-cover"
+                    className="scale-[2.5]"
                   />
                 </div>
               </a>
@@ -205,7 +205,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               <img
                 src="/openbuilder-logo.png"
                 alt="OpenBuilder"
-                className="h-full w-full object-cover"
+                className="scale-[2.5]"
               />
             </div>
             <div className="flex-1">
