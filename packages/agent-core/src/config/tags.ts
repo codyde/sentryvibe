@@ -95,7 +95,7 @@ export const TAG_DEFINITIONS: TagDefinition[] = [
         label: 'Next.js',
         description: 'Full-stack React with SSR, App Router, and file-based routing',
         logo: '/logos/nextjs.svg',
-        repository: 'github:codyde/template-nextjs15',
+        repository: 'github:codyde/template-nextjs',
         branch: 'main'
       },
       {
