@@ -176,16 +176,11 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           <HoverCard openDelay={0} closeDelay={0}>
             <HoverCardTrigger asChild>
               <a href="/" className="flex items-center justify-center">
-                <div 
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-white/20"
-                  style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
-                >
-                  <img
-                    src="/openbuilder-logo.png"
-                    alt="OpenBuilder"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <img
+                  src="/openbuilder-logo.png"
+                  alt="OpenBuilder"
+                  className="h-12 w-12"
+                />
               </a>
             </HoverCardTrigger>
             <HoverCardContent side="right" align="start" className="w-auto p-3 bg-black/90 border-white/10">
@@ -198,16 +193,11 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
         ) : (
           // Expanded header
           <div className="flex items-center gap-3">
-            <div 
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-white/20"
-              style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
-            >
-              <img
-                src="/openbuilder-logo.png"
-                alt="OpenBuilder"
-                className="h-full w-full object-cover"
-              />
-            </div>
+            <img
+              src="/openbuilder-logo.png"
+              alt="OpenBuilder"
+              className="h-12 w-12"
+            />
             <div className="flex-1">
               <h1 className="text-lg font-bold text-white">
                 OpenBuilder
