@@ -1,6 +1,6 @@
 {
   "name": "@sentryvibe/agent-core",
-  "version": "0.31.5",
+  "version": "0.31.6",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
