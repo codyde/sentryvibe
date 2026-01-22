@@ -10,7 +10,7 @@ export async function isOpenBuilderRepo(path: string = process.cwd()): Promise<b
     // Check for key indicators
     const packageJsonPath = join(path, 'package.json');
     const runnerPath = join(path, 'apps/runner');
-    const sentryVibePath = join(path, 'apps/openbuilder');
+    const openbuilderPath = join(path, 'apps/openbuilder');
 
     // Must have package.json
     if (!existsSync(packageJsonPath)) {
@@ -18,7 +18,7 @@ export async function isOpenBuilderRepo(path: string = process.cwd()): Promise<b
     }
 
     // Must have the core app directories
-    if (!existsSync(runnerPath) || !existsSync(sentryVibePath)) {
+    if (!existsSync(runnerPath) || !existsSync(openbuilderPath)) {
       return false;
     }
 

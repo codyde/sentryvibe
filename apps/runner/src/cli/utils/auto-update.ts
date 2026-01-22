@@ -178,16 +178,16 @@ function relaunchCLI(): void {
   try {
     // Get the actual path to openbuilder to avoid shell hash caching issues
     // This ensures we run the newly installed version, not a cached path
-    let sentryVibePath = 'openbuilder';
+    let openbuilderPath = 'openbuilder';
     try {
       // Use 'command -v' to get the actual path, bypassing shell hash
-      sentryVibePath = execSync('command -v openbuilder', { encoding: 'utf-8' }).trim();
+      openbuilderPath = execSync('command -v openbuilder', { encoding: 'utf-8' }).trim();
     } catch {
       // Fallback to just 'openbuilder' if command -v fails
     }
     
     // Use spawnSync with the explicit path to ensure we get the new version
-    const result = spawnSync(sentryVibePath, args, {
+    const result = spawnSync(openbuilderPath, args, {
       stdio: 'inherit',
       env: { 
         ...process.env, 
