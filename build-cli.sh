@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "🔨 Building ShipBuilder CLI..."
+echo "🔨 Building OpenBuilder CLI..."
 echo ""
 
 # Check if we're in the right directory
 if [ ! -f "package.json" ] || [ ! -d "apps/runner" ]; then
-  echo "❌ Error: Must run from shipbuilder repository root"
+  echo "❌ Error: Must run from openbuilder repository root"
   exit 1
 fi
 
@@ -18,8 +18,8 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Rebuild agent-core to ensure latest changes
-echo "🔄 Building @shipbuilder/agent-core..."
-pnpm --filter @shipbuilder/agent-core build
+echo "🔄 Building @openbuilder/agent-core..."
+pnpm --filter @openbuilder/agent-core build
 echo ""
 
 # Build the CLI
@@ -45,14 +45,14 @@ echo ""
 echo "✅ CLI built and linked successfully!"
 echo ""
 echo "You can now use these commands:"
-echo "  shipbuilder run        # Start full stack"
-echo "  shipbuilder --runner   # Start runner only"
-echo "  shipbuilder --help     # Show help"
+echo "  openbuilder run        # Start full stack"
+echo "  openbuilder --runner   # Start runner only"
+echo "  openbuilder --help     # Show help"
 echo ""
 echo "To unlink later:"
 if command -v pnpm &> /dev/null; then
-  echo "  pnpm remove -g @shipbuilder/cli"
+  echo "  pnpm remove -g @openbuilder/cli"
 else
-  echo "  npm unlink -g @shipbuilder/cli"
+  echo "  npm unlink -g @openbuilder/cli"
 fi
 echo ""

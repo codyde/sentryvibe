@@ -6,7 +6,7 @@ var cachedBaseUrl = null;
 function getOpenCodeUrl() {
   const url = process.env.OPENCODE_URL;
   if (!url) {
-    if (process.env.NODE_ENV === "development" || process.env.SHIPBUILDER_LOCAL_MODE === "true") {
+    if (process.env.NODE_ENV === "development" || process.env.OPENBUILDER_LOCAL_MODE === "true") {
       return "http://localhost:4096";
     }
     throw new Error(
