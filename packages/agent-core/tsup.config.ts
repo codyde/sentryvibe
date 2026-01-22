@@ -30,7 +30,7 @@ export default defineConfig({
     'lib/build/engine': 'src/lib/build/engine.ts',
     'lib/reconciliation': 'src/lib/reconciliation.ts',
     'lib/claude/tools': 'src/lib/claude/tools.ts',
-    'lib/prompts': 'src/lib/prompts.ts',
+    'lib/prompts': 'src/lib/prompts/index.ts',
     'lib/stale-projects': 'src/lib/stale-projects.ts',
     'lib/startup-cleanup': 'src/lib/startup-cleanup.ts',
     'lib/icon-mapper': 'src/lib/icon-mapper.ts',
