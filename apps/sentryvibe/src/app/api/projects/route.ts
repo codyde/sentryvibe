@@ -47,13 +47,27 @@ export async function GET() {
 }
 
 function buildMetadataPrompt(userPrompt: string): string {
-  return `User wants to build: "${userPrompt}"
+  return `Extract project metadata from this request:
 
-Generate project metadata based on this request.
+User's request: "${userPrompt}"
+
+IMPORTANT: Extract only the PROJECT CONCEPT. Ignore all conversational phrases:
+- Ignore: "I want", "I need", "please", "can you", "build me", "create me", "make me"
+- Focus ONLY on WHAT is being built, not how the user asked for it
+
+Examples:
+- "I want to build a todo app" → slug: "todo-app", friendlyName: "Todo App"
+- "I want a workflow automation tool" → slug: "workflow-automation", friendlyName: "Workflow Automation"
+- "Build me an AI dashboard please" → slug: "ai-dashboard", friendlyName: "AI Dashboard"
+- "I would like a chat application" → slug: "chat-app", friendlyName: "Chat Application"
 
 Available icons: Folder, Code, Layout, Database, Zap, Globe, Lock, Users, ShoppingCart, Calendar, MessageSquare, FileText, Image, Music, Video, CheckCircle, Star
 
-Generate a slug (kebab-case), friendly name, description, and appropriate icon.`;
+Generate:
+- slug: kebab-case, max 30 chars, NO filler words like "want", "need", "build"
+- friendlyName: Title Case, 2-5 words, professional
+- description: 1-2 sentences about what the project does
+- icon: most appropriate icon from the list above`;
 }
 
 async function runCodexMetadataPrompt(promptText: string): Promise<string> {
@@ -209,7 +223,7 @@ export async function POST(request: Request) {
       console.log('⚠️ AI metadata generation failed, using fallback naming');
       
       // Extract key words, filtering out common filler words
-      const fillerWords = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'it', 'that', 'this', 'i', 'want', 'would', 'like', 'please', 'can', 'you', 'me', 'my', 'make', 'create', 'build']);
+      const fillerWords = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'it', 'that', 'this', 'i', 'want', 'would', 'like', 'please', 'can', 'you', 'me', 'my', 'make', 'create', 'build', 'need', 'help', 'using', 'should', 'could', 'give', 'some', 'new']);
       const words = prompt
         .toLowerCase()
         .split(/\s+/)

@@ -462,7 +462,7 @@ EXACT CLONE COMMANDS (use these exactly as shown):
   npx degit github:codyde/template-reactvite#main "${projectName}"
 
 **For Next.js projects:**
-  npx degit github:codyde/template-nextjs15#main "${projectName}"
+  npx degit github:codyde/template-nextjs#main "${projectName}"
 
 **For Astro projects:**
   npx degit github:codyde/template-astro#main "${projectName}"

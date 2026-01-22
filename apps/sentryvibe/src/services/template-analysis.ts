@@ -76,24 +76,32 @@ export async function generateProjectName(
   selectedAgent: AgentId,
   claudeModel?: ClaudeModelId
 ): Promise<{ slug: string; friendlyName: string }> {
-  const namePrompt = `Analyze this project description and create appropriate names:
+  const namePrompt = `Extract the core project concept from this request and create appropriate names:
 
 User's project request: "${prompt}"
 
+IMPORTANT: Extract only the PROJECT TYPE/CONCEPT. Ignore all conversational phrases:
+- Ignore: "I want", "I need", "I would like", "please", "can you", "build me", "create me", "make me"
+- Ignore: "a", "an", "the", "using", "with", "for me"
+- Focus ONLY on WHAT is being built, not how the user asked for it
+
 Generate:
-1. A URL-friendly slug (lowercase, hyphens, 2-4 words)
+1. A URL-friendly slug (lowercase, hyphens, 2-4 words, max 30 chars)
 2. A human-readable friendly name (Title Case, 2-5 words)
 
 Examples:
-- "Build a todo app" → slug: "todo-app", friendlyName: "Todo App"
-- "Create an error monitoring dashboard" → slug: "error-monitoring-dashboard", friendlyName: "Error Monitoring Dashboard"
-- "Make a chat app with real-time messaging" → slug: "realtime-chat-app", friendlyName: "Realtime Chat App"
-- "Build a blog for my personal site" → slug: "personal-blog", friendlyName: "Personal Blog"
+- "I want to build a todo app" → slug: "todo-app", friendlyName: "Todo App"
+- "I want a workflow automation tool" → slug: "workflow-automation", friendlyName: "Workflow Automation"
+- "Can you create an error monitoring dashboard for me" → slug: "error-monitoring", friendlyName: "Error Monitoring Dashboard"
+- "I need a chat app with real-time messaging please" → slug: "realtime-chat", friendlyName: "Realtime Chat"
+- "Build me a personal blog site" → slug: "personal-blog", friendlyName: "Personal Blog"
+- "I would like an AI workflow orchestration platform" → slug: "ai-workflow-platform", friendlyName: "AI Workflow Platform"
 
 Requirements:
-- Slug: lowercase, hyphens only, no special characters
-- Friendly name: Title Case, readable, professional
-- Both should be descriptive and clear`;
+- Slug: lowercase, hyphens only, no special characters, max 30 chars
+- Friendly name: Title Case, readable, professional, 2-5 words
+- NEVER include words like "want", "need", "please", "build", "create", "make" in the output
+- Focus on the core product/application concept`;
 
   try {
     console.log('[generateProjectName] 🚀 Starting AI name generation...');
@@ -125,7 +133,7 @@ Requirements:
       .replace(/[^a-z0-9\s]/g, '')
       .split(/\s+/)
       .filter(w => w.length > 2)
-      .filter(w => !['the', 'and', 'for', 'with', 'build', 'create', 'make'].includes(w))
+      .filter(w => !['the', 'and', 'for', 'with', 'build', 'create', 'make', 'want', 'need', 'please', 'can', 'you', 'help', 'using', 'should', 'could', 'would', 'like', 'some', 'new'].includes(w))
       .slice(0, 4);
 
     const slug = words.length > 0 ? words.join('-') : 'new-project';
