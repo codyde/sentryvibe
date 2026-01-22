@@ -177,6 +177,11 @@ function buildPromptWithImages(prompt: string, messageParts?: MessagePart[]): st
  *
  * With:
  * query() SDK function -> minimal transformation -> output
+ * 
+ * Sentry Integration:
+ * - The query() function is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration
+ * - Instrumentation hooks into @anthropic-ai/claude-agent-sdk via OpenTelemetry
+ * - IMPORTANT: Sentry must be initialized BEFORE claude-agent-sdk is imported
  */
 export function createNativeClaudeQuery(
   modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID,
@@ -260,6 +265,7 @@ export function createNativeClaudeQuery(
 
     try {
       // Stream messages directly from the SDK
+      // NOTE: query() is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration
       for await (const sdkMessage of query({ prompt: finalPrompt, options })) {
         messageCount++;
 

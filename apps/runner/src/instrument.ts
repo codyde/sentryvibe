@@ -3,6 +3,10 @@ import * as Sentry from "@sentry/node";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SentryAny = Sentry as any;
 
+// Debug logging for instrumentation (enabled via DEBUG_SENTRY=1)
+const debugSentry = process.env.DEBUG_SENTRY === '1';
+const log = (msg: string) => debugSentry && console.log(`[sentry-instrument] ${msg}`);
+
 // Build integrations array, gracefully handling missing custom integrations
 // Custom integrations (claudeCodeAgentSdkIntegration, vercelAIIntegration, openAIIntegration)
 // are only available in the vendored Sentry SDK, not the public npm version
@@ -11,6 +15,7 @@ const integrations: unknown[] = [];
 // Always add http integration (available in all versions)
 if (typeof Sentry.httpIntegration === "function") {
   integrations.push(Sentry.httpIntegration());
+  log('✓ Added httpIntegration');
 }
 
 // Add custom integrations if available (vendored SDK only)
@@ -24,6 +29,9 @@ if (typeof SentryAny.claudeCodeAgentSdkIntegration === "function") {
       agentName: useOpenCodeSdk ? 'opencode' : 'claude-code',
     })
   );
+  log(`✓ Added claudeCodeAgentSdkIntegration (agentName: ${useOpenCodeSdk ? 'opencode' : 'claude-code'})`);
+} else {
+  log('✗ claudeCodeAgentSdkIntegration NOT available - AI spans will use manual instrumentation');
 }
 
 if (typeof SentryAny.vercelAIIntegration === "function") {
@@ -33,6 +41,9 @@ if (typeof SentryAny.vercelAIIntegration === "function") {
       recordOutputs: true,
     })
   );
+  log('✓ Added vercelAIIntegration');
+} else {
+  log('✗ vercelAIIntegration NOT available');
 }
 
 if (typeof SentryAny.openAIIntegration === "function") {
@@ -42,7 +53,12 @@ if (typeof SentryAny.openAIIntegration === "function") {
       recordOutputs: true,
     })
   );
+  log('✓ Added openAIIntegration');
+} else {
+  log('✗ openAIIntegration NOT available');
 }
+
+log(`Total integrations configured: ${integrations.length}`);
 
 Sentry.init({
   dsn: "https://94f02492541e36eaa9ebfa56c4c042d2@o4508130833793024.ingest.us.sentry.io/4510156711919616",

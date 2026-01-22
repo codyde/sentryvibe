@@ -76,7 +76,7 @@
 
     {
       "id": "nextjs-fullstack",
-      "name": "Next.js 15 Full-Stack",
+      "name": "Next.js Full-Stack",
       "description": "Modern full-stack with App Router, TypeScript, Tailwind, and shadcn/ui",
       "repository": "github:codyde/template-nextjs",
       "branch": "main",
