@@ -25,7 +25,7 @@ import { AgentNotesSection, ActiveAgentNote } from "@/components/AgentNotesSecti
 import ProjectMetadataCard from "@/components/ProjectMetadataCard";
 import ImageAttachment from "@/components/ImageAttachment";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/components/ui/toast";
 import { CommandPaletteProvider } from "@/components/CommandPaletteProvider";
 import { useProjects, type Project } from "@/contexts/ProjectContext";
@@ -2732,6 +2732,8 @@ function HomeContent() {
         {/* Top Header Bar - Breadcrumb and Auth */}
         <header className="flex h-10 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-2">
+            {/* Mobile sidebar trigger */}
+            <SidebarTrigger className="md:hidden" />
             {/* Breadcrumb - Project name with status indicator */}
             {currentProject && (
               <div className="flex items-center gap-2">
@@ -2835,7 +2837,8 @@ function HomeContent() {
                           alt="OpenBuilder" 
                           className="w-24 h-24 object-contain"
                         />
-                        <div className="relative">
+                        {/* ASCII art - hidden on narrow screens */}
+                        <div className="relative hidden lg:block">
                           {/* 3D shadow layer - subtle dark shadow */}
                           <pre 
                             className="absolute text-[12px] leading-[1.1] font-mono select-none whitespace-pre"
