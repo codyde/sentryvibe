@@ -338,7 +338,8 @@ function printPnpmSetupError(error) {
 
 // Install the CLI
 async function installCLI(version) {
-  const downloadUrl = `https://github.com/codyde/openbuilder/releases/download/${version}/openbuilder-cli.tgz`;
+  // Install from npm registry (preferred) - version is used for display only
+  const packageSpec = '@openbuilder/cli';
   
   // Check pnpm availability - install if not present
   if (!hasPnpm()) {
@@ -375,7 +376,7 @@ async function installCLI(version) {
   
   const spinner = isQuietMode ? null : new Spinner('Installing OpenBuilder CLI...').start();
   
-  const installArgs = ['add', '-g', downloadUrl];
+  const installArgs = ['add', '-g', packageSpec];
   
   return new Promise((resolve, reject) => {
     // Set increased heap size for large packages and suppress DEP0190 warning

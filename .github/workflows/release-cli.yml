@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -173,6 +174,17 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Publish to npm
+        run: |
+          cd apps/runner
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Publishing @openbuilder/cli to npm..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          npm publish --access public
+          echo "✓ Published to npm"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -189,10 +201,10 @@ jobs:
             curl -fsSL https://openbuilder.sh/install | bash
             ```
 
-            Or install directly:
+            Or install via npm:
 
             ```bash
-            npm install -g https://github.com/codyde/openbuilder/releases/download/${{ github.ref_name }}/openbuilder-cli.tgz
+            npm install -g @openbuilder/cli
             ```
 
             ## Quick Start
