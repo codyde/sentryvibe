@@ -120,11 +120,162 @@
 
 /* ============================================
    THEME DEFINITIONS
+   Popular developer tool themes from VS Code, OpenCode, etc.
    ============================================ */
 
-/* Sentry Theme (Default) - Purple/Pink */
+/* Tokyo Night Theme (Default) - Deep blue with purple/cyan accents */
+.theme-tokyonight {
+  --background: #1a1b26;
+  --theme-primary: #7aa2f7;
+  --theme-secondary: #bb9af7;
+  --theme-primary-muted: rgba(122, 162, 247, 0.2);
+  --theme-secondary-muted: rgba(187, 154, 247, 0.2);
+  --sidebar-gradient-from: #16161e;
+  --sidebar-gradient-to: #1a1b26;
+  --theme-accent: #7dcfff;
+  --theme-glow: rgba(122, 162, 247, 0.25);
+  --theme-glow-hover: rgba(122, 162, 247, 0.4);
+  --theme-button-text: #1a1b26;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(22, 22, 30, 0.8);
+  --theme-input-border: rgba(122, 162, 247, 0.3);
+  --theme-input-border-focus: rgba(122, 162, 247, 0.6);
+  --theme-terminal-bg: #16161e;
+  --theme-chat-user-bg: rgba(122, 162, 247, 0.2);
+  --theme-chat-agent-bg: rgba(36, 40, 59, 0.8);
+  /* UI Component overrides (popover, dropdown, context menu, hover card, tooltip) */
+  --popover: #1f2335;
+  --popover-foreground: #c0caf5;
+  --accent: rgba(122, 162, 247, 0.15);
+  --accent-foreground: #c0caf5;
+  --border: rgba(122, 162, 247, 0.2);
+  --muted: #24283b;
+  --muted-foreground: #565f89;
+}
+
+/* One Dark Theme - Classic Atom theme */
+.theme-onedark {
+  --background: #282c34;
+  --theme-primary: #61afef;
+  --theme-secondary: #c678dd;
+  --theme-primary-muted: rgba(97, 175, 239, 0.2);
+  --theme-secondary-muted: rgba(198, 120, 221, 0.2);
+  --sidebar-gradient-from: #21252b;
+  --sidebar-gradient-to: #282c34;
+  --theme-accent: #e5c07b;
+  --theme-glow: rgba(97, 175, 239, 0.25);
+  --theme-glow-hover: rgba(97, 175, 239, 0.4);
+  --theme-button-text: #282c34;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(33, 37, 43, 0.8);
+  --theme-input-border: rgba(97, 175, 239, 0.3);
+  --theme-input-border-focus: rgba(97, 175, 239, 0.6);
+  --theme-terminal-bg: #21252b;
+  --theme-chat-user-bg: rgba(97, 175, 239, 0.2);
+  --theme-chat-agent-bg: rgba(40, 44, 52, 0.8);
+  /* UI Component overrides */
+  --popover: #2c313c;
+  --popover-foreground: #abb2bf;
+  --accent: rgba(97, 175, 239, 0.15);
+  --accent-foreground: #abb2bf;
+  --border: rgba(97, 175, 239, 0.2);
+  --muted: #3b4048;
+  --muted-foreground: #5c6370;
+}
+
+/* Gruvbox Theme - Retro warm colors */
+.theme-gruvbox {
+  --background: #282828;
+  --theme-primary: #fe8019;
+  --theme-secondary: #fabd2f;
+  --theme-primary-muted: rgba(254, 128, 25, 0.2);
+  --theme-secondary-muted: rgba(250, 189, 47, 0.2);
+  --sidebar-gradient-from: #1d2021;
+  --sidebar-gradient-to: #282828;
+  --theme-accent: #8ec07c;
+  --theme-glow: rgba(254, 128, 25, 0.25);
+  --theme-glow-hover: rgba(254, 128, 25, 0.4);
+  --theme-button-text: #282828;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(29, 32, 33, 0.8);
+  --theme-input-border: rgba(254, 128, 25, 0.3);
+  --theme-input-border-focus: rgba(254, 128, 25, 0.6);
+  --theme-terminal-bg: #1d2021;
+  --theme-chat-user-bg: rgba(254, 128, 25, 0.2);
+  --theme-chat-agent-bg: rgba(50, 48, 47, 0.8);
+  /* UI Component overrides */
+  --popover: #32302f;
+  --popover-foreground: #ebdbb2;
+  --accent: rgba(254, 128, 25, 0.15);
+  --accent-foreground: #ebdbb2;
+  --border: rgba(254, 128, 25, 0.2);
+  --muted: #3c3836;
+  --muted-foreground: #928374;
+}
+
+/* Dracula Theme - Iconic purple/pink/cyan */
+.theme-dracula {
+  --background: #282a36;
+  --theme-primary: #bd93f9;
+  --theme-secondary: #ff79c6;
+  --theme-primary-muted: rgba(189, 147, 249, 0.2);
+  --theme-secondary-muted: rgba(255, 121, 198, 0.2);
+  --sidebar-gradient-from: #21222c;
+  --sidebar-gradient-to: #282a36;
+  --theme-accent: #8be9fd;
+  --theme-glow: rgba(189, 147, 249, 0.25);
+  --theme-glow-hover: rgba(189, 147, 249, 0.4);
+  --theme-button-text: #282a36;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(33, 34, 44, 0.8);
+  --theme-input-border: rgba(189, 147, 249, 0.3);
+  --theme-input-border-focus: rgba(189, 147, 249, 0.6);
+  --theme-terminal-bg: #21222c;
+  --theme-chat-user-bg: rgba(189, 147, 249, 0.2);
+  --theme-chat-agent-bg: rgba(68, 71, 90, 0.8);
+  /* UI Component overrides */
+  --popover: #343746;
+  --popover-foreground: #f8f8f2;
+  --accent: rgba(189, 147, 249, 0.15);
+  --accent-foreground: #f8f8f2;
+  --border: rgba(189, 147, 249, 0.2);
+  --muted: #44475a;
+  --muted-foreground: #6272a4;
+}
+
+/* Nord Theme - Arctic blue-gray palette */
+.theme-nord {
+  --background: #2e3440;
+  --theme-primary: #88c0d0;
+  --theme-secondary: #81a1c1;
+  --theme-primary-muted: rgba(136, 192, 208, 0.2);
+  --theme-secondary-muted: rgba(129, 161, 193, 0.2);
+  --sidebar-gradient-from: #242933;
+  --sidebar-gradient-to: #2e3440;
+  --theme-accent: #a3be8c;
+  --theme-glow: rgba(136, 192, 208, 0.25);
+  --theme-glow-hover: rgba(136, 192, 208, 0.4);
+  --theme-button-text: #2e3440;
+  /* Input/Chat/Terminal */
+  --theme-input-bg: rgba(36, 41, 51, 0.8);
+  --theme-input-border: rgba(136, 192, 208, 0.3);
+  --theme-input-border-focus: rgba(136, 192, 208, 0.6);
+  --theme-terminal-bg: #242933;
+  --theme-chat-user-bg: rgba(136, 192, 208, 0.2);
+  --theme-chat-agent-bg: rgba(59, 66, 82, 0.8);
+  /* UI Component overrides */
+  --popover: #3b4252;
+  --popover-foreground: #eceff4;
+  --accent: rgba(136, 192, 208, 0.15);
+  --accent-foreground: #eceff4;
+  --border: rgba(136, 192, 208, 0.2);
+  --muted: #434c5e;
+  --muted-foreground: #4c566a;
+}
+
+/* Sentry Theme - Purple/Pink gradient */
 .theme-sentry {
-  --background: oklch(0.17 0.065 295);
+  --background: #1D142F;
   --theme-primary: #a855f7;
   --theme-secondary: #ec4899;
   --theme-primary-muted: rgba(168, 85, 247, 0.2);
@@ -142,95 +293,709 @@
   --theme-terminal-bg: #181225;
   --theme-chat-user-bg: rgba(168, 85, 247, 0.25);
   --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
+  /* UI Component overrides */
+  --popover: #251a3d;
+  --popover-foreground: #f3e8ff;
+  --accent: rgba(168, 85, 247, 0.15);
+  --accent-foreground: #f3e8ff;
+  --border: rgba(168, 85, 247, 0.25);
+  --muted: #2d1f4a;
+  --muted-foreground: #9f7aea;
 }
 
-/* Ocean Theme - Blue/Cyan */
-.theme-ocean {
-  --background: oklch(0.15 0.04 250);
-  --theme-primary: #3b82f6;
-  --theme-secondary: #22d3ee;
-  --theme-primary-muted: rgba(59, 130, 246, 0.2);
-  --theme-secondary-muted: rgba(34, 211, 238, 0.2);
-  --sidebar-gradient-from: #0f172a;
-  --sidebar-gradient-to: #1e3a5f;
-  --theme-accent: #60a5fa;
-  --theme-glow: rgba(59, 130, 246, 0.25);
-  --theme-glow-hover: rgba(59, 130, 246, 0.4);
-  --theme-button-text: #ffffff;
-  /* Input/Chat/Terminal */
-  --theme-input-bg: rgba(0, 0, 0, 0.4);
-  --theme-input-border: rgba(59, 130, 246, 0.3);
-  --theme-input-border-focus: rgba(59, 130, 246, 0.6);
-  --theme-terminal-bg: #0c1929;
-  --theme-chat-user-bg: rgba(59, 130, 246, 0.25);
-  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
-}
-
-/* Ember Theme - Orange/Red */
-.theme-ember {
-  --background: oklch(0.15 0.03 30);
-  --theme-primary: #f97316;
-  --theme-secondary: #ef4444;
-  --theme-primary-muted: rgba(249, 115, 22, 0.2);
-  --theme-secondary-muted: rgba(239, 68, 68, 0.2);
-  --sidebar-gradient-from: #1c1410;
-  --sidebar-gradient-to: #3d1f1f;
-  --theme-accent: #fb923c;
-  --theme-glow: rgba(249, 115, 22, 0.25);
-  --theme-glow-hover: rgba(249, 115, 22, 0.4);
-  --theme-button-text: #ffffff;
-  /* Input/Chat/Terminal */
-  --theme-input-bg: rgba(0, 0, 0, 0.4);
-  --theme-input-border: rgba(249, 115, 22, 0.3);
-  --theme-input-border-focus: rgba(249, 115, 22, 0.6);
-  --theme-terminal-bg: #1a0f0a;
-  --theme-chat-user-bg: rgba(249, 115, 22, 0.25);
-  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
-}
-
-/* Forest Theme - Green/Lime */
-.theme-forest {
-  --background: oklch(0.15 0.04 145);
-  --theme-primary: #10b981;
-  --theme-secondary: #84cc16;
-  --theme-primary-muted: rgba(16, 185, 129, 0.2);
-  --theme-secondary-muted: rgba(132, 204, 22, 0.2);
-  --sidebar-gradient-from: #0f1f17;
-  --sidebar-gradient-to: #1a3d2e;
+/* Dark Theme - Traditional dark mode with neutral grays */
+.theme-dark {
+  --background: #121212;
+  --foreground: #e5e5e5;
+  --theme-primary: #60a5fa;
+  --theme-secondary: #a78bfa;
+  --theme-primary-muted: rgba(96, 165, 250, 0.2);
+  --theme-secondary-muted: rgba(167, 139, 250, 0.2);
+  --sidebar-gradient-from: #0a0a0a;
+  --sidebar-gradient-to: #171717;
   --theme-accent: #34d399;
-  --theme-glow: rgba(16, 185, 129, 0.25);
-  --theme-glow-hover: rgba(16, 185, 129, 0.4);
-  --theme-button-text: #ffffff;
+  --theme-glow: rgba(96, 165, 250, 0.2);
+  --theme-glow-hover: rgba(96, 165, 250, 0.35);
+  --theme-button-text: #121212;
   /* Input/Chat/Terminal */
-  --theme-input-bg: rgba(0, 0, 0, 0.4);
-  --theme-input-border: rgba(16, 185, 129, 0.3);
-  --theme-input-border-focus: rgba(16, 185, 129, 0.6);
-  --theme-terminal-bg: #0a1810;
-  --theme-chat-user-bg: rgba(16, 185, 129, 0.25);
-  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
+  --theme-input-bg: rgba(0, 0, 0, 0.5);
+  --theme-input-border: rgba(255, 255, 255, 0.1);
+  --theme-input-border-focus: rgba(96, 165, 250, 0.5);
+  --theme-terminal-bg: #0a0a0a;
+  --theme-chat-user-bg: rgba(96, 165, 250, 0.15);
+  --theme-chat-agent-bg: rgba(38, 38, 38, 0.8);
+  /* UI Component overrides */
+  --popover: #1e1e1e;
+  --popover-foreground: #e5e5e5;
+  --accent: rgba(96, 165, 250, 0.12);
+  --accent-foreground: #e5e5e5;
+  --border: rgba(255, 255, 255, 0.1);
+  --muted: #262626;
+  --muted-foreground: #737373;
 }
 
-/* Noir Theme - Monochrome */
-.theme-noir {
-  --background: oklch(0.0 0 0);
-  --theme-primary: #ffffff;
-  --theme-secondary: #a1a1aa;
-  --theme-primary-muted: rgba(255, 255, 255, 0.1);
-  --theme-secondary-muted: rgba(161, 161, 170, 0.1);
-  --sidebar-gradient-from: #000000;
-  --sidebar-gradient-to: #18181b;
-  --theme-accent: #d4d4d8;
-  --theme-glow: rgba(255, 255, 255, 0.1);
-  --theme-glow-hover: rgba(255, 255, 255, 0.2);
-  --theme-button-text: #000000;
-  --theme-logo-filter: invert(1);
+/* Light Theme - Clean light mode with subtle blue accents */
+.theme-light {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --theme-primary: #2563eb;
+  --theme-secondary: #7c3aed;
+  --theme-primary-muted: rgba(37, 99, 235, 0.1);
+  --theme-secondary-muted: rgba(124, 58, 237, 0.1);
+  --sidebar-gradient-from: #f8fafc;
+  --sidebar-gradient-to: #f1f5f9;
+  --theme-accent: #059669;
+  --theme-glow: rgba(37, 99, 235, 0.15);
+  --theme-glow-hover: rgba(37, 99, 235, 0.25);
+  --theme-button-text: #ffffff;
   /* Input/Chat/Terminal */
-  --theme-input-bg: rgba(255, 255, 255, 0.05);
-  --theme-input-border: rgba(255, 255, 255, 0.2);
-  --theme-input-border-focus: rgba(255, 255, 255, 0.4);
-  --theme-terminal-bg: #0a0a0a;
-  --theme-chat-user-bg: rgba(255, 255, 255, 0.1);
-  --theme-chat-agent-bg: rgba(39, 39, 42, 0.7);
+  --theme-input-bg: #ffffff;
+  --theme-input-border: #cbd5e1;
+  --theme-input-border-focus: rgba(37, 99, 235, 0.5);
+  --theme-terminal-bg: #f8fafc;
+  --theme-chat-user-bg: rgba(37, 99, 235, 0.08);
+  --theme-chat-agent-bg: #f1f5f9;
+  /* UI Component overrides */
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --accent: rgba(37, 99, 235, 0.08);
+  --accent-foreground: #1a1a1a;
+  --border: #e2e8f0;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  /* Card and sidebar for light mode */
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e8f0;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #2563eb;
+}
+
+/* ============================================
+   LIGHT THEME OVERRIDES
+   Comprehensive fixes for hardcoded dark mode colors
+   ============================================ */
+
+/* --- SIDEBAR OVERRIDES --- */
+.theme-light [data-sidebar="sidebar"] {
+  background: linear-gradient(to bottom, #f8fafc, #f1f5f9) !important;
+}
+
+/* White text → dark text */
+.theme-light [data-sidebar="sidebar"] .text-white,
+.theme-light [data-sidebar="sidebar"] [class*="text-white"] {
+  color: #1e293b !important;
+}
+
+/* Gray text variants → visible gray */
+.theme-light [data-sidebar="sidebar"] .text-gray-300,
+.theme-light [data-sidebar="sidebar"] .text-gray-400,
+.theme-light [data-sidebar="sidebar"] .text-gray-500,
+.theme-light [data-sidebar="sidebar"] .text-gray-600,
+.theme-light [data-sidebar="sidebar"] [class*="text-gray-"] {
+  color: #475569 !important;
+}
+
+/* Zinc text variants → visible gray */
+.theme-light [data-sidebar="sidebar"] .text-zinc-300,
+.theme-light [data-sidebar="sidebar"] .text-zinc-400,
+.theme-light [data-sidebar="sidebar"] .text-zinc-500,
+.theme-light [data-sidebar="sidebar"] .text-zinc-600,
+.theme-light [data-sidebar="sidebar"] .text-zinc-700,
+.theme-light [data-sidebar="sidebar"] [class*="text-zinc-"] {
+  color: #64748b !important;
+}
+
+/* Border overrides */
+.theme-light [data-sidebar="sidebar"] .border-white\/5,
+.theme-light [data-sidebar="sidebar"] .border-white\/10,
+.theme-light [data-sidebar="sidebar"] .border-white\/20,
+.theme-light [data-sidebar="sidebar"] [class*="border-white\\/"] {
+  border-color: #cbd5e1 !important;
+}
+
+/* Background overrides - white with opacity → light gray */
+.theme-light [data-sidebar="sidebar"] .bg-white\/5,
+.theme-light [data-sidebar="sidebar"] .bg-white\/10,
+.theme-light [data-sidebar="sidebar"] [class*="bg-white\\/"] {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Background overrides - black with opacity → light backgrounds */
+.theme-light [data-sidebar="sidebar"] .bg-black\/20,
+.theme-light [data-sidebar="sidebar"] .bg-black\/30,
+.theme-light [data-sidebar="sidebar"] [class*="bg-black\\/"] {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Hover state overrides */
+.theme-light [data-sidebar="sidebar"] .hover\:bg-white\/5:hover,
+.theme-light [data-sidebar="sidebar"] .hover\:bg-white\/10:hover,
+.theme-light [data-sidebar="sidebar"] [class*="hover\\:bg-white"]:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light [data-sidebar="sidebar"] .hover\:bg-black\/30:hover,
+.theme-light [data-sidebar="sidebar"] [class*="hover\\:bg-black"]:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* --- GLOBAL LIGHT MODE TEXT FIXES --- */
+/* These target elements outside sidebar as well */
+
+.theme-light .text-white {
+  color: #1e293b !important;
+}
+
+.theme-light .text-gray-300 {
+  color: #475569 !important;
+}
+
+.theme-light .text-gray-400 {
+  color: #64748b !important;
+}
+
+.theme-light .text-gray-500 {
+  color: #64748b !important;
+}
+
+.theme-light .text-gray-600 {
+  color: #475569 !important;
+}
+
+.theme-light .text-zinc-300 {
+  color: #475569 !important;
+}
+
+.theme-light .text-zinc-400 {
+  color: #64748b !important;
+}
+
+.theme-light .text-zinc-500 {
+  color: #64748b !important;
+}
+
+.theme-light .text-zinc-600 {
+  color: #475569 !important;
+}
+
+/* --- POPOVER & HOVER CARD OVERRIDES --- */
+.theme-light .bg-black\/90,
+.theme-light .bg-black\/95,
+.theme-light [class*="bg-black\\/9"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.theme-light .bg-black\/90 .text-white,
+.theme-light .bg-black\/95 .text-white,
+.theme-light [class*="bg-black\\/9"] .text-white {
+  color: #1e293b !important;
+}
+
+.theme-light .bg-black\/90 .text-gray-400,
+.theme-light .bg-black\/90 .text-gray-500,
+.theme-light .bg-black\/90 .text-gray-600,
+.theme-light .bg-black\/95 .text-gray-400,
+.theme-light .bg-black\/95 .text-gray-500,
+.theme-light [class*="bg-black\\/9"] .text-gray-400,
+.theme-light [class*="bg-black\\/9"] .text-gray-500 {
+  color: #64748b !important;
+}
+
+/* --- DROPDOWN & CONTEXT MENU OVERRIDES --- */
+.theme-light .bg-black {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .bg-zinc-950 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .bg-zinc-900 {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .border-zinc-800 {
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .border-zinc-700 {
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .bg-zinc-800 {
+  background-color: #e2e8f0 !important;
+}
+
+.theme-light .bg-zinc-700 {
+  background-color: #cbd5e1 !important;
+}
+
+/* Dropdown menu content - bg-gray-900 used in NeonDB/GitHub dropdowns */
+.theme-light [data-radix-popper-content-wrapper] .bg-gray-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.theme-light [data-radix-popper-content-wrapper] .border-gray-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Focus states for dropdown items */
+.theme-light .focus\:bg-zinc-800:focus {
+  background-color: #e2e8f0 !important;
+}
+
+.theme-light .focus\:text-white:focus {
+  color: #1e293b !important;
+}
+
+/* Hover states */
+.theme-light .hover\:bg-zinc-700:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.theme-light .hover\:bg-zinc-800:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .hover\:text-white:hover {
+  color: #1e293b !important;
+}
+
+/* --- ALERT DIALOG OVERRIDES --- */
+.theme-light .bg-zinc-950[role="alertdialog"],
+.theme-light [role="alertdialog"].bg-zinc-950,
+.theme-light [data-state] .bg-zinc-950 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* --- TAG BADGE STYLING --- */
+.theme-light .tag-badge-theme {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.theme-light .tag-badge-theme .tag-key {
+  color: #64748b !important;
+}
+
+.theme-light .tag-badge-theme .tag-value {
+  color: #1e293b !important;
+}
+
+.theme-light .tag-badge-theme:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* --- INPUT OVERRIDES FOR LIGHT MODE --- */
+.theme-light .input-theme {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.theme-light .input-theme::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* --- HEADER & TAG BADGES IN MAIN CONTENT FOR LIGHT MODE --- */
+.theme-light .bg-gray-800 {
+  background-color: #e2e8f0 !important;
+}
+
+.theme-light .bg-gray-800 .text-gray-400 {
+  color: #64748b !important;
+}
+
+.theme-light .bg-gray-800 .text-gray-200 {
+  color: #1e293b !important;
+}
+
+/* --- PROSE/MARKDOWN CONTENT FOR LIGHT MODE --- */
+.theme-light .prose-invert {
+  --tw-prose-body: #334155 !important;
+  --tw-prose-headings: #1e293b !important;
+  --tw-prose-links: #2563eb !important;
+  --tw-prose-bold: #1e293b !important;
+  --tw-prose-code: #1e293b !important;
+  --tw-prose-quotes: #475569 !important;
+}
+
+.theme-light .prose-invert h1,
+.theme-light .prose-invert h2,
+.theme-light .prose-invert h3,
+.theme-light .prose-invert h4,
+.theme-light .prose-invert strong {
+  color: #1e293b !important;
+}
+
+.theme-light .prose-invert p,
+.theme-light .prose-invert li,
+.theme-light .prose-invert span {
+  color: #334155 !important;
+}
+
+/* Fix gray text in prose that was meant for dark backgrounds */
+.theme-light .prose-invert [class*="text-gray-2"],
+.theme-light .prose-invert [class*="text-gray-3"] {
+  color: #334155 !important;
+}
+
+.theme-light [class*="prose"] .text-white {
+  color: #1e293b !important;
+}
+
+.theme-light [class*="prose"] .text-gray-200 {
+  color: #334155 !important;
+}
+
+.theme-light [class*="prose"] .text-gray-300 {
+  color: #475569 !important;
+}
+
+/* Fix hardcoded prose selector colors like [&_p]:text-gray-300 */
+.theme-light [class*="prose"] p {
+  color: #475569 !important;
+}
+
+.theme-light [class*="prose"] li {
+  color: #475569 !important;
+}
+
+.theme-light [class*="prose"] h1,
+.theme-light [class*="prose"] h2,
+.theme-light [class*="prose"] h3,
+.theme-light [class*="prose"] h4 {
+  color: #1e293b !important;
+}
+
+.theme-light [class*="prose"] strong {
+  color: #1e293b !important;
+}
+
+.theme-light [class*="prose"] em {
+  color: #64748b !important;
+}
+
+/* --- MAIN CONTENT AREA FOR LIGHT MODE --- */
+.theme-light .bg-theme-content {
+  background: linear-gradient(to top right, #f8fafc, #ffffff) !important;
+  color: #1e293b !important;
+}
+
+.theme-light .bg-theme-content.text-white,
+.theme-light .bg-theme-content .text-white {
+  color: #1e293b !important;
+}
+
+.theme-light .text-foreground {
+  color: #1e293b !important;
+}
+
+.theme-light [data-slot="sidebar-inset"] {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+/* Chat message bubbles */
+.theme-light .chat-user-theme {
+  background: linear-gradient(to bottom right, rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.05)) !important;
+  border-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+.theme-light .chat-agent-theme {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Gray background panels in light mode */
+.theme-light .bg-gray-800 {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .bg-gray-900 {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .border-gray-700 {
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .border-gray-800 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text colors in chat that assume dark background */
+.theme-light .text-gray-200 {
+  color: #334155 !important;
+}
+
+/* Border with white opacity */
+.theme-light .border-white\/10,
+.theme-light .border-white\/20 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Background with white opacity */
+.theme-light .bg-white\/5,
+.theme-light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Hover states with white */
+.theme-light .hover\:text-gray-300:hover {
+  color: #475569 !important;
+}
+
+/* Terminal/code backgrounds */
+.theme-light .terminal-theme {
+  background-color: #1e293b !important;
+}
+
+/* --- PREVIEW PANEL / RIGHT SIDE FOR LIGHT MODE --- */
+.theme-light .bg-black\/20 {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .bg-black\/30 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.07) !important;
+}
+
+.theme-light .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .border-white\/20 {
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .hover\:text-white:hover {
+  color: #1e293b !important;
+}
+
+.theme-light .bg-gray-900 {
+  background-color: #f8fafc !important;
+}
+
+/* URL bar and other inline displays */
+.theme-light .font-mono.text-gray-300 {
+  color: #475569 !important;
+}
+
+/* Code blocks/inline code in content */
+.theme-light code:not([class*="hljs"]) {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.theme-light .bg-theme-primary-muted code {
+  background-color: rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Inline code in prose/markdown content */
+.theme-light [class*="prose"] code {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+  color: #1e40af !important;
+}
+
+/* Theme accent code - ensure it's visible in light mode */
+.theme-light .text-theme-accent {
+  color: #047857 !important;
+}
+
+.theme-light [class*="code"]:not([class*="hljs"]):not(.terminal-theme *) {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* --- ADDITIONAL TEXT CONTRAST FIXES --- */
+/* Ensure any text-white gets overridden in light mode */
+.theme-light [class*="bg-theme-content"] .text-white,
+.theme-light [data-slot="sidebar-inset"] .text-white {
+  color: #1e293b !important;
+}
+
+/* Fix amber/warning banner in light mode */
+.theme-light .text-amber-200 {
+  color: #92400e !important;
+}
+
+.theme-light .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+.theme-light .border-amber-400\/40 {
+  border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+/* --- COMMAND PALETTE & MODALS FOR LIGHT MODE --- */
+.theme-light .bg-gray-950 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .bg-black\/20 {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .border-gray-700\/50 {
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .bg-gray-800\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .hover\:bg-gray-800:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Fix kbd elements */
+.theme-light kbd {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+/* --- DELETE PROJECT MODAL --- */
+.theme-light .bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+/* --- NEONDB & GITHUB BUTTON OVERRIDES --- */
+/* NeonDB button - emerald colors need adjustment for light mode */
+.theme-light .bg-emerald-900\/30 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+.theme-light .hover\:bg-emerald-900\/50:hover {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+.theme-light .border-emerald-700\/50 {
+  border-color: rgba(4, 120, 87, 0.5) !important;
+}
+
+.theme-light .text-emerald-400 {
+  color: #047857 !important;
+}
+
+.theme-light .hover\:text-emerald-300:hover {
+  color: #059669 !important;
+}
+
+/* GitHub button - green colors need adjustment for light mode */
+.theme-light .bg-green-900\/30 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+.theme-light .hover\:bg-green-900\/50:hover {
+  background-color: rgba(34, 197, 94, 0.25) !important;
+}
+
+.theme-light .border-green-700\/50 {
+  border-color: rgba(21, 128, 61, 0.5) !important;
+}
+
+.theme-light .text-green-400 {
+  color: #15803d !important;
+}
+
+.theme-light .hover\:text-green-300:hover {
+  color: #16a34a !important;
+}
+
+/* --- CHECKMARK/TODO COLORS FOR LIGHT MODE --- */
+/* Green checkmarks need to remain visible but darker */
+.theme-light .text-green-400\/60 {
+  color: rgba(21, 128, 61, 0.7) !important;
+}
+
+/* Keep green-400 checkmarks visible */
+.theme-light [class*="CheckCircle"].text-green-400,
+.theme-light .text-green-400 svg {
+  color: #16a34a !important;
+}
+
+/* --- ERROR SECTION & CODE BLOCKS --- */
+/* Red/error text - keep it visible but adjust for light bg */
+.theme-light .text-red-300 {
+  color: #b91c1c !important;
+}
+
+.theme-light .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+/* Blue text adjustments */
+.theme-light .text-blue-300 {
+  color: #1d4ed8 !important;
+}
+
+.theme-light .text-blue-400 {
+  color: #2563eb !important;
+}
+
+/* Prose code blocks in light mode */
+.theme-light .prose-code\:bg-gray-800 code {
+  background-color: #e2e8f0 !important;
+  color: #1e40af !important;
+}
+
+.theme-light .prose-code\:text-blue-300 code {
+  color: #1d4ed8 !important;
+}
+
+/* Border gray adjustments */
+.theme-light .border-gray-500 {
+  border-color: #94a3b8 !important;
+}
+
+/* Gray text variants for list items */
+.theme-light .text-gray-300 {
+  color: #334155 !important;
+}
+
+/* --- SCROLLBAR FOR LIGHT MODE --- */
+.theme-light * {
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
+}
+
+.theme-light *::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.theme-light *::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.theme-light *::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 @keyframes swing-up {
@@ -527,14 +1292,14 @@
   /* Theme tag badge styling */
   .tag-badge-theme {
     background-color: var(--theme-input-bg, rgba(0, 0, 0, 0.5));
-    border-color: var(--theme-primary, rgba(139, 92, 246, 0.5));
+    border-color: color-mix(in srgb, var(--theme-primary, rgba(139, 92, 246, 1)) 30%, transparent);
     border-width: 1px;
     color: white;
     transition: all 0.2s;
   }
 
   .tag-badge-theme:hover {
-    border-color: var(--theme-primary, rgba(139, 92, 246, 0.8));
+    border-color: color-mix(in srgb, var(--theme-primary, rgba(139, 92, 246, 1)) 50%, transparent);
     background-color: color-mix(in srgb, var(--theme-primary) 10%, rgba(0, 0, 0, 0.5));
   }
 

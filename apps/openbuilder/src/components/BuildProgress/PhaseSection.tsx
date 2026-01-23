@@ -35,10 +35,10 @@ export function PhaseSection({
       className="mb-3 last:mb-0"
     >
       {/* Phase Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           {isComplete ? (
-            <CheckCircle2 className="h-4 w-4 text-green-400" />
+            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
           ) : isActive ? (
             <motion.div
               animate={{ rotate: 360 }}
@@ -47,17 +47,17 @@ export function PhaseSection({
               <Loader2 className="h-4 w-4 text-theme-primary" />
             </motion.div>
           ) : (
-            <Circle className="h-4 w-4 text-gray-600" />
+            <Circle className="h-4 w-4 text-muted-foreground" />
           )}
-          <PhaseIcon className={`h-4 w-4 ${isComplete ? 'text-green-400/60' : isActive ? 'text-theme-primary' : 'text-gray-600'}`} />
+          <PhaseIcon className={`h-4 w-4 ${isComplete ? 'text-green-600/70 dark:text-green-400/60' : isActive ? 'text-theme-primary' : 'text-muted-foreground'}`} />
           <span className={`text-xs font-medium uppercase tracking-wide ${
-            isComplete ? 'text-green-400/80' : isActive ? 'text-theme-accent' : 'text-gray-500'
+            isComplete ? 'text-green-700 dark:text-green-400/80' : isActive ? 'text-theme-accent' : 'text-muted-foreground'
           }`}>
             {title}
           </span>
         </div>
         {isComplete && (
-          <span className="text-xs text-gray-500 ml-auto">
+          <span className="text-xs text-muted-foreground ml-auto">
             {todos.length} task{todos.length !== 1 ? 's' : ''} completed
           </span>
         )}
@@ -87,7 +87,7 @@ export function PhaseSection({
                         animate={{ scale: 1 }}
                         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
                       </motion.div>
                     ) : todo.status === 'in_progress' ? (
                       <motion.div
@@ -97,7 +97,7 @@ export function PhaseSection({
                         <Loader2 className="h-3.5 w-3.5 text-theme-primary" />
                       </motion.div>
                     ) : (
-                      <Circle className="h-3.5 w-3.5 text-gray-600" />
+                      <Circle className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </div>
 
@@ -105,10 +105,10 @@ export function PhaseSection({
                   <p
                     className={`text-sm ${
                       todo.status === 'completed'
-                        ? 'text-gray-500 line-through'
+                        ? 'text-muted-foreground line-through'
                         : todo.status === 'in_progress'
-                          ? 'text-white'
-                          : 'text-gray-500'
+                          ? 'text-foreground'
+                          : 'text-muted-foreground'
                     }`}
                   >
                     {todo.status === 'in_progress' ? todo.activeForm : todo.content}

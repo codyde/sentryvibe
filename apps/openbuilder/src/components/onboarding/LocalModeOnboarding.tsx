@@ -138,7 +138,7 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
             <Button
               type="button"
               onClick={handleComplete}
-              className="w-full h-12 bg-theme-gradient hover:opacity-90 text-white text-base font-medium"
+              className="w-full h-12 bg-theme-gradient hover:opacity-90 text-[var(--theme-button-text,white)] text-base font-medium"
             >
               Start Building
               <ArrowRight className="w-5 h-5 ml-2" />

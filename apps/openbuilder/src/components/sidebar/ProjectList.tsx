@@ -56,6 +56,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { getFrameworkLogo } from "@/lib/framework-logos"
 import { useDeleteProject } from "@/mutations/projects"
 import { useToast } from "@/components/ui/toast"
+import { useTheme } from "@/contexts/ThemeContext"
 import Image from "next/image"
 
 interface ProjectListProps {
@@ -85,6 +86,7 @@ function CollapsedProjectIcon({
   onRename, 
   onDelete 
 }: CollapsedProjectIconProps) {
+  const { theme } = useTheme()
   const [copied, setCopied] = useState(false)
   const [hoverCardOpen, setHoverCardOpen] = useState(false)
   const isRunning = project.devServerStatus === 'running'
@@ -96,7 +98,7 @@ function CollapsedProjectIcon({
   const isServerBusy = isStarting || isStopping || isRestarting
   
   const frameworkLogoPath = project.detectedFramework
-    ? getFrameworkLogo(project.detectedFramework)
+    ? getFrameworkLogo(project.detectedFramework, theme === 'light' ? 'light' : 'dark')
     : null
 
   // Get status color
@@ -179,57 +181,57 @@ function CollapsedProjectIcon({
             </a>
           </HoverCardTrigger>
         </ContextMenuTrigger>
-        <HoverCardContent side="right" align="start" className="w-64 p-3 bg-black/95 border-white/10">
+        <HoverCardContent side="right" align="start" className="w-64 p-3 bg-popover border-border">
           <div className="space-y-2">
             <div>
-              <p className="text-sm font-medium text-white truncate">{project.name}</p>
+              <p className="text-sm font-medium text-popover-foreground truncate">{project.name}</p>
               <p className={`text-xs ${
-                isRunning ? 'text-green-400' :
-                hasFailed ? 'text-red-400' :
-                isBuilding || isServerBusy ? 'text-yellow-400' :
-                'text-gray-500'
+                isRunning ? 'text-green-500' :
+                hasFailed ? 'text-red-500' :
+                isBuilding || isServerBusy ? 'text-yellow-500' :
+                'text-muted-foreground'
               }`}>
                 {getStatusText()}
               </p>
             </div>
             {project.runnerId && (
               <div className="flex items-center gap-1.5">
-                <Server className="w-3 h-3 text-gray-500" />
-                <p className="text-xs text-gray-500 truncate">{project.runnerId}</p>
+                <Server className="w-3 h-3 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground truncate">{project.runnerId}</p>
               </div>
             )}
             {project.path && (
               <div className="flex items-center gap-2 group">
-                <p className="text-xs text-gray-500 truncate flex-1 font-mono">{project.path}</p>
+                <p className="text-xs text-muted-foreground truncate flex-1 font-mono">{project.path}</p>
                 <button
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
                     handleCopyPath()
                   }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
                 >
                   {copied ? (
-                    <Check className="w-3 h-3 text-green-400" />
+                    <Check className="w-3 h-3 text-green-500" />
                   ) : (
-                    <Copy className="w-3 h-3 text-gray-400" />
+                    <Copy className="w-3 h-3 text-muted-foreground" />
                   )}
                 </button>
               </div>
             )}
-            <p className="text-xs text-gray-600">Right-click for more options</p>
+            <p className="text-xs text-muted-foreground/70">Right-click for more options</p>
           </div>
         </HoverCardContent>
       </HoverCard>
-      <ContextMenuContent className="w-52 bg-zinc-950 border-zinc-800">
+      <ContextMenuContent className="w-52 bg-popover border-border">
         {/* Project name header */}
-        <div className="px-2 py-1.5 border-b border-zinc-800">
-          <p className="text-sm font-medium text-white truncate">{project.name}</p>
+        <div className="px-2 py-1.5 border-b border-border">
+          <p className="text-sm font-medium text-popover-foreground truncate">{project.name}</p>
           <p className={`text-xs ${
-            isRunning ? 'text-green-400' :
-            hasFailed ? 'text-red-400' :
-            isBuilding || isServerBusy ? 'text-yellow-400' :
-            'text-gray-500'
+            isRunning ? 'text-green-500' :
+            hasFailed ? 'text-red-500' :
+            isBuilding || isServerBusy ? 'text-yellow-500' :
+            'text-muted-foreground'
           }`}>
             {getStatusText()}
           </p>
@@ -240,20 +242,20 @@ function CollapsedProjectIcon({
           <>
             <ContextMenuItem 
               onClick={handleOpenBrowser}
-              className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+              className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
             >
-              <ExternalLink className="w-4 h-4 mr-2 text-gray-400" />
+              <ExternalLink className="w-4 h-4 mr-2 text-muted-foreground" />
               Open in Browser
             </ContextMenuItem>
             <ContextMenuItem 
               onClick={onStopServer}
               disabled={isStopping}
-              className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+              className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
             >
-              <Square className="w-4 h-4 mr-2 text-gray-400" />
+              <Square className="w-4 h-4 mr-2 text-muted-foreground" />
               Stop Server
             </ContextMenuItem>
-            <ContextMenuSeparator className="bg-zinc-800" />
+            <ContextMenuSeparator className="bg-border" />
           </>
         )}
 
@@ -261,12 +263,12 @@ function CollapsedProjectIcon({
           <>
             <ContextMenuItem 
               onClick={onStartServer}
-              className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+              className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
             >
-              <Play className="w-4 h-4 mr-2 text-green-400" />
+              <Play className="w-4 h-4 mr-2 text-green-500" />
               Start Server
             </ContextMenuItem>
-            <ContextMenuSeparator className="bg-zinc-800" />
+            <ContextMenuSeparator className="bg-border" />
           </>
         )}
 
@@ -275,34 +277,34 @@ function CollapsedProjectIcon({
           <>
             <ContextMenuItem 
               onClick={handleCopyPath}
-              className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+              className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
             >
               {copied ? (
-                <Check className="w-4 h-4 mr-2 text-green-400" />
+                <Check className="w-4 h-4 mr-2 text-green-500" />
               ) : (
-                <Copy className="w-4 h-4 mr-2 text-gray-400" />
+                <Copy className="w-4 h-4 mr-2 text-muted-foreground" />
               )}
               {copied ? 'Copied!' : 'Copy Path'}
             </ContextMenuItem>
-            <ContextMenuSeparator className="bg-zinc-800" />
+            <ContextMenuSeparator className="bg-border" />
           </>
         )}
 
         {/* Edit actions */}
         <ContextMenuItem 
           onClick={onRename}
-          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+          className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
         >
-          <Edit3 className="w-4 h-4 mr-2 text-gray-400" />
+          <Edit3 className="w-4 h-4 mr-2 text-muted-foreground" />
           Rename
         </ContextMenuItem>
 
-        <ContextMenuSeparator className="bg-zinc-800" />
+        <ContextMenuSeparator className="bg-border" />
 
         {/* Delete action */}
         <ContextMenuItem 
           onClick={onDelete}
-          className="cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-500/10"
+          className="cursor-pointer text-red-500 focus:text-red-400 focus:bg-red-500/10"
         >
           <Trash2 className="w-4 h-4 mr-2" />
           Delete Project
@@ -443,9 +445,9 @@ export function ProjectList({
     return (
       <>
         <div className="flex flex-col h-full py-2">
-          {/* Active projects section */}
-          {activeProjects.length > 0 && (
-            <div className="border-b border-white/5 pb-2 mb-2">
+        {/* Active projects section */}
+        {activeProjects.length > 0 && (
+          <div className="border-b border-border/50 pb-2 mb-2">
               {activeProjects.map(project => (
                 <CollapsedProjectIcon 
                   key={project.id} 
@@ -475,12 +477,12 @@ export function ProjectList({
             {inactiveProjects.length > 15 && (
               <HoverCard openDelay={0} closeDelay={0}>
                 <HoverCardTrigger asChild>
-                  <div className="flex items-center justify-center p-2 text-gray-500 text-xs">
+                  <div className="flex items-center justify-center p-2 text-muted-foreground text-xs">
                     +{inactiveProjects.length - 15}
                   </div>
                 </HoverCardTrigger>
-                <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-black/90 border-white/10">
-                  <p className="text-xs text-gray-400">{inactiveProjects.length - 15} more projects</p>
+                <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-popover border-border">
+                  <p className="text-xs text-muted-foreground">{inactiveProjects.length - 15} more projects</p>
                 </HoverCardContent>
               </HoverCard>
             )}
@@ -561,21 +563,21 @@ export function ProjectList({
       <div className="flex-1 overflow-y-auto">
         {/* Active Projects Section */}
         {activeProjects.length > 0 && (
-          <div className="border-b border-white/5">
+          <div className="border-b border-border/50">
             <button
               onClick={() => setActiveExpanded(!activeExpanded)}
-              className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent transition-colors"
             >
               <div className="flex items-center gap-2">
                 {activeExpanded ? (
-                  <ChevronDown className="w-3 h-3 text-gray-500" />
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="w-3 h-3 text-gray-500" />
+                  <ChevronRight className="w-3 h-3 text-muted-foreground" />
                 )}
-                <Zap className="w-4 h-4 text-green-400" />
-                <span className="text-sm font-medium text-white">Active</span>
+                <Zap className="w-4 h-4 text-green-500" />
+                <span className="text-sm font-medium text-foreground">Active</span>
               </div>
-              <span className="text-xs text-gray-500">{activeProjects.length}</span>
+              <span className="text-xs text-muted-foreground">{activeProjects.length}</span>
             </button>
 
             <AnimatePresence>
@@ -611,27 +613,27 @@ export function ProjectList({
           <div className="flex items-center justify-between px-3 py-2">
             <button
               onClick={() => setAllExpanded(!allExpanded)}
-              className="flex items-center gap-2 hover:bg-white/5 transition-colors rounded px-1 -ml-1"
+              className="flex items-center gap-2 hover:bg-accent transition-colors rounded px-1 -ml-1"
             >
               {allExpanded ? (
-                <ChevronDown className="w-3 h-3 text-gray-500" />
+                <ChevronDown className="w-3 h-3 text-muted-foreground" />
               ) : (
-                <ChevronRight className="w-3 h-3 text-gray-500" />
+                <ChevronRight className="w-3 h-3 text-muted-foreground" />
               )}
-              <FolderOpen className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-white">Projects</span>
-              <span className="text-xs text-gray-500">({inactiveProjects.length})</span>
+              <FolderOpen className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Projects</span>
+              <span className="text-xs text-muted-foreground">({inactiveProjects.length})</span>
             </button>
 
             {/* Sort Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors">
+                <button className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors">
                   <ArrowUpDown className="w-3 h-3" />
                   {sortLabels[sortBy]}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-32 bg-black border-white/10" align="end">
+              <DropdownMenuContent className="w-32 bg-popover border-border" align="end">
                 <DropdownMenuItem
                   onClick={() => setSortBy('recent')}
                   className={sortBy === 'recent' ? 'bg-white/10' : ''}
@@ -684,7 +686,7 @@ export function ProjectList({
                     {hiddenCount > 0 && (
                       <button
                         onClick={() => setShowAllProjects(true)}
-                        className="w-full px-3 py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-center"
+                        className="w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors text-center"
                       >
                         Show {hiddenCount} more projects...
                       </button>
@@ -693,7 +695,7 @@ export function ProjectList({
                     {showAllProjects && inactiveProjects.length > 10 && (
                       <button
                         onClick={() => setShowAllProjects(false)}
-                        className="w-full px-3 py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-center"
+                        className="w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors text-center"
                       >
                         Show less
                       </button>
@@ -701,7 +703,7 @@ export function ProjectList({
                   </div>
                 ) : (
                   <div className="px-3 py-6 text-center">
-                    <p className="text-xs text-gray-500">No projects yet</p>
+                    <p className="text-xs text-muted-foreground">No projects yet</p>
                   </div>
                 )}
               </motion.div>

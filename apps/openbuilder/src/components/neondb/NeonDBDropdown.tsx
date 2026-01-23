@@ -113,8 +113,8 @@ export function NeonDBDropdown({
         <button
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 text-xs rounded-md transition-all',
-            'bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-700/50 hover:border-emerald-600',
-            'text-emerald-400 hover:text-emerald-300',
+            'bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-600/30 hover:border-emerald-500/50',
+            'text-emerald-700 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300',
             className
           )}
         >
@@ -126,24 +126,24 @@ export function NeonDBDropdown({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent 
-        className="w-72 bg-gray-900 border-gray-700" 
+        className="w-72 bg-popover border-border" 
         align="end"
         sideOffset={8}
       >
         {/* Database Header */}
-        <div className="px-3 py-2 border-b border-gray-700">
+        <div className="px-3 py-2 border-b border-border">
           <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-medium text-white">
+            <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-sm font-medium text-foreground">
               NeonDB PostgreSQL
             </span>
           </div>
           {status.host && (
             <div className="flex items-center gap-1 mt-1">
-              <span className="text-xs text-gray-400 truncate flex-1">{status.host}</span>
+              <span className="text-xs text-muted-foreground truncate flex-1">{status.host}</span>
               <button 
                 onClick={handleCopyHost}
-                className="text-gray-500 hover:text-gray-300 p-0.5"
+                className="text-muted-foreground hover:text-foreground p-0.5"
               >
                 {copied ? (
                   <Check className="w-3 h-3 text-green-400" />
@@ -156,14 +156,14 @@ export function NeonDBDropdown({
         </div>
 
         {/* Database Info */}
-        <div className="px-3 py-2 space-y-1.5 text-xs border-b border-gray-700">
-          <div className="flex items-center gap-2 text-gray-400">
+        <div className="px-3 py-2 space-y-1.5 text-xs border-b border-border">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Database className="w-3 h-3" />
-            <span>Database: <span className="text-gray-300">{status.database || 'neondb'}</span></span>
+            <span>Database: <span className="text-foreground">{status.database || 'neondb'}</span></span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>Created: <span className="text-gray-300">{formatRelativeTime(status.createdAt)}</span></span>
+            <span>Created: <span className="text-foreground">{formatRelativeTime(status.createdAt)}</span></span>
           </div>
           
           {/* Expiration Warning */}
@@ -180,7 +180,7 @@ export function NeonDBDropdown({
 
         {/* Claim URL Section */}
         {status.claimUrl && (
-          <div className="px-3 py-2 border-b border-gray-700">
+          <div className="px-3 py-2 border-b border-border">
             <p className="text-xs text-yellow-400 mb-2">
               Claim this database to keep it permanently:
             </p>
@@ -201,7 +201,7 @@ export function NeonDBDropdown({
           {/* Disconnect */}
           {showDisconnectConfirm ? (
             <div className="px-2 py-2 space-y-2">
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Remove database info from this project?
               </p>
               <div className="flex gap-2">
@@ -214,7 +214,7 @@ export function NeonDBDropdown({
                 </button>
                 <button
                   onClick={() => setShowDisconnectConfirm(false)}
-                  className="flex-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded"
+                  className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-accent text-foreground rounded"
                 >
                   Cancel
                 </button>

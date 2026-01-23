@@ -125,8 +125,8 @@ export function GitHubDropdown({
         <button
           className={cn(
             'flex items-center gap-2 px-3 py-1.5 text-xs rounded-md transition-all',
-            'bg-green-900/30 hover:bg-green-900/50 border border-green-700/50 hover:border-green-600',
-            'text-green-400 hover:text-green-300',
+            'bg-green-500/10 hover:bg-green-500/20 border border-green-600/30 hover:border-green-500/50',
+            'text-green-700 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300',
             className
           )}
         >
@@ -138,15 +138,15 @@ export function GitHubDropdown({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent 
-        className="w-72 bg-gray-900 border-gray-700" 
+        className="w-72 bg-popover border-border" 
         align="end"
         sideOffset={8}
       >
         {/* Repository Header */}
-        <div className="px-3 py-2 border-b border-gray-700">
+        <div className="px-3 py-2 border-b border-border">
           <div className="flex items-center gap-2">
-            <Github className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-white truncate">
+            <Github className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground truncate">
               {status.repo}
             </span>
           </div>
@@ -164,34 +164,34 @@ export function GitHubDropdown({
         </div>
 
         {/* Repository Info */}
-        <div className="px-3 py-2 space-y-1.5 text-xs border-b border-gray-700">
-          <div className="flex items-center gap-2 text-gray-400">
+        <div className="px-3 py-2 space-y-1.5 text-xs border-b border-border">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <GitBranch className="w-3 h-3" />
-            <span>Branch: <span className="text-gray-300">{status.branch || 'main'}</span></span>
+            <span>Branch: <span className="text-foreground">{status.branch || 'main'}</span></span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>Last push: <span className="text-gray-300">{formatRelativeTime(status.lastPushedAt)}</span></span>
+            <span>Last push: <span className="text-foreground">{formatRelativeTime(status.lastPushedAt)}</span></span>
           </div>
           {status.meta?.openIssuesCount !== undefined && (
-            <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <AlertCircle className="w-3 h-3" />
-              <span>Open issues: <span className="text-gray-300">{status.meta.openIssuesCount}</span></span>
+              <span>Open issues: <span className="text-foreground">{status.meta.openIssuesCount}</span></span>
             </div>
           )}
         </div>
 
         {/* Recent Commits */}
         {status.meta?.recentCommits && status.meta.recentCommits.length > 0 && (
-          <div className="px-3 py-2 border-b border-gray-700">
-            <DropdownMenuLabel className="px-0 py-1 text-xs text-gray-500">
+          <div className="px-3 py-2 border-b border-border">
+            <DropdownMenuLabel className="px-0 py-1 text-xs text-muted-foreground">
               Recent Commits
             </DropdownMenuLabel>
             <div className="space-y-1">
               {status.meta.recentCommits.slice(0, 3).map((commit) => (
                 <div key={commit.sha} className="flex items-start gap-2 text-xs">
-                  <GitCommit className="w-3 h-3 text-gray-500 mt-0.5 shrink-0" />
-                  <span className="text-gray-400 truncate">{commit.message}</span>
+                  <GitCommit className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground truncate">{commit.message}</span>
                 </div>
               ))}
             </div>
@@ -203,12 +203,12 @@ export function GitHubDropdown({
           <DropdownMenuItem
             onClick={handlePush}
             disabled={isLoading}
-            className="text-white hover:bg-gray-800 cursor-pointer"
+            className="text-foreground hover:bg-accent cursor-pointer"
           >
             {isGenerating ? (
-              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             ) : (
-              <Upload className="w-4 h-4 text-gray-400" />
+              <Upload className="w-4 h-4 text-muted-foreground" />
             )}
             <span>{isGenerating ? 'Pushing...' : 'Push Changes'}</span>
           </DropdownMenuItem>
@@ -216,34 +216,34 @@ export function GitHubDropdown({
           <DropdownMenuItem
             onClick={handleSync}
             disabled={isLoading}
-            className="text-white hover:bg-gray-800 cursor-pointer"
+            className="text-foreground hover:bg-accent cursor-pointer"
           >
             {syncMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             ) : (
-              <RefreshCw className="w-4 h-4 text-gray-400" />
+              <RefreshCw className="w-4 h-4 text-muted-foreground" />
             )}
             <span>Refresh Info</span>
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator className="bg-gray-700" />
+          <DropdownMenuSeparator className="bg-border" />
 
           {/* Auto-push Toggle */}
           <DropdownMenuCheckboxItem
             checked={status.autoPush}
             onCheckedChange={handleToggleAutoPush}
             disabled={settingsMutation.isPending}
-            className="text-white hover:bg-gray-800"
+            className="text-foreground hover:bg-accent"
           >
             <span>Auto-push after builds</span>
           </DropdownMenuCheckboxItem>
 
-          <DropdownMenuSeparator className="bg-gray-700" />
+          <DropdownMenuSeparator className="bg-border" />
 
           {/* Disconnect */}
           {showDisconnectConfirm ? (
             <div className="px-2 py-2 space-y-2">
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Are you sure? This won&apos;t delete the GitHub repository.
               </p>
               <div className="flex gap-2">
@@ -256,7 +256,7 @@ export function GitHubDropdown({
                 </button>
                 <button
                   onClick={() => setShowDisconnectConfirm(false)}
-                  className="flex-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded"
+                  className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-accent text-foreground rounded"
                 >
                   Cancel
                 </button>

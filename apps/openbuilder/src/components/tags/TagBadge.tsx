@@ -7,6 +7,7 @@ import { findTagDefinition, TagOption } from '@openbuilder/agent-core/config/tag
 import { getBrandLogo } from '@/lib/brand-logos';
 import { getFrameworkLogo } from '@/lib/framework-logos';
 import { getModelLogo } from '@/lib/model-logos';
+import { useTheme } from '@/contexts/ThemeContext';
 import { TagDropdown } from './TagDropdown';
 import { useState } from 'react';
 
@@ -18,6 +19,7 @@ interface TagBadgeProps {
 }
 
 export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBadgeProps) {
+  const { theme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const def = findTagDefinition(tag.key);
 
@@ -53,7 +55,7 @@ export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBa
   // For brand tags, show expanded colors in hover card
   const shouldShowHoverCard = tag.key === 'brand' && expandedValues;
   const brandLogo = tag.key === 'brand' ? getBrandLogo(tag.value) : null;
-  const frameworkLogo = tag.key === 'framework' ? getFrameworkLogo(tag.value) : null;
+  const frameworkLogo = tag.key === 'framework' ? getFrameworkLogo(tag.value, theme === 'light' ? 'light' : 'dark') : null;
   const modelLogo = tag.key === 'model' ? getModelLogo(tag.value) : null;
 
   const handleReplace = (key: string, value: string, expandedValues?: Record<string, string>) => {
@@ -123,24 +125,24 @@ export function TagBadge({ tag, onRemove, onReplace, runnerOptions = [] }: TagBa
       <HoverCardTrigger asChild>
         {badgeWithDropdown}
       </HoverCardTrigger>
-      <HoverCardContent className="w-80 bg-gray-900 border-gray-700">
+      <HoverCardContent className="w-80">
         <div className="space-y-2">
-          <h4 className="font-semibold text-sm text-gray-200">Brand Colors</h4>
+          <h4 className="font-semibold text-sm text-popover-foreground">Brand Colors</h4>
           <div className="space-y-1 text-sm font-mono">
             {expandedValues && Object.entries(expandedValues).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between">
-                <span className="text-gray-400">{key}:</span>
+                <span className="text-muted-foreground">{key}:</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-300">{value}</span>
+                  <span className="text-popover-foreground">{value}</span>
                   <span
-                    className="inline-block w-4 h-4 rounded border border-gray-600"
+                    className="inline-block w-4 h-4 rounded border border-border"
                     style={{ backgroundColor: value }}
                   />
                 </div>
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Add individual color tags to override specific colors
           </p>
         </div>

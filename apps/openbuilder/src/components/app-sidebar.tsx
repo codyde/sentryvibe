@@ -170,39 +170,49 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
   return (
     <Sidebar collapsible="icon" {...props}>
       {/* Header */}
-      <SidebarHeader className={`border-b border-white/10 bg-[var(--theme-primary-muted)] ${isCollapsed ? 'p-2' : 'p-4'}`}>
+      <SidebarHeader className={`border-b border-border bg-[var(--theme-primary-muted)] ${isCollapsed ? 'p-2' : 'p-4'}`}>
         {isCollapsed ? (
           // Collapsed header - just the logo icon
           <HoverCard openDelay={0} closeDelay={0}>
             <HoverCardTrigger asChild>
               <a href="/" className="flex items-center justify-center">
-                <img
-                  src="/openbuilder-logo.png"
-                  alt="OpenBuilder"
-                  className="h-12 w-12"
-                />
+                <div 
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-1 border border-white/20"
+                  style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
+                >
+                  <img
+                    src="/openbuilder-logo.png"
+                    alt="OpenBuilder"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
               </a>
             </HoverCardTrigger>
-            <HoverCardContent side="right" align="start" className="w-auto p-3 bg-black/90 border-white/10">
+            <HoverCardContent side="right" align="start" className="w-auto p-3 bg-popover border-border">
               <div className="flex flex-col gap-1">
-                <p className="text-sm font-bold text-white">OpenBuilder</p>
-                <p className="text-xs text-gray-400">AI App Builder</p>
+                <p className="text-sm font-bold text-popover-foreground">OpenBuilder</p>
+                <p className="text-xs text-muted-foreground">AI App Builder</p>
               </div>
             </HoverCardContent>
           </HoverCard>
         ) : (
           // Expanded header
           <div className="flex items-center gap-3">
-            <img
-              src="/openbuilder-logo.png"
-              alt="OpenBuilder"
-              className="h-12 w-12"
-            />
+            <div 
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-1 border border-white/20"
+              style={{ background: `linear-gradient(to bottom right, var(--theme-primary), var(--theme-secondary))` }}
+            >
+              <img
+                src="/openbuilder-logo.png"
+                alt="OpenBuilder"
+                className="h-full w-full object-contain"
+              />
+            </div>
             <div className="flex-1">
-              <h1 className="text-lg font-bold text-white">
+              <h1 className="text-lg font-bold text-foreground">
                 OpenBuilder
               </h1>
-              <p className="text-xs text-gray-500">AI App Builder</p>
+              <p className="text-xs text-muted-foreground">AI App Builder</p>
             </div>
           </div>
         )}
@@ -228,8 +238,8 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                       <Plus className="w-4 h-4" />
                     </a>
                   </HoverCardTrigger>
-                  <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-black/90 border-white/10">
-                    <p className="text-sm text-white whitespace-nowrap">New Project</p>
+                  <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-popover border-border">
+                    <p className="text-sm text-popover-foreground whitespace-nowrap">New Project</p>
                   </HoverCardContent>
                 </HoverCard>
               ) : (
@@ -246,7 +256,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                 </a>
               )}
             </div>
-            <SidebarSeparator className="bg-white/10" />
+            <SidebarSeparator className="bg-border" />
           </>
         )}
 
@@ -259,15 +269,15 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   <Lock className="w-6 h-6 text-zinc-700" />
                 </div>
               </HoverCardTrigger>
-              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-black/90 border-white/10">
-                <p className="text-sm text-zinc-400 font-medium">Sign in to view projects</p>
+              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border">
+                <p className="text-sm text-muted-foreground font-medium">Sign in to view projects</p>
               </HoverCardContent>
             </HoverCard>
           ) : (
             <div className="px-4 py-8 text-center">
-              <Lock className="w-10 h-10 mx-auto mb-3 text-zinc-700" />
-              <p className="text-sm text-zinc-400 font-medium">Sign in to view projects</p>
-              <p className="text-xs text-zinc-600 mt-1">
+              <Lock className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground font-medium">Sign in to view projects</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
                 Your projects will appear here after signing in
               </p>
             </div>
@@ -294,15 +304,15 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
       </SidebarContent>
 
       {/* Footer - Runner Selector & Running Services */}
-      <SidebarFooter className={`border-t border-white/10 space-y-2 ${isCollapsed ? 'p-2' : 'p-3'}`}>
+      <SidebarFooter className={`border-t border-border space-y-2 ${isCollapsed ? 'p-2' : 'p-3'}`}>
         {/* Runner Dropdown - only show when authenticated and NOT in local mode */}
         {canViewProjects && !isLocalMode && (
           isCollapsed ? (
             <HoverCard openDelay={0} closeDelay={0}>
               <HoverCardTrigger asChild>
-                <button className="w-full flex items-center justify-center p-2.5 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
+                <button className="w-full flex items-center justify-center p-2.5 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors">
                   <div className="relative">
-                    <Server className="w-5 h-5 text-gray-400" />
+                    <Server className="w-5 h-5 text-muted-foreground" />
                     {availableRunners.length > 0 && (
                       <div className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
                         selectedRunnerHealthy ? 'bg-green-400' : 'bg-red-400'
@@ -311,19 +321,19 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   </div>
                 </button>
               </HoverCardTrigger>
-              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-black/90 border-white/10">
+              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border">
                 <div className="flex flex-col gap-1">
-                  <p className="text-xs text-gray-400">Runner</p>
+                  <p className="text-xs text-muted-foreground">Runner</p>
                   {runnersLoading ? (
-                    <p className="text-sm text-gray-500">Loading...</p>
+                    <p className="text-sm text-muted-foreground">Loading...</p>
                   ) : availableRunners.length === 0 ? (
-                    <p className="text-sm text-orange-400">No runners connected</p>
+                    <p className="text-sm text-orange-500">No runners connected</p>
                   ) : (
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${
                         selectedRunnerHealthy ? 'bg-green-400' : 'bg-red-400'
                       }`} />
-                      <p className="text-sm text-white">{selectedRunnerId || 'Select runner'}</p>
+                      <p className="text-sm text-popover-foreground">{selectedRunnerId || 'Select runner'}</p>
                     </div>
                   )}
                 </div>
@@ -332,33 +342,33 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
+                <button className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors">
                   <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-gray-400" />
+                    <Server className="w-4 h-4 text-muted-foreground" />
                     {runnersLoading ? (
-                      <span className="text-xs text-gray-500">Loading...</span>
+                      <span className="text-xs text-muted-foreground">Loading...</span>
                     ) : availableRunners.length === 0 ? (
-                      <span className="text-xs text-orange-400">No runners</span>
+                      <span className="text-xs text-orange-500">No runners</span>
                     ) : (
                       <>
                         <div className={`w-2 h-2 rounded-full ${
                           selectedRunnerHealthy ? 'bg-green-400' : 'bg-red-400'
                         }`} />
-                        <span className="text-xs text-white truncate max-w-[120px]">
+                        <span className="text-xs text-foreground truncate max-w-[120px]">
                           {selectedRunnerId || 'Select runner'}
                         </span>
                       </>
                     )}
                   </div>
-                  <ChevronDown className="w-3 h-3 text-gray-500" />
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 bg-black border-white/10" align="start" side="top">
+              <DropdownMenuContent className="w-56 bg-popover border-border" align="start" side="top">
                 {availableRunners.length === 0 ? (
                   <div className="px-3 py-4 text-center">
-                    <Circle className="w-6 h-6 mx-auto mb-2 text-orange-400" />
-                    <p className="text-xs text-orange-300 font-medium">No Runners Connected</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Start a runner to begin building</p>
+                    <Circle className="w-6 h-6 mx-auto mb-2 text-orange-500" />
+                    <p className="text-xs text-orange-500 font-medium">No Runners Connected</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Start a runner to begin building</p>
                   </div>
                 ) : (
                   availableRunners.filter(runner => runner != null).map((runner) => {
@@ -376,10 +386,10 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                         {isSelected ? (
                           <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
                         ) : (
-                          <Circle className="w-4 h-4 text-gray-600" />
+                          <Circle className="w-4 h-4 text-muted-foreground" />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate text-white">{runner.runnerId}</p>
+                          <p className="text-xs font-medium truncate text-popover-foreground">{runner.runnerId}</p>
                         </div>
                         <div className={`w-2 h-2 rounded-full ${
                           isHealthy ? 'bg-green-400' : 'bg-red-400'
@@ -400,9 +410,9 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               <HoverCardTrigger asChild>
                 <button
                   onClick={onOpenProcessModal}
-                  className="w-full flex items-center justify-center p-2.5 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors relative"
+                  className="w-full flex items-center justify-center p-2.5 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors relative"
                 >
-                  <Activity className="w-5 h-5 text-gray-400" />
+                  <Activity className="w-5 h-5 text-muted-foreground" />
                   {runningCount > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-medium bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
                       {runningCount}
@@ -410,9 +420,9 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   )}
                 </button>
               </HoverCardTrigger>
-              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-black/90 border-white/10">
+              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm text-white">Running Services</p>
+                  <p className="text-sm text-popover-foreground">Running Services</p>
                   {runningCount > 0 && (
                     <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-400 rounded">
                       {runningCount}
@@ -424,11 +434,11 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           ) : (
             <button
               onClick={onOpenProcessModal}
-              className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-gray-400" />
-                <span className="text-xs text-gray-300">Running Services</span>
+                <Activity className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-foreground">Running Services</span>
               </div>
               {runningCount > 0 && (
                 <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-400 rounded">
@@ -454,11 +464,11 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   )}
                 </button>
               </HoverCardTrigger>
-              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-black/90 border-white/10">
+              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium" style={{ color: 'var(--theme-primary)' }}>Setup Guide</p>
                   {!isLocalMode && availableRunners.length === 0 && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-orange-500/20 text-orange-400 rounded">
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-orange-500/20 text-orange-500 rounded">
                       Action needed
                     </span>
                   )}
@@ -499,22 +509,22 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
               <HoverCardTrigger asChild>
                 <button
                   onClick={() => setShowLoginModal(true)}
-                  className="w-full flex items-center justify-center p-2.5 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center p-2.5 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors"
                 >
-                  <User className="w-5 h-5 text-gray-400" />
+                  <User className="w-5 h-5 text-muted-foreground" />
                 </button>
               </HoverCardTrigger>
-              <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-black/90 border-white/10">
-                <p className="text-sm text-white">Sign in</p>
+              <HoverCardContent side="right" align="center" className="w-auto p-2 px-3 bg-popover border-border">
+                <p className="text-sm text-popover-foreground">Sign in</p>
               </HoverCardContent>
             </HoverCard>
           ) : (
             <button
               onClick={() => setShowLoginModal(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors"
             >
-              <User className="w-4 h-4 text-gray-400" />
-              <span className="text-xs text-gray-300">Sign in</span>
+              <User className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-foreground">Sign in</span>
             </button>
           )
         ) : (
@@ -539,34 +549,34 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                     </button>
                   </DropdownMenuTrigger>
                 </HoverCardTrigger>
-                <HoverCardContent side="right" align="center" className="w-auto p-3 bg-black/90 border-white/10 pointer-events-none">
+                <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border pointer-events-none">
                   <div className="flex flex-col gap-0.5">
-                    <p className="text-sm font-medium text-white">{displayName}</p>
-                    {user?.email && <p className="text-xs text-gray-400">{user.email}</p>}
-                    {isLocalMode && <p className="text-xs text-green-400">Local Mode</p>}
+                    <p className="text-sm font-medium text-popover-foreground">{displayName}</p>
+                    {user?.email && <p className="text-xs text-muted-foreground">{user.email}</p>}
+                    {isLocalMode && <p className="text-xs text-green-500">Local Mode</p>}
                   </div>
                 </HoverCardContent>
               </HoverCard>
-              <DropdownMenuContent className="w-56 bg-zinc-950 border-zinc-800" align="start" side="right">
+              <DropdownMenuContent className="w-56 bg-popover border-border" align="start" side="right">
                 <div className="px-3 py-2">
-                  <p className="text-sm font-medium text-white">{displayName}</p>
-                  <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
+                  <p className="text-sm font-medium text-popover-foreground">{displayName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                 </div>
-                <DropdownMenuSeparator className="bg-zinc-800" />
+                <DropdownMenuSeparator className="bg-border" />
                 {!isLocalMode && (
                   <>
                     <DropdownMenuItem
                       onClick={() => setShowRunnerKeys(true)}
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+                      className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
                     >
                       <Key className="w-4 h-4 mr-2" />
                       Runner Keys
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-zinc-800" />
+                    <DropdownMenuSeparator className="bg-border" />
                     <DropdownMenuItem
                       onClick={handleSignOut}
                       disabled={isSigningOut}
-                      className="cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-500/10"
+                      className="cursor-pointer text-red-500 focus:text-red-400 focus:bg-red-500/10"
                     >
                       {isSigningOut ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -578,7 +588,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   </>
                 )}
                 {isLocalMode && (
-                  <div className="px-3 py-2 text-xs text-zinc-500">
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
                     Running in local mode
                   </div>
                 )}
@@ -587,47 +597,47 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-full flex items-center gap-2 px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
+                <button className="w-full flex items-center gap-2 px-3 py-2 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors">
                   {user?.image ? (
                     <img
                       src={user.image}
                       alt={displayName}
-                      className="w-6 h-6 rounded-full border border-white/20"
+                      className="w-6 h-6 rounded-full border border-border"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-theme-gradient flex items-center justify-center text-[10px] font-medium border border-white/20" style={{ color: 'var(--theme-button-text, white)' }}>
+                    <div className="w-6 h-6 rounded-full bg-theme-gradient flex items-center justify-center text-[10px] font-medium border border-border" style={{ color: 'var(--theme-button-text, white)' }}>
                       {initials}
                     </div>
                   )}
-                  <span className="text-xs text-white truncate flex-1 text-left">{displayName}</span>
+                  <span className="text-xs text-foreground truncate flex-1 text-left">{displayName}</span>
                   {isLocalMode && (
-                    <span className="px-1 py-0.5 text-[9px] font-medium bg-green-500/20 text-green-400 rounded">
+                    <span className="px-1 py-0.5 text-[9px] font-medium bg-green-500/20 text-green-500 rounded">
                       LOCAL
                     </span>
                   )}
-                  <ChevronDown className="w-3 h-3 text-gray-500" />
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 bg-zinc-950 border-zinc-800" align="start" side="top">
+              <DropdownMenuContent className="w-56 bg-popover border-border" align="start" side="top">
                 <div className="px-3 py-2">
-                  <p className="text-sm font-medium text-white">{displayName}</p>
-                  <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
+                  <p className="text-sm font-medium text-popover-foreground">{displayName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                 </div>
-                <DropdownMenuSeparator className="bg-zinc-800" />
+                <DropdownMenuSeparator className="bg-border" />
                 {!isLocalMode && (
                   <>
                     <DropdownMenuItem
                       onClick={() => setShowRunnerKeys(true)}
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-800"
+                      className="cursor-pointer text-popover-foreground focus:text-popover-foreground focus:bg-accent"
                     >
                       <Key className="w-4 h-4 mr-2" />
                       Runner Keys
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-zinc-800" />
+                    <DropdownMenuSeparator className="bg-border" />
                     <DropdownMenuItem
                       onClick={handleSignOut}
                       disabled={isSigningOut}
-                      className="cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-500/10"
+                      className="cursor-pointer text-red-500 focus:text-red-400 focus:bg-red-500/10"
                     >
                       {isSigningOut ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -639,7 +649,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                   </>
                 )}
                 {isLocalMode && (
-                  <div className="px-3 py-2 text-xs text-zinc-500">
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
                     Running in local mode
                   </div>
                 )}
@@ -651,13 +661,13 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
         {/* Toggle Button */}
         <button
           onClick={toggleSidebar}
-          className="w-full flex items-center justify-center p-2 hover:bg-white/5 rounded-lg transition-colors mt-2"
+          className="w-full flex items-center justify-center p-2 hover:bg-accent rounded-lg transition-colors mt-2"
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
           ) : (
-            <ChevronLeft className="w-5 h-5 text-gray-400" />
+            <ChevronLeft className="w-5 h-5 text-muted-foreground" />
           )}
         </button>
       </SidebarFooter>

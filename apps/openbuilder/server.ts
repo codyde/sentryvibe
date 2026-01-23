@@ -31,6 +31,7 @@ const port = parseInt(process.env.PORT || '3000', 10);
 // Log environment configuration for debugging
 console.log('[server] Environment loaded:');
 console.log('[server]   NODE_ENV:', process.env.NODE_ENV);
+console.log('[server]   OPENBUILDER_LOCAL_MODE:', process.env.OPENBUILDER_LOCAL_MODE);
 console.log('[server]   RUNNER_SHARED_SECRET:', process.env.RUNNER_SHARED_SECRET ? '***set***' : '***NOT SET***');
 
 // WebSocket paths that should NOT be handled by Next.js

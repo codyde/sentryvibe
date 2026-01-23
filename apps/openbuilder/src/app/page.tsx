@@ -13,6 +13,7 @@ import TabbedPreview from "@/components/TabbedPreview";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
+import { useTheme } from "@/contexts/ThemeContext";
 import ProcessManagerModal from "@/components/ProcessManagerModal";
 import RenameProjectModal from "@/components/RenameProjectModal";
 import DeleteProjectModal from "@/components/DeleteProjectModal";
@@ -198,6 +199,9 @@ function normalizeHydratedState(state: unknown): GenerationState {
 function HomeContent() {
   // Track browser metrics on page load
   useBrowserMetrics();
+  
+  // Theme for theme-aware assets
+  const { theme } = useTheme();
   
   // Auth gate for protected actions
   const { requireAuth, LoginModal, isAuthenticated } = useAuthGate();
@@ -2742,7 +2746,7 @@ function HomeContent() {
                       : "bg-[#FF45A8]"
                   }`}
                 />
-                <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
                   {currentProject.name}
                 </span>
               </div>
@@ -2793,7 +2797,7 @@ function HomeContent() {
                 onClick={() => setShowHeaderLoginModal(true)}
                 variant="outline"
                 size="sm"
-                className="bg-transparent border-white/20 text-white hover:bg-white/10 hover:border-white/30"
+                className="bg-transparent border-border text-foreground hover:bg-accent hover:border-border"
               >
                 <User className="w-4 h-4 mr-2" />
                 Sign in
@@ -2808,7 +2812,7 @@ function HomeContent() {
             enable builds and previews.
           </div>
         )}
-        <div className="h-[calc(100vh-3.5rem)] bg-theme-content text-white flex flex-col overflow-hidden">
+        <div className="h-[calc(100vh-3.5rem)] bg-theme-content text-foreground flex flex-col overflow-hidden">
           {/* Landing Page */}
           <AnimatePresence mode="wait">
             {conversationMessages.length === 0 &&
@@ -2823,10 +2827,54 @@ function HomeContent() {
                 >
                   <div className="w-full h-full flex items-center justify-center overflow-x-auto">
                     {/* Main Input - Centered */}
-                    <form
-                      onSubmit={handleSubmit}
-                      className="relative w-full max-w-5xl mx-auto px-4"
-                    >
+                    <div className="relative w-full max-w-5xl mx-auto px-4">
+                      {/* Logo and 3D block ASCII title above prompt */}
+                      <div className="flex items-center justify-center gap-6 mb-8">
+                        <img 
+                          src="/openbuild-logo.png" 
+                          alt="OpenBuilder" 
+                          className="w-24 h-24 object-contain"
+                        />
+                        <div className="relative">
+                          {/* 3D shadow layer - subtle dark shadow */}
+                          <pre 
+                            className="absolute text-[12px] leading-[1.1] font-mono select-none whitespace-pre"
+                            style={{ 
+                              color: '#000000',
+                              opacity: 0.15,
+                              transform: 'translate(2px, 2px)'
+                            }}
+                            aria-hidden="true"
+                          >{`
+ ██████╗ ██████╗ ███████╗███╗   ██╗██████╗ ██╗   ██╗██╗██╗     ██████╗ ███████╗██████╗
+██╔═══██╗██╔══██╗██╔════╝████╗  ██║██╔══██╗██║   ██║██║██║     ██╔══██╗██╔════╝██╔══██╗
+██║   ██║██████╔╝█████╗  ██╔██╗ ██║██████╔╝██║   ██║██║██║     ██║  ██║█████╗  ██████╔╝
+██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║██╔══██╗██║   ██║██║██║     ██║  ██║██╔══╝  ██╔══██╗
+╚██████╔╝██║     ███████╗██║ ╚████║██████╔╝╚██████╔╝██║███████╗██████╔╝███████╗██║  ██║
+ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+`.trimEnd()}</pre>
+                          {/* Front layer - muted theme color */}
+                          <pre 
+                            className="relative text-[12px] leading-[1.1] font-mono select-none whitespace-pre"
+                            style={{ 
+                              color: 'var(--theme-primary)',
+                              opacity: 0.7
+                            }}
+                            aria-label="OpenBuilder"
+                          >{`
+ ██████╗ ██████╗ ███████╗███╗   ██╗██████╗ ██╗   ██╗██╗██╗     ██████╗ ███████╗██████╗
+██╔═══██╗██╔══██╗██╔════╝████╗  ██║██╔══██╗██║   ██║██║██║     ██╔══██╗██╔════╝██╔══██╗
+██║   ██║██████╔╝█████╗  ██╔██╗ ██║██████╔╝██║   ██║██║██║     ██║  ██║█████╗  ██████╔╝
+██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║██╔══██╗██║   ██║██║██║     ██║  ██║██╔══╝  ██╔══██╗
+╚██████╔╝██║     ███████╗██║ ╚████║██████╔╝╚██████╔╝██║███████╗██████╔╝███████╗██║  ██║
+ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+`.trimEnd()}</pre>
+                        </div>
+                      </div>
+                      <form
+                        onSubmit={handleSubmit}
+                        className="relative w-full"
+                      >
                       {/* Image attachments preview */}
                       {imageAttachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -2849,7 +2897,7 @@ function HomeContent() {
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={handleKeyDown}
                           onPaste={handlePaste}
-                          placeholder="What do you want to build?"
+                          placeholder="Lets ship something cool...where should we start?"
                           rows={3}
                           className="w-full px-8 py-[calc(1.5rem+3px)] pr-20 bg-transparent text-white placeholder-gray-500 focus:outline-none text-2xl font-light resize-none max-h-[300px] overflow-y-auto"
                           style={{ minHeight: "150px" }}
@@ -2891,7 +2939,8 @@ function HomeContent() {
                           />
                         </div>
                       )}
-                    </form>
+                      </form>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -2934,26 +2983,26 @@ function HomeContent() {
                                 const modelValue = activeAgent === 'openai-codex' ? 'gpt-5-codex' : activeModel;
                                 const modelLogo = modelValue ? getModelLogo(modelValue) : null;
                                 return (
-                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted border border-border rounded text-sm font-mono">
                                     {modelLogo && (
                                       <img src={modelLogo} alt="model" className="w-4 h-4 object-contain" />
                                     )}
-                                    <span className="text-gray-400">model:</span>
-                                    <span className="text-gray-200">
+                                    <span className="text-muted-foreground">model:</span>
+                                    <span className="text-foreground">
                                       {activeAgent === 'openai-codex' ? 'codex' : activeModel?.replace('claude-', '')}
                                     </span>
                                   </div>
                                 );
                               })()}
                               {currentProject.detectedFramework && (() => {
-                                const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework);
+                                const frameworkLogo = getFrameworkLogo(currentProject.detectedFramework, theme === 'light' ? 'light' : 'dark');
                                 return (
-                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm font-mono">
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted border border-border rounded text-sm font-mono">
                                     {frameworkLogo && (
                                       <img src={frameworkLogo} alt="framework" className="w-4 h-4 object-contain" />
                                     )}
-                                    <span className="text-gray-400">framework:</span>
-                                    <span className="text-gray-200">{currentProject.detectedFramework}</span>
+                                    <span className="text-muted-foreground">framework:</span>
+                                    <span className="text-foreground">{currentProject.detectedFramework}</span>
                                   </div>
                                 );
                               })()}

@@ -146,25 +146,25 @@ export function TagDropdown({
   const getCategoryIcon = (category: string, key?: string) => {
     // Handle specific tag keys first (for nested design options)
     if (key === 'brand') {
-      return <Sparkles className="w-5 h-5 text-gray-400" />;
+      return <Sparkles className="w-5 h-5 text-muted-foreground" />;
     }
     if (key === 'style') {
-      return <Paintbrush className="w-5 h-5 text-gray-400" />;
+      return <Paintbrush className="w-5 h-5 text-muted-foreground" />;
     }
     if (key === 'customize') {
-      return <Sliders className="w-5 h-5 text-gray-400" />;
+      return <Sliders className="w-5 h-5 text-muted-foreground" />;
     }
 
     // Fall back to category icons
     switch (category) {
       case 'model':
-        return <Cpu className="w-5 h-5 text-gray-400" />;
+        return <Cpu className="w-5 h-5 text-muted-foreground" />;
       case 'framework':
-        return <Layout className="w-5 h-5 text-gray-400" />;
+        return <Layout className="w-5 h-5 text-muted-foreground" />;
       case 'runner':
-        return <Zap className="w-5 h-5 text-gray-400" />;
+        return <Zap className="w-5 h-5 text-muted-foreground" />;
       case 'design':
-        return <Palette className="w-5 h-5 text-gray-400" />;
+        return <Palette className="w-5 h-5 text-muted-foreground" />;
       default:
         return null;
     }
@@ -186,16 +186,16 @@ export function TagDropdown({
                   pushView({ type: 'select', definition: def });
                 }
               }}
-              className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
+              className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-accent transition-colors group"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {getCategoryIcon(def.category, def.key)}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-200">{def.label}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{def.description}</div>
+                  <div className="font-medium text-popover-foreground">{def.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{def.description}</div>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 shrink-0 ml-2" />
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-popover-foreground shrink-0 ml-2" />
             </button>
           ))}
         </div>
@@ -207,10 +207,10 @@ export function TagDropdown({
     return (
       <div className="w-full min-w-64">
         {/* Back button */}
-        <div className="p-1 border-b border-gray-800">
+        <div className="p-1 border-b border-border">
           <button
             onClick={popView}
-            className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            className="flex items-center gap-2 px-2 py-1 text-sm text-muted-foreground hover:text-popover-foreground transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
             Back
@@ -229,7 +229,7 @@ export function TagDropdown({
               <button
                 key={option.value}
                 onClick={() => handleSelectOption(def, option)}
-                className="w-full px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors"
+                className="w-full px-2 py-2 text-sm text-left rounded hover:bg-accent transition-colors"
               >
                 <div className="flex items-center gap-3">
                   {option.logo && (
@@ -240,9 +240,9 @@ export function TagDropdown({
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-200">{option.label}</div>
+                    <div className="font-medium text-popover-foreground">{option.label}</div>
                     {option.description && (
-                      <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{option.description}</div>
                     )}
                   </div>
                 </div>
@@ -259,7 +259,7 @@ export function TagDropdown({
                   <HoverCardContent
                     side="right"
                     align="start"
-                    className="bg-gray-900 border-gray-800 w-auto min-w-96 max-w-[480px]"
+                    className="w-auto min-w-96 max-w-[480px]"
                   >
                     <BrandThemePreview 
                       brand={{
@@ -288,7 +288,7 @@ export function TagDropdown({
                   <HoverCardContent
                     side="right"
                     align="start"
-                    className="bg-gray-900 border-gray-800 w-auto min-w-96 max-w-[480px]"
+                    className="w-auto min-w-96 max-w-[480px]"
                   >
                     <FrameworkPreview framework={option} />
                   </HoverCardContent>
@@ -308,10 +308,10 @@ export function TagDropdown({
     return (
       <div className="w-full min-w-64">
         {/* Back button */}
-        <div className="p-1 border-b border-gray-800">
+        <div className="p-1 border-b border-border">
           <button
             onClick={popView}
-            className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            className="flex items-center gap-2 px-2 py-1 text-sm text-muted-foreground hover:text-popover-foreground transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
             Back
@@ -333,16 +333,16 @@ export function TagDropdown({
                   pushView({ type: 'nested', definition: child });
                 }
               }}
-              className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-gray-800 transition-colors group"
+              className="w-full flex items-center justify-between px-2 py-2 text-sm text-left rounded hover:bg-accent transition-colors group"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {getCategoryIcon(child.category, child.key)}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-200">{child.label}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{child.description}</div>
+                  <div className="font-medium text-popover-foreground">{child.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{child.description}</div>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-gray-300 shrink-0 ml-2" />
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-popover-foreground shrink-0 ml-2" />
             </button>
           ))}
         </div>
@@ -354,10 +354,10 @@ export function TagDropdown({
     return (
       <div className="w-full min-w-72 max-w-80">
         {/* Back button */}
-        <div className="p-1 border-b border-gray-800">
+        <div className="p-1 border-b border-border">
           <button
             onClick={popView}
-            className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            className="flex items-center gap-2 px-2 py-1 text-sm text-muted-foreground hover:text-popover-foreground transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
             Back
@@ -406,7 +406,7 @@ export function TagDropdown({
         {children}
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 bg-gray-900 border-gray-800"
+        className="p-0"
         align="start"
         side="top"
         sideOffset={8}

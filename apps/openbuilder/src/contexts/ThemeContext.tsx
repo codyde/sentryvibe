@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type ThemeName = "sentry" | "ocean" | "ember" | "forest" | "noir";
+export type ThemeName = "dark" | "light" | "tokyonight" | "onedark" | "gruvbox" | "dracula" | "nord" | "sentry";
 
 export interface ThemeInfo {
   name: ThemeName;
@@ -23,49 +23,76 @@ export interface ThemeInfo {
 }
 
 export const THEMES: Record<ThemeName, ThemeInfo> = {
+  dark: {
+    name: "dark",
+    label: "Dark",
+    description: "Traditional dark mode",
+    colors: {
+      primary: "#60a5fa",
+      secondary: "#a78bfa",
+    },
+  },
+  light: {
+    name: "light",
+    label: "Light",
+    description: "Clean light mode",
+    colors: {
+      primary: "#2563eb",
+      secondary: "#7c3aed",
+    },
+  },
+  tokyonight: {
+    name: "tokyonight",
+    label: "Tokyo Night",
+    description: "Deep blue with purple accents",
+    colors: {
+      primary: "#7aa2f7",
+      secondary: "#bb9af7",
+    },
+  },
+  onedark: {
+    name: "onedark",
+    label: "One Dark",
+    description: "Classic Atom editor theme",
+    colors: {
+      primary: "#61afef",
+      secondary: "#c678dd",
+    },
+  },
+  gruvbox: {
+    name: "gruvbox",
+    label: "Gruvbox",
+    description: "Retro warm brown & orange",
+    colors: {
+      primary: "#fe8019",
+      secondary: "#fabd2f",
+    },
+  },
+  dracula: {
+    name: "dracula",
+    label: "Dracula",
+    description: "Iconic purple & pink theme",
+    colors: {
+      primary: "#bd93f9",
+      secondary: "#ff79c6",
+    },
+  },
+  nord: {
+    name: "nord",
+    label: "Nord",
+    description: "Arctic blue-gray palette",
+    colors: {
+      primary: "#88c0d0",
+      secondary: "#81a1c1",
+    },
+  },
   sentry: {
     name: "sentry",
     label: "Sentry",
-    description: "Purple-pink gradient theme",
+    description: "Purple & pink gradient",
     colors: {
       primary: "#a855f7",
       secondary: "#ec4899",
-    },
-  },
-  ocean: {
-    name: "ocean",
-    label: "Ocean",
-    description: "Cool blue & teal theme",
-    colors: {
-      primary: "#3b82f6",
-      secondary: "#22d3ee",
-    },
-  },
-  ember: {
-    name: "ember",
-    label: "Ember",
-    description: "Warm orange & red theme",
-    colors: {
-      primary: "#f97316",
-      secondary: "#ef4444",
-    },
-  },
-  forest: {
-    name: "forest",
-    label: "Forest",
-    description: "Green & earth tones theme",
-    colors: {
-      primary: "#10b981",
-      secondary: "#84cc16",
-    },
-  },
-  noir: {
-    name: "noir",
-    label: "Noir",
-    description: "Monochrome dark theme",
-    colors: {
-      primary: "#ffffff",
-      secondary: "#a1a1aa",
     },
   },
 };
@@ -86,7 +113,7 @@ interface ThemeProviderProps {
   defaultTheme?: ThemeName;
 }
 
-export function ThemeProvider({ children, defaultTheme = "sentry" }: ThemeProviderProps) {
+export function ThemeProvider({ children, defaultTheme = "dark" }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeName>(defaultTheme);
   const [mounted, setMounted] = useState(false);
 
@@ -115,8 +142,12 @@ export function ThemeProvider({ children, defaultTheme = "sentry" }: ThemeProvid
     // Add current theme class
     root.classList.add(`theme-${theme}`);
     
-    // Always ensure dark class is present
-    root.classList.add("dark");
+    // Handle dark/light mode class
+    if (theme === "light") {
+      root.classList.remove("dark");
+    } else {
+      root.classList.add("dark");
+    }
   }, [theme, mounted]);
 
   const setTheme = useCallback((newTheme: ThemeName) => {

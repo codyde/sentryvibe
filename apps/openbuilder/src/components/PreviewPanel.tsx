@@ -521,11 +521,11 @@ export default function PreviewPanel({
       initial={{ opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5, delay: 0.1 }}
-      className="h-full flex flex-col bg-[#1e1e1e] border border-[#3e3e3e] rounded-xl shadow-2xl overflow-hidden"
+      className="h-full flex flex-col bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
     >
       {/* Browser-like chrome bar - hidden when controls are in header */}
       {!hideControls && (
-        <div className="bg-[#2d2d2d] border-b border-[#3e3e3e] px-3 py-2 flex items-center gap-2">
+        <div className="bg-muted/50 border-b border-border px-3 py-2 flex items-center gap-2">
         {previewUrl ? (
           <>
             {/* Left controls */}
@@ -540,7 +540,7 @@ export default function PreviewPanel({
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="p-1.5 rounded-md hover:bg-white/10 transition-all duration-200 disabled:opacity-50"
+                className="p-1.5 rounded-md hover:bg-accent transition-all duration-200 disabled:opacity-50"
                 title="Refresh"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -551,43 +551,43 @@ export default function PreviewPanel({
             <div className="flex items-center gap-2 mx-3">
               <HoverCard openDelay={200}>
                 <HoverCardTrigger asChild>
-                  <div className="w-[512px] flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md hover:border-[#5e5e5e] transition-colors cursor-default">
+                  <div className="w-[512px] flex items-center gap-2 px-3 py-1.5 bg-background border border-border rounded-md hover:border-muted-foreground/30 transition-colors cursor-default">
                     <div className={`w-2 h-2 rounded-full shadow-lg flex-shrink-0 ${
                       verifiedTunnelUrl || currentProject?.tunnelUrl
                         ? 'bg-blue-400 shadow-blue-400/50'
                         : 'bg-[#92DD00] shadow-[#92DD00]/50'
                     }`}></div>
-                    <span className="text-xs font-mono text-gray-300 truncate flex-1">
+                    <span className="text-xs font-mono text-muted-foreground truncate flex-1">
                       {verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`}
                     </span>
                     <button
                       onClick={handleCopyUrl}
-                      className="p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                      className="p-1 rounded hover:bg-accent transition-colors flex-shrink-0"
                       title="Copy URL"
                     >
                       {copied ? (
                         <Check className="w-3.5 h-3.5 text-green-400" />
                       ) : (
-                        <Copy className="w-3.5 h-3.5 text-gray-400" />
+                        <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                       )}
                     </button>
                   </div>
                 </HoverCardTrigger>
-                <HoverCardContent className="w-auto max-w-xl bg-gray-900 border-white/20" side="bottom">
-                  <p className="text-xs font-mono text-gray-300 break-all">
+                <HoverCardContent className="w-auto max-w-xl bg-popover border-border" side="bottom">
+                  <p className="text-xs font-mono text-popover-foreground break-all">
                     {verifiedTunnelUrl || currentProject?.tunnelUrl || `http://localhost:${actualPort}`}
                   </p>
                 </HoverCardContent>
               </HoverCard>
 
               {/* Device presets */}
-              <div className="flex items-center gap-1 bg-[#1e1e1e] border border-[#4e4e4e] rounded-md p-1">
+              <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                 <button
                   onClick={() => setDevicePreset('desktop')}
                   className={`p-1.5 rounded transition-all ${
                     devicePreset === 'desktop'
-                      ? 'bg-[#7553FF]/20 text-[#7553FF]'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}
                   title="Desktop view"
                 >
@@ -597,8 +597,8 @@ export default function PreviewPanel({
                   onClick={() => setDevicePreset('tablet')}
                   className={`p-1.5 rounded transition-all ${
                     devicePreset === 'tablet'
-                      ? 'bg-[#7553FF]/20 text-[#7553FF]'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}
                   title="Tablet view (768px)"
                 >
@@ -608,8 +608,8 @@ export default function PreviewPanel({
                   onClick={() => setDevicePreset('mobile')}
                   className={`p-1.5 rounded transition-all ${
                     devicePreset === 'mobile'
-                      ? 'bg-[#7553FF]/20 text-[#7553FF]'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}
                   title="Mobile view (375px)"
                 >
@@ -646,7 +646,7 @@ export default function PreviewPanel({
           </>
         ) : (
           <div className="flex-1 text-center">
-            <span className="text-sm text-gray-500">No preview available</span>
+            <span className="text-sm text-muted-foreground">No preview available</span>
           </div>
         )}
 
@@ -704,33 +704,33 @@ export default function PreviewPanel({
         </div>
         </div>
       )}
-      <div className="flex-1 bg-[#1e1e1e] relative flex items-start justify-center overflow-auto">
+      <div className="flex-1 bg-card relative flex items-start justify-center overflow-auto">
         {previewUrl || isTunnelLoading || dnsTroubleshooting ? (
           <>
             {/* DNS Troubleshooting overlay */}
             {dnsTroubleshooting && (
-              <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
-                <div className="max-w-lg w-full bg-[#2d2d2d] rounded-xl p-8 space-y-6">
+              <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
+                <div className="max-w-lg w-full bg-card rounded-xl p-8 space-y-6 border border-border">
                   <div className="text-center space-y-2">
                     <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
                       <Cloud className="w-8 h-8 text-orange-400" />
                     </div>
-                    <h3 className="text-xl font-semibold text-white">DNS Resolution Issue</h3>
-                    <p className="text-sm text-gray-400">
+                    <h3 className="text-xl font-semibold text-foreground">DNS Resolution Issue</h3>
+                    <p className="text-sm text-muted-foreground">
                       Your browser's DNS cache is preventing the tunnel from loading. Follow these steps to resolve:
                     </p>
                   </div>
 
                   <div className="space-y-4">
                     {/* Step 1: Run DNS flush commands */}
-                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-3">
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">1</div>
-                        <p className="text-sm font-medium text-white">Run these commands in Terminal</p>
+                        <p className="text-sm font-medium text-foreground">Run these commands in Terminal</p>
                       </div>
 
                       <div className="relative group">
-                        <code className="block bg-black/50 rounded px-3 py-2 text-xs font-mono text-gray-300 whitespace-pre overflow-x-auto">
+                        <code className="block bg-muted rounded px-3 py-2 text-xs font-mono text-foreground whitespace-pre overflow-x-auto">
                           sudo dscacheutil -flushcache{'\n'}sudo killall -HUP mDNSResponder
                         </code>
                         <button
@@ -749,16 +749,16 @@ export default function PreviewPanel({
                           )}
                         </button>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         Paste this in Terminal and press Enter
                       </p>
                     </div>
 
                     {/* Step 2: Reload page */}
-                    <div className="bg-[#1e1e1e] rounded-lg p-4 space-y-3">
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-semibold">2</div>
-                        <p className="text-sm font-medium text-white">Reload the page</p>
+                        <p className="text-sm font-medium text-foreground">Reload the page</p>
                       </div>
 
                       <button
@@ -782,7 +782,7 @@ export default function PreviewPanel({
                     </div>
                   </div>
 
-                  <p className="text-xs text-gray-500 text-center">
+                  <p className="text-xs text-muted-foreground text-center">
                     After running the DNS commands, click "Reload Preview" to retry the tunnel connection.
                   </p>
                 </div>
@@ -791,14 +791,14 @@ export default function PreviewPanel({
 
             {/* Tunnel loading overlay with attempt counter */}
             {isTunnelLoading && !dnsTroubleshooting && (
-              <div className="absolute inset-0 bg-[#1e1e1e]/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
+              <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center z-20 p-6">
                 <div className="max-w-md w-full">
                   <TunnelConnecting 
                     status="connecting"
                     port={actualPort || undefined}
                   />
                   {dnsVerificationAttempt > 0 && (
-                    <p className="text-xs text-gray-500 text-center mt-3">
+                    <p className="text-xs text-muted-foreground text-center mt-3">
                       DNS verification attempt {dnsVerificationAttempt}/10...
                     </p>
                   )}
@@ -808,10 +808,10 @@ export default function PreviewPanel({
 
             {/* Loading indicator overlay */}
             {isRefreshing && !isTunnelLoading && (
-              <div className="absolute inset-0 bg-[#1e1e1e]/80 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
                 <div className="flex flex-col items-center gap-3">
-                  <RefreshCw className="w-8 h-8 text-[#7553FF] animate-spin" />
-                  <p className="text-sm text-gray-400">Refreshing preview...</p>
+                  <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                  <p className="text-sm text-muted-foreground">Refreshing preview...</p>
                 </div>
               </div>
             )}
@@ -894,7 +894,7 @@ export default function PreviewPanel({
             </AnimatePresence>
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
             {isBuildActive ? (
               <BuildingAppSkeleton />
             ) : currentProject?.devServerStatus === 'restarting' ? (
@@ -922,11 +922,11 @@ export default function PreviewPanel({
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Tunnel Disconnected</h3>
-                  <p className="text-gray-400 text-sm">
-                    Server is running on <span className="font-mono text-gray-300">localhost:{actualPort}</span> but tunnel was stopped.
+                  <h3 className="text-xl font-semibold text-foreground">Tunnel Disconnected</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Server is running on <span className="font-mono text-foreground">localhost:{actualPort}</span> but tunnel was stopped.
                   </p>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-muted-foreground text-sm">
                     Restart tunnel to access remotely:
                   </p>
                 </div>
@@ -947,10 +947,10 @@ export default function PreviewPanel({
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">Project Ready!</h3>
-                  <p className="text-gray-400">Click the <span className="text-[#92DD00] font-semibold">Start</span> button above to launch your dev server</p>
+                  <h3 className="text-xl font-semibold text-foreground">Project Ready!</h3>
+                  <p className="text-muted-foreground">Click the <span className="text-[#92DD00] font-semibold">Start</span> button above to launch your dev server</p>
                 </div>
-                <div className="flex items-center gap-2 justify-center text-sm text-gray-500">
+                <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground">
                   <Play className="w-4 h-4" />
                   <span>Port will be automatically allocated</span>
                 </div>

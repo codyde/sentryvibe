@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { getFrameworkLogo } from "@/lib/framework-logos"
+import { useTheme } from "@/contexts/ThemeContext"
 import Image from "next/image"
 
 interface ProjectCardProps {
@@ -42,6 +43,7 @@ export function ProjectCard({
   isCurrentProject = false,
   showRunner = true
 }: ProjectCardProps) {
+  const { theme } = useTheme()
   const isRunning = project.devServerStatus === 'running'
   const isStarting = project.devServerStatus === 'starting'
   const isStopping = project.devServerStatus === 'stopping'
@@ -50,9 +52,9 @@ export function ProjectCard({
   const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed'
   const isServerBusy = isStarting || isStopping || isRestarting
 
-  // Get framework logo path
+  // Get framework logo path (theme-aware)
   const frameworkLogoPath = project.detectedFramework
-    ? getFrameworkLogo(project.detectedFramework)
+    ? getFrameworkLogo(project.detectedFramework, theme === 'light' ? 'light' : 'dark')
     : null
 
   // Format relative time
@@ -91,7 +93,7 @@ export function ProjectCard({
       className={`group flex items-center gap-2 px-3 py-2 mx-2 rounded-lg transition-all ${
         isCurrentProject
           ? 'bg-theme-gradient border border-theme-primary/30'
-          : 'hover:bg-white/5'
+          : 'hover:bg-accent'
       }`}
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
@@ -125,7 +127,7 @@ export function ProjectCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className={`text-sm truncate ${
-            isCurrentProject ? 'text-white font-medium' : 'text-white'
+            isCurrentProject ? 'text-foreground font-medium' : 'text-foreground'
           }`}>
             {project.name}
           </span>
@@ -136,13 +138,13 @@ export function ProjectCard({
           {/* Status badge for active states */}
           {isRunning && (
             <>
-              <span className="text-[10px] text-green-400 font-medium">
+              <span className="text-[10px] text-green-500 font-medium">
                 :{project.devServerPort || project.port}
               </span>
               {showRunner && project.runnerId && (
                 <div className="flex items-center gap-1">
-                  <Server className="w-2.5 h-2.5 text-gray-600" />
-                  <span className="text-[10px] text-gray-500 truncate max-w-[60px]">
+                  <Server className="w-2.5 h-2.5 text-muted-foreground/70" />
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[60px]">
                     {project.runnerId}
                   </span>
                 </div>
@@ -150,21 +152,21 @@ export function ProjectCard({
             </>
           )}
           {isStarting && (
-            <span className="text-[10px] text-green-400">Starting...</span>
+            <span className="text-[10px] text-green-500">Starting...</span>
           )}
           {isStopping && (
-            <span className="text-[10px] text-orange-400">Stopping...</span>
+            <span className="text-[10px] text-orange-500">Stopping...</span>
           )}
           {isRestarting && (
-            <span className="text-[10px] text-blue-400">Restarting...</span>
+            <span className="text-[10px] text-blue-500">Restarting...</span>
           )}
           {isBuilding && !isServerBusy && (
             <>
-              <span className="text-[10px] text-yellow-400">Building...</span>
+              <span className="text-[10px] text-yellow-500">Building...</span>
               {showRunner && project.runnerId && (
                 <div className="flex items-center gap-1">
-                  <Server className="w-2.5 h-2.5 text-gray-600" />
-                  <span className="text-[10px] text-gray-500 truncate max-w-[60px]">
+                  <Server className="w-2.5 h-2.5 text-muted-foreground/70" />
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[60px]">
                     {project.runnerId}
                   </span>
                 </div>
@@ -172,7 +174,7 @@ export function ProjectCard({
             </>
           )}
           {hasFailed && (
-            <span className="text-[10px] text-red-400">Failed</span>
+            <span className="text-[10px] text-red-500">Failed</span>
           )}
 
           {/* Framework + runner + time for inactive */}
@@ -187,21 +189,21 @@ export function ProjectCard({
                     height={12}
                     className="opacity-50"
                   />
-                  <span className="text-[10px] text-gray-500 capitalize">
+                  <span className="text-[10px] text-muted-foreground capitalize">
                     {project.detectedFramework}
                   </span>
                 </div>
               )}
               {showRunner && project.runnerId && (
                 <div className="flex items-center gap-1">
-                  <Server className="w-2.5 h-2.5 text-gray-600" />
-                  <span className="text-[10px] text-gray-600 truncate max-w-[60px]">
+                  <Server className="w-2.5 h-2.5 text-muted-foreground/70" />
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[60px]">
                     {project.runnerId}
                   </span>
                 </div>
               )}
               {project.lastActivityAt && (
-                <span className="text-[10px] text-gray-600">
+                <span className="text-[10px] text-muted-foreground">
                   {getRelativeTime(project.lastActivityAt)}
                 </span>
               )}
@@ -216,10 +218,10 @@ export function ProjectCard({
           <>
             <button
               onClick={handleOpenBrowser}
-              className="p-1.5 hover:bg-white/10 rounded transition-colors"
+              className="p-1.5 hover:bg-accent rounded transition-colors"
               title="Open in browser"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-gray-400 hover:text-white" />
+              <ExternalLink className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
             </button>
             <button
               onClick={(e) => handleAction(e, onStopServer!)}
@@ -227,7 +229,7 @@ export function ProjectCard({
               className="p-1.5 hover:bg-red-500/20 rounded transition-colors disabled:opacity-50"
               title="Stop server"
             >
-              <Square className="w-3.5 h-3.5 text-gray-400 hover:text-red-400" />
+              <Square className="w-3.5 h-3.5 text-muted-foreground hover:text-red-500" />
             </button>
           </>
         )}
@@ -238,7 +240,7 @@ export function ProjectCard({
             className="p-1.5 hover:bg-green-500/20 rounded transition-colors opacity-0 group-hover:opacity-100"
             title="Start server"
           >
-            <Play className="w-3.5 h-3.5 text-gray-400 hover:text-green-400" />
+            <Play className="w-3.5 h-3.5 text-muted-foreground hover:text-green-500" />
           </button>
         )}
 
@@ -246,32 +248,32 @@ export function ProjectCard({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="p-1.5 hover:bg-white/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+              className="p-1.5 hover:bg-accent rounded transition-colors opacity-0 group-hover:opacity-100"
               onClick={(e) => e.preventDefault()}
             >
-              <MoreHorizontal className="w-3.5 h-3.5 text-gray-400" />
+              <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-40 bg-black border-white/10" side="right" align="start">
-            <DropdownMenuItem className="text-white hover:bg-white/5 text-xs" asChild>
+          <DropdownMenuContent className="w-40 bg-popover border-border" side="right" align="start">
+            <DropdownMenuItem className="text-popover-foreground hover:bg-accent text-xs" asChild>
               <a href={`/?project=${project.slug}`}>
-                <Folder className="w-3 h-3 mr-2 text-gray-400" />
+                <Folder className="w-3 h-3 mr-2 text-muted-foreground" />
                 View Project
               </a>
             </DropdownMenuItem>
             {onRename && (
               <DropdownMenuItem
-                className="text-white hover:bg-white/5 text-xs cursor-pointer"
+                className="text-popover-foreground hover:bg-accent text-xs cursor-pointer"
                 onClick={onRename}
               >
-                <Edit3 className="w-3 h-3 mr-2 text-gray-400" />
+                <Edit3 className="w-3 h-3 mr-2 text-muted-foreground" />
                 Rename
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator className="bg-white/10" />
+            <DropdownMenuSeparator className="bg-border" />
             {onDelete && (
               <DropdownMenuItem
-                className="text-red-400 hover:bg-red-500/10 text-xs cursor-pointer"
+                className="text-red-500 hover:bg-red-500/10 text-xs cursor-pointer"
                 onClick={onDelete}
               >
                 <Trash2 className="w-3 h-3 mr-2" />

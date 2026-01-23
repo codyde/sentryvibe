@@ -62,18 +62,18 @@ export function BuildHeader({
           <div className="flex items-center gap-2 flex-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-theme-primary-muted text-theme-primary">
               {isComplete ? (
-                <CheckCircle2 className="h-5 w-5 text-green-400" />
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
             </div>
             <div>
-              <h3 className="text-base font-semibold text-white">
+              <h3 className="text-base font-semibold text-foreground">
                 {isComplete ? '✓ Build Complete!' : `Building ${projectName}`}
               </h3>
               {isCardExpanded ? (
                 <div className="space-y-1">
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     {completed} of {total} complete
                   </p>
                   {templateInfo && (
@@ -89,7 +89,7 @@ export function BuildHeader({
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     {completed} of {total} complete • Click to expand
                   </p>
                   {templateInfo && (
@@ -104,16 +104,16 @@ export function BuildHeader({
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <div className={`text-xl font-bold ${isComplete ? 'text-green-400' : 'text-theme-primary'}`}>
+              <div className={`text-xl font-bold ${isComplete ? 'text-green-600 dark:text-green-400' : 'text-theme-primary'}`}>
                 {Math.round(progress)}%
               </div>
             </div>
             {total > 0 && (
               <div className="ml-2">
                 {isCardExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
                 ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
                 )}
               </div>
             )}
@@ -123,7 +123,7 @@ export function BuildHeader({
                   e.stopPropagation();
                   onClose();
                 }}
-                className="p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent"
                 title="Dismiss"
               >
                 <X className="w-4 h-4" />
@@ -133,7 +133,7 @@ export function BuildHeader({
         </div>
 
         {/* Progress bar */}
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-800">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}

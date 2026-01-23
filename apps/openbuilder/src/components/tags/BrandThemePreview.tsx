@@ -41,14 +41,14 @@ export function BrandThemePreview({ brand }: BrandThemePreviewProps) {
             />
           </div>
         )}
-        <div className="text-sm font-semibold text-gray-200">
+        <div className="text-sm font-semibold text-popover-foreground">
           {brand.label} Theme Preview
         </div>
       </div>
 
       {/* Sample Button */}
       <div className="space-y-2">
-        <div className="text-xs text-gray-400">Primary Button</div>
+        <div className="text-xs text-muted-foreground">Primary Button</div>
         <button
           className="w-full px-4 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-90"
           style={{ 
@@ -97,49 +97,49 @@ export function BrandThemePreview({ brand }: BrandThemePreviewProps) {
 
       {/* Color Palette */}
       <div className="space-y-2">
-        <div className="text-xs text-gray-400">Color Palette</div>
+        <div className="text-xs text-muted-foreground">Color Palette</div>
         <div className="grid grid-cols-5 gap-2">
           <div className="space-y-1">
             <div
-              className="w-full h-8 rounded border border-gray-700"
+              className="w-full h-8 rounded border border-border"
               style={{ backgroundColor: primaryColor }}
             />
-            <div className="text-[10px] text-gray-500 text-center truncate">Primary</div>
+            <div className="text-[10px] text-muted-foreground text-center truncate">Primary</div>
           </div>
           <div className="space-y-1">
             <div
-              className="w-full h-8 rounded border border-gray-700"
+              className="w-full h-8 rounded border border-border"
               style={{ backgroundColor: secondaryColor }}
             />
-            <div className="text-[10px] text-gray-500 text-center truncate">Secondary</div>
+            <div className="text-[10px] text-muted-foreground text-center truncate">Secondary</div>
           </div>
           <div className="space-y-1">
             <div
-              className="w-full h-8 rounded border border-gray-700"
+              className="w-full h-8 rounded border border-border"
               style={{ backgroundColor: accentColor }}
             />
-            <div className="text-[10px] text-gray-500 text-center truncate">Accent</div>
+            <div className="text-[10px] text-muted-foreground text-center truncate">Accent</div>
           </div>
           <div className="space-y-1">
             <div
-              className="w-full h-8 rounded border border-gray-700"
+              className="w-full h-8 rounded border border-border"
               style={{ backgroundColor: neutralLight }}
             />
-            <div className="text-[10px] text-gray-500 text-center truncate">Light</div>
+            <div className="text-[10px] text-muted-foreground text-center truncate">Light</div>
           </div>
           <div className="space-y-1">
             <div
-              className="w-full h-8 rounded border border-gray-700"
+              className="w-full h-8 rounded border border-border"
               style={{ backgroundColor: neutralDark }}
             />
-            <div className="text-[10px] text-gray-500 text-center truncate">Dark</div>
+            <div className="text-[10px] text-muted-foreground text-center truncate">Dark</div>
           </div>
         </div>
       </div>
 
       {/* Sample Badge */}
       <div className="space-y-2">
-        <div className="text-xs text-gray-400">Components</div>
+        <div className="text-xs text-muted-foreground">Components</div>
         <div className="flex gap-2 flex-wrap">
           <span
             className="inline-flex items-center px-2 py-1 rounded text-xs font-medium"

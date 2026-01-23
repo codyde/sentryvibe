@@ -22,17 +22,38 @@ export const metadata: Metadata = {
   title: "OpenBuilder - Think it. Build it. Ship it.",
   description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
   metadataBase: new URL("https://openbuilder.app"),
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "OpenBuilder - Think it. Build it. Ship it.",
     description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
     url: "https://openbuilder.app",
     siteName: "OpenBuilder",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1536,
+        height: 1024,
+        alt: "OpenBuilder - Build Cool Things",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "OpenBuilder - Think it. Build it. Ship it.",
     description: "Build and ship applications locally. Build cool things, prototype new ideas, break them, and fix it faster with Sentry.",
+    images: ["/og-image.png"],
   },
   keywords: ["AI", "app builder", "code generation", "full-stack", "developer tools", "openbuilder"],
 };
@@ -43,7 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark theme-sentry">
+    <html lang="en" className="dark theme-dark">
       <body
         className={`${rubik.variable} font-sans antialiased`}
       >

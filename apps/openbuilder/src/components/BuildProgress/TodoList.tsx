@@ -123,7 +123,7 @@ export function TodoList({
                       animate={{ scale: 1 }}
                       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     >
-                      <CheckCircle2 className="h-4 w-4 text-green-400" />
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                     </motion.div>
                   ) : todo.status === 'in_progress' ? (
                     <motion.div
@@ -133,7 +133,7 @@ export function TodoList({
                       <Loader2 className="h-4 w-4 text-theme-primary" />
                     </motion.div>
                   ) : (
-                    <Circle className="h-4 w-4 text-gray-600" />
+                    <Circle className="h-4 w-4 text-muted-foreground" />
                   )}
                 </div>
 
@@ -141,10 +141,10 @@ export function TodoList({
                 <p
                   className={`text-sm font-medium ${
                     todo.status === 'completed'
-                      ? 'text-gray-500 line-through'
+                      ? 'text-muted-foreground line-through'
                       : todo.status === 'in_progress'
-                        ? 'text-white'
-                        : 'text-gray-500'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
                   }`}
                 >
                   {todo.status === 'in_progress' ? todo.activeForm : todo.content}

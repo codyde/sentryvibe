@@ -119,12 +119,12 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="h-full flex flex-col bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-xl overflow-hidden"
+        className="h-full flex flex-col bg-card/50 backdrop-blur-md border border-border rounded-xl shadow-xl overflow-hidden"
       >
         {/* Header Bar */}
         <div className="flex items-center px-3 py-2 gap-2">
           {/* Tab Switcher */}
-          <div className="flex items-center bg-black/30 rounded-md p-0.5">
+          <div className="flex items-center bg-muted/50 rounded-md p-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -133,7 +133,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                     'p-1.5 rounded transition-all',
                     activeTab === 'preview'
                       ? 'bg-theme-primary-muted text-theme-primary'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
                 >
                   <Monitor className="w-4 h-4" />
@@ -149,7 +149,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                     'p-1.5 rounded transition-all',
                     activeTab === 'editor'
                       ? 'bg-theme-primary-muted text-theme-primary'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
                 >
                   <Code className="w-4 h-4" />
@@ -165,7 +165,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                     'p-1.5 rounded transition-all',
                     activeTab === 'terminal'
                       ? 'bg-theme-primary-muted text-theme-primary'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
                 >
                   <Terminal className="w-4 h-4" />
@@ -178,7 +178,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
           {/* Divider + Selection Tool - Only when server running and preview active */}
           {isServerRunning && activeTab === 'preview' && (
             <>
-              <div className="w-px h-5 bg-white/10 mx-1" />
+              <div className="w-px h-5 bg-border mx-1" />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -187,7 +187,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                       'p-1.5 rounded-md transition-all',
                       isSelectionMode
                         ? 'bg-theme-primary-muted text-theme-primary'
-                        : 'text-gray-400 hover:text-white hover:bg-white/10'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     )}
                   >
                     <MousePointer2 className="w-4 h-4" />
@@ -210,7 +210,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                   <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
-                    className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all disabled:opacity-50"
                   >
                     <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
                   </button>
@@ -221,35 +221,35 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
               {/* URL Bar */}
               <HoverCard openDelay={200}>
                 <HoverCardTrigger asChild>
-                  <div className="flex items-center gap-2 px-3 py-1 bg-black/30 border border-white/10 rounded-md hover:border-white/20 transition-colors cursor-default max-w-[300px]">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-muted/50 border border-border rounded-md hover:border-border transition-colors cursor-default max-w-[300px]">
                     <div className={cn(
                       'w-2 h-2 rounded-full shadow-lg flex-shrink-0',
                       currentProject?.tunnelUrl
                         ? 'bg-blue-400 shadow-blue-400/50'
                         : 'bg-[#92DD00] shadow-[#92DD00]/50'
                     )} />
-                    <span className="text-xs font-mono text-gray-300 truncate flex-1">
+                    <span className="text-xs font-mono text-muted-foreground truncate flex-1">
                       {previewUrl}
                     </span>
                     <button
                       onClick={handleCopyUrl}
-                      className="p-0.5 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                      className="p-0.5 rounded hover:bg-accent transition-colors flex-shrink-0"
                     >
                       {copied ? (
-                        <Check className="w-3 h-3 text-green-400" />
+                        <Check className="w-3 h-3 text-green-500" />
                       ) : (
-                        <Copy className="w-3 h-3 text-gray-400" />
+                        <Copy className="w-3 h-3 text-muted-foreground" />
                       )}
                     </button>
                   </div>
                 </HoverCardTrigger>
-                <HoverCardContent className="w-auto max-w-xl bg-gray-900 border-white/20" side="bottom">
-                  <p className="text-xs font-mono text-gray-300 break-all">{previewUrl}</p>
+                <HoverCardContent className="w-auto max-w-xl bg-popover border-border" side="bottom">
+                  <p className="text-xs font-mono text-popover-foreground break-all">{previewUrl}</p>
                 </HoverCardContent>
               </HoverCard>
 
               {/* Device Presets */}
-              <div className="flex items-center bg-black/30 rounded-md p-0.5">
+              <div className="flex items-center bg-muted/50 rounded-md p-0.5">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -258,7 +258,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                         'p-1.5 rounded transition-all',
                         devicePreset === 'desktop'
                           ? 'bg-theme-primary-muted text-theme-primary'
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                       )}
                     >
                       <Monitor className="w-4 h-4" />
@@ -274,7 +274,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                         'p-1.5 rounded transition-all',
                         devicePreset === 'tablet'
                           ? 'bg-theme-primary-muted text-theme-primary'
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                       )}
                     >
                       <Tablet className="w-4 h-4" />
@@ -290,7 +290,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                         'p-1.5 rounded transition-all',
                         devicePreset === 'mobile'
                           ? 'bg-theme-primary-muted text-theme-primary'
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                       )}
                     >
                       <Smartphone className="w-4 h-4" />
@@ -308,7 +308,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
           {/* Right: External links */}
           {isServerRunning && previewUrl && (
             <>
-              <div className="w-px h-5 bg-white/10 mx-1" />
+              <div className="w-px h-5 bg-border mx-1" />
               <div className="flex items-center gap-1">
                 {/* Cloud/Tunnel link */}
                 {currentProject?.tunnelUrl && (
@@ -345,7 +345,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
           {/* Server/Tunnel Controls */}
           {currentProject?.runCommand && currentProject?.status === 'completed' && !isBuildActive && (
             <>
-              <div className="w-px h-5 bg-white/10 mx-1" />
+              <div className="w-px h-5 bg-border mx-1" />
               <div className="flex items-center gap-1">
                 {isServerRunning ? (
                   <>
@@ -364,7 +364,7 @@ const TabbedPreview = forwardRef<HTMLDivElement, TabbedPreviewProps>(({
                           <button
                             onClick={onStartTunnel}
                             disabled={isStartingTunnel}
-                            className="p-1.5 rounded-md text-gray-400 hover:text-blue-300 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-blue-500 hover:bg-blue-500/20 transition-all disabled:opacity-50"
                           >
                             <Cloud className={cn('w-4 h-4', isStartingTunnel && 'animate-pulse')} />
                           </button>

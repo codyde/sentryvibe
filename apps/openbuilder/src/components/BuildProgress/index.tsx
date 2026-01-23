@@ -40,13 +40,13 @@ function BuildCompleteSummary({
     <div className="border-t border-theme-primary\/20">
       {/* Summary section */}
       <div className="p-4">
-        <div className="flex items-center gap-2 text-green-400 mb-2">
+        <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-2">
           <CheckCircle2 className="w-4 h-4" />
           <span className="text-sm font-medium">Build Complete</span>
         </div>
 
         {buildSummary && (
-          <p className="text-sm text-gray-300 mb-3 leading-relaxed">
+          <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
             {buildSummary}
           </p>
         )}
@@ -54,7 +54,7 @@ function BuildCompleteSummary({
         {/* Collapsible todos section */}
         <button
           onClick={() => setShowTodos(!showTodos)}
-          className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           {showTodos ? (
             <ChevronUp className="w-3 h-3" />
@@ -72,11 +72,11 @@ function BuildCompleteSummary({
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="mt-2 space-y-1 pl-2 border-l border-gray-700/50">
+              <div className="mt-2 space-y-1 pl-2 border-l border-border">
                 {todos.map((todo, idx) => (
                   <div key={idx} className="flex items-center gap-2 text-xs">
-                    <CheckCircle2 className="w-3 h-3 text-green-400/60" />
-                    <span className="text-gray-500">{todo.content}</span>
+                    <CheckCircle2 className="w-3 h-3 text-green-600/70 dark:text-green-400/60" />
+                    <span className="text-muted-foreground">{todo.content}</span>
                   </div>
                 ))}
               </div>

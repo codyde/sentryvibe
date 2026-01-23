@@ -57,8 +57,8 @@ export function ColorPickerTag({
   return (
     <div className="p-3 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-200">{label}</h3>
-        <p className="text-xs text-gray-400 mt-1">{description}</p>
+        <h3 className="text-sm font-semibold text-popover-foreground">{label}</h3>
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -72,7 +72,7 @@ export function ColorPickerTag({
               setHexInput(e.target.value);
               setError(null);
             }}
-            className="w-10 h-10 rounded border-2 border-gray-700 cursor-pointer bg-gray-800"
+            className="w-10 h-10 rounded border-2 border-border cursor-pointer bg-muted"
             style={{
               colorScheme: 'dark'
             }}
@@ -85,7 +85,7 @@ export function ColorPickerTag({
             value={hexInput}
             onChange={(e) => validateAndSetHex(e.target.value)}
             placeholder="#6366f1"
-            className="font-mono bg-gray-800 border-gray-700 text-sm text-white"
+            className="font-mono bg-muted border-border text-sm text-popover-foreground"
           />
           {error && (
             <p className="text-xs text-red-400 mt-1">{error}</p>
@@ -94,15 +94,15 @@ export function ColorPickerTag({
       </div>
 
       {/* Preview */}
-      <div className="p-3 rounded bg-gray-800 border border-gray-700">
+      <div className="p-3 rounded bg-muted border border-border">
         <div className="flex items-center gap-2">
           <div
-            className="w-12 h-12 rounded border-2 border-gray-600 flex-shrink-0"
+            className="w-12 h-12 rounded border-2 border-border flex-shrink-0"
             style={{ backgroundColor: color }}
           />
           <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-200">Preview</p>
-            <p className="text-xs font-mono text-gray-400">{color}</p>
+            <p className="text-sm font-medium text-popover-foreground">Preview</p>
+            <p className="text-xs font-mono text-muted-foreground">{color}</p>
           </div>
         </div>
       </div>
@@ -113,7 +113,7 @@ export function ColorPickerTag({
           variant="outline"
           size="sm"
           onClick={onCancel}
-          className="bg-gray-800 border-gray-700 hover:bg-gray-700 text-white"
+          className="bg-muted border-border hover:bg-accent text-popover-foreground"
         >
           Cancel
         </Button>

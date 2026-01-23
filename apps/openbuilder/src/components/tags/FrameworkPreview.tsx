@@ -1,6 +1,7 @@
 'use client';
 
 import { getFrameworkLogo } from '@/lib/framework-logos';
+import { useTheme } from '@/contexts/ThemeContext';
 import Image from 'next/image';
 
 interface FrameworkPreviewProps {
@@ -14,7 +15,8 @@ interface FrameworkPreviewProps {
 }
 
 export function FrameworkPreview({ framework }: FrameworkPreviewProps) {
-  const logoPath = getFrameworkLogo(framework.value);
+  const { theme } = useTheme();
+  const logoPath = getFrameworkLogo(framework.value, theme === 'light' ? 'light' : 'dark');
 
   return (
     <div className="w-96 space-y-3">
@@ -31,14 +33,14 @@ export function FrameworkPreview({ framework }: FrameworkPreviewProps) {
             />
           </div>
         )}
-        <div className="text-sm font-semibold text-gray-200">
+        <div className="text-sm font-semibold text-popover-foreground">
           {framework.label}
         </div>
       </div>
 
       {/* Description */}
       {framework.description && (
-        <div className="text-sm text-gray-400">
+        <div className="text-sm text-muted-foreground">
           {framework.description}
         </div>
       )}
@@ -46,15 +48,15 @@ export function FrameworkPreview({ framework }: FrameworkPreviewProps) {
       {/* Repository Info */}
       {framework.repository && (
         <div className="space-y-2">
-          <div className="text-xs text-gray-400">Template Repository</div>
-          <div className="bg-gray-800 rounded p-3 space-y-2">
-            <div className="font-mono text-xs text-gray-300">
+          <div className="text-xs text-muted-foreground">Template Repository</div>
+          <div className="bg-muted rounded p-3 space-y-2">
+            <div className="font-mono text-xs text-popover-foreground">
               {framework.repository}
             </div>
             {framework.branch && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Branch:</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-300">
+                <span className="text-xs text-muted-foreground">Branch:</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-accent text-popover-foreground">
                   {framework.branch}
                 </span>
               </div>
@@ -66,8 +68,8 @@ export function FrameworkPreview({ framework }: FrameworkPreviewProps) {
       {/* Installation Command */}
       {framework.repository && framework.branch && (
         <div className="space-y-2">
-          <div className="text-xs text-gray-400">Quick Start</div>
-          <div className="bg-gray-900 rounded p-3 border border-gray-700">
+          <div className="text-xs text-muted-foreground">Quick Start</div>
+          <div className="bg-popover rounded p-3 border border-border">
             <code className="text-xs text-green-400 font-mono">
               npx degit {framework.repository}#{framework.branch} my-project
             </code>
