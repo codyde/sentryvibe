@@ -1,6 +1,6 @@
 {
   "name": "openbuilder-monorepo",
-  "version": "0.31.11",
+  "version": "0.31.12",
   "description": "AI-powered project generation platform with Claude AI and remote runner architecture",
   "private": true,
   "packageManager": "pnpm@9.15.0",
