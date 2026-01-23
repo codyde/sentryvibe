@@ -1,4 +1,4 @@
-name: Release CLI
+name: Release OpenBuilder CLI
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
       - name: Build agent-core
         run: |
           echo "Building agent-core..."
-          pnpm --filter @shipbuilder/agent-core build
+          pnpm --filter @openbuilder/agent-core build
 
       - name: Verify vendor packages (now committed to git)
         run: |
@@ -142,7 +142,7 @@ jobs:
           ls -lh *.tgz
 
           # Rename to standard name
-          mv *.tgz shipbuilder-cli.tgz
+          mv *.tgz openbuilder-cli.tgz
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -151,14 +151,14 @@ jobs:
 
           echo ""
           echo "5. Vendor files in tarball:"
-          tar -tzf shipbuilder-cli.tgz | grep "vendor/" || echo "  ⚠️  WARNING: No vendor/ files found in tarball!"
+          tar -tzf openbuilder-cli.tgz | grep "vendor/" || echo "  ⚠️  WARNING: No vendor/ files found in tarball!"
 
           echo ""
           echo "6. All tarball contents (sample):"
-          tar -tzf shipbuilder-cli.tgz | head -50
+          tar -tzf openbuilder-cli.tgz | head -50
 
           echo ""
-          echo "✓ Package created: shipbuilder-cli.tgz"
+          echo "✓ Package created: openbuilder-cli.tgz"
 
       - name: Extract version from tag
         id: version
@@ -177,34 +177,34 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: ShipBuilder CLI ${{ steps.version.outputs.version }}
+          name: OpenBuilder CLI ${{ steps.version.outputs.version }}
           body: |
-            # ShipBuilder CLI ${{ steps.version.outputs.version }}
+            # OpenBuilder CLI ${{ steps.version.outputs.version }}
 
             AI-powered project generation with local runner support.
 
             ## Installation
 
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/codyde/shipbuilder/main/install-cli.sh | bash
+            curl -fsSL https://openbuilder.sh/install | bash
             ```
 
             Or install directly:
 
             ```bash
-            npm install -g https://github.com/codyde/shipbuilder/releases/download/${{ github.ref_name }}/shipbuilder-cli.tgz
+            npm install -g https://github.com/codyde/openbuilder/releases/download/${{ github.ref_name }}/openbuilder-cli.tgz
             ```
 
             ## Quick Start
 
             ```bash
-            shipbuilder init -y
-            shipbuilder run
+            openbuilder init -y
+            openbuilder run
             ```
 
-            See [full documentation](https://github.com/codyde/shipbuilder/blob/main/apps/runner/README.md) for details.
+            See [full documentation](https://github.com/codyde/openbuilder/blob/main/apps/runner/README.md) for details.
           files: |
-            apps/runner/shipbuilder-cli.tgz
+            apps/runner/openbuilder-cli.tgz
           draft: false
           prerelease: false
         env:
