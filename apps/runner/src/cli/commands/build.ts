@@ -19,7 +19,7 @@ export async function buildCommand(options: BuildOptions) {
   const s = p.spinner();
 
   // Step 1: Find monorepo
-  s.start('Locating SentryVibe repository');
+  s.start('Locating OpenBuilder repository');
 
   let monorepoRoot: string | undefined;
   const config = configManager.get();

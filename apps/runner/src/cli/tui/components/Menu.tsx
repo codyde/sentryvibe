@@ -16,7 +16,7 @@ interface MenuProps {
 /**
  * Arrow-key navigable menu component
  * 
- * > Initialize SentryVibe
+ * > Initialize OpenBuilder
  *   Start Runner
  *   Exit
  */

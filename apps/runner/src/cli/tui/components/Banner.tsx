@@ -6,23 +6,23 @@ import { colors } from '../theme.js';
  * Each line is padded to exactly the same width for perfect alignment
  */
 export function Banner() {
-  // Full banner lines - SENTRY in cyan, VIBE in purple
-  // All lines padded to same total width (80 chars) for consistent centering
+  // Full banner lines - OPEN in cyan, BUILDER in purple
+  // All lines padded to same total width for consistent centering
   const lines = [
-    { sentry: '███████╗███████╗███╗   ██╗████████╗██████╗ ██╗   ██╗', vibe: '██╗   ██╗██╗██████╗ ███████╗' },
-    { sentry: '██╔════╝██╔════╝████╗  ██║╚══██╔══╝██╔══██╗╚██╗ ██╔╝', vibe: '██║   ██║██║██╔══██╗██╔════╝' },
-    { sentry: '███████╗█████╗  ██╔██╗ ██║   ██║   ██████╔╝ ╚████╔╝ ', vibe: '██║   ██║██║██████╔╝█████╗  ' },
-    { sentry: '╚════██║██╔══╝  ██║╚██╗██║   ██║   ██╔══██╗  ╚██╔╝  ', vibe: '╚██╗ ██╔╝██║██╔══██╗██╔══╝  ' },
-    { sentry: '███████║███████╗██║ ╚████║   ██║   ██║  ██║   ██║   ', vibe: ' ╚████╔╝ ██║██████╔╝███████╗' },
-    { sentry: '╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ', vibe: '  ╚═══╝  ╚═╝╚═════╝ ╚══════╝' },
+    { open: ' ██████╗ ██████╗ ███████╗███╗   ██╗', builder: '██████╗ ██╗   ██╗██╗██╗     ██████╗ ███████╗██████╗ ' },
+    { open: '██╔═══██╗██╔══██╗██╔════╝████╗  ██║', builder: '██╔══██╗██║   ██║██║██║     ██╔══██╗██╔════╝██╔══██╗' },
+    { open: '██║   ██║██████╔╝█████╗  ██╔██╗ ██║', builder: '██████╔╝██║   ██║██║██║     ██║  ██║█████╗  ██████╔╝' },
+    { open: '██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║', builder: '██╔══██╗██║   ██║██║██║     ██║  ██║██╔══╝  ██╔══██╗' },
+    { open: '╚██████╔╝██║     ███████╗██║ ╚████║', builder: '██████╔╝╚██████╔╝██║███████╗██████╔╝███████╗██║  ██║' },
+    { open: ' ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝', builder: '╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝' },
   ];
 
   return (
     <Box flexDirection="column" alignItems="center">
       {lines.map((line, index) => (
         <Box key={index}>
-          <Text color={colors.cyan}>{line.sentry}</Text>
-          <Text color={colors.brightPurple}>{line.vibe}</Text>
+          <Text color={colors.cyan}>{line.open}</Text>
+          <Text color={colors.brightPurple}>{line.builder}</Text>
         </Box>
       ))}
     </Box>

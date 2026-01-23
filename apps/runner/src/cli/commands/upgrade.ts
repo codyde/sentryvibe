@@ -19,14 +19,14 @@ interface UpgradeOptions {
 
 interface EnvBackup {
   runner: { env?: string; envLocal?: string };
-  sentryvibe: { env?: string; envLocal?: string };
+  openbuilder: { env?: string; envLocal?: string };
 }
 
 export async function upgradeCommand(options: UpgradeOptions) {
   const s = p.spinner();
 
   // Step 1: Find current monorepo
-  s.start('Locating SentryVibe installation');
+  s.start('Locating OpenBuilder installation');
 
   let monorepoRoot: string | undefined;
   const config = configManager.get();
@@ -45,16 +45,16 @@ export async function upgradeCommand(options: UpgradeOptions) {
   }
 
   if (!monorepoRoot) {
-    s.stop(pc.red('✗') + ' SentryVibe installation not found');
+    s.stop(pc.red('✗') + ' OpenBuilder installation not found');
     throw new CLIError({
       code: 'UPGRADE_NOT_IN_REPO',
-      message: 'Could not locate SentryVibe installation',
+      message: 'Could not locate OpenBuilder installation',
       suggestions: [
-        'Run from within SentryVibe directory',
-        'Or run init first: sentryvibe init',
+        'Run from within OpenBuilder directory',
+        'Or run init first: openbuilder init',
         config.monorepoPath ? `Configured path not found: ${config.monorepoPath}` : 'No installation path configured',
       ],
-      docs: 'https://github.com/codyde/sentryvibe#upgrade',
+      docs: 'https://github.com/codyde/openbuilder#upgrade',
     });
   }
 
@@ -102,15 +102,15 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   const envBackup: EnvBackup = {
     runner: {},
-    sentryvibe: {},
+    openbuilder: {},
   };
 
   // Define paths to check
   const envPaths = [
     { app: 'runner', path: join(monorepoRoot, 'apps/runner/.env') },
     { app: 'runner', pathLocal: join(monorepoRoot, 'apps/runner/.env.local') },
-    { app: 'sentryvibe', path: join(monorepoRoot, 'apps/sentryvibe/.env') },
-    { app: 'sentryvibe', pathLocal: join(monorepoRoot, 'apps/sentryvibe/.env.local') },
+    { app: 'openbuilder', path: join(monorepoRoot, 'apps/openbuilder/.env') },
+    { app: 'openbuilder', pathLocal: join(monorepoRoot, 'apps/openbuilder/.env.local') },
   ];
 
   let backedUpCount = 0;
@@ -149,7 +149,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   try {
     execSync(
-      `git clone --branch ${branch} --depth 1 https://github.com/codyde/sentryvibe.git "${tempDir}"`,
+      `git clone --branch ${branch} --depth 1 https://github.com/codyde/openbuilder.git "${tempDir}"`,
       {
         cwd: parentDir,
         stdio: 'pipe', // Silent
@@ -170,8 +170,8 @@ export async function upgradeCommand(options: UpgradeOptions) {
       message: `Failed to clone branch "${branch}"`,
       suggestions: [
         'Check your internet connection',
-        'Verify the branch exists: https://github.com/codyde/sentryvibe/tree/' + branch,
-        'Try upgrading to main: sentryvibe upgrade',
+        'Verify the branch exists: https://github.com/codyde/openbuilder/tree/' + branch,
+        'Try upgrading to main: openbuilder upgrade',
       ],
     });
   }
@@ -184,8 +184,8 @@ export async function upgradeCommand(options: UpgradeOptions) {
   const restorePaths = [
     { app: 'runner' as const, file: '.env', dir: join(tempDir, 'apps/runner') },
     { app: 'runner' as const, file: '.env.local', dir: join(tempDir, 'apps/runner') },
-    { app: 'sentryvibe' as const, file: '.env', dir: join(tempDir, 'apps/sentryvibe') },
-    { app: 'sentryvibe' as const, file: '.env.local', dir: join(tempDir, 'apps/sentryvibe') },
+    { app: 'openbuilder' as const, file: '.env', dir: join(tempDir, 'apps/openbuilder') },
+    { app: 'openbuilder' as const, file: '.env.local', dir: join(tempDir, 'apps/openbuilder') },
   ];
 
   for (const item of restorePaths) {
@@ -278,8 +278,8 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   // Step 7.5: Apply database migrations (if DATABASE_URL exists)
   const databaseUrl =
-    envBackup.sentryvibe.env?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
-    envBackup.sentryvibe.envLocal?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
+    envBackup.openbuilder.env?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
+    envBackup.openbuilder.envLocal?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
     process.env.DATABASE_URL;
 
   if (databaseUrl) {
@@ -287,7 +287,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
     try {
       execSync('npx drizzle-kit push --config=drizzle.config.ts', {
-        cwd: join(tempDir, 'apps/sentryvibe'),
+        cwd: join(tempDir, 'apps/openbuilder'),
         stdio: 'pipe',
         env: {
           ...process.env,
@@ -298,7 +298,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
       s.stop(pc.green('✓') + ' Database schema updated');
     } catch (error) {
       s.stop(pc.yellow('⚠') + ' Migration failed');
-      console.log(pc.dim('  You may need to run: sentryvibe database'));
+      console.log(pc.dim('  You may need to run: openbuilder database'));
       console.log(pc.dim('  This won\'t prevent the upgrade from completing'));
     }
   } else {
@@ -377,7 +377,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   if (branch !== 'main') {
     console.log(pc.yellow('⚠') + ` You upgraded to branch: ${pc.cyan(branch)}`);
-    console.log(pc.dim('  To return to main: sentryvibe upgrade'));
+    console.log(pc.dim('  To return to main: openbuilder upgrade'));
     console.log();
   }
 }

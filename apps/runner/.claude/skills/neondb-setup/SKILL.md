@@ -16,7 +16,7 @@ Provision a NeonDB serverless PostgreSQL database and configure Drizzle ORM.
    npx get-db -y
    ```
    This instantly creates a database and writes `DATABASE_URL` to `.env`.
-   The output includes the connection string and claim URL - these are automatically detected by SentryVibe.
+   The output includes the connection string and claim URL - these are automatically detected by ShipBuilder.
 
 2. **Install PostgreSQL and Drizzle packages:**
    ```bash

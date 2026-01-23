@@ -1,13 +1,13 @@
 {
-  "name": "@sentryvibe/cli",
+  "name": "@openbuilder/cli",
   "version": "0.27.0",
-  "description": "SentryVibe CLI - AI-powered app builder",
+  "description": "OpenBuilder CLI - AI-powered app builder",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "sentryvibe-cli": "./dist/cli/index.js",
-    "sentryvibe": "./dist/cli/index.js"
+    "openbuilder-cli": "./dist/cli/index.js",
+    "openbuilder": "./dist/cli/index.js"
   },
   "files": [
     "dist/",
@@ -17,13 +17,13 @@
     "templates.json"
   ],
   "bundledDependencies": [
-    "@sentryvibe/agent-core"
+    "@openbuilder/agent-core"
   ],
   "engines": {
     "node": ">=18.0.0"
   },
   "keywords": [
-    "sentryvibe",
+    "openbuilder",
     "runner",
     "cli",
     "ai",
@@ -33,13 +33,13 @@
   "author": "Cody De Arkland",
   "repository": {
     "type": "git",
-    "url": "https://github.com/codyde/sentryvibe.git",
+    "url": "https://github.com/codyde/openbuilder.git",
     "directory": "apps/runner"
   },
   "bugs": {
-    "url": "https://github.com/codyde/sentryvibe/issues"
+    "url": "https://github.com/codyde/openbuilder/issues"
   },
-  "homepage": "https://github.com/codyde/sentryvibe#readme",
+  "homepage": "https://github.com/codyde/openbuilder#readme",
   "preferGlobal": true,
   "scripts": {
     "postinstall": "node scripts/install-vendor.js",
@@ -57,7 +57,7 @@
     "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
     "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
     "@sentry/opentelemetry": "^10.22.0",
-    "@sentryvibe/agent-core": "^0.2.1",
+    "@openbuilder/agent-core": "^0.2.1",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",

@@ -22,7 +22,7 @@ function findNodeModules() {
   // Local node_modules inside the package (npm style for bundled deps)
   const localNodeModules = path.join(packageRoot, 'node_modules');
 
-  // Parent node_modules (pnpm global style: @sentryvibe/cli -> @sentryvibe -> node_modules)
+  // Parent node_modules (pnpm global style: @openbuilder/cli -> @openbuilder -> node_modules)
   const parentNodeModules = path.join(packageRoot, '..', '..');
 
   // Always prefer local node_modules if it exists - this ensures vendor packages
@@ -32,7 +32,7 @@ function findNodeModules() {
   }
 
   // Fall back to parent for pnpm global installs where there's no local node_modules
-  if (existsSync(path.join(parentNodeModules, '@sentryvibe')) ||
+  if (existsSync(path.join(parentNodeModules, '@openbuilder')) ||
       existsSync(path.join(parentNodeModules, '@sentry'))) {
     return parentNodeModules;
   }

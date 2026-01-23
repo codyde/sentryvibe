@@ -9,11 +9,11 @@ import { join } from 'node:path';
 import { selectTemplateFromPrompt, type Template } from './templates/config.js';
 import { downloadTemplate, getProjectFileTree } from './templates/downloader.js';
 import { getWorkspaceRoot } from './workspace.js';
-import { type AgentId } from '@sentryvibe/agent-core/types/agent';
-import { resolveAgentStrategy, type AgentStrategyContext } from '@sentryvibe/agent-core/lib/agents';
-import { buildLogger } from '@sentryvibe/agent-core/lib/logging/build-logger';
-import type { DesignPreferences } from '@sentryvibe/agent-core/types/design';
-import type { AppliedTag } from '@sentryvibe/agent-core/types/tags';
+import { type AgentId } from '@openbuilder/agent-core/types/agent';
+import { resolveAgentStrategy, type AgentStrategyContext } from '@openbuilder/agent-core/lib/agents';
+import { buildLogger } from '@openbuilder/agent-core/lib/logging/build-logger';
+import type { DesignPreferences } from '@openbuilder/agent-core/types/design';
+import type { AppliedTag } from '@openbuilder/agent-core/types/tags';
 
 export interface MessagePart {
   type: string;

@@ -5,10 +5,10 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@sentry/core': file:./apps/sentryvibe/vendor/sentry-core-1765299043.tgz
-  '@sentry/node': file:./apps/sentryvibe/vendor/sentry-node-1765299043.tgz
-  '@sentry/node-core': file:./apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz
-  '@sentry/nextjs': file:./apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz
+  '@sentry/core': file:./apps/openbuilder/vendor/sentry-core-1765299043.tgz
+  '@sentry/node': file:./apps/openbuilder/vendor/sentry-node-1765299043.tgz
+  '@sentry/node-core': file:./apps/openbuilder/vendor/sentry-node-core-1765299043.tgz
+  '@sentry/nextjs': file:./apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz
 
 importers:
 
@@ -22,17 +22,207 @@ importers:
         specifier: ^2.5.8
         version: 2.6.3
 
+  apps/openbuilder:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.2.11
+        version: 0.2.12(zod@4.2.1)
+      '@anthropic-ai/sdk':
+        specifier: ^0.68.0
+        version: 0.68.0(zod@4.2.1)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.20.2
+        version: 1.24.3(zod@4.2.1)
+      '@monaco-editor/react':
+        specifier: ^4.7.0
+        version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@openai/codex-sdk':
+        specifier: ^0.53.0
+        version: 0.53.0
+      '@openbuilder/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@openbuilder/opencode-client':
+        specifier: workspace:*
+        version: link:../../packages/opencode-client
+      '@radix-ui/react-alert-dialog':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-avatar':
+        specifier: ^1.1.10
+        version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-checkbox':
+        specifier: ^1.3.3
+        version: 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-collapsible':
+        specifier: ^1.1.12
+        version: 1.1.12(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-context-menu':
+        specifier: ^2.2.16
+        version: 2.2.16(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-dialog':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-dropdown-menu':
+        specifier: ^2.1.16
+        version: 2.1.16(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-hover-card':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-popover':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-separator':
+        specifier: ^1.1.7
+        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.3
+        version: 1.2.4(@types/react@19.2.7)(react@19.1.0)
+      '@radix-ui/react-switch':
+        specifier: ^1.2.6
+        version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.8
+        version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@radix-ui/react-visually-hidden':
+        specifier: ^1.2.3
+        version: 1.2.4(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@sentry/core':
+        specifier: file:vendor/sentry-core-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
+      '@sentry/nextjs':
+        specifier: file:vendor/sentry-nextjs-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0(esbuild@0.25.12))
+      '@sentry/node':
+        specifier: file:vendor/sentry-node-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-node-1765299043.tgz
+      '@sentry/node-core':
+        specifier: file:vendor/sentry-node-core-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+      '@tanstack/react-query':
+        specifier: ^5.90.6
+        version: 5.90.12(react@19.1.0)
+      '@tanstack/react-query-devtools':
+        specifier: ^5.90.2
+        version: 5.91.1(@tanstack/react-query@5.90.12(react@19.1.0))(react@19.1.0)
+      ansi-to-html:
+        specifier: ^0.7.2
+        version: 0.7.2
+      better-auth:
+        specifier: ^1.4.9
+        version: 1.4.9(drizzle-kit@0.31.8)(drizzle-orm@0.44.7(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.6)(kysely@0.28.9)(pg@8.16.3))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(pg@8.16.3)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      cmdk:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      drizzle-orm:
+        specifier: ^0.44.5
+        version: 0.44.7(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.6)(kysely@0.28.9)(pg@8.16.3)
+      framer-motion:
+        specifier: ^12.23.22
+        version: 12.23.25(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      highlight.js:
+        specifier: ^11.9.0
+        version: 11.11.1
+      lucide-react:
+        specifier: ^0.544.0
+        version: 0.544.0(react@19.1.0)
+      mcp-handler:
+        specifier: ^1.0.3
+        version: 1.0.4(@modelcontextprotocol/sdk@1.24.3(zod@4.2.1))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
+      next:
+        specifier: 16.1.0
+        version: 16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      pg:
+        specifier: ^8.13.1
+        version: 8.16.3
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-dom:
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.2.7)(react@19.1.0)
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.4.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.18.3
+      zod:
+        specifier: ^4.0.0
+        version: 4.2.1
+      zustand:
+        specifier: ^5.0.8
+        version: 5.0.9(@types/react@19.2.7)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3
+        version: 3.3.3
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.1.17
+      '@types/node':
+        specifier: ^20
+        version: 20.19.27
+      '@types/pg':
+        specifier: ^8.10.2
+        version: 8.15.6
+      '@types/react':
+        specifier: ^19
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.7)
+      drizzle-kit:
+        specifier: ^0.31.5
+        version: 0.31.8
+      eslint:
+        specifier: ^9
+        version: 9.39.1(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 15.5.4
+        version: 15.5.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.1.17
+      tsx:
+        specifier: ^4.19.1
+        version: 4.21.0
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   apps/opencode-service:
     dependencies:
+      '@openbuilder/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
       '@opencode-ai/sdk':
         specifier: ^1.0.0
         version: 1.1.21
       '@sentry/node':
-        specifier: file:../sentryvibe/vendor/sentry-node-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
-      '@sentryvibe/agent-core':
-        specifier: workspace:*
-        version: link:../../packages/agent-core
+        specifier: file:../openbuilder/vendor/sentry-node-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-node-1765299043.tgz
       drizzle-orm:
         specifier: ^0.43.1
         version: 0.43.1(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.6)(kysely@0.28.9)(pg@8.16.3)
@@ -73,24 +263,24 @@ importers:
       '@openai/codex-sdk':
         specifier: ^0.53.0
         version: 0.53.0
-      '@sentry/core':
-        specifier: file:../sentryvibe/vendor/sentry-core-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
-      '@sentry/nextjs':
-        specifier: file:../sentryvibe/vendor/sentry-nextjs-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0)
-      '@sentry/node':
-        specifier: file:../sentryvibe/vendor/sentry-node-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
-      '@sentry/node-core':
-        specifier: file:../sentryvibe/vendor/sentry-node-core-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
-      '@sentryvibe/agent-core':
+      '@openbuilder/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
-      '@sentryvibe/opencode-client':
+      '@openbuilder/opencode-client':
         specifier: workspace:*
         version: link:../../packages/opencode-client
+      '@sentry/core':
+        specifier: file:../openbuilder/vendor/sentry-core-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
+      '@sentry/nextjs':
+        specifier: file:../openbuilder/vendor/sentry-nextjs-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0)
+      '@sentry/node':
+        specifier: file:../openbuilder/vendor/sentry-node-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-node-1765299043.tgz
+      '@sentry/node-core':
+        specifier: file:../openbuilder/vendor/sentry-node-core-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       ai:
         specifier: ^5.0.79
         version: 5.0.108(zod@4.2.1)
@@ -195,204 +385,14 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  apps/sentryvibe:
-    dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.2.11
-        version: 0.2.11(zod@4.2.1)
-      '@anthropic-ai/sdk':
-        specifier: ^0.68.0
-        version: 0.68.0(zod@4.2.1)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.20.2
-        version: 1.24.3(zod@4.2.1)
-      '@monaco-editor/react':
-        specifier: ^4.7.0
-        version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@openai/codex-sdk':
-        specifier: ^0.53.0
-        version: 0.53.0
-      '@radix-ui/react-alert-dialog':
-        specifier: ^1.1.15
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-avatar':
-        specifier: ^1.1.10
-        version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-checkbox':
-        specifier: ^1.3.3
-        version: 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-collapsible':
-        specifier: ^1.1.12
-        version: 1.1.12(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-context-menu':
-        specifier: ^2.2.16
-        version: 2.2.16(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-dialog':
-        specifier: ^1.1.15
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-dropdown-menu':
-        specifier: ^2.1.16
-        version: 2.1.16(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-hover-card':
-        specifier: ^1.1.15
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-popover':
-        specifier: ^1.1.15
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-separator':
-        specifier: ^1.1.7
-        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-slot':
-        specifier: ^1.2.3
-        version: 1.2.4(@types/react@19.2.7)(react@19.1.0)
-      '@radix-ui/react-switch':
-        specifier: ^1.2.6
-        version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-tooltip':
-        specifier: ^1.2.8
-        version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@radix-ui/react-visually-hidden':
-        specifier: ^1.2.3
-        version: 1.2.4(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@sentry/core':
-        specifier: file:vendor/sentry-core-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
-      '@sentry/nextjs':
-        specifier: file:vendor/sentry-nextjs-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0(esbuild@0.25.12))
-      '@sentry/node':
-        specifier: file:vendor/sentry-node-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
-      '@sentry/node-core':
-        specifier: file:vendor/sentry-node-core-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
-      '@sentryvibe/agent-core':
-        specifier: workspace:*
-        version: link:../../packages/agent-core
-      '@sentryvibe/opencode-client':
-        specifier: workspace:*
-        version: link:../../packages/opencode-client
-      '@tanstack/react-query':
-        specifier: ^5.90.6
-        version: 5.90.12(react@19.1.0)
-      '@tanstack/react-query-devtools':
-        specifier: ^5.90.2
-        version: 5.91.1(@tanstack/react-query@5.90.12(react@19.1.0))(react@19.1.0)
-      ansi-to-html:
-        specifier: ^0.7.2
-        version: 0.7.2
-      better-auth:
-        specifier: ^1.4.9
-        version: 1.4.9(drizzle-kit@0.31.8)(drizzle-orm@0.44.7(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.6)(kysely@0.28.9)(pg@8.16.3))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(pg@8.16.3)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      class-variance-authority:
-        specifier: ^0.7.1
-        version: 0.7.1
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      cmdk:
-        specifier: ^1.1.1
-        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
-      drizzle-orm:
-        specifier: ^0.44.5
-        version: 0.44.7(@electric-sql/pglite@0.3.14)(@opentelemetry/api@1.9.0)(@types/pg@8.15.6)(kysely@0.28.9)(pg@8.16.3)
-      framer-motion:
-        specifier: ^12.23.22
-        version: 12.23.25(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      highlight.js:
-        specifier: ^11.9.0
-        version: 11.11.1
-      lucide-react:
-        specifier: ^0.544.0
-        version: 0.544.0(react@19.1.0)
-      mcp-handler:
-        specifier: ^1.0.3
-        version: 1.0.4(@modelcontextprotocol/sdk@1.24.3(zod@4.2.1))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
-      next:
-        specifier: 16.1.0
-        version: 16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      pg:
-        specifier: ^8.13.1
-        version: 8.16.3
-      react:
-        specifier: 19.1.0
-        version: 19.1.0
-      react-dom:
-        specifier: 19.1.0
-        version: 19.1.0(react@19.1.0)
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.7)(react@19.1.0)
-      rehype-highlight:
-        specifier: ^7.0.2
-        version: 7.0.2
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
-      tailwind-merge:
-        specifier: ^3.3.1
-        version: 3.4.0
-      ws:
-        specifier: ^8.18.0
-        version: 8.18.3
-      zod:
-        specifier: ^4.0.0
-        version: 4.2.1
-      zustand:
-        specifier: ^5.0.8
-        version: 5.0.9(@types/react@19.2.7)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
-    devDependencies:
-      '@eslint/eslintrc':
-        specifier: ^3
-        version: 3.3.3
-      '@tailwindcss/postcss':
-        specifier: ^4
-        version: 4.1.17
-      '@types/node':
-        specifier: ^20
-        version: 20.19.26
-      '@types/pg':
-        specifier: ^8.10.2
-        version: 8.15.6
-      '@types/react':
-        specifier: ^19
-        version: 19.2.7
-      '@types/react-dom':
-        specifier: ^19
-        version: 19.2.3(@types/react@19.2.7)
-      drizzle-kit:
-        specifier: ^0.31.5
-        version: 0.31.8
-      eslint:
-        specifier: ^9
-        version: 9.39.1(jiti@2.6.1)
-      eslint-config-next:
-        specifier: 15.5.4
-        version: 15.5.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
-      tailwindcss:
-        specifier: ^4
-        version: 4.1.17
-      tsx:
-        specifier: ^4.19.1
-        version: 4.21.0
-      tw-animate-css:
-        specifier: ^1.4.0
-        version: 1.4.0
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-
   packages/agent-core:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.11
         version: 0.2.11(zod@4.2.1)
       '@sentry/node':
-        specifier: file:../../apps/sentryvibe/vendor/sentry-node-1765299043.tgz
-        version: file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
+        specifier: file:../../apps/openbuilder/vendor/sentry-node-1765299043.tgz
+        version: file:apps/openbuilder/vendor/sentry-node-1765299043.tgz
       ai:
         specifier: ^5.0.79
         version: 5.0.108(zod@4.2.1)
@@ -2613,20 +2613,20 @@ packages:
     engines: {node: '>= 10'}
     hasBin: true
 
-  '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz':
-    resolution: {integrity: sha512-0UT/RPAzgxNONOUp+V1u3uBTqueRDCaEvIEz316aVOX7PznVPLK+Z0j1QANqyLERDwa8TlUY7NJDTLhxGHhh9g==, tarball: file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz}
+  '@sentry/core@file:apps/openbuilder/vendor/sentry-core-1765299043.tgz':
+    resolution: {integrity: sha512-0UT/RPAzgxNONOUp+V1u3uBTqueRDCaEvIEz316aVOX7PznVPLK+Z0j1QANqyLERDwa8TlUY7NJDTLhxGHhh9g==, tarball: file:apps/openbuilder/vendor/sentry-core-1765299043.tgz}
     version: 10.36.0
     engines: {node: '>=18'}
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz':
-    resolution: {integrity: sha512-ArvVkpmO14XivinZ7KTAJDR3YdPRqsMV3FLSqf52KOA8JCAcZVq8d7xQYKUbT7nYD0VSOxAGs7YpmH3TejNPSA==, tarball: file:apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz}
+  '@sentry/nextjs@file:apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz':
+    resolution: {integrity: sha512-ArvVkpmO14XivinZ7KTAJDR3YdPRqsMV3FLSqf52KOA8JCAcZVq8d7xQYKUbT7nYD0VSOxAGs7YpmH3TejNPSA==, tarball: file:apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz}
     version: 10.36.0
     engines: {node: '>=18'}
     peerDependencies:
       next: ^13.2.0 || ^14.0 || ^15.0.0-rc.0 || ^16.0.0-0
 
-  '@sentry/node-core@file:apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz':
-    resolution: {integrity: sha512-4wth1lEuaaurQsIhl1CR096XyCl3JL7odvl9Hk9KPXsKYkt2srSjVjtnUMoDzY5FdOI5trIVW5FV36iS6oS0Wg==, tarball: file:apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz}
+  '@sentry/node-core@file:apps/openbuilder/vendor/sentry-node-core-1765299043.tgz':
+    resolution: {integrity: sha512-4wth1lEuaaurQsIhl1CR096XyCl3JL7odvl9Hk9KPXsKYkt2srSjVjtnUMoDzY5FdOI5trIVW5FV36iS6oS0Wg==, tarball: file:apps/openbuilder/vendor/sentry-node-core-1765299043.tgz}
     version: 10.36.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -2638,8 +2638,8 @@ packages:
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
       '@opentelemetry/semantic-conventions': ^1.37.0
 
-  '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz':
-    resolution: {integrity: sha512-+7HNWalrTvor+1edYQ+5clYcokKI8QQTzfXGdhnkBPq3k60P1VNLq41sb5gZmsZYd2kRmJG82bqijhjgSrvoag==, tarball: file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz}
+  '@sentry/node@file:apps/openbuilder/vendor/sentry-node-1765299043.tgz':
+    resolution: {integrity: sha512-+7HNWalrTvor+1edYQ+5clYcokKI8QQTzfXGdhnkBPq3k60P1VNLq41sb5gZmsZYd2kRmJG82bqijhjgSrvoag==, tarball: file:apps/openbuilder/vendor/sentry-node-1765299043.tgz}
     version: 10.36.0
     engines: {node: '>=18'}
 
@@ -3910,10 +3910,6 @@ packages:
   encodeurl@2.0.0:
     resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
     engines: {node: '>= 0.8'}
-
-  enhanced-resolve@5.18.3:
-    resolution: {integrity: sha512-d4lC8xfavMeBjzGr2vECC3fsGXziXZQyJxD868h2M/mBI3PwAuODxAkLkq5HYuvrPYcUtiLzsTo8U3PgX3Ocww==}
-    engines: {node: '>=10.13.0'}
 
   enhanced-resolve@5.18.4:
     resolution: {integrity: sha512-LgQMM4WXU3QI+SYgEc2liRgznaD5ojbmY3sb8LxyguVkIg5FxdpTkvk72te2R38/TGKxH634oLxXRGY6d7AP+Q==}
@@ -8175,21 +8171,21 @@ snapshots:
 
   '@sentry-internal/browser-utils@10.36.0':
     dependencies:
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry-internal/feedback@10.36.0':
     dependencies:
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry-internal/replay-canvas@10.36.0':
     dependencies:
       '@sentry-internal/replay': 10.36.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry-internal/replay@10.36.0':
     dependencies:
       '@sentry-internal/browser-utils': 10.36.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry/babel-plugin-component-annotate@4.7.0': {}
 
@@ -8199,7 +8195,7 @@ snapshots:
       '@sentry-internal/feedback': 10.36.0
       '@sentry-internal/replay': 10.36.0
       '@sentry-internal/replay-canvas': 10.36.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry/bundler-plugin-core@4.7.0':
     dependencies:
@@ -8259,17 +8255,17 @@ snapshots:
       - encoding
       - supports-color
 
-  '@sentry/core@file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz': {}
+  '@sentry/core@file:apps/openbuilder/vendor/sentry-core-1765299043.tgz': {}
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0(esbuild@0.25.12))':
+  '@sentry/nextjs@file:apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0(esbuild@0.25.12))':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.38.0
       '@rollup/plugin-commonjs': 28.0.1(rollup@4.53.3)
       '@sentry-internal/browser-utils': 10.36.0
       '@sentry/bundler-plugin-core': 4.7.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
-      '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
+      '@sentry/node': file:apps/openbuilder/vendor/sentry-node-1765299043.tgz
       '@sentry/opentelemetry': 10.36.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@sentry/react': 10.36.0(react@19.1.0)
       '@sentry/vercel-edge': 10.36.0
@@ -8286,15 +8282,15 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/nextjs@file:apps/sentryvibe/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0)':
+  '@sentry/nextjs@file:apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(next@16.1.0(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.103.0)':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/semantic-conventions': 1.38.0
       '@rollup/plugin-commonjs': 28.0.1(rollup@4.53.3)
       '@sentry-internal/browser-utils': 10.36.0
       '@sentry/bundler-plugin-core': 4.7.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
-      '@sentry/node': file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
+      '@sentry/node': file:apps/openbuilder/vendor/sentry-node-1765299043.tgz
       '@sentry/opentelemetry': 10.36.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@sentry/react': 10.36.0(react@19.1.0)
       '@sentry/vercel-edge': 10.36.0
@@ -8311,7 +8307,7 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/node-core@file:apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)':
+  '@sentry/node-core@file:apps/openbuilder/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)':
     dependencies:
       '@apm-js-collab/tracing-hooks': 0.3.1
       '@opentelemetry/api': 1.9.0
@@ -8321,13 +8317,13 @@ snapshots:
       '@opentelemetry/resources': 2.5.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 2.5.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.38.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
       '@sentry/opentelemetry': 10.36.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       import-in-the-middle: 2.0.5
     transitivePeerDependencies:
       - supports-color
 
-  '@sentry/node@file:apps/sentryvibe/vendor/sentry-node-1765299043.tgz':
+  '@sentry/node@file:apps/openbuilder/vendor/sentry-node-1765299043.tgz':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/context-async-hooks': 2.5.0(@opentelemetry/api@1.9.0)
@@ -8359,8 +8355,8 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.5.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.38.0
       '@prisma/instrumentation': 7.2.0(@opentelemetry/api@1.9.0)
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
-      '@sentry/node-core': file:apps/sentryvibe/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
+      '@sentry/node-core': file:apps/openbuilder/vendor/sentry-node-core-1765299043.tgz(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.210.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@sentry/opentelemetry': 10.36.0(@opentelemetry/api@1.9.0)(@opentelemetry/context-async-hooks@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       import-in-the-middle: 2.0.5
       minimatch: 9.0.5
@@ -8374,19 +8370,19 @@ snapshots:
       '@opentelemetry/core': 2.5.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 2.5.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.38.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry/react@10.36.0(react@19.1.0)':
     dependencies:
       '@sentry/browser': 10.36.0
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
       react: 19.1.0
 
   '@sentry/vercel-edge@10.36.0':
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/resources': 2.5.0(@opentelemetry/api@1.9.0)
-      '@sentry/core': file:apps/sentryvibe/vendor/sentry-core-1765299043.tgz
+      '@sentry/core': file:apps/openbuilder/vendor/sentry-core-1765299043.tgz
 
   '@sentry/webpack-plugin@4.7.0(webpack@5.103.0(esbuild@0.25.12))':
     dependencies:
@@ -8417,7 +8413,7 @@ snapshots:
   '@tailwindcss/node@4.1.17':
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      enhanced-resolve: 5.18.3
+      enhanced-resolve: 5.18.4
       jiti: 2.6.1
       lightningcss: 1.30.2
       magic-string: 0.30.21
@@ -8590,7 +8586,7 @@ snapshots:
 
   '@types/pg@8.15.6':
     dependencies:
-      '@types/node': 20.19.27
+      '@types/node': 22.19.6
       pg-protocol: 1.10.3
       pg-types: 2.2.0
 
@@ -8636,7 +8632,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 20.19.27
+      '@types/node': 22.19.6
 
   '@typescript-eslint/eslint-plugin@8.49.0(@typescript-eslint/parser@8.49.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
@@ -9472,11 +9468,6 @@ snapshots:
   emoji-regex@9.2.2: {}
 
   encodeurl@2.0.0: {}
-
-  enhanced-resolve@5.18.3:
-    dependencies:
-      graceful-fs: 4.2.11
-      tapable: 2.3.0
 
   enhanced-resolve@5.18.4:
     dependencies:

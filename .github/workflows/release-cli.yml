@@ -34,7 +34,7 @@ jobs:
       - name: Build agent-core
         run: |
           echo "Building agent-core..."
-          pnpm --filter @sentryvibe/agent-core build
+          pnpm --filter @shipbuilder/agent-core build
 
       - name: Verify vendor packages (now committed to git)
         run: |
@@ -142,7 +142,7 @@ jobs:
           ls -lh *.tgz
 
           # Rename to standard name
-          mv *.tgz sentryvibe-cli.tgz
+          mv *.tgz shipbuilder-cli.tgz
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -151,14 +151,14 @@ jobs:
 
           echo ""
           echo "5. Vendor files in tarball:"
-          tar -tzf sentryvibe-cli.tgz | grep "vendor/" || echo "  ⚠️  WARNING: No vendor/ files found in tarball!"
+          tar -tzf shipbuilder-cli.tgz | grep "vendor/" || echo "  ⚠️  WARNING: No vendor/ files found in tarball!"
 
           echo ""
           echo "6. All tarball contents (sample):"
-          tar -tzf sentryvibe-cli.tgz | head -50
+          tar -tzf shipbuilder-cli.tgz | head -50
 
           echo ""
-          echo "✓ Package created: sentryvibe-cli.tgz"
+          echo "✓ Package created: shipbuilder-cli.tgz"
 
       - name: Extract version from tag
         id: version
@@ -177,34 +177,34 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: SentryVibe CLI ${{ steps.version.outputs.version }}
+          name: ShipBuilder CLI ${{ steps.version.outputs.version }}
           body: |
-            # SentryVibe CLI ${{ steps.version.outputs.version }}
+            # ShipBuilder CLI ${{ steps.version.outputs.version }}
 
             AI-powered project generation with local runner support.
 
             ## Installation
 
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/codyde/sentryvibe/main/install-cli.sh | bash
+            curl -fsSL https://raw.githubusercontent.com/codyde/shipbuilder/main/install-cli.sh | bash
             ```
 
             Or install directly:
 
             ```bash
-            npm install -g https://github.com/codyde/sentryvibe/releases/download/${{ github.ref_name }}/sentryvibe-cli.tgz
+            npm install -g https://github.com/codyde/shipbuilder/releases/download/${{ github.ref_name }}/shipbuilder-cli.tgz
             ```
 
             ## Quick Start
 
             ```bash
-            sentryvibe init -y
-            sentryvibe run
+            shipbuilder init -y
+            shipbuilder run
             ```
 
-            See [full documentation](https://github.com/codyde/sentryvibe/blob/main/apps/runner/README.md) for details.
+            See [full documentation](https://github.com/codyde/shipbuilder/blob/main/apps/runner/README.md) for details.
           files: |
-            apps/runner/sentryvibe-cli.tgz
+            apps/runner/shipbuilder-cli.tgz
           draft: false
           prerelease: false
         env:

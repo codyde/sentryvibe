@@ -3,14 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * Check if current directory or a given path contains the SentryVibe monorepo
+ * Check if current directory or a given path contains the OpenBuilder monorepo
  */
-export async function isSentryVibeRepo(path: string = process.cwd()): Promise<boolean> {
+export async function isOpenBuilderRepo(path: string = process.cwd()): Promise<boolean> {
   try {
     // Check for key indicators
     const packageJsonPath = join(path, 'package.json');
     const runnerPath = join(path, 'apps/runner');
-    const sentryVibePath = join(path, 'apps/sentryvibe');
+    const openbuilderPath = join(path, 'apps/openbuilder');
 
     // Must have package.json
     if (!existsSync(packageJsonPath)) {
@@ -18,13 +18,13 @@ export async function isSentryVibeRepo(path: string = process.cwd()): Promise<bo
     }
 
     // Must have the core app directories
-    if (!existsSync(runnerPath) || !existsSync(sentryVibePath)) {
+    if (!existsSync(runnerPath) || !existsSync(openbuilderPath)) {
       return false;
     }
 
     // Verify package.json has correct name
     const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-    if (packageJson.name !== 'sentryvibe-monorepo') {
+    if (packageJson.name !== 'openbuilder-monorepo') {
       return false;
     }
 
@@ -35,7 +35,7 @@ export async function isSentryVibeRepo(path: string = process.cwd()): Promise<bo
 }
 
 /**
- * Find the SentryVibe monorepo root from current location
+ * Find the OpenBuilder monorepo root from current location
  * Searches up the directory tree
  */
 export async function findMonorepoRoot(startPath: string = process.cwd()): Promise<string | null> {
@@ -43,7 +43,7 @@ export async function findMonorepoRoot(startPath: string = process.cwd()): Promi
   const root = '/';
 
   while (currentPath !== root) {
-    if (await isSentryVibeRepo(currentPath)) {
+    if (await isOpenBuilderRepo(currentPath)) {
       return currentPath;
     }
 

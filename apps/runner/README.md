@@ -1,6 +1,6 @@
-# SentryVibe CLI
+# OpenBuilder CLI
 
-The SentryVibe CLI is a command-line tool for building AI-powered applications locally on your machine. It connects to the SentryVibe server and uses Claude AI to generate and build projects in an isolated workspace.
+The OpenBuilder CLI is a command-line tool for building AI-powered applications locally on your machine. It connects to the OpenBuilder server and uses Claude AI to generate and build projects in an isolated workspace.
 
 ## Table of Contents
 
@@ -18,20 +18,20 @@ The SentryVibe CLI is a command-line tool for building AI-powered applications l
 
 ```bash
 # Install via curl
-curl -fsSL https://sentryvibe.app/install | bash
+curl -fsSL https://openbuilder.app/install | bash
 
 # Verify installation
-sentryvibe --version
+openbuilder --version
 ```
 
-This installs the SentryVibe CLI globally on your machine.
+This installs the OpenBuilder CLI globally on your machine.
 
 ### From Source (Development)
 
 ```bash
 # Clone the repository
 git clone <repo-url>
-cd sentryvibe/apps/runner
+cd openbuilder/apps/runner
 
 # Install dependencies
 pnpm install
@@ -43,7 +43,7 @@ pnpm run build
 npm link
 
 # Verify
-sentryvibe-cli --version
+openbuilder-cli --version
 ```
 
 ## Getting Started from Zero
@@ -69,28 +69,28 @@ Before you begin, ensure you have:
    git --version
    ```
 
-4. **A shared secret** from your SentryVibe deployment
+4. **A shared secret** from your OpenBuilder deployment
    - Get this from your Railway deployment environment variables
    - Or from your local `.env.local` if running locally
 
-### Two Ways to Use SentryVibe
+### Two Ways to Use OpenBuilder
 
 **Option A: Full Stack (Local Development)**
 - Runs web app, broker, and runner all locally
 - Perfect for development and testing
-- Command: `sentryvibe run`
+- Command: `openbuilder run`
 
 **Option B: Runner Only (Production Use)**
 - Connects to remote broker (e.g., Railway)
 - Just executes builds on your machine
-- Command: `sentryvibe --runner` or `sentryvibe runner`
+- Command: `openbuilder --runner` or `openbuilder runner`
 
 ### Step-by-Step Setup (Runner Only Mode)
 
 #### 1. Install the CLI
 
 ```bash
-curl -fsSL https://sentryvibe.app/install | bash
+curl -fsSL https://openbuilder.app/install | bash
 ```
 
 #### 2. Initialize Your Runner
@@ -98,7 +98,7 @@ curl -fsSL https://sentryvibe.app/install | bash
 Run the interactive setup:
 
 ```bash
-sentryvibe init
+openbuilder init
 ```
 
 You'll be asked:
@@ -106,7 +106,7 @@ You'll be asked:
 **Workspace Location:**
 ```
 ? Where should projects be stored?
-  Default: ~/sentryvibe-workspace
+  Default: ~/openbuilder-workspace
 
   This is where all generated projects will be saved.
 ```
@@ -143,20 +143,20 @@ You'll be asked:
 Check that everything is set up correctly:
 
 ```bash
-sentryvibe-cli status
+openbuilder-cli status
 ```
 
 You should see:
 ```
-SentryVibe Runner Status
+OpenBuilder Runner Status
 
 ℹ Status: Initialized
 
 Config File:
-  ~/Library/Application Support/sentryvibe/config.json
+  ~/Library/Application Support/openbuilder/config.json
 
 Workspace:
-  Path: ~/sentryvibe-workspace
+  Path: ~/openbuilder-workspace
   Exists: Yes
   Projects: 0
 
@@ -173,8 +173,8 @@ Validation:
   ✓ Configuration is valid
 
 Ready to run! Use:
-  sentryvibe-cli run
-  or just sentryvibe-cli
+  openbuilder-cli run
+  or just openbuilder-cli
 ```
 
 #### 4. Start the Runner
@@ -182,42 +182,42 @@ Ready to run! Use:
 **Runner only mode (connect to remote broker):**
 
 ```bash
-sentryvibe --runner
+openbuilder --runner
 ```
 
 Or use the explicit command:
 ```bash
-sentryvibe runner
+openbuilder runner
 ```
 
 **Full stack mode (local development):**
 
 ```bash
-sentryvibe run
+openbuilder run
 ```
 
 Or simply:
 ```bash
-sentryvibe
+openbuilder
 ```
 
 You should see (runner-only mode):
 ```
-Starting SentryVibe Runner
+Starting OpenBuilder Runner
 
 ℹ Broker: wss://broker.up.railway.app/socket
 ℹ Runner ID: macbook-pro
-ℹ Workspace: ~/sentryvibe-workspace
+ℹ Workspace: ~/openbuilder-workspace
 
-[runner] workspace root: /Users/yourname/sentryvibe-workspace
+[runner] workspace root: /Users/yourname/openbuilder-workspace
 [runner] connected to broker wss://broker.up.railway.app/socket...
 ```
 
 Or (full stack mode):
 ```
-Starting SentryVibe Full Stack
+Starting OpenBuilder Full Stack
 
-ℹ Monorepo root: /Users/yourname/sentryvibe
+ℹ Monorepo root: /Users/yourname/openbuilder
 ℹ Web app port: 3000
 ℹ Broker port: 4000
 
@@ -239,7 +239,7 @@ Press Ctrl+C to stop all services
 
 #### 5. Create Your First Project
 
-1. Open the SentryVibe web app in your browser
+1. Open the OpenBuilder web app in your browser
 2. Click "New Project"
 3. Enter a prompt like:
    ```
@@ -253,7 +253,7 @@ Press Ctrl+C to stop all services
 
 1. **Template Download**: Runner clones the appropriate starter template
 2. **AI Build**: Claude AI modifies the template based on your prompt
-3. **Workspace Storage**: Project is saved to `~/sentryvibe-workspace/project-name/`
+3. **Workspace Storage**: Project is saved to `~/openbuilder-workspace/project-name/`
 4. **Dev Server**: Runner starts the dev server (e.g., `npm run dev`)
 5. **Tunnel Creation**: Cloudflare tunnel exposes your local dev server
 6. **Preview**: Web UI displays your project in an iframe
@@ -264,24 +264,24 @@ Press Ctrl+C to stop all services
 
 **Start full stack:**
 ```bash
-sentryvibe
+openbuilder
 # or
-sentryvibe run
+openbuilder run
 ```
 
 **Start runner only:**
 ```bash
-sentryvibe --runner
+openbuilder --runner
 # or
-sentryvibe runner
+openbuilder runner
 ```
 
-### `sentryvibe init`
+### `openbuilder init`
 
 Initialize workspace and configuration.
 
 ```bash
-sentryvibe init [options]
+openbuilder init [options]
 ```
 
 **Options:**
@@ -294,29 +294,29 @@ sentryvibe init [options]
 
 ```bash
 # Interactive mode (recommended)
-sentryvibe init
+openbuilder init
 
 # Non-interactive with all options
-sentryvibe init \
+openbuilder init \
   --workspace ~/my-projects \
   --broker wss://broker.up.railway.app/socket \
   --secret my-secret-key \
   --non-interactive
 
 # Reset existing config
-sentryvibe config reset
-sentryvibe init
+openbuilder config reset
+openbuilder init
 ```
 
 ---
 
-### `sentryvibe run`
+### `openbuilder run`
 
 Start the full stack (web app + broker + runner) locally.
 
 ```bash
-sentryvibe run [options]
-sentryvibe [options]  # 'run' is the default command
+openbuilder run [options]
+openbuilder [options]  # 'run' is the default command
 ```
 
 **Options:**
@@ -327,13 +327,13 @@ sentryvibe [options]  # 'run' is the default command
 
 ```bash
 # Start full stack with defaults
-sentryvibe run
+openbuilder run
 
 # Just use default (same as run)
-sentryvibe
+openbuilder
 
 # Custom ports
-sentryvibe run --port 3001 --broker-port 4001
+openbuilder run --port 3001 --broker-port 4001
 ```
 
 **What starts:**
@@ -343,13 +343,13 @@ sentryvibe run --port 3001 --broker-port 4001
 
 ---
 
-### `sentryvibe runner`
+### `openbuilder runner`
 
 Start runner only (connect to existing broker).
 
 ```bash
-sentryvibe runner [options]
-sentryvibe --runner  # Alternative: use --runner flag
+openbuilder runner [options]
+openbuilder --runner  # Alternative: use --runner flag
 ```
 
 **Options:**
@@ -363,19 +363,19 @@ sentryvibe --runner  # Alternative: use --runner flag
 
 ```bash
 # Use saved configuration
-sentryvibe runner
+openbuilder runner
 
 # Alternative syntax
-sentryvibe --runner
+openbuilder --runner
 
 # Connect to local broker
-sentryvibe runner --broker ws://localhost:4000/socket
+openbuilder runner --broker ws://localhost:4000/socket
 
 # Use custom workspace
-sentryvibe runner --workspace ~/custom-projects
+openbuilder runner --workspace ~/custom-projects
 
 # Override all settings
-sentryvibe runner \
+openbuilder runner \
   --broker wss://broker.up.railway.app/socket \
   --workspace ~/dev-projects \
   --runner-id my-laptop \
@@ -393,12 +393,12 @@ Press `Ctrl+C` to gracefully shutdown. The runner will:
 
 ---
 
-### `sentryvibe status`
+### `openbuilder status`
 
 Show runner status and configuration.
 
 ```bash
-sentryvibe status
+openbuilder status
 ```
 
 **Output includes:**
@@ -411,56 +411,56 @@ sentryvibe status
 
 ---
 
-### `sentryvibe config`
+### `openbuilder config`
 
 Manage runner configuration.
 
 ```bash
-sentryvibe config <action> [key] [value]
+openbuilder config <action> [key] [value]
 ```
 
 **Actions:**
 
 **`list`** - Show all configuration:
 ```bash
-sentryvibe config list
+openbuilder config list
 ```
 
 **`get <key>`** - Get specific value:
 ```bash
-sentryvibe config get workspace
-sentryvibe config get broker.url
+openbuilder config get workspace
+openbuilder config get broker.url
 ```
 
 **`set <key> <value>`** - Update configuration:
 ```bash
-sentryvibe config set workspace ~/new-workspace
-sentryvibe config set runner.id my-laptop
+openbuilder config set workspace ~/new-workspace
+openbuilder config set runner.id my-laptop
 ```
 
 **`path`** - Show config file location:
 ```bash
-sentryvibe config path
+openbuilder config path
 ```
 
 **`validate`** - Validate configuration:
 ```bash
-sentryvibe config validate
+openbuilder config validate
 ```
 
 **`reset`** - Reset to defaults (requires confirmation):
 ```bash
-sentryvibe config reset
+openbuilder config reset
 ```
 
 ---
 
-### `sentryvibe cleanup`
+### `openbuilder cleanup`
 
 Clean up projects and resources.
 
 ```bash
-sentryvibe cleanup [options]
+openbuilder cleanup [options]
 ```
 
 **Options:**
@@ -473,36 +473,36 @@ sentryvibe cleanup [options]
 
 ```bash
 # Delete specific project
-sentryvibe cleanup --project my-react-app
+openbuilder cleanup --project my-react-app
 
 # Delete all projects (with confirmation)
-sentryvibe cleanup --all
+openbuilder cleanup --all
 
 # Show cleanup help
-sentryvibe cleanup
+openbuilder cleanup
 ```
 
 ---
 
-### `sentryvibe --help`
+### `openbuilder --help`
 
 Show help for any command.
 
 ```bash
-sentryvibe --help
-sentryvibe init --help
-sentryvibe run --help
-sentryvibe runner --help
+openbuilder --help
+openbuilder init --help
+openbuilder run --help
+openbuilder runner --help
 ```
 
 ---
 
-### `sentryvibe --version`
+### `openbuilder --version`
 
 Show CLI version.
 
 ```bash
-sentryvibe --version
+openbuilder --version
 ```
 
 ## Configuration
@@ -513,12 +513,12 @@ Configuration is stored in a platform-specific location:
 
 **macOS:**
 ```
-~/Library/Application Support/sentryvibe/config.json
+~/Library/Application Support/openbuilder/config.json
 ```
 
 **Linux:**
 ```
-~/.config/sentryvibe/config.json
+~/.config/openbuilder/config.json
 ```
 
 ### Config File Structure
@@ -526,7 +526,7 @@ Configuration is stored in a platform-specific location:
 ```json
 {
   "version": "0.1.0",
-  "workspace": "/Users/yourname/sentryvibe-workspace",
+  "workspace": "/Users/yourname/openbuilder-workspace",
   "broker": {
     "url": "wss://broker.up.railway.app/socket",
     "secret": "your-shared-secret"
@@ -557,7 +557,7 @@ Settings are resolved in this order (highest to lowest):
 The workspace directory stores all generated projects:
 
 ```
-~/sentryvibe-workspace/
+~/openbuilder-workspace/
 ├── react-todo-app/
 │   ├── package.json
 │   ├── src/
@@ -645,7 +645,7 @@ Each project is completely isolated with its own:
 ### Message Flow
 
 ```
-Web UI → Sentryvibe API → Broker → Runner CLI
+Web UI → OpenBuilder API → Broker → Runner CLI
 
 1. User submits prompt
 2. API creates build command
@@ -672,7 +672,7 @@ The runner implements strict security controls:
 ```bash
 # Clone repository
 git clone <repo-url>
-cd sentryvibe/apps/runner
+cd openbuilder/apps/runner
 
 # Install dependencies
 pnpm install
@@ -717,13 +717,13 @@ pnpm run build
 npm link
 
 # Now use anywhere
-sentryvibe status
-sentryvibe --help
-sentryvibe --runner  # Test runner mode
-sentryvibe run       # Test full stack mode
+openbuilder status
+openbuilder --help
+openbuilder --runner  # Test runner mode
+openbuilder run       # Test full stack mode
 
 # Unlink when done
-npm unlink -g @sentryvibe/cli
+npm unlink -g @openbuilder/cli
 ```
 
 ### Project Structure
@@ -770,7 +770,7 @@ Create `.env.local`:
 RUNNER_ID=default
 RUNNER_WS_URL=ws://localhost:3000/ws/runner
 RUNNER_SHARED_SECRET=your-secret-here
-WORKSPACE_ROOT=/Users/yourname/sentryvibe-workspace
+WORKSPACE_ROOT=/Users/yourname/openbuilder-workspace
 API_BASE_URL=http://localhost:3000
 
 # Sentry Configuration
@@ -848,11 +848,11 @@ git push origin v0.1.1
 
 #### "Runner not initialized"
 
-**Problem:** Running `sentryvibe runner` before `init`.
+**Problem:** Running `openbuilder runner` before `init`.
 
 **Solution:**
 ```bash
-sentryvibe init
+openbuilder init
 ```
 
 #### "Cannot connect to broker"
@@ -862,7 +862,7 @@ sentryvibe init
 **Solutions:**
 1. Check broker URL:
    ```bash
-   sentryvibe config get broker.url
+   openbuilder config get broker.url
    ```
 2. Test broker connectivity:
    ```bash
@@ -870,7 +870,7 @@ sentryvibe init
    ```
 3. Try local broker:
    ```bash
-   sentryvibe runner --broker ws://localhost:4000/socket
+   openbuilder runner --broker ws://localhost:4000/socket
    ```
 
 #### "Shared secret is required"
@@ -879,9 +879,9 @@ sentryvibe init
 
 **Solution:**
 ```bash
-sentryvibe config set broker.secret your-secret-here
+openbuilder config set broker.secret your-secret-here
 # or
-sentryvibe init  # Re-run setup
+openbuilder init  # Re-run setup
 ```
 
 #### "Workspace directory does not exist"
@@ -890,9 +890,9 @@ sentryvibe init  # Re-run setup
 
 **Solution:**
 ```bash
-mkdir -p ~/sentryvibe-workspace
+mkdir -p ~/openbuilder-workspace
 # or
-sentryvibe config set workspace ~/new-workspace
+openbuilder config set workspace ~/new-workspace
 ```
 
 #### Build fails with template errors
@@ -907,7 +907,7 @@ sentryvibe config set workspace ~/new-workspace
 2. Check network connectivity
 3. Clear and retry:
    ```bash
-   sentryvibe cleanup --project failed-project
+   openbuilder cleanup --project failed-project
    # Try build again in UI
    ```
 
@@ -933,11 +933,11 @@ sentryvibe config set workspace ~/new-workspace
 **Solution:**
 ```bash
 # Show config location
-sentryvibe-cli config path
+openbuilder-cli config path
 
 # Reset and reconfigure
-sentryvibe-cli config reset
-sentryvibe-cli init
+openbuilder-cli config reset
+openbuilder-cli init
 ```
 
 ### Debug Mode
@@ -945,25 +945,25 @@ sentryvibe-cli init
 Enable verbose logging:
 
 ```bash
-sentryvibe-cli run --verbose
+openbuilder-cli run --verbose
 ```
 
 Or set environment variable:
 
 ```bash
-DEBUG=* sentryvibe-cli run
+DEBUG=* openbuilder-cli run
 ```
 
 ### Getting Help
 
 1. Check status:
    ```bash
-   sentryvibe-cli status
+   openbuilder-cli status
    ```
 
 2. Validate config:
    ```bash
-   sentryvibe-cli config validate
+   openbuilder-cli config validate
    ```
 
 3. View logs:
@@ -972,9 +972,9 @@ DEBUG=* sentryvibe-cli run
 
 4. Reset everything:
    ```bash
-   sentryvibe-cli config reset
-   sentryvibe-cli cleanup --all
-   sentryvibe-cli init
+   openbuilder-cli config reset
+   openbuilder-cli cleanup --all
+   openbuilder-cli init
    ```
 
 ## FAQ
@@ -982,25 +982,25 @@ DEBUG=* sentryvibe-cli run
 **Q: Can I run multiple runners?**
 A: Yes! Each runner needs a unique `runner-id`. Set it during init or with:
 ```bash
-sentryvibe runner --runner-id my-second-runner
+openbuilder runner --runner-id my-second-runner
 ```
 
 **Q: Where are my projects stored?**
 A: In your workspace directory. Check with:
 ```bash
-sentryvibe config get workspace
+openbuilder config get workspace
 ```
 
 **Q: Can I change the workspace location?**
 A: Yes:
 ```bash
-sentryvibe config set workspace ~/new-location
+openbuilder config set workspace ~/new-location
 ```
 
 **Q: How do I update the CLI?**
 A: Reinstall from npm:
 ```bash
-npm update -g @sentryvibe/cli
+npm update -g @openbuilder/cli
 ```
 
 **Q: Does the runner need to stay running?**
@@ -1009,7 +1009,7 @@ A: Yes, while you're using the web UI. It executes builds and manages dev server
 **Q: Can I run the runner in the background?**
 A: Use a process manager like PM2:
 ```bash
-pm2 start sentryvibe --name runner -- runner
+pm2 start openbuilder --name runner -- runner
 pm2 logs runner
 ```
 
@@ -1017,25 +1017,25 @@ pm2 logs runner
 A:
 ```bash
 # Full stack (web + broker + runner)
-sentryvibe run
+openbuilder run
 
 # Runner only (connect to remote broker)
-sentryvibe --runner
+openbuilder --runner
 # or
-sentryvibe runner
+openbuilder runner
 ```
 
 **Q: How do I uninstall?**
 A:
 ```bash
 # Clean up projects
-sentryvibe cleanup --all
+openbuilder cleanup --all
 
 # Uninstall CLI
-npm uninstall -g @sentryvibe/cli
+npm uninstall -g @openbuilder/cli
 
 # Remove config (optional)
-rm -rf ~/Library/Application\ Support/sentryvibe
+rm -rf ~/Library/Application\ Support/openbuilder
 ```
 
 ## Contributing

@@ -14,7 +14,7 @@ export function getWorkspaceRoot(): string {
 
   // Default to a workspace directory in the user's home
   const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
-  const defaultWorkspace = resolve(homeDir, 'sentryvibe-workspace');
+  const defaultWorkspace = resolve(homeDir, 'openbuilder-workspace');
 
   return defaultWorkspace;
 }

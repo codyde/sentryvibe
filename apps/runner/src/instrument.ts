@@ -61,7 +61,7 @@ if (typeof SentryAny.openAIIntegration === "function") {
 log(`Total integrations configured: ${integrations.length}`);
 
 Sentry.init({
-  dsn: "https://94f02492541e36eaa9ebfa56c4c042d2@o4508130833793024.ingest.us.sentry.io/4510156711919616",
+  dsn: process.env.SENTRY_DSN,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   integrations: integrations as any[],
   tracesSampleRate: 1.0,
@@ -76,14 +76,14 @@ Sentry.init({
     /^https?:\/\/localhost:\d+$/,
 
     // Production domains
-    "sentryvibe.app",
-    "sentryvibe.up.railway.app",
-    "broker.sentryvibe.app",
+    "openbuilder.app",
+    "openbuilder.up.railway.app",
+    "broker.openbuilder.app",
     "broker.up.railway.app",
 
     // Wildcard patterns for Railway
     /^https?:\/\/.*\.railway\.app/, // Railway deployments
     /^https?:\/\/.*\.up\.railway\.app/, // Railway preview deployments
-    /^https?:\/\/.*\.sentryvibe\.app/, // Custom domain subdomains
+    /^https?:\/\/.*\.openbuilder\.app/, // Custom domain subdomains
   ],
 });

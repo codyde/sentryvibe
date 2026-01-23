@@ -7,7 +7,7 @@
     "paths": {
       "@/lib/*": ["packages/agent-core/src/lib/*"],
       "@/types/*": ["packages/agent-core/src/types/*"],
-      "@/shared/*": ["apps/sentryvibe/src/shared/*"]
+      "@/shared/*": ["apps/openbuilder/src/shared/*"]
     }
   }
 }

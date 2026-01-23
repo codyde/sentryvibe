@@ -32,7 +32,7 @@ declare function getOpenCodeUrl(): string;
  *
  * @example
  * ```typescript
- * import { getOpenCodeClient } from '@sentryvibe/opencode-client';
+ * import { getOpenCodeClient } from '@openbuilder/opencode-client';
  *
  * const client = getOpenCodeClient();
  * const session = await client.session.create({ body: {} });

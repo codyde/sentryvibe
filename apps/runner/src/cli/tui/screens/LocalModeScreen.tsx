@@ -35,18 +35,18 @@ export function LocalModeScreen({ isInitialized, onSelect, onEscape }: LocalMode
   if (!isInitialized) {
     menuItems.push({
       id: 'init',
-      label: 'Initialize SentryVibe',
+      label: 'Initialize OpenBuilder',
       description: 'Set up workspace and configuration',
     });
   } else {
     menuItems.push({
       id: 'init',
-      label: 'Reinitialize SentryVibe',
+      label: 'Reinitialize OpenBuilder',
       description: 'Reset and reconfigure',
     });
     menuItems.push({
       id: 'start',
-      label: 'Start SentryVibe',
+      label: 'Start OpenBuilder',
       description: 'Launch the full stack',
     });
   }
