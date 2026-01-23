@@ -21,10 +21,10 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
     >
       {/* Hero section */}
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold text-foreground">
           Let&apos;s get you set up
         </h2>
-        <p className="text-zinc-400">
+        <p className="text-muted-foreground">
           Install the OpenBuilder CLI to run builds on your machine
         </p>
       </div>
@@ -49,11 +49,11 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
             </div>
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-medium text-zinc-200">
+            <p className="text-sm font-medium text-foreground">
               What does this install?
             </p>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              The <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-theme-accent">openbuilder</code> CLI 
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              The <code className="px-1.5 py-0.5 bg-muted rounded text-theme-accent">openbuilder</code> CLI 
               allows you to run OpenBuilder locally, or start this runner to deploy using the SaaS OpenBuilder. 
               It leverages your local Claude Code, Codex, or OpenCode Zen (experimental) subscription to build your applications.
             </p>
@@ -62,17 +62,17 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
       </motion.div>
 
       {/* Requirements */}
-      <div className="flex items-center justify-center gap-4 text-xs text-zinc-500">
+      <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
           Node.js 18+
         </span>
         <span className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
           npm or pnpm
         </span>
         <span className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
           macOS / Linux / WSL
         </span>
       </div>
@@ -84,7 +84,7 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
           variant="ghost"
           size="sm"
           onClick={onSkip}
-          className="text-zinc-500 hover:text-zinc-300"
+          className="text-muted-foreground hover:text-foreground"
         >
           Skip for now
         </Button>

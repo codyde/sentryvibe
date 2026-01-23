@@ -132,7 +132,7 @@ export function TagInput({
             variant="outline"
             size="sm"
             onClick={() => setShowConnectWizard(true)}
-            className="h-7 px-3 font-mono text-xs border border-zinc-600 bg-zinc-900/50 hover:bg-zinc-800 hover:border-zinc-500 text-zinc-300"
+            className="h-7 px-3 font-mono text-xs border border-border bg-muted/50 hover:bg-muted hover:border-border text-foreground"
           >
             <Plug className="w-3 h-3 mr-1.5" />
             Connect a Runner
@@ -148,7 +148,7 @@ export function TagInput({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 px-3 font-mono text-xs border-2 border-zinc-600 bg-zinc-900/50 hover:bg-zinc-800 hover:border-zinc-500 text-zinc-300"
+              className="h-7 px-3 font-mono text-xs border-2 border-border bg-muted/50 hover:bg-muted hover:border-border text-foreground"
             >
               <Plus className="w-3 h-3 mr-1" />
               Add Tag

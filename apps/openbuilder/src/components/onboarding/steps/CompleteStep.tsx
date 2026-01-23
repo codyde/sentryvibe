@@ -43,10 +43,10 @@ export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
         </motion.div>
 
         <div>
-          <h2 className="text-2xl font-bold text-white">Runner Connected!</h2>
+          <h2 className="text-2xl font-bold text-foreground">Runner Connected!</h2>
           {connectedRunner && (
             <motion.p 
-              className="text-zinc-400 mt-1"
+              className="text-muted-foreground mt-1"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
@@ -75,7 +75,7 @@ export function CompleteStep({ onComplete, onBack }: CompleteStepProps) {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
       >
-        <p className="text-sm text-zinc-300">
+        <p className="text-sm text-foreground">
           Your runner is now connected and ready to process builds. You can start building projects right away!
         </p>
       </motion.div>

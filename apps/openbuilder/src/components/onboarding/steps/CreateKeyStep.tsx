@@ -73,10 +73,10 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
     >
       {/* Hero section */}
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold text-foreground">
           Create a runner key
         </h2>
-        <p className="text-zinc-400">
+        <p className="text-muted-foreground">
           This key authenticates your runner with OpenBuilder
         </p>
       </div>
@@ -92,7 +92,7 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
             {/* Create key form */}
             <form onSubmit={handleCreateKey} className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="keyName" className="text-sm font-medium text-zinc-300">
+                <label htmlFor="keyName" className="text-sm font-medium text-foreground">
                   Give your runner a name
                 </label>
                 <Input
@@ -101,11 +101,11 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
                   placeholder="e.g., My MacBook Pro"
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
-                  className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 h-12 text-base"
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-12 text-base"
                   disabled={isCreating}
                   autoFocus
                 />
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted-foreground">
                   This helps you identify the runner in your dashboard
                 </p>
               </div>
@@ -151,7 +151,7 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
                 variant="ghost"
                 size="sm"
                 onClick={onBack}
-                className="text-zinc-500 hover:text-zinc-300"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
@@ -178,8 +178,8 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
             </motion.div>
 
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-white">Key created!</h3>
-              <p className="text-sm text-zinc-400 mt-1">Copy this key - you won&apos;t see it again</p>
+              <h3 className="text-lg font-semibold text-foreground">Key created!</h3>
+              <p className="text-sm text-muted-foreground mt-1">Copy this key - you won&apos;t see it again</p>
             </div>
 
             {/* Key display */}
@@ -209,7 +209,7 @@ export function CreateKeyStep({ onNext, onBack }: CreateKeyStepProps) {
                 variant="ghost"
                 size="sm"
                 onClick={onBack}
-                className="text-zinc-500 hover:text-zinc-300"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back

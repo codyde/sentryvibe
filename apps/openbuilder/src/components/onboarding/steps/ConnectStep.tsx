@@ -67,10 +67,10 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
     >
       {/* Hero section */}
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold text-foreground">
           Connect your runner
         </h2>
-        <p className="text-zinc-400">
+        <p className="text-muted-foreground">
           Run this command in a new terminal window
         </p>
       </div>
@@ -91,7 +91,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
               onChange={(e) => setIncludeRunnerId(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-5 h-5 rounded border-2 border-zinc-600 peer-checked:border-theme-primary peer-checked:bg-theme-primary transition-colors flex items-center justify-center">
+            <div className="w-5 h-5 rounded border-2 border-border peer-checked:border-theme-primary peer-checked:bg-theme-primary transition-colors flex items-center justify-center">
               {includeRunnerId && (
                 <motion.svg
                   initial={{ scale: 0 }}
@@ -107,7 +107,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
               )}
             </div>
           </div>
-          <span className="text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors">
+          <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
             Add a custom runner ID (optional)
           </span>
         </label>
@@ -124,7 +124,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
                 placeholder="e.g., my-macbook"
                 value={runnerId}
                 onChange={(e) => setRunnerId(e.target.value)}
-                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
             </motion.div>
           )}
@@ -134,10 +134,10 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
       {/* Alternative method */}
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-zinc-800"></div>
+          <div className="w-full border-t border-border"></div>
         </div>
         <div className="relative flex justify-center">
-          <span className="px-3 bg-zinc-950 text-xs text-zinc-500">or use interactive mode</span>
+          <span className="px-3 bg-background text-xs text-muted-foreground">or use interactive mode</span>
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
         code="openbuilder" 
         title="Interactive Setup"
       />
-      <p className="text-xs text-zinc-500 text-center">
+      <p className="text-xs text-muted-foreground text-center">
         Select <span className="text-theme-primary">&quot;Runner mode&quot;</span> and paste your key when prompted
       </p>
 
@@ -154,7 +154,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
         className={`p-4 rounded-lg border-2 transition-all duration-500 ${
           hasConnected 
             ? "bg-green-500/10 border-green-500/50" 
-            : "bg-zinc-900/50 border-zinc-800"
+            : "bg-muted/50 border-border"
         }`}
         animate={hasConnected ? { scale: [1, 1.02, 1] } : {}}
       >
@@ -172,8 +172,8 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
               </motion.div>
             ) : (
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center">
-                  <Wifi className="w-5 h-5 text-zinc-500" />
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Wifi className="w-5 h-5 text-muted-foreground" />
                 </div>
                 <motion.div
                   className="absolute inset-0 rounded-full border-2 border-theme-primary/50"
@@ -183,18 +183,18 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
               </div>
             )}
             <div>
-              <p className={`font-medium ${hasConnected ? "text-green-400" : "text-zinc-300"}`}>
+              <p className={`font-medium ${hasConnected ? "text-green-400" : "text-foreground"}`}>
                 {hasConnected ? "Runner connected!" : "Waiting for connection..."}
               </p>
               {!hasConnected && (
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted-foreground">
                   Listening for your runner
                 </p>
               )}
             </div>
           </div>
           {!hasConnected && (
-            <div className="flex items-center gap-1 text-zinc-600">
+            <div className="flex items-center gap-1 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-xs font-mono">{waitingTime}s</span>
             </div>
@@ -234,7 +234,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
           variant="ghost"
           size="sm"
           onClick={onBack}
-          className="text-zinc-500 hover:text-zinc-300"
+          className="text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
@@ -244,7 +244,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
           variant="ghost"
           size="sm"
           onClick={onSkip}
-          className="text-zinc-500 hover:text-zinc-300"
+          className="text-muted-foreground hover:text-foreground"
         >
           Skip for now
         </Button>
