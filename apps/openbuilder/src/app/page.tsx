@@ -2831,7 +2831,7 @@ function HomeContent() {
                       {/* Logo and 3D block ASCII title above prompt */}
                       <div className="flex items-center justify-center gap-6 mb-8">
                         <img 
-                          src="/openbuild-logo.png" 
+                          src="/icon-192.png" 
                           alt="OpenBuilder" 
                           className="w-24 h-24 object-contain"
                         />

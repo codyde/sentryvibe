@@ -6,6 +6,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone output for containerized deployments (Railway, Docker)
+  output: 'standalone',
   // Disable Turbopack - PGlite WASM files don't resolve correctly with Turbopack
   turbopack: false,
   // Allow deployment even when TypeScript or ESLint report errors
