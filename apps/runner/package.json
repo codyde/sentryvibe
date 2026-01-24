@@ -1,6 +1,6 @@
 {
   "name": "@openbuilder/cli",
-  "version": "0.50.2",
+  "version": "0.50.3",
   "description": "OpenBuilder CLI - AI-powered application builder",
   "private": false,
   "type": "module",
