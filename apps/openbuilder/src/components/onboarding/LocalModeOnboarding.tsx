@@ -51,9 +51,9 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-zinc-950 border-zinc-800 p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-lg bg-background border-border p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <div className="p-6 pb-4 border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950">
+        <div className="p-6 pb-4 border-b border-border bg-gradient-to-b from-muted/50 to-background">
           <div className="flex items-center justify-center">
             <motion.div
               initial={{ scale: 0 }}
@@ -75,10 +75,10 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <h2 className="text-2xl font-bold text-white">
+            <h2 className="text-2xl font-bold text-foreground">
               Welcome to OpenBuilder
             </h2>
-            <p className="text-zinc-400">
+            <p className="text-muted-foreground">
               You&apos;re running in local mode - everything is ready to go!
             </p>
           </motion.div>
@@ -99,7 +99,7 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
             {features.map((feature, i) => (
               <motion.div
                 key={feature.title}
-                className="flex items-start gap-3 p-3 rounded-lg bg-zinc-900/50 border border-zinc-800"
+                className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 + i * 0.1 }}
@@ -108,8 +108,8 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
                   {feature.icon}
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-white">{feature.title}</h3>
-                  <p className="text-xs text-zinc-500">{feature.description}</p>
+                  <h3 className="text-sm font-medium text-foreground">{feature.title}</h3>
+                  <p className="text-xs text-muted-foreground">{feature.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -117,15 +117,15 @@ export function LocalModeOnboarding({ open, onOpenChange, onComplete }: LocalMod
 
           {/* API keys note */}
           <motion.div 
-            className="p-4 rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20"
+            className="p-4 rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            <p className="text-sm text-amber-200">
+            <p className="text-sm text-amber-700 dark:text-amber-200">
               <span className="font-semibold">Note:</span> Make sure your AI API keys are configured in your environment 
-              (<code className="px-1 py-0.5 bg-black/30 rounded text-amber-300">ANTHROPIC_API_KEY</code> or{" "}
-              <code className="px-1 py-0.5 bg-black/30 rounded text-amber-300">OPENAI_API_KEY</code>)
+              (<code className="px-1 py-0.5 bg-amber-500/20 rounded text-amber-800 dark:text-amber-300">ANTHROPIC_API_KEY</code> or{" "}
+              <code className="px-1 py-0.5 bg-amber-500/20 rounded text-amber-800 dark:text-amber-300">OPENAI_API_KEY</code>)
             </p>
           </motion.div>
 

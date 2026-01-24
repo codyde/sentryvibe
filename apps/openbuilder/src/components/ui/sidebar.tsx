@@ -253,7 +253,7 @@ function Sidebar({
               <div
                 data-sidebar="sidebar"
                 data-slot="sidebar-inner"
-                className="flex h-full w-full flex-col"
+                className="flex h-full w-full flex-col border-r border-sidebar-border shadow-sm"
               >
                 {/* Override context to tell children they're in collapsed state */}
                 <SidebarStateOverride stateOverride="collapsed">
@@ -269,7 +269,7 @@ function Sidebar({
             data-sidebar="sidebar"
             data-slot="sidebar"
             data-mobile="true"
-            className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+            className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden border-r border-sidebar-border shadow-lg"
             style={
               {
                 "--sidebar-width": isMobile ? SIDEBAR_WIDTH_MOBILE : SIDEBAR_WIDTH,
@@ -334,7 +334,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+          className="flex h-full w-full flex-col border-r border-sidebar-border shadow-sm group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
         >
           {children}
         </div>
