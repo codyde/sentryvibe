@@ -11,7 +11,6 @@ import { useToast } from '@/components/ui/toast';
 import {
   Search,
   Plus,
-  Monitor,
   Play,
   Square,
   Folder,
@@ -25,7 +24,6 @@ import {
   ArrowLeft,
   Clock,
   Zap,
-  Activity,
   Bug,
   type LucideIcon,
 } from 'lucide-react';
@@ -34,7 +32,6 @@ import { getIconComponent } from '@openbuilder/agent-core/lib/icon-mapper';
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOpenProcessModal?: () => void;
   onRenameProject?: (project: { id: string; name: string }) => void;
   onDeleteProject?: (project: { id: string; name: string; slug: string }) => void;
 }
@@ -53,7 +50,7 @@ interface CommandItem {
   group?: string;
 }
 
-export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenameProject, onDeleteProject }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onRenameProject, onDeleteProject }: CommandPaletteProps) {
   const router = useRouter();
   const { projects, refetch } = useProjects();
   const { selectedRunnerId } = useRunner();
@@ -279,23 +276,6 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
       group: 'Actions',
     });
 
-    if (onOpenProcessModal) {
-      items.push({
-        id: 'system-monitor',
-        label: 'System Monitor',
-        description: 'View running processes',
-        icon: Monitor,
-        action: {
-          type: 'action',
-          fn: () => {
-            onOpenProcessModal();
-            onOpenChange(false);
-          },
-        },
-        group: 'Actions',
-      });
-    }
-
     // Exit bulk mode if active (only show if in bulk mode)
     if (bulkMode) {
       items.push({
@@ -367,7 +347,7 @@ export function CommandPalette({ open, onOpenChange, onOpenProcessModal, onRenam
     });
 
     return items;
-  }, [projects, selectedRunnerId, onOpenProcessModal, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction, selectedProject, addToast]);
+  }, [projects, selectedRunnerId, onRenameProject, onDeleteProject, onOpenChange, refetch, router, bulkMode, selectedItems, loadingAction, selectedProject, addToast]);
 
   // Filter recent commands that still exist
   const recentCommandItems = useMemo(() => {

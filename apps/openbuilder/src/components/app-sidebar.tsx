@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { Plus, Server, ChevronDown, CheckCircle2, Circle, Activity, Lock, BookOpen, ChevronLeft, ChevronRight, User, LogOut, Key, Loader2 } from "lucide-react"
+import { Plus, Server, ChevronDown, CheckCircle2, Circle, Lock, BookOpen, ChevronLeft, ChevronRight, User, LogOut, Key, Loader2 } from "lucide-react"
 import { useProjects } from "@/contexts/ProjectContext"
 import { useRunner } from "@/contexts/RunnerContext"
 import { useAuth } from "@/contexts/AuthContext"
@@ -36,13 +36,12 @@ import { RunnerKeyManager } from "@/components/auth/RunnerKeyManager"
 import { signOut } from "@/lib/auth-client"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  onOpenProcessModal: () => void;
   onRenameProject: (project: { id: string; name: string }) => void;
   onDeleteProject: (project: { id: string; name: string; slug: string }) => void;
   onOpenOnboarding?: () => void;
 }
 
-export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProject, onOpenOnboarding, ...props }: AppSidebarProps) {
+export function AppSidebar({ onRenameProject, onDeleteProject, onOpenOnboarding, ...props }: AppSidebarProps) {
   const { projects, isLoading } = useProjects();
   const { selectedRunnerId, setSelectedRunnerId, availableRunners, isLoading: runnersLoading } = useRunner();
   const { user, isAuthenticated, isLocalMode, hasCompletedOnboarding, isLoading: authLoading } = useAuth();
@@ -81,12 +80,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
     }
   };
 
-  // Count running services for the footer badge
-  const runningCount = projects.filter(p =>
-    p.devServerStatus === 'running' ||
-    p.status === 'in_progress' ||
-    p.status === 'pending'
-  ).length;
+
 
   const handleStartServer = async (projectId: string) => {
     try {
@@ -303,7 +297,7 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
         )}
       </SidebarContent>
 
-      {/* Footer - Runner Selector & Running Services */}
+      {/* Footer - Runner Selector & Settings */}
       <SidebarFooter className={`border-t border-border space-y-2 ${isCollapsed ? 'p-2' : 'p-3'}`}>
         {/* Runner Dropdown - only show when authenticated and NOT in local mode */}
         {canViewProjects && !isLocalMode && (
@@ -400,52 +394,6 @@ export function AppSidebar({ onOpenProcessModal, onRenameProject, onDeleteProjec
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          )
-        )}
-
-        {/* Running Services Button - only show when authenticated */}
-        {canViewProjects && (
-          isCollapsed ? (
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>
-                <button
-                  onClick={onOpenProcessModal}
-                  className="w-full flex items-center justify-center p-2.5 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors relative"
-                >
-                  <Activity className="w-5 h-5 text-muted-foreground" />
-                  {runningCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-medium bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
-                      {runningCount}
-                    </span>
-                  )}
-                </button>
-              </HoverCardTrigger>
-              <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-popover-foreground">Running Services</p>
-                  {runningCount > 0 && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-400 rounded">
-                      {runningCount}
-                    </span>
-                  )}
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          ) : (
-            <button
-              onClick={onOpenProcessModal}
-              className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-foreground">Running Services</span>
-              </div>
-              {runningCount > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-400 rounded">
-                  {runningCount}
-                </span>
-              )}
-            </button>
           )
         )}
 

@@ -14,7 +14,7 @@ import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { getModelLogo } from "@/lib/model-logos";
 import { getFrameworkLogo } from "@/lib/framework-logos";
 import { useTheme } from "@/contexts/ThemeContext";
-import ProcessManagerModal from "@/components/ProcessManagerModal";
+
 import RenameProjectModal from "@/components/RenameProjectModal";
 import DeleteProjectModal from "@/components/DeleteProjectModal";
 import { TodoList } from "@/components/BuildProgress/TodoList";
@@ -233,7 +233,6 @@ function HomeContent() {
     timestamp?: Date;
   } | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
-  const [showProcessModal, setShowProcessModal] = useState(false);
   const [showHeaderLoginModal, setShowHeaderLoginModal] = useState(false);
   const [renamingProject, setRenamingProject] = useState<{ id: string; name: string } | null>(null);
   const [deletingProject, setDeletingProject] = useState<{ id: string; name: string; slug: string } | null>(null);
@@ -2621,7 +2620,6 @@ function HomeContent() {
 
   return (
     <CommandPaletteProvider
-      onOpenProcessModal={() => setShowProcessModal(true)}
       onRenameProject={setRenamingProject}
       onDeleteProject={setDeletingProject}
     >
@@ -2669,14 +2667,9 @@ function HomeContent() {
       
       <SidebarProvider defaultOpen={false}>
         <AppSidebar
-          onOpenProcessModal={() => setShowProcessModal(true)}
           onRenameProject={setRenamingProject}
           onDeleteProject={setDeletingProject}
           onOpenOnboarding={() => setShowOnboarding(true)}
-        />
-        <ProcessManagerModal
-          isOpen={showProcessModal}
-          onClose={() => setShowProcessModal(false)}
         />
         {renamingProject && (
           <RenameProjectModal
