@@ -28,7 +28,7 @@ export function ThemeSwitcher({ isCollapsed = false }: ThemeSwitcherProps) {
         <HoverCard openDelay={0} closeDelay={0}>
           <HoverCardTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <button className="w-full flex items-center justify-center p-2.5 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
+              <button className="w-full flex items-center justify-center p-2.5 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors">
                 <div
                   className="w-5 h-5 rounded-full"
                   style={{
@@ -38,13 +38,13 @@ export function ThemeSwitcher({ isCollapsed = false }: ThemeSwitcherProps) {
               </button>
             </DropdownMenuTrigger>
           </HoverCardTrigger>
-          <HoverCardContent side="right" align="center" className="w-auto p-3 bg-black/90 border-white/10 pointer-events-none">
+          <HoverCardContent side="right" align="center" className="w-auto p-3 bg-popover border-border pointer-events-none">
             <div className="flex items-center gap-2">
-              <p className="text-sm text-white">Theme: {currentTheme?.label}</p>
+              <p className="text-sm text-popover-foreground">Theme: {currentTheme?.label}</p>
             </div>
           </HoverCardContent>
         </HoverCard>
-        <DropdownMenuContent className="w-56 bg-black border-white/10" align="start" side="right">
+        <DropdownMenuContent className="w-56 bg-popover border-border" align="start" side="right">
           {availableThemes.map((themeOption) => {
             const isSelected = themeOption.name === theme;
             
@@ -53,21 +53,21 @@ export function ThemeSwitcher({ isCollapsed = false }: ThemeSwitcherProps) {
                 key={themeOption.name}
                 onClick={() => setTheme(themeOption.name as ThemeName)}
                 className={`flex items-center gap-3 cursor-pointer ${
-                  isSelected ? "bg-white/10" : ""
+                  isSelected ? "bg-accent" : ""
                 }`}
               >
                 <div
-                  className="w-6 h-6 rounded-full shrink-0 border border-white/20"
+                  className="w-6 h-6 rounded-full shrink-0 border border-border"
                   style={{
                     background: `linear-gradient(135deg, ${themeOption.colors.primary}, ${themeOption.colors.secondary})`,
                   }}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white">{themeOption.label}</p>
-                  <p className="text-[10px] text-gray-500 truncate">{themeOption.description}</p>
+                  <p className="text-sm font-medium text-popover-foreground">{themeOption.label}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{themeOption.description}</p>
                 </div>
                 {isSelected && (
-                  <Check className="w-4 h-4 text-white shrink-0" />
+                  <Check className="w-4 h-4 text-popover-foreground shrink-0" />
                 )}
               </DropdownMenuItem>
             );
@@ -80,10 +80,10 @@ export function ThemeSwitcher({ isCollapsed = false }: ThemeSwitcherProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="w-full flex items-center justify-between px-3 py-2 bg-black/20 hover:bg-black/30 border border-white/10 rounded-lg transition-colors">
+        <button className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted border border-border rounded-lg transition-colors">
           <div className="flex items-center gap-2">
-            <Palette className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-300">Theme</span>
+            <Palette className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Theme</span>
           </div>
           <div className="flex items-center gap-2">
             <div
@@ -92,11 +92,11 @@ export function ThemeSwitcher({ isCollapsed = false }: ThemeSwitcherProps) {
                 background: `linear-gradient(135deg, ${currentTheme?.colors.primary}, ${currentTheme?.colors.secondary})`,
               }}
             />
-            <span className="text-xs text-white capitalize">{theme}</span>
+            <span className="text-xs text-foreground capitalize">{theme}</span>
           </div>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 bg-black border-white/10" align="start" side="top">
+      <DropdownMenuContent className="w-56 bg-popover border-border" align="start" side="top">
         {availableThemes.map((themeOption) => {
           const isSelected = themeOption.name === theme;
           
@@ -105,21 +105,21 @@ export function ThemeSwitcher({ isCollapsed = false }: ThemeSwitcherProps) {
               key={themeOption.name}
               onClick={() => setTheme(themeOption.name as ThemeName)}
               className={`flex items-center gap-3 cursor-pointer ${
-                isSelected ? "bg-white/10" : ""
+                isSelected ? "bg-accent" : ""
               }`}
             >
               <div
-                className="w-6 h-6 rounded-full shrink-0 border border-white/20"
+                className="w-6 h-6 rounded-full shrink-0 border border-border"
                 style={{
                   background: `linear-gradient(135deg, ${themeOption.colors.primary}, ${themeOption.colors.secondary})`,
                 }}
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white">{themeOption.label}</p>
-                <p className="text-[10px] text-gray-500 truncate">{themeOption.description}</p>
+                <p className="text-sm font-medium text-popover-foreground">{themeOption.label}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{themeOption.description}</p>
               </div>
               {isSelected && (
-                <Check className="w-4 h-4 text-white shrink-0" />
+                <Check className="w-4 h-4 text-popover-foreground shrink-0" />
               )}
             </DropdownMenuItem>
           );
