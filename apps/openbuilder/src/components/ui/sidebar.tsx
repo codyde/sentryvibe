@@ -5,7 +5,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile, useIsNarrowDesktop } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +39,7 @@ type SidebarContextProps = {
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
+  isNarrowDesktop: boolean
   toggleSidebar: () => void
 }
 
@@ -67,6 +68,7 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
 }) {
   const isMobile = useIsMobile()
+  const isNarrowDesktop = useIsNarrowDesktop()
   const [openMobile, setOpenMobile] = React.useState(false)
 
   // This is the internal state of the sidebar.
@@ -119,11 +121,12 @@ function SidebarProvider({
       open,
       setOpen,
       isMobile,
+      isNarrowDesktop,
       openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, isNarrowDesktop, openMobile, setOpenMobile, toggleSidebar]
   )
 
   return (
@@ -151,6 +154,29 @@ function SidebarProvider({
   )
 }
 
+// Helper component to override sidebar context state for children
+function SidebarStateOverride({ 
+  stateOverride, 
+  children 
+}: { 
+  stateOverride: "expanded" | "collapsed"
+  children: React.ReactNode 
+}) {
+  const parentContext = useSidebar()
+  
+  const overriddenContext = React.useMemo<SidebarContextProps>(() => ({
+    ...parentContext,
+    state: stateOverride,
+    open: stateOverride === "expanded",
+  }), [parentContext, stateOverride])
+  
+  return (
+    <SidebarContext.Provider value={overriddenContext}>
+      {children}
+    </SidebarContext.Provider>
+  )
+}
+
 function Sidebar({
   side = "left",
   variant = "sidebar",
@@ -164,6 +190,11 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile, setOpen } = useSidebar()
+  const isNarrowDesktop = useIsNarrowDesktop()
+
+  // On narrow desktop screens (768px-1024px), treat like mobile - use Sheet for expanded
+  // This prevents the expanded sidebar from taking too much horizontal space
+  const useMobileBehavior = isMobile || isNarrowDesktop
 
   if (collapsible === "none") {
     return (
@@ -180,31 +211,89 @@ function Sidebar({
     )
   }
 
-  if (isMobile) {
+  // Mobile and narrow desktop: use Sheet overlay for expanded sidebar
+  if (useMobileBehavior) {
+    // On mobile, use openMobile state. On narrow desktop, use the regular open/state.
+    const isSheetOpen = isMobile ? openMobile : state === "expanded"
+    const setSheetOpen = isMobile 
+      ? setOpenMobile 
+      : (open: boolean) => setOpen(open)
+    
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          data-sidebar="sidebar"
-          data-slot="sidebar"
-          data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
+      <>
+        {/* On narrow desktop, show a collapsed icon rail */}
+        {isNarrowDesktop && (
+          <div
+            className="group peer text-sidebar-foreground hidden md:block"
+            data-state="collapsed"
+            data-collapsible={collapsible === "offcanvas" ? collapsible : "icon"}
+            data-variant={variant}
+            data-side={side}
+            data-slot="sidebar"
+          >
+            {/* Sidebar gap for layout spacing */}
+            <div
+              data-slot="sidebar-gap"
+              className={cn(
+                "relative transition-[width] duration-200 ease-linear",
+                "w-(--sidebar-width-icon) bg-transparent",
+                "group-data-[side=right]:rotate-180"
+              )}
+            />
+            {/* Collapsed sidebar container - always visible on narrow desktop */}
+            <div
+              data-slot="sidebar-container"
+              className={cn(
+                "fixed inset-y-0 z-40 hidden h-svh w-(--sidebar-width-icon) transition-[left,right,width] duration-200 ease-linear md:flex",
+                side === "left" ? "left-0" : "right-0",
+                "group-data-[side=right]:border-l",
+                className
+              )}
+            >
+              <div
+                data-sidebar="sidebar"
+                data-slot="sidebar-inner"
+                className="flex h-full w-full flex-col"
+              >
+                {/* Override context to tell children they're in collapsed state */}
+                <SidebarStateOverride stateOverride="collapsed">
+                  {children}
+                </SidebarStateOverride>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Sheet overlay for expanded sidebar */}
+        <Sheet open={isSheetOpen} onOpenChange={setSheetOpen} {...props}>
+          <SheetContent
+            data-sidebar="sidebar"
+            data-slot="sidebar"
+            data-mobile="true"
+            className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+            style={
+              {
+                "--sidebar-width": isMobile ? SIDEBAR_WIDTH_MOBILE : SIDEBAR_WIDTH,
+              } as React.CSSProperties
+            }
+            side={side}
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Sidebar</SheetTitle>
+              <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            </SheetHeader>
+            <div className="flex h-full w-full flex-col">
+              {/* Override context to tell children they're in expanded state */}
+              <SidebarStateOverride stateOverride="expanded">
+                {children}
+              </SidebarStateOverride>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
     )
   }
 
+  // Wide desktop: use fixed sidebar with expand/collapse
   return (
     <div
       className="group peer text-sidebar-foreground hidden md:block"
