@@ -140,7 +140,9 @@ export const messages = pgTable('messages', {
   role: text('role').notNull(),
   content: text('content').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  projectIdIdx: index('messages_project_id_idx').on(table.projectId),
+}));
 
 export const portAllocations = pgTable('port_allocations', {
   port: integer('port').primaryKey(),
@@ -213,6 +215,8 @@ export const generationToolCalls = pgTable('generation_tool_calls', {
   sessionIdIdx: index('generation_tool_calls_session_id_idx').on(table.sessionId),
   toolCallUnique: uniqueIndex('generation_tool_calls_call_id_unique')
     .on(table.sessionId, table.toolCallId),
+  // Composite index for optimizing the expensive query that filters by sessionId, state, and todoIndex
+  sessionStateIdx: index('generation_tool_calls_session_state_idx').on(table.sessionId, table.state, table.todoIndex),
 }));
 
 export const generationNotes = pgTable('generation_notes', {
