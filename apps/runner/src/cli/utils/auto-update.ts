@@ -285,8 +285,8 @@ export async function checkAndAutoUpdate(currentVersion: string): Promise<boolea
   console.log(`  ${pc.cyan('⬆')} ${pc.bold('Update available:')} ${pc.dim(currentVersion)} → ${pc.green(latestVersion)}`);
   console.log();
 
-  // Step 1: Update the CLI
-  console.log(`  ${pc.dim('Step 1/2:')} Updating CLI...`);
+  // Perform the CLI update
+  console.log(`  ${pc.dim('Updating CLI...')}`);
   const cliSuccess = performCLIUpdate();
 
   if (!cliSuccess) {
@@ -300,32 +300,30 @@ export async function checkAndAutoUpdate(currentVersion: string): Promise<boolea
 
   console.log(`  ${pc.green('✓')} CLI updated to ${pc.green(latestVersion)}`);
   
-  // Step 2: Check if we need to upgrade the app
+  // Check if we need to upgrade the app
   const monorepoPath = config.monorepoPath;
   const hasMonorepo = monorepoPath && existsSync(monorepoPath);
 
   if (hasMonorepo) {
     // Mark that we need to upgrade the app after CLI restart
-    // The new CLI version will handle the app upgrade
     saveUpdateCache({
       lastCheck: now,
       latestVersion,
       pendingAppUpgrade: true,
     });
-    
-    console.log();
-    console.log(`  ${pc.dim('Step 2/2:')} App upgrade will continue after restart...`);
   }
 
   console.log();
-  console.log(`  ${pc.green('✓')} ${pc.bold('CLI update complete!')} Restarting...`);
+  console.log(`  ${pc.green('✓')} ${pc.bold('Update complete!')}`);
+  console.log();
+  console.log(`  ${pc.yellow('⚠')} ${pc.bold('Please restart your terminal')} or run:`);
+  console.log(`     ${pc.cyan('hash -r')}  ${pc.dim('(bash/zsh)')}`);
+  console.log();
+  console.log(`  ${pc.dim('Then run')} ${pc.cyan('openbuilder')} ${pc.dim('again.')}`);
   console.log();
   
-  // Relaunch CLI with original args
-  // The new CLI will pick up the pendingAppUpgrade flag and complete step 2
-  relaunchCLI();
-  
-  return true; // CLI will exit via relaunchCLI
+  // Exit - user needs to restart terminal to pick up new version
+  process.exit(0);
 }
 
 /**
