@@ -27,21 +27,25 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
+    // Support both direct fields and nested analysis object
+    const analysis = body.analysis || body;
     const {
       slug,
       friendlyName,
       description,
       icon,
-      originalPrompt,
       template,
-      tags,
-      runnerId,
-    } = body;
+    } = analysis;
+
+    // Get additional fields from body (not from analysis)
+    const originalPrompt = body.prompt || body.originalPrompt;
+    const tags = body.tags;
+    const runnerId = body.runnerId;
 
     // Validate required fields
     if (!slug || !friendlyName || !originalPrompt) {
       return NextResponse.json(
-        { error: 'slug, friendlyName, and originalPrompt are required' },
+        { error: 'slug, friendlyName, and prompt are required' },
         { status: 400 }
       );
     }
