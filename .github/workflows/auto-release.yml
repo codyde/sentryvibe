@@ -37,6 +37,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -278,23 +279,35 @@ jobs:
           echo "Created tarball:"
           ls -lh *.tgz
 
-          mv *.tgz shipbuilder-cli.tgz
+          mv *.tgz openbuilder-cli.tgz
 
           echo ""
           echo "Verifying tarball contents:"
-          tar -tzf shipbuilder-cli.tgz | grep "vendor/" | head -10 || echo "⚠️ No vendor/ files found!"
+          tar -tzf openbuilder-cli.tgz | grep "vendor/" | head -10 || echo "⚠️ No vendor/ files found!"
 
           echo ""
-          echo "✓ Package created: shipbuilder-cli.tgz"
+          echo "✓ Package created: openbuilder-cli.tgz"
+
+      - name: Publish to npm
+        if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
+        run: |
+          cd apps/runner
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Publishing @openbuilder/cli v${{ steps.version.outputs.new_version }} to npm..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          npm publish --access public
+          echo "✓ Published to npm"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         if: steps.skip_ci.outputs.skip == 'false' && steps.skip_release.outputs.skip == 'false'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.new_version }}
-          name: ShipBuilder CLI ${{ steps.version.outputs.new_version }}
+          name: OpenBuilder CLI ${{ steps.version.outputs.new_version }}
           body: |
-            # ShipBuilder CLI ${{ steps.version.outputs.new_version }}
+            # OpenBuilder CLI ${{ steps.version.outputs.new_version }}
 
             AI-powered project generation with local runner support.
 
@@ -306,25 +319,24 @@ jobs:
             ## Installation
 
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/codyde/shipbuilder/main/install-cli.sh | bash
+            curl -fsSL https://openbuilder.sh/install | bash
             ```
 
-            Or install directly:
+            Or install via npm:
 
             ```bash
-            npm install -g https://github.com/codyde/shipbuilder/releases/download/v${{ steps.version.outputs.new_version }}/shipbuilder-cli.tgz
+            npm install -g @openbuilder/cli
             ```
 
             ## Quick Start
 
             ```bash
-            shipbuilder init -y
-            shipbuilder run
+            openbuilder runner
             ```
 
-            See [full documentation](https://github.com/codyde/shipbuilder/blob/main/apps/runner/README.md) for details.
+            See [full documentation](https://github.com/codyde/openbuilder/blob/main/apps/runner/README.md) for details.
           files: |
-            apps/runner/shipbuilder-cli.tgz
+            apps/runner/openbuilder-cli.tgz
           draft: false
           prerelease: false
         env:
