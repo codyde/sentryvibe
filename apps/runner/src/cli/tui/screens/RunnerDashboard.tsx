@@ -12,7 +12,7 @@
  * - copyMenu: Copy options modal overlay
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Text, useInput, useStdout, useApp } from 'ink';
 import { colors } from '../theme.js';
 import { BuildPanel } from '../components/BuildPanel.js';
@@ -24,6 +24,7 @@ import { useBuildState, useLogEntries } from '../hooks/useBuildState.js';
 import { Banner } from '../components/Banner.js';
 import type { BuildInfo, TodoItem, LogEntry } from '../../../lib/logging/types.js';
 import { getLogBuffer } from '../../../lib/logging/log-buffer.js';
+import { openBrowser } from '../../utils/cli-auth.js';
 
 type ViewMode = 'dashboard' | 'fullLog' | 'copyMenu';
 
@@ -49,6 +50,30 @@ export function RunnerDashboard({ config, onQuit }: RunnerDashboardProps) {
   const [buildState, buildActions] = useBuildState();
   const logEntries = useLogEntries(100);
   const [view, setView] = useState<ViewMode>('dashboard');
+  
+  // Track if we've opened browser on first connection
+  const hasOpenedBrowserRef = useRef(false);
+
+  // Get the dashboard URL (use apiUrl if provided, otherwise default to openbuilder.sh)
+  const dashboardUrl = config.apiUrl || 'https://openbuilder.sh';
+
+  // Open browser handler
+  const handleOpenBrowser = useCallback(() => {
+    openBrowser(dashboardUrl).catch(() => {
+      // Silently fail - user can manually open the URL
+    });
+  }, [dashboardUrl]);
+
+  // Auto-open browser on first successful connection
+  useEffect(() => {
+    if (buildState.isConnected && !hasOpenedBrowserRef.current) {
+      hasOpenedBrowserRef.current = true;
+      // Small delay to ensure the TUI is fully rendered before opening browser
+      setTimeout(() => {
+        handleOpenBrowser();
+      }, 500);
+    }
+  }, [buildState.isConnected, handleOpenBrowser]);
 
   // Handle keyboard input
   useInput((input, key) => {
@@ -78,6 +103,8 @@ export function RunnerDashboard({ config, onQuit }: RunnerDashboardProps) {
         buildActions.nextBuild();
       } else if (input === 'p') {
         buildActions.prevBuild();
+      } else if (input === 'b') {
+        handleOpenBrowser();
       }
     }
 

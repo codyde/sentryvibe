@@ -50,6 +50,7 @@ export function StatusBar({
   const shortcuts = view === 'dashboard' ? (
     <Box>
       <Shortcut letter="q" label="quit" />
+      <Shortcut letter="b" label="browser" />
       <Shortcut letter="v" label={`verbose: ${isVerbose ? 'on' : 'off'}`} />
       <Shortcut letter="c" label="copy" />
       <Shortcut letter="t" label="text view" />

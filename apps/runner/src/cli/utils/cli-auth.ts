@@ -8,7 +8,7 @@ import { configManager } from './config-manager.js';
 /**
  * Open a URL in the default browser (cross-platform)
  */
-async function openBrowser(url: string): Promise<void> {
+export async function openBrowser(url: string): Promise<void> {
   const os = platform();
   
   return new Promise((resolve, reject) => {
