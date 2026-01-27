@@ -323,4 +323,30 @@ program
     }
   });
 
+program
+  .command('login')
+  .description('Authenticate with OpenBuilder via OAuth (GitHub/Sentry)')
+  .option('-u, --url <url>', 'OpenBuilder server URL (default: https://openbuilder.app)')
+  .option('-f, --force', 'Force re-authentication even if already logged in')
+  .action(async (options) => {
+    try {
+      const { loginCommand } = await import('./commands/login.js');
+      await loginCommand(options);
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
+  });
+
+program
+  .command('logout')
+  .description('Clear stored authentication credentials')
+  .action(async () => {
+    try {
+      const { logoutCommand } = await import('./commands/logout.js');
+      await logoutCommand();
+    } catch (error) {
+      globalErrorHandler.handle(error as Error);
+    }
+  });
+
 program.parse();

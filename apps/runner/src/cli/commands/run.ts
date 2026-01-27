@@ -9,6 +9,12 @@ import { startRunner } from '../../index.js';
 import { RunnerDashboard } from '../tui/screens/RunnerDashboard.js';
 import { initRunnerLogger } from '../../lib/logging/index.js';
 import { setFileLoggerTuiMode } from '../../lib/file-logger.js';
+import { 
+  hasStoredToken, 
+  getStoredToken, 
+  performOAuthLogin, 
+  storeToken 
+} from '../utils/cli-auth.js';
 
 // Default public OpenBuilder instance
 const DEFAULT_URL = 'https://openbuilder.up.railway.app';
@@ -132,16 +138,58 @@ export async function runCommand(options: RunOptions) {
     tuiMode: useTUI,
   };
 
-  // Validate required options - only secret is truly required
+  // Validate required options - secret is required
+  // If not provided, try to use stored OAuth token or trigger OAuth flow
   if (!runnerOptions.sharedSecret) {
-    logger.error('Shared secret is required');
-    logger.info('');
-    logger.info('Get a runner key from your OpenBuilder dashboard, or provide via:');
-    logger.info(`  ${chalk.cyan('openbuilder runner --secret <your-secret>')}`);
-    logger.info('');
-    logger.info('Or initialize with:');
-    logger.info(`  ${chalk.cyan('openbuilder init --secret <your-secret>')}`);
-    process.exit(1);
+    // Check if we have a stored OAuth token
+    if (hasStoredToken()) {
+      const storedToken = getStoredToken();
+      if (storedToken) {
+        runnerOptions.sharedSecret = storedToken;
+        logger.info(`Using stored runner token: ${chalk.cyan(storedToken.substring(0, 12) + '...')}`);
+      }
+    }
+    
+    // If still no secret and not in local mode, trigger OAuth flow
+    if (!runnerOptions.sharedSecret && !options.local) {
+      logger.info('No runner token found. Starting OAuth authentication...');
+      logger.info('');
+      
+      const result = await performOAuthLogin({
+        apiUrl: runnerOptions.apiUrl,
+        silent: false,
+      });
+      
+      if (result.success && result.token) {
+        storeToken(result.token, runnerOptions.apiUrl);
+        runnerOptions.sharedSecret = result.token;
+        logger.log('');
+        logger.success('Authentication successful!');
+        logger.info(`Token: ${chalk.cyan(result.token.substring(0, 12) + '...')}`);
+        logger.log('');
+      } else {
+        logger.error(result.error || 'Authentication failed');
+        logger.info('');
+        logger.info('You can also provide a token manually:');
+        logger.info(`  ${chalk.cyan('openbuilder runner --secret <your-secret>')}`);
+        logger.info('');
+        logger.info('Or login first:');
+        logger.info(`  ${chalk.cyan('openbuilder login')}`);
+        process.exit(1);
+      }
+    }
+    
+    // Final check - if still no secret (and not local mode)
+    if (!runnerOptions.sharedSecret && !options.local) {
+      logger.error('Shared secret is required');
+      logger.info('');
+      logger.info('Get a runner key from your OpenBuilder dashboard, or provide via:');
+      logger.info(`  ${chalk.cyan('openbuilder runner --secret <your-secret>')}`);
+      logger.info('');
+      logger.info('Or login with OAuth:');
+      logger.info(`  ${chalk.cyan('openbuilder login')}`);
+      process.exit(1);
+    }
   }
 
   // ========================================
