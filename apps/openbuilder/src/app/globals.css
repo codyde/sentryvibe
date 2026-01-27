@@ -558,6 +558,32 @@
   background-color: #cbd5e1 !important;
 }
 
+/* Zinc text overrides for LoginModal and other components */
+.theme-light .text-zinc-300 {
+  color: #475569 !important;
+}
+
+.theme-light .text-zinc-400 {
+  color: #64748b !important;
+}
+
+.theme-light .text-zinc-500 {
+  color: #64748b !important;
+}
+
+.theme-light .placeholder\:text-zinc-500::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Hover states for zinc backgrounds */
+.theme-light .hover\:bg-zinc-900:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .hover\:border-zinc-600:hover {
+  border-color: #94a3b8 !important;
+}
+
 /* Dropdown menu content - bg-gray-900 used in NeonDB/GitHub dropdowns */
 .theme-light [data-radix-popper-content-wrapper] .bg-gray-900 {
   background-color: #ffffff !important;
@@ -1062,6 +1088,417 @@
 
 .theme-light *::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
+}
+
+/* --- STATUS ANIMATION COMPONENTS (Server Starting, Tunnel Connecting) --- */
+/* These components use dark gradients and need complete light mode overrides */
+
+/* TunnelConnecting and ServerRestarting - Override the dark gradients */
+.theme-light .from-cyan-950\/40,
+.theme-light [class*="from-cyan-950"] {
+  --tw-gradient-from: rgba(236, 254, 255, 0.9) !important;
+}
+
+.theme-light .from-orange-950\/40,
+.theme-light [class*="from-orange-950"] {
+  --tw-gradient-from: rgba(255, 247, 237, 0.9) !important;
+}
+
+.theme-light .from-green-950\/40,
+.theme-light [class*="from-green-950"] {
+  --tw-gradient-from: rgba(240, 253, 244, 0.9) !important;
+}
+
+.theme-light .from-red-950\/40,
+.theme-light [class*="from-red-950"] {
+  --tw-gradient-from: rgba(254, 242, 242, 0.9) !important;
+}
+
+.theme-light .via-gray-900\/95,
+.theme-light [class*="via-gray-900"] {
+  --tw-gradient-via: rgba(248, 250, 252, 0.95) !important;
+}
+
+.theme-light .to-gray-900\/95,
+.theme-light [class*="to-gray-900\/95"] {
+  --tw-gradient-to: rgba(248, 250, 252, 0.95) !important;
+}
+
+/* Status animation borders */
+.theme-light .border-cyan-500\/30 {
+  border-color: rgba(6, 182, 212, 0.4) !important;
+}
+
+.theme-light .border-cyan-500\/20 {
+  border-color: rgba(6, 182, 212, 0.3) !important;
+}
+
+.theme-light .border-orange-500\/30 {
+  border-color: rgba(249, 115, 22, 0.4) !important;
+}
+
+.theme-light .border-orange-500\/20 {
+  border-color: rgba(249, 115, 22, 0.3) !important;
+}
+
+.theme-light .border-green-500\/30 {
+  border-color: rgba(34, 197, 94, 0.4) !important;
+}
+
+.theme-light .border-green-500\/20 {
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+.theme-light .border-red-500\/30 {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.theme-light .border-red-500\/20 {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Status animation background pills */
+.theme-light .bg-cyan-500\/20 {
+  background-color: rgba(6, 182, 212, 0.15) !important;
+}
+
+.theme-light .bg-cyan-500\/10 {
+  background-color: rgba(6, 182, 212, 0.1) !important;
+}
+
+.theme-light .bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+.theme-light .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.theme-light .bg-orange-500\/20 {
+  background-color: rgba(249, 115, 22, 0.15) !important;
+}
+
+.theme-light .bg-orange-500\/10 {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+}
+
+.theme-light .bg-green-500\/20 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+.theme-light .bg-green-500\/10 {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+}
+
+.theme-light .bg-red-500\/20 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+.theme-light .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.theme-light .bg-yellow-500\/20 {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+
+/* Status animation header gradients */
+.theme-light .from-cyan-500\/10 {
+  --tw-gradient-from: rgba(6, 182, 212, 0.08) !important;
+}
+
+.theme-light .to-blue-500\/10 {
+  --tw-gradient-to: rgba(59, 130, 246, 0.08) !important;
+}
+
+.theme-light .from-orange-500\/10 {
+  --tw-gradient-from: rgba(249, 115, 22, 0.08) !important;
+}
+
+.theme-light .to-yellow-500\/10 {
+  --tw-gradient-to: rgba(234, 179, 8, 0.08) !important;
+}
+
+.theme-light .from-green-500\/10 {
+  --tw-gradient-from: rgba(34, 197, 94, 0.08) !important;
+}
+
+.theme-light .to-cyan-500\/10 {
+  --tw-gradient-to: rgba(6, 182, 212, 0.08) !important;
+}
+
+.theme-light .from-red-500\/10 {
+  --tw-gradient-from: rgba(239, 68, 68, 0.08) !important;
+}
+
+.theme-light .to-orange-500\/10 {
+  --tw-gradient-to: rgba(249, 115, 22, 0.08) !important;
+}
+
+/* Status animation text colors - darken for light backgrounds */
+.theme-light .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+.theme-light .text-cyan-400\/80 {
+  color: rgba(8, 145, 178, 0.9) !important;
+}
+
+.theme-light .text-blue-400 {
+  color: #2563eb !important;
+}
+
+.theme-light .text-orange-400 {
+  color: #ea580c !important;
+}
+
+.theme-light .text-orange-400\/80 {
+  color: rgba(234, 88, 12, 0.9) !important;
+}
+
+.theme-light .text-yellow-400 {
+  color: #ca8a04 !important;
+}
+
+.theme-light .text-red-400 {
+  color: #dc2626 !important;
+}
+
+.theme-light .text-red-400\/80 {
+  color: rgba(220, 38, 38, 0.9) !important;
+}
+
+.theme-light .text-green-400\/80 {
+  color: rgba(22, 163, 74, 0.9) !important;
+}
+
+/* Progress bar background in status animations */
+.theme-light .bg-gray-800 {
+  background-color: #e2e8f0 !important;
+}
+
+/* Cyan and blue dots in tunnel connecting */
+.theme-light .bg-cyan-400 {
+  background-color: #06b6d4 !important;
+}
+
+.theme-light .bg-blue-400 {
+  background-color: #3b82f6 !important;
+}
+
+.theme-light .bg-orange-400 {
+  background-color: #fb923c !important;
+}
+
+.theme-light .bg-yellow-400 {
+  background-color: #facc15 !important;
+}
+
+.theme-light .bg-green-400 {
+  background-color: #4ade80 !important;
+}
+
+.theme-light .bg-red-400 {
+  background-color: #f87171 !important;
+}
+
+/* Status indicator dot border */
+.theme-light .border-gray-900 {
+  border-color: #ffffff !important;
+}
+
+/* --- WARNING BANNERS --- */
+/* Amber warning banners (runner offline, etc.) */
+.theme-light .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.theme-light .border-amber-400\/40 {
+  border-color: rgba(251, 191, 36, 0.5) !important;
+}
+
+.theme-light .text-amber-200 {
+  color: #92400e !important;
+}
+
+.theme-light .text-amber-200\/80 {
+  color: rgba(146, 64, 14, 0.9) !important;
+}
+
+.theme-light .text-amber-300 {
+  color: #b45309 !important;
+}
+
+.theme-light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+.theme-light .bg-amber-400\/20 {
+  background-color: rgba(251, 191, 36, 0.15) !important;
+}
+
+.theme-light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.theme-light .border-amber-500\/20 {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Orange warning banners (runner disconnected) */
+.theme-light .bg-orange-500\/20 {
+  background-color: rgba(249, 115, 22, 0.12) !important;
+}
+
+.theme-light .border-orange-400\/40 {
+  border-color: rgba(251, 146, 60, 0.5) !important;
+}
+
+.theme-light .text-orange-200 {
+  color: #9a3412 !important;
+}
+
+.theme-light .bg-orange-400\/20 {
+  background-color: rgba(251, 146, 60, 0.15) !important;
+}
+
+/* --- SHIMMER TEXT OVERRIDES FOR LIGHT MODE --- */
+/* Make shimmer text darker for light backgrounds */
+.theme-light .shimmer-text-cyan {
+  background: linear-gradient(
+    90deg,
+    #0891b2 0%,
+    #1d4ed8 25%,
+    #2563eb 50%,
+    #1d4ed8 75%,
+    #0891b2 100%
+  ) !important;
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.theme-light .shimmer-text-orange {
+  background: linear-gradient(
+    90deg,
+    #ea580c 0%,
+    #ca8a04 25%,
+    #d97706 50%,
+    #ca8a04 75%,
+    #ea580c 100%
+  ) !important;
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- MISC DROPDOWN AND MODAL BACKGROUNDS --- */
+.theme-light .bg-gray-900\/95 {
+  background-color: rgba(248, 250, 252, 0.98) !important;
+}
+
+.theme-light .bg-gray-900 {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .border-gray-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Fix gray-600 background (used in phase indicator dots) */
+.theme-light .bg-gray-600 {
+  background-color: #cbd5e1 !important;
+}
+
+/* Fix hover states for dismiss buttons */
+.theme-light .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Inline code in warning banners */
+.theme-light .bg-black\/30 {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* --- TOAST NOTIFICATION COLORS FOR LIGHT MODE --- */
+/* Text colors in toasts - darken for light backgrounds */
+.theme-light .text-green-100 {
+  color: #166534 !important;
+}
+
+.theme-light .text-red-100 {
+  color: #991b1b !important;
+}
+
+.theme-light .text-orange-100 {
+  color: #9a3412 !important;
+}
+
+.theme-light .text-blue-100 {
+  color: #1e40af !important;
+}
+
+/* Toast border colors */
+.theme-light .border-green-500\/40 {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+}
+
+.theme-light .border-red-500\/40 {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+
+.theme-light .border-orange-500\/40 {
+  border-color: rgba(249, 115, 22, 0.5) !important;
+}
+
+.theme-light .border-blue-500\/40 {
+  border-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+/* --- ADDITIONAL GRAY TEXT OVERRIDES --- */
+.theme-light .text-gray-500 {
+  color: #64748b !important;
+}
+
+/* Red button and action text colors */
+.theme-light .text-red-500 {
+  color: #dc2626 !important;
+}
+
+/* --- STATUS DOT INDICATOR BACKGROUNDS --- */
+/* These small dots need good contrast in light mode */
+.theme-light .animate-pulse.bg-green-400 {
+  background-color: #22c55e !important;
+}
+
+/* --- COMMAND PALETTE OVERRIDES --- */
+.theme-light .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Bulk action button backgrounds */
+.theme-light .bg-red-500\/20 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+
+.theme-light .border-red-500\/30 {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.theme-light .hover\:bg-red-500\/30:hover {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Gray backgrounds in command palette */
+.theme-light .bg-gray-800\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .border-gray-700\/50 {
+  border-color: #cbd5e1 !important;
 }
 
 @keyframes swing-up {

@@ -102,7 +102,7 @@ export async function GET(
             .from(generationTodos)
             .where(inArray(generationTodos.sessionId, sessionIds))
             .orderBy(generationTodos.todoIndex)
-        : Promise.resolve([]),
+        : Promise.resolve([] as (typeof generationTodos.$inferSelect)[]),
       sessionIds.length > 0
         ? db
             .select()
@@ -112,7 +112,7 @@ export async function GET(
               sql`${generationToolCalls.todoIndex} >= 0`, // No pre-todo tools
               sql`${generationToolCalls.state} IN ('output-available', 'error')` // Only completed
             ))
-        : Promise.resolve([]),
+        : Promise.resolve([] as (typeof generationToolCalls.$inferSelect)[]),
     ]);
 
     const sessionsWithRelations = sessions.map(session => {

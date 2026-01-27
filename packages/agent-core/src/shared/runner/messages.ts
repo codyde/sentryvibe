@@ -6,6 +6,7 @@ export type AgentId = CoreAgentId;
 export type ClaudeModelId = CoreClaudeModelId;
 
 export type RunnerCommandType =
+  | 'analyze-project'
   | 'start-build'
   | 'cancel-build'
   | 'start-dev-server'
@@ -42,6 +43,8 @@ export type RunnerEventType =
   | 'runner-status'
   | 'build-stream'
   | 'project-metadata'
+  | 'analysis-started'
+  | 'analysis-complete'
   | 'files-deleted'
   | 'file-content'
   | 'file-written'
@@ -68,6 +71,28 @@ export interface BaseCommand {
   };
 }
 
+/**
+ * Analyze project command - sent before project is created in DB
+ * Runner performs AI analysis and returns metadata for project creation
+ */
+export interface AnalyzeProjectCommand {
+  id: string;
+  type: 'analyze-project';
+  timestamp: string;
+  payload: {
+    prompt: string;
+    operationType: 'initial-build';
+    agent: AgentId;
+    claudeModel?: ClaudeModelId;
+    tags?: AppliedTag[];
+    runnerId: string;
+  };
+  _sentry?: {
+    trace?: string;
+    baggage?: string;
+  };
+}
+
 export interface StartBuildCommand extends BaseCommand {
   type: 'start-build';
   payload: {
@@ -82,6 +107,13 @@ export interface StartBuildCommand extends BaseCommand {
     agent?: AgentId;
     claudeModel?: ClaudeModelId;
     codexThreadId?: string; // For resuming Codex threads
+    messageParts?: Array<{
+      type: string;
+      text?: string;
+      image?: string;
+      mimeType?: string;
+      fileName?: string;
+    }>; // Multi-modal content (text, images, etc.)
     template?: {
       id: string;
       name: string;
@@ -242,6 +274,7 @@ export interface GithubPushCommand extends BaseCommand {
 }
 
 export type RunnerCommand =
+  | AnalyzeProjectCommand
   | StartBuildCommand
   | CancelBuildCommand
   | StartDevServerCommand
@@ -396,7 +429,29 @@ export interface ProjectMetadataEvent extends BaseEvent {
     runCommand: string;
     port: number;
     detectedFramework?: string;
+    // New fields for pre-build analysis (analyze-project command)
+    slug?: string;
+    friendlyName?: string;
+    description?: string;
+    icon?: string;
+    template?: {
+      id: string;
+      name: string;
+      framework: string;
+      port: number;
+      runCommand: string;
+      repository: string;
+      branch: string;
+    };
   };
+}
+
+export interface AnalysisStartedEvent extends BaseEvent {
+  type: 'analysis-started';
+}
+
+export interface AnalysisCompleteEvent extends BaseEvent {
+  type: 'analysis-complete';
 }
 
 export interface FilesDeletedEvent extends BaseEvent {
@@ -514,6 +569,8 @@ export type RunnerEvent =
   | RunnerStatusEvent
   | BuildStreamEvent
   | ProjectMetadataEvent
+  | AnalysisStartedEvent
+  | AnalysisCompleteEvent
   | FilesDeletedEvent
   | FileContentEvent
   | FileWrittenEvent
@@ -532,6 +589,7 @@ export type RunnerEvent =
 export type RunnerMessage = RunnerCommand | RunnerEvent;
 
 const COMMAND_TYPES: RunnerCommandType[] = [
+  'analyze-project',
   'start-build',
   'cancel-build',
   'start-dev-server',

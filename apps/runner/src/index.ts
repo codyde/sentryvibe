@@ -44,6 +44,7 @@ import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
 import { transformCodexStream } from "./lib/codex-sdk-adapter.js";
 
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
+import { analyzeProject } from "./lib/project-analyzer.js";
 import { tunnelManager } from "./lib/tunnel/manager.js";
 import { waitForPort } from "./lib/port-checker.js";
 import { createProjectScopedPermissionHandler } from "./lib/permissions/project-scoped-handler.js";
@@ -1624,8 +1625,52 @@ export async function startRunner(options: RunnerOptions = {}) {
   }
 
   async function handleCommand(command: RunnerCommand) {
+    // Handle analyze-project specially - no projectId yet
+    if (command.type === 'analyze-project') {
+      debugLog(`Received command: analyze-project`);
+      debugLog(`Command ID: ${command.id}`);
+      debugLog(`Timestamp: ${command.timestamp}`);
+      
+      // Send ack without projectId
+      sendEvent({
+        type: "ack",
+        commandId: command.id,
+        timestamp: new Date().toISOString(),
+        message: `Command analyze-project accepted`,
+      });
+      
+      // Handle the analyze-project command
+      try {
+        log('🔍 Starting project analysis...');
+        await analyzeProject(
+          {
+            prompt: command.payload.prompt,
+            agent: command.payload.agent,
+            claudeModel: command.payload.claudeModel,
+            tags: command.payload.tags,
+          },
+          sendEvent,
+          command.id
+        );
+        log('✅ Project analysis complete');
+      } catch (error) {
+        log('❌ Project analysis failed:', error);
+        sendEvent({
+          type: 'error',
+          commandId: command.id,
+          timestamp: new Date().toISOString(),
+          error: error instanceof Error ? error.message : 'Analysis failed',
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+      return;
+    }
+
+    // All other commands have projectId
+    const projectId = command.projectId;
+    
     // Log command receipt - only verbose details in debug mode
-    debugLog(`Received command: ${command.type} for project: ${command.projectId}`);
+    debugLog(`Received command: ${command.type} for project: ${projectId}`);
     debugLog(`Command ID: ${command.id}`);
     debugLog(`Timestamp: ${command.timestamp}`);
 
@@ -1647,7 +1692,7 @@ export async function startRunner(options: RunnerOptions = {}) {
 
     sendEvent({
       type: "ack",
-      ...buildEventBase(command.projectId, command.id),
+      ...buildEventBase(projectId, command.id),
       message: `Command ${command.type} accepted`,
     });
 
@@ -3377,6 +3422,11 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
         // BUG FIX: Update lastCommandReceived timestamp
         lastCommandReceived = Date.now();
 
+        // Get projectId - analyze-project commands don't have one yet
+        const projectIdForTelemetry = command.type === 'analyze-project' 
+          ? 'pending-analysis' 
+          : (command as { projectId: string }).projectId;
+
         // Continue trace from frontend - each build now starts its trace in the frontend
         // This creates a span within the continued trace for the runner's work
         if (command._sentry?.trace) {
@@ -3395,14 +3445,14 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
                   attributes: {
                     'command.type': command.type,
                     'command.id': command.id,
-                    'project.id': command.projectId,
+                    'project.id': projectIdForTelemetry,
                     'trace.continued': true,
                   },
                 },
                 async (span) => {
                   try {
                     Sentry.setTag("command_type", command.type);
-                    Sentry.setTag("project_id", command.projectId);
+                    Sentry.setTag("project_id", projectIdForTelemetry);
                     Sentry.setTag("command_id", command.id);
 
                     // Capture build metrics for start-build commands
@@ -3444,14 +3494,14 @@ Write a brief, professional summary (1-3 sentences) describing what was accompli
               attributes: {
                 'command.type': command.type,
                 'command.id': command.id,
-                'project.id': command.projectId,
+                'project.id': projectIdForTelemetry,
                 'trace.continued': false,
               },
             },
             async (span) => {
               try {
                 Sentry.setTag("command_type", command.type);
-                Sentry.setTag("project_id", command.projectId);
+                Sentry.setTag("project_id", projectIdForTelemetry);
                 Sentry.setTag("command_id", command.id);
 
                 // Capture build metrics for start-build commands

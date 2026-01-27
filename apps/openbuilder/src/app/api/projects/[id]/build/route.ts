@@ -3,7 +3,7 @@ import type { BuildRequest } from '@/types/build';
 import { sendCommandToRunner } from '@openbuilder/agent-core/lib/runner/broker-state';
 import { addRunnerEventSubscriber } from '@openbuilder/agent-core/lib/runner/event-stream';
 import { registerBuild, cleanupStuckBuilds } from '@openbuilder/agent-core/lib/runner/persistent-event-processor';
-import type { RunnerEvent, StopDevServerCommand } from '@openbuilder/agent-core/shared/runner/messages';
+import type { RunnerEvent } from '@openbuilder/agent-core/shared/runner/messages';
 import { db } from '@openbuilder/agent-core/lib/db/client';
 import { sql } from 'drizzle-orm';
 import {
@@ -14,31 +14,26 @@ import {
 import { eq } from 'drizzle-orm';
 import { DEFAULT_AGENT_ID, DEFAULT_CLAUDE_MODEL_ID } from '@openbuilder/agent-core/types/agent';
 import type { ClaudeModelId } from '@openbuilder/agent-core/types/agent';
-import { analyzePromptForTemplate, generateProjectName } from '@/services/template-analysis';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import type { Template } from '@openbuilder/agent-core/lib/templates/config';
 import { parseModelTag } from '@openbuilder/agent-core/lib/tags/model-parser';
 import { TAG_DEFINITIONS } from '@openbuilder/agent-core/config/tags';
 import { projectEvents } from '@/lib/project-events';
-import { releasePortForProject } from '@openbuilder/agent-core/lib/port-allocator';
-import { getProjectRunnerId } from '@/lib/runner-utils';
 import * as Sentry from '@sentry/nextjs';
 import { requireProjectOwnership, AuthError } from '@/lib/auth-helpers';
 
+/**
+ * NOTE: Template analysis and project name generation are now handled by the runner.
+ * 
+ * For initial builds, the frontend should:
+ * 1. Send analyze-project command to runner
+ * 2. Wait for project-metadata event
+ * 3. Create project via /api/projects/create-from-analysis
+ * 4. Then call this build route
+ * 
+ * This build route now expects template metadata to be passed in the request body
+ * (from the runner analysis), or it will let the runner auto-select.
+ */
+
 export const maxDuration = 30;
-
-interface TemplateConfig {
-  version: string;
-  templates: Template[];
-}
-
-async function loadTemplates(): Promise<Template[]> {
-  const templatesPath = join(process.cwd(), 'templates.json');
-  const content = await readFile(templatesPath, 'utf-8');
-  const config: TemplateConfig = JSON.parse(content);
-  return config.templates;
-}
 
 export async function POST(
   req: Request,
@@ -143,35 +138,26 @@ export async function POST(
     // NOTE: Server restart is now manual - user can refresh or stop/start the server
     // HMR handles most file changes automatically
 
-    // NEW: Conditional analysis - framework tag changes behavior
-    let templateMetadata = body.template; // Use provided template if available
-    let generatedFriendlyName: string | undefined;
+    // Template metadata comes from:
+    // 1. body.template (from runner analysis via create-from-analysis flow)
+    // 2. Framework tag (fast path - build template from tag definition)
+    // 3. Runner auto-selection (fallback - runner will select template)
+    let templateMetadata = body.template;
 
     if (body.operationType === 'initial-build' && !templateMetadata) {
-      // Check if framework tag is present
+      // Check if framework tag is present - can build template metadata without AI
       const frameworkTag = body.tags?.find(t => t.key === 'framework');
 
       if (frameworkTag) {
-        // FAST PATH: Framework tag present - skip template analysis, only generate name
-        console.log('[build-route] Framework tag present - skipping template analysis');
+        // FAST PATH: Framework tag present - build template metadata from tag definition
+        console.log('[build-route] Framework tag present - building template from tag');
         console.log(`[build-route] Framework: ${frameworkTag.value}`);
 
-        try {
-          // Generate project friendly name with Haiku (fast + cheap)
-          // Note: We only use the friendlyName - slug comes from DB and is immutable
-          const names = await generateProjectName(body.prompt, agentId, claudeModel);
-          generatedFriendlyName = names.friendlyName;
-          console.log(`[build-route] ✅ Generated friendly name: ${generatedFriendlyName}`);
-          console.log(`[build-route]    Using stored slug: ${project.slug}`);
+        // Get framework metadata from tag definition
+        const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
+        const frameworkOption = frameworkDef?.options?.find(o => o.value === frameworkTag.value);
 
-          // Get framework metadata from tag definition
-          const frameworkDef = TAG_DEFINITIONS.find(d => d.key === 'framework');
-          const frameworkOption = frameworkDef?.options?.find(o => o.value === frameworkTag.value);
-
-          if (!frameworkOption?.repository) {
-            throw new Error(`Framework tag ${frameworkTag.value} missing repository metadata`);
-          }
-
+        if (frameworkOption?.repository) {
           // Build template metadata from tag (no AI analysis needed)
           templateMetadata = {
             id: `${frameworkTag.value}-default`,
@@ -185,83 +171,23 @@ export async function POST(
 
           console.log(`[build-route] ✅ Template from tag: ${frameworkOption.label}`);
           console.log(`[build-route]    Repository: ${frameworkOption.repository}`);
-          console.log(`[build-route]    Cost savings: ~85% (skipped template analysis)`);
 
-          // Update project name and framework in DB
-          // Note: We do NOT update the slug - it must remain immutable for directory consistency
-          const updates: { name?: string; detectedFramework?: string } = {};
-          
-          if (generatedFriendlyName && generatedFriendlyName !== project.name) {
-            updates.name = generatedFriendlyName;
+          // Update framework in DB
+          const [updated] = await db.update(projects)
+            .set({ detectedFramework: templateMetadata.framework })
+            .where(eq(projects.id, id))
+            .returning();
+
+          if (updated) {
+            console.log(`[build-route] 🚀 Framework emitted: ${templateMetadata.framework}`);
+            projectEvents.emitProjectUpdate(id, updated);
           }
-          
-          // Store framework from tag for metrics consistency
-          if (templateMetadata.framework) {
-            updates.detectedFramework = templateMetadata.framework;
-          }
-          
-          if (Object.keys(updates).length > 0) {
-            const [updated] = await db.update(projects)
-              .set(updates)
-              .where(eq(projects.id, id))
-              .returning();
-            console.log(`[build-route] ✅ Updated project:`, updates);
-            
-            // EMIT FRAMEWORK EARLY: Push update to frontend immediately
-            // This makes the framework tag appear at the START of the build
-            if (updated) {
-              console.log(`[build-route] 🚀 Framework emitted immediately: ${templateMetadata.framework}`);
-              projectEvents.emitProjectUpdate(id, updated);
-            }
-          }
-        } catch (error) {
-          console.error('[build-route] ⚠️ Framework tag processing failed:', error);
-          throw error; // Don't fall back - tag enforcement should work
+        } else {
+          console.log('[build-route] ⚠️ Framework tag missing repository metadata, runner will auto-select');
         }
       } else {
-        // FULL PATH: No framework tag - run complete template analysis
-        console.log('[build-route] No framework tag - running full template analysis');
-        console.log(`[build-route] Using ${agentId} model for analysis`);
-
-        try {
-          const templates = await loadTemplates();
-          const analysis = await analyzePromptForTemplate(body.prompt, agentId, templates, claudeModel);
-
-          templateMetadata = {
-            id: analysis.templateId,
-            name: analysis.templateName,
-            framework: analysis.framework,
-            port: analysis.defaultPort,
-            runCommand: analysis.devCommand,
-            repository: analysis.repository,
-            branch: analysis.branch,
-          };
-
-          console.log(`[build-route] ✅ Template selected: ${analysis.templateName}`);
-          console.log(`[build-route]    Reasoning: ${analysis.reasoning}`);
-          console.log(`[build-route]    Confidence: ${analysis.confidence}`);
-          console.log(`[build-route]    Analyzed by: ${analysis.analyzedBy}`);
-
-          // IMMEDIATE FRAMEWORK UPDATE: Save framework to DB right after template analysis
-          // This happens BEFORE runner starts, making it available immediately
-          if (templateMetadata?.framework) {
-            const [updated] = await db.update(projects)
-              .set({
-                detectedFramework: templateMetadata.framework,
-                lastActivityAt: new Date(),
-              })
-              .where(eq(projects.id, id))
-              .returning();
-
-            if (updated) {
-              console.log(`[build-route] 🚀 Framework saved immediately after analysis: ${templateMetadata.framework}`);
-              projectEvents.emitProjectUpdate(id, updated);
-            }
-          }
-        } catch (analysisError) {
-          console.error('[build-route] ⚠️ Template analysis failed, will fall back to runner auto-selection:', analysisError);
-          // Don't fail the build - let the runner handle template selection as fallback
-        }
+        // No template and no framework tag - runner will handle template selection
+        console.log('[build-route] No template provided - runner will auto-select');
       }
     }
 
@@ -562,27 +488,25 @@ export async function POST(
       console.log(`[build-route]    ID: ${templateMetadata.id}`);
       console.log(`[build-route]    Framework: ${templateMetadata.framework}`);
       console.log(`[build-route]    Project Slug: ${project.slug} (immutable, from database)`);
-      if (generatedFriendlyName) {
-        console.log(`[build-route]    Display Name: ${generatedFriendlyName}`);
-      }
 
-      // EMIT FRAMEWORK EARLY: Update project with detected framework immediately
-      // This makes the framework tag appear at the START of the build
-      try {
-        const [updated] = await db.update(projects)
-          .set({
-            detectedFramework: templateMetadata.framework,
-            lastActivityAt: new Date(),
-          })
-          .where(eq(projects.id, id))
-          .returning();
+      // Update project with detected framework (if not already set from analysis)
+      if (templateMetadata.framework && !project.detectedFramework) {
+        try {
+          const [updated] = await db.update(projects)
+            .set({
+              detectedFramework: templateMetadata.framework,
+              lastActivityAt: new Date(),
+            })
+            .where(eq(projects.id, id))
+            .returning();
 
-        if (updated) {
-          console.log(`[build-route] ✅ Early framework emit: ${templateMetadata.framework}`);
-          projectEvents.emitProjectUpdate(id, updated);
+          if (updated) {
+            console.log(`[build-route] ✅ Framework updated: ${templateMetadata.framework}`);
+            projectEvents.emitProjectUpdate(id, updated);
+          }
+        } catch (error) {
+          console.error('[build-route] Failed to update framework:', error);
         }
-      } catch (error) {
-        console.error('[build-route] Failed to emit early framework:', error);
       }
     } else {
       console.log('[build-route] 📤 No template metadata - runner will auto-select');
@@ -602,7 +526,7 @@ export async function POST(
         // The slug is generated once during project creation and must be immutable
         // Using a regenerated slug causes directory mismatch between initial build and enhancements
         projectSlug: project.slug,
-        projectName: generatedFriendlyName || project.name,
+        projectName: project.name,
         context: body.context,
         designPreferences: body.designPreferences,
         tags: body.tags,

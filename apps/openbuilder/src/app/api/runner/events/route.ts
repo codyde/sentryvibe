@@ -119,8 +119,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // TypeScript narrowing: projectId is guaranteed to be defined after the guard above
+    const projectId = event.projectId;
+
     // Verify the authenticated user owns this project
-    const hasAccess = await verifyProjectOwnership(event.projectId, authResult.userId);
+    const hasAccess = await verifyProjectOwnership(projectId, authResult.userId);
     if (!hasAccess) {
       return NextResponse.json({ error: 'Forbidden: You do not own this project' }, { status: 403 });
     }
@@ -134,7 +137,7 @@ export async function POST(request: Request) {
         op: 'event.process',
         attributes: {
           'event.type': event.type,
-          'event.projectId': event.projectId,
+          'projectId': projectId,
           'event.commandId': event.commandId,
         },
       },
@@ -144,13 +147,13 @@ export async function POST(request: Request) {
 
         // Handle log events
         if (event.type === 'log-chunk' && typeof event.data === 'string') {
-          appendRunnerLog(event.projectId, {
+          appendRunnerLog(projectId, {
             type: event.stream === 'stderr' ? 'stderr' : 'stdout',
             data: event.data,
             timestamp: new Date(event.timestamp ?? Date.now()),
           });
         } else if (event.type === 'process-exited') {
-          markRunnerLogExit(event.projectId, {
+          markRunnerLogExit(projectId, {
             code: event.exitCode,
             signal: event.signal ?? undefined,
           });
@@ -165,9 +168,9 @@ export async function POST(request: Request) {
                 tunnelUrl: event.tunnelUrl,
                 lastActivityAt: new Date(),
               })
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .returning();
-            if (updated) emitProjectUpdateFromData(event.projectId, updated);
+            if (updated) emitProjectUpdateFromData(projectId, updated);
             break;
           }
           case 'tunnel-closed': {
@@ -176,33 +179,33 @@ export async function POST(request: Request) {
                 tunnelUrl: null,
                 lastActivityAt: new Date(),
               })
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .returning();
-            if (updated) emitProjectUpdateFromData(event.projectId, updated);
+            if (updated) emitProjectUpdateFromData(projectId, updated);
             break;
           }
           case 'port-conflict': {
-            if (event.projectId) {
+            if (projectId) {
               const errorMessage = event.message || `Port ${event.port} is already in use on the runner host`;
               
-              console.log(`[events] ⚠️ Port conflict detected for project ${event.projectId} on port ${event.port}`);
+              console.log(`[events] ⚠️ Port conflict detected for project ${projectId} on port ${event.port}`);
 
               // Release the conflicted port
-              await releasePortForProject(event.projectId);
+              await releasePortForProject(projectId);
 
               // Check retry attempts
-              const currentAttempts = portRetryAttempts.get(event.projectId) || 0;
+              const currentAttempts = portRetryAttempts.get(projectId) || 0;
               
               if (currentAttempts < MAX_PORT_RETRY_ATTEMPTS) {
                 // Increment retry counter
-                portRetryAttempts.set(event.projectId, currentAttempts + 1);
+                portRetryAttempts.set(projectId, currentAttempts + 1);
                 
                 console.log(`[events] 🔄 Auto-retrying with new port (attempt ${currentAttempts + 1}/${MAX_PORT_RETRY_ATTEMPTS})...`);
 
                 // Get project details for retry
                 const [project] = await db.select()
                   .from(projects)
-                  .where(eq(projects.id, event.projectId))
+                  .where(eq(projects.id, projectId))
                   .limit(1);
 
                 if (project && project.path && project.runCommand) {
@@ -210,7 +213,7 @@ export async function POST(request: Request) {
                     // Allocate a new port (will skip the conflicted one)
                     const isRemoteRunner = project.runnerId !== 'local';
                     const portInfo = await reserveOrReallocatePort({
-                      projectId: event.projectId,
+                      projectId: projectId,
                       projectType: project.projectType,
                       runCommand: project.runCommand,
                       preferredPort: null, // Don't use preferred port, get a new one
@@ -227,11 +230,11 @@ export async function POST(request: Request) {
                         errorMessage: null,
                         lastActivityAt: new Date(),
                       })
-                      .where(eq(projects.id, event.projectId))
+                      .where(eq(projects.id, projectId))
                       .returning();
 
                     if (updated) {
-                      emitProjectUpdateFromData(event.projectId, updated);
+                      emitProjectUpdateFromData(projectId, updated);
                     }
 
                     // Get runner for this project
@@ -246,7 +249,7 @@ export async function POST(request: Request) {
                       const retryCommand: StartDevServerCommand = {
                         id: randomUUID(),
                         type: 'start-dev-server',
-                        projectId: event.projectId,
+                        projectId: projectId,
                         timestamp: new Date().toISOString(),
                         payload: {
                           runCommand,
@@ -257,11 +260,11 @@ export async function POST(request: Request) {
                       };
 
                       await sendCommandToRunner(runnerId, retryCommand);
-                      console.log(`[events] ✅ Retry command sent for project ${event.projectId} on new port ${portInfo.port}`);
+                      console.log(`[events] ✅ Retry command sent for project ${projectId} on new port ${portInfo.port}`);
 
                       Sentry.metrics.count('dev_server_port_conflict_retry', 1, {
                         attributes: {
-                          project_id: event.projectId,
+                          project_id: projectId,
                           old_port: (event.port ?? 'unknown').toString(),
                           new_port: String(portInfo.port),
                           attempt: String(currentAttempts + 1),
@@ -281,11 +284,11 @@ export async function POST(request: Request) {
                         errorMessage: `${errorMessage}. Retry failed: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`,
                         lastActivityAt: new Date(),
                       })
-                      .where(eq(projects.id, event.projectId))
+                      .where(eq(projects.id, projectId))
                       .returning();
 
                     if (updated) {
-                      emitProjectUpdateFromData(event.projectId, updated);
+                      emitProjectUpdateFromData(projectId, updated);
                     }
                   }
                 } else {
@@ -298,17 +301,17 @@ export async function POST(request: Request) {
                       errorMessage,
                       lastActivityAt: new Date(),
                     })
-                    .where(eq(projects.id, event.projectId))
+                    .where(eq(projects.id, projectId))
                     .returning();
 
                   if (updated) {
-                    emitProjectUpdateFromData(event.projectId, updated);
+                    emitProjectUpdateFromData(projectId, updated);
                   }
                 }
               } else {
                 // Max retries exceeded
-                console.log(`[events] ❌ Max port retry attempts (${MAX_PORT_RETRY_ATTEMPTS}) exceeded for project ${event.projectId}`);
-                portRetryAttempts.delete(event.projectId); // Reset counter
+                console.log(`[events] ❌ Max port retry attempts (${MAX_PORT_RETRY_ATTEMPTS}) exceeded for project ${projectId}`);
+                portRetryAttempts.delete(projectId); // Reset counter
                 
                 const [updated] = await db.update(projects)
                   .set({
@@ -317,17 +320,17 @@ export async function POST(request: Request) {
                     errorMessage: `${errorMessage}. Failed after ${MAX_PORT_RETRY_ATTEMPTS} retry attempts.`,
                     lastActivityAt: new Date(),
                   })
-                  .where(eq(projects.id, event.projectId))
+                  .where(eq(projects.id, projectId))
                   .returning();
 
                 if (updated) {
-                  emitProjectUpdateFromData(event.projectId, updated);
+                  emitProjectUpdateFromData(projectId, updated);
                 }
               }
 
               Sentry.metrics.count('dev_server_port_conflict', 1, {
                 attributes: {
-                  project_id: event.projectId,
+                  project_id: projectId,
                   port: (event.port ?? 'unknown').toString(),
                 },
               });
@@ -337,9 +340,9 @@ export async function POST(request: Request) {
           case 'port-reallocated': {
             // Runner found the pre-allocated port was in use and auto-selected a new port
             // Update the database with the new port
-            if (event.projectId) {
+            if (projectId) {
               const reallocatedEvent = event as typeof event & { originalPort?: number; newPort?: number };
-              console.log(`[events] 🔄 Port reallocated for project ${event.projectId}: ${reallocatedEvent.originalPort} → ${reallocatedEvent.newPort}`);
+              console.log(`[events] 🔄 Port reallocated for project ${projectId}: ${reallocatedEvent.originalPort} → ${reallocatedEvent.newPort}`);
               
               if (reallocatedEvent.newPort) {
                 // Update port in database
@@ -348,20 +351,20 @@ export async function POST(request: Request) {
                     devServerPort: reallocatedEvent.newPort,
                     lastActivityAt: new Date(),
                   })
-                  .where(eq(projects.id, event.projectId))
+                  .where(eq(projects.id, projectId))
                   .returning();
                 
                 if (updated) {
-                  console.log(`[events] ✅ Updated devServerPort to ${reallocatedEvent.newPort} for project ${event.projectId}`);
-                  emitProjectUpdateFromData(event.projectId, updated);
+                  console.log(`[events] ✅ Updated devServerPort to ${reallocatedEvent.newPort} for project ${projectId}`);
+                  emitProjectUpdateFromData(projectId, updated);
                 }
                 
                 // Reset port retry counter since we successfully got a new port
-                portRetryAttempts.delete(event.projectId);
+                portRetryAttempts.delete(projectId);
                 
                 Sentry.metrics.count('dev_server_port_reallocated', 1, {
                   attributes: {
-                    project_id: event.projectId,
+                    project_id: projectId,
                     original_port: String(reallocatedEvent.originalPort ?? 'unknown'),
                     new_port: String(reallocatedEvent.newPort),
                   },
@@ -375,7 +378,7 @@ export async function POST(request: Request) {
             const message = (event as { message?: string }).message || '';
             if (message.includes('healthy') || message.includes('running') || message.includes('restarted successfully')) {
               // Reset port retry counter on successful start
-              portRetryAttempts.delete(event.projectId);
+              portRetryAttempts.delete(projectId);
               
               const now = new Date();
               const [updated] = await db.update(projects)
@@ -384,11 +387,11 @@ export async function POST(request: Request) {
                   devServerStatusUpdatedAt: now,
                   lastActivityAt: now,
                 })
-                .where(eq(projects.id, event.projectId!))
+                .where(eq(projects.id, projectId!))
                 .returning();
               if (updated) {
-                console.log(`[events] ✅ Updated devServerStatus to 'running' for project ${event.projectId}`);
-                emitProjectUpdateFromData(event.projectId!, updated);
+                console.log(`[events] ✅ Updated devServerStatus to 'running' for project ${projectId}`);
+                emitProjectUpdateFromData(projectId!, updated);
               }
               
               // Update operation record if commandId matches an operation
@@ -421,7 +424,7 @@ export async function POST(request: Request) {
             // Get current project to preserve error message if status is failed
             const [currentProject] = await db.select()
               .from(projects)
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .limit(1);
 
             // Preserve error message if we're keeping failed status
@@ -455,17 +458,17 @@ export async function POST(request: Request) {
 
             const [updated] = await db.update(projects)
               .set(updateData)
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .returning();
             // No port reservation cleanup needed
-            if (updated) emitProjectUpdateFromData(event.projectId, updated);
+            if (updated) emitProjectUpdateFromData(projectId, updated);
 
             // Trigger auto-fix for immediate crashes with stderr output
             if (wasImmediateCrash && exitEvent.stderr && currentProject) {
-              console.log(`[events] 🔧 Immediate crash detected for project ${event.projectId}, triggering auto-fix`);
+              console.log(`[events] 🔧 Immediate crash detected for project ${projectId}, triggering auto-fix`);
               
               // Check auto-fix attempt limits to prevent infinite loops
-              const attempts = autoFixAttempts.get(event.projectId);
+              const attempts = autoFixAttempts.get(projectId);
               const now = Date.now();
 
               if (attempts) {
@@ -475,7 +478,7 @@ export async function POST(request: Request) {
                 }
 
                 if (attempts.count >= MAX_AUTO_FIX_ATTEMPTS) {
-                  console.log(`[events] ⚠️ Max auto-fix attempts (${MAX_AUTO_FIX_ATTEMPTS}) reached for project ${event.projectId}, skipping auto-fix`);
+                  console.log(`[events] ⚠️ Max auto-fix attempts (${MAX_AUTO_FIX_ATTEMPTS}) reached for project ${projectId}, skipping auto-fix`);
                   
                   // Update project status to show manual intervention needed
                   const [failedUpdate] = await db.update(projects)
@@ -484,16 +487,16 @@ export async function POST(request: Request) {
                       errorMessage: `Auto-fix failed after ${MAX_AUTO_FIX_ATTEMPTS} attempts. Error: ${exitEvent.stderr.substring(0, 300)}`,
                       lastActivityAt: new Date(),
                     })
-                    .where(eq(projects.id, event.projectId))
+                    .where(eq(projects.id, projectId))
                     .returning();
-                  if (failedUpdate) emitProjectUpdateFromData(event.projectId, failedUpdate);
+                  if (failedUpdate) emitProjectUpdateFromData(projectId, failedUpdate);
                   break;
                 }
               }
 
               if (currentProject.slug) {
                 // Update auto-fix tracking
-                autoFixAttempts.set(event.projectId, {
+                autoFixAttempts.set(projectId, {
                   count: (attempts?.count || 0) + 1,
                   lastAttempt: now,
                 });
@@ -504,7 +507,7 @@ export async function POST(request: Request) {
                 // Emit autofix-started event to notify UI
                 const autoFixEvent: AutoFixStartedEvent = {
                   type: 'autofix-started',
-                  projectId: event.projectId,
+                  projectId: projectId,
                   commandId: event.commandId,
                   timestamp: new Date().toISOString(),
                   errorType: 'startup',
@@ -513,7 +516,7 @@ export async function POST(request: Request) {
                   maxAttempts: MAX_AUTO_FIX_ATTEMPTS,
                 };
                 publishRunnerEvent(autoFixEvent);
-                console.log(`[events] 📡 Emitted autofix-started event for project ${event.projectId}`);
+                console.log(`[events] 📡 Emitted autofix-started event for project ${projectId}`);
 
                 // Update project status to indicate error fixing in progress
                 const [buildingUpdate] = await db.update(projects)
@@ -522,9 +525,9 @@ export async function POST(request: Request) {
                     errorMessage: exitEvent.stderr.substring(0, 500),
                     lastActivityAt: new Date(),
                   })
-                  .where(eq(projects.id, event.projectId))
+                  .where(eq(projects.id, projectId))
                   .returning();
-                if (buildingUpdate) emitProjectUpdateFromData(event.projectId, buildingUpdate);
+                if (buildingUpdate) emitProjectUpdateFromData(projectId, buildingUpdate);
 
                 // Get the runner for this project
                 const runnerId = await getProjectRunnerId(currentProject.runnerId);
@@ -551,7 +554,7 @@ IMPORTANT:
                   const buildCommand: StartBuildCommand = {
                     id: randomUUID(),
                     type: 'start-build',
-                    projectId: event.projectId,
+                    projectId: projectId,
                     timestamp: new Date().toISOString(),
                     payload: {
                       prompt: fixPrompt,
@@ -565,11 +568,11 @@ IMPORTANT:
 
                   try {
                     await sendCommandToRunner(runnerId, buildCommand);
-                    console.log(`[events] ✅ Auto-fix build triggered for startup crash in project ${event.projectId}`);
+                    console.log(`[events] ✅ Auto-fix build triggered for startup crash in project ${projectId}`);
 
                     Sentry.metrics.count('startup_crash_autofix_triggered', 1, {
                       attributes: {
-                        project_id: event.projectId,
+                        project_id: projectId,
                         attempt: String((attempts?.count || 0) + 1),
                       },
                     });
@@ -577,7 +580,7 @@ IMPORTANT:
                     console.error(`[events] ❌ Failed to send auto-fix command to runner:`, sendError);
                   }
                 } else {
-                  console.log(`[events] ⚠️ No runner available for auto-fix, project ${event.projectId}`);
+                  console.log(`[events] ⚠️ No runner available for auto-fix, project ${projectId}`);
                 }
               }
             }
@@ -586,12 +589,12 @@ IMPORTANT:
           case 'project-metadata': {
             // Update project metadata (path, runCommand, projectType, port) from template download
             const metadata = 'payload' in event ? event.payload : null;
-            if (metadata && event.projectId) {
+            if (metadata && projectId) {
               // Extract detected framework early if available
               const detectedFramework = metadata.detectedFramework || null;
 
               if (detectedFramework) {
-                console.log(`[events] 🔍 Early framework detection for project ${event.projectId}: ${detectedFramework}`);
+                console.log(`[events] 🔍 Early framework detection for project ${projectId}: ${detectedFramework}`);
               }
 
               const [updated] = await db.update(projects)
@@ -603,9 +606,9 @@ IMPORTANT:
                   detectedFramework, // Save detected framework early
                   lastActivityAt: new Date(),
                 })
-                .where(eq(projects.id, event.projectId))
+                .where(eq(projects.id, projectId))
                 .returning();
-              if (updated) emitProjectUpdateFromData(event.projectId, updated);
+              if (updated) emitProjectUpdateFromData(projectId, updated);
             }
             break;
           }
@@ -621,10 +624,10 @@ IMPORTANT:
             const buildSummary = payload.summary || null;
 
             if (detectedFramework) {
-              console.log(`[events] 🔍 Saving detected framework for project ${event.projectId}: ${detectedFramework}`);
+              console.log(`[events] 🔍 Saving detected framework for project ${projectId}: ${detectedFramework}`);
             }
             if (buildSummary) {
-              console.log(`[events] 📝 Saving build summary for project ${event.projectId}: ${buildSummary.slice(0, 100)}...`);
+              console.log(`[events] 📝 Saving build summary for project ${projectId}: ${buildSummary.slice(0, 100)}...`);
             }
 
             // Save summary to the most recent generation session for this project
@@ -633,7 +636,7 @@ IMPORTANT:
                 // Find the most recent active/completed session for this project
                 const [latestSession] = await db.select()
                   .from(generationSessions)
-                  .where(eq(generationSessions.projectId, event.projectId))
+                  .where(eq(generationSessions.projectId, projectId))
                   .orderBy(desc(generationSessions.createdAt))
                   .limit(1);
                 
@@ -657,11 +660,11 @@ IMPORTANT:
                 detectedFramework, // Save detected framework
                 lastActivityAt: new Date(),
               })
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .returning();
 
             if (updated) {
-              emitProjectUpdateFromData(event.projectId, updated);
+              emitProjectUpdateFromData(projectId, updated);
 
               // Track project completion with key tags
               const completionAttributes: Record<string, string> = {
@@ -795,7 +798,7 @@ IMPORTANT:
               console.warn(`[events]    Summary preview: ${buildSummary.slice(0, 100)}...`);
               // Still broadcast via WebSocket so the UI can display it even if not saved to DB
               // The frontend can use the summary from WebSocket state
-              buildWebSocketServer.broadcastBuildSummary(event.projectId, '', buildSummary);
+              buildWebSocketServer.broadcastBuildSummary(projectId, '', buildSummary);
               break;
             }
 
@@ -806,7 +809,7 @@ IMPORTANT:
                   updatedAt: new Date(),
                 })
                 .where(eq(generationSessions.id, targetSessionId));
-              buildWebSocketServer.broadcastBuildSummary(event.projectId, targetSessionId, buildSummary);
+              buildWebSocketServer.broadcastBuildSummary(projectId, targetSessionId, buildSummary);
             } catch (err) {
               console.error(`[events] ❌ Failed to save build summary:`, err);
             }
@@ -823,19 +826,19 @@ IMPORTANT:
                 errorMessage: event.error,
                 lastActivityAt: new Date(),
               })
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .returning();
-            if (updated) emitProjectUpdateFromData(event.projectId, updated);
+            if (updated) emitProjectUpdateFromData(projectId, updated);
             break;
           }
           case 'dev-server-error': {
             // Auto-fix: dev server error detected, trigger a fix build
             const errorMessage = 'error' in event ? event.error : 'Unknown dev server error';
-            console.log(`[events] 🔧 Dev server error detected for project ${event.projectId}`);
+            console.log(`[events] 🔧 Dev server error detected for project ${projectId}`);
             console.log(`[events]    Error: ${errorMessage.substring(0, 200)}...`);
 
             // Check auto-fix attempt limits to prevent infinite loops
-            const attempts = autoFixAttempts.get(event.projectId);
+            const attempts = autoFixAttempts.get(projectId);
             const now = Date.now();
 
             if (attempts) {
@@ -845,7 +848,7 @@ IMPORTANT:
               }
 
               if (attempts.count >= MAX_AUTO_FIX_ATTEMPTS) {
-                console.log(`[events] ⚠️ Max auto-fix attempts (${MAX_AUTO_FIX_ATTEMPTS}) reached for project ${event.projectId}, skipping auto-fix`);
+                console.log(`[events] ⚠️ Max auto-fix attempts (${MAX_AUTO_FIX_ATTEMPTS}) reached for project ${projectId}, skipping auto-fix`);
 
                 // Update project status to show manual intervention needed
                 const [updated] = await db.update(projects)
@@ -854,9 +857,9 @@ IMPORTANT:
                     errorMessage: `Auto-fix failed after ${MAX_AUTO_FIX_ATTEMPTS} attempts. Error: ${errorMessage.substring(0, 300)}`,
                     lastActivityAt: new Date(),
                   })
-                  .where(eq(projects.id, event.projectId))
+                  .where(eq(projects.id, projectId))
                   .returning();
-                if (updated) emitProjectUpdateFromData(event.projectId, updated);
+                if (updated) emitProjectUpdateFromData(projectId, updated);
                 break;
               }
             }
@@ -864,13 +867,13 @@ IMPORTANT:
             // Get project details for the fix request
             const [project] = await db.select()
               .from(projects)
-              .where(eq(projects.id, event.projectId))
+              .where(eq(projects.id, projectId))
               .limit(1);
 
             if (project && project.slug) {
               // Update auto-fix tracking
               const attemptNumber = (attempts?.count || 0) + 1;
-              autoFixAttempts.set(event.projectId, {
+              autoFixAttempts.set(projectId, {
                 count: attemptNumber,
                 lastAttempt: now,
               });
@@ -880,7 +883,7 @@ IMPORTANT:
               // Emit autofix-started event to notify UI
               const autoFixEvent: AutoFixStartedEvent = {
                 type: 'autofix-started',
-                projectId: event.projectId,
+                projectId: projectId,
                 commandId: event.commandId,
                 timestamp: new Date().toISOString(),
                 errorType: 'runtime',
@@ -889,7 +892,7 @@ IMPORTANT:
                 maxAttempts: MAX_AUTO_FIX_ATTEMPTS,
               };
               publishRunnerEvent(autoFixEvent);
-              console.log(`[events] 📡 Emitted autofix-started event for project ${event.projectId}`);
+              console.log(`[events] 📡 Emitted autofix-started event for project ${projectId}`);
 
               // Update project status to indicate error fixing in progress
               const [updated] = await db.update(projects)
@@ -898,9 +901,9 @@ IMPORTANT:
                   errorMessage: errorMessage.substring(0, 500),
                   lastActivityAt: new Date(),
                 })
-                .where(eq(projects.id, event.projectId))
+                .where(eq(projects.id, projectId))
                 .returning();
-              if (updated) emitProjectUpdateFromData(event.projectId, updated);
+              if (updated) emitProjectUpdateFromData(projectId, updated);
 
               // Get the runner for this project
               const runnerId = await getProjectRunnerId(project.runnerId);
@@ -925,7 +928,7 @@ IMPORTANT:
                 const buildCommand: StartBuildCommand = {
                   id: randomUUID(),
                   type: 'start-build',
-                  projectId: event.projectId,
+                  projectId: projectId,
                   timestamp: new Date().toISOString(),
                   payload: {
                     prompt: fixPrompt,
@@ -939,11 +942,11 @@ IMPORTANT:
 
                 try {
                   await sendCommandToRunner(runnerId, buildCommand);
-                  console.log(`[events] ✅ Auto-fix build triggered for project ${event.projectId}`);
+                  console.log(`[events] ✅ Auto-fix build triggered for project ${projectId}`);
 
                   Sentry.metrics.count('dev_server_error_autofix_triggered', 1, {
                     attributes: {
-                      project_id: event.projectId,
+                      project_id: projectId,
                       attempt: String((attempts?.count || 0) + 1),
                     },
                   });
@@ -951,7 +954,7 @@ IMPORTANT:
                   console.error(`[events] ❌ Failed to send auto-fix command to runner:`, sendError);
                 }
               } else {
-                console.log(`[events] ⚠️ No runner available for auto-fix, project ${event.projectId}`);
+                console.log(`[events] ⚠️ No runner available for auto-fix, project ${projectId}`);
               }
             }
             break;
