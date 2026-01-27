@@ -126,7 +126,10 @@ export async function runCommand(options: RunOptions) {
   const runnerId = options.runnerId || getSystemUsername();
   
   // Resolve secret: CLI flag > config (required)
-  const sharedSecret = options.secret || configManager.getSecret();
+  // Only use config secret if it looks like a valid token (starts with sv_)
+  // This prevents the default 'dev-secret' from being used in runner mode
+  const configSecret = configManager.getSecret();
+  const sharedSecret = options.secret || (configSecret?.startsWith('sv_') ? configSecret : undefined);
 
   const runnerOptions = {
     wsUrl,
