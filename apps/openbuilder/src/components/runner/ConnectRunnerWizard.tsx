@@ -66,10 +66,10 @@ export function ConnectRunnerWizard({ open, onOpenChange, onComplete }: ConnectR
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl bg-zinc-950 border-zinc-800 p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-xl bg-popover border-border p-0 gap-0 overflow-hidden">
         {/* Header with progress */}
-        <div className="p-6 pb-4 border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950">
-          <h2 className="text-lg font-semibold text-white mb-4">Connect a Runner</h2>
+        <div className="p-6 pb-4 border-b border-border bg-theme-gradient-muted">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Connect a Runner</h2>
           <ConnectRunnerStepProgress currentStep={currentStep} />
         </div>
 

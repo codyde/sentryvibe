@@ -30,9 +30,9 @@ export function TerminalCodeBlock({
   };
 
   return (
-    <div className={`rounded-lg overflow-hidden border border-zinc-800 bg-zinc-950 ${className}`}>
+    <div className={`rounded-lg overflow-hidden border border-border terminal-theme ${className}`}>
       {/* Terminal title bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/80 border-b border-zinc-800">
+      <div className="flex items-center justify-between px-4 py-2 bg-black/20 border-b border-border">
         <div className="flex items-center gap-2">
           {/* Traffic lights */}
           <div className="flex items-center gap-1.5">
@@ -40,7 +40,7 @@ export function TerminalCodeBlock({
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
             <div className="w-3 h-3 rounded-full bg-green-500/80" />
           </div>
-          <div className="flex items-center gap-1.5 ml-3 text-zinc-500">
+          <div className="flex items-center gap-1.5 ml-3 text-muted-foreground">
             <Terminal className="w-3.5 h-3.5" />
             <span className="text-xs font-medium">{title}</span>
           </div>
@@ -49,7 +49,7 @@ export function TerminalCodeBlock({
         {/* Copy button */}
         <motion.button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/10 rounded transition-colors"
           whileTap={{ scale: 0.95 }}
         >
           {copied ? (
@@ -72,7 +72,7 @@ export function TerminalCodeBlock({
           {showPrompt && (
             <span className="text-green-400 select-none shrink-0">$</span>
           )}
-          <code className="text-zinc-100 break-all">{code}</code>
+          <code className="text-foreground break-all">{code}</code>
         </div>
       </div>
     </div>

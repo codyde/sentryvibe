@@ -27,7 +27,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
     <div className="w-full">
       <div className="flex items-center justify-between relative">
         {/* Progress line background */}
-        <div className="absolute top-5 left-0 right-0 h-0.5 bg-zinc-800 mx-8" />
+        <div className="absolute top-5 left-0 right-0 h-0.5 bg-border mx-8" />
         
         {/* Animated progress line */}
         <motion.div 
@@ -53,8 +53,8 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                   ${isCompleted 
                     ? "bg-theme-gradient border-transparent" 
                     : isCurrent 
-                      ? "bg-zinc-900 border-theme-primary" 
-                      : "bg-zinc-900 border-zinc-700"
+                      ? "bg-muted border-theme-primary" 
+                      : "bg-muted border-border"
                   }
                 `}
                 initial={false}
@@ -71,7 +71,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                   </motion.div>
                 ) : (
                   <span className={`
-                    ${isCurrent ? "text-theme-primary" : "text-zinc-500"}
+                    ${isCurrent ? "text-theme-primary" : "text-muted-foreground"}
                   `}>
                     {step.icon}
                   </span>
@@ -91,7 +91,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
               {/* Step label */}
               <span className={`
                 mt-2 text-xs font-medium transition-colors
-                ${isCompleted || isCurrent ? "text-zinc-300" : "text-zinc-600"}
+                ${isCompleted || isCurrent ? "text-foreground" : "text-muted-foreground"}
               `}>
                 {step.label}
               </span>
