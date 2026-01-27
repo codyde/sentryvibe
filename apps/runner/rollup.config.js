@@ -72,7 +72,7 @@ const external = [
   'ora',
   'pg',
   'picocolors',
-  'react',
+  // 'react',  // Bundle React to avoid multiple instances issue with ink
   'server-only',
   'simple-git',
   'tailwind-merge',
