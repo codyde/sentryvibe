@@ -72,21 +72,30 @@ export OPENAI_API_KEY=your-api-key
 openbuilder config set ai.provider codex
 ```
 
-### OpenCode (Experimental)
+### OpenCode (Model Agnostic)
 
-Use OpenCode Zen for code generation:
+[OpenCode](https://opencode.ai) is an open-source AI coding agent that supports **75+ LLM providers**, making it completely model agnostic. You can use:
+
+- **Cloud providers**: Anthropic, OpenAI, Google Vertex AI, Amazon Bedrock, Azure, xAI, DeepSeek, Groq, Together AI, and many more
+- **Local models**: Ollama, LM Studio, llama.cpp
+- **OpenCode Zen**: Curated list of tested and verified models from the OpenCode team
 
 ```bash
+# Install OpenCode
+curl -fsSL https://opencode.ai/install | bash
+
 # Configure OpenBuilder to use OpenCode
 openbuilder config set ai.provider opencode
 ```
+
+To configure OpenCode with your preferred provider, run `/connect` in the OpenCode TUI and select from 75+ supported providers. See the [OpenCode Providers documentation](https://opencode.ai/docs/providers/) for the full list.
 
 ## Prerequisites
 
 - **Node.js 18+** - [Download](https://nodejs.org/)
 - **npm or pnpm** - Package manager
 - **macOS, Linux, or WSL** - Windows users should use WSL
-- **AI Backend** - Claude Code, OpenAI API key, or OpenCode
+- **AI Backend** - Claude Code, OpenAI API key, or OpenCode (supports 75+ providers)
 
 Verify your setup:
 ```bash
@@ -222,7 +231,7 @@ pnpm run dev
 
 - **Web App**: Next.js frontend for creating and managing projects
 - **Runner**: Executes builds, manages dev servers, creates tunnels for previews
-- **AI Backend**: Generates code based on your prompts (Claude Code, Codex, or OpenCode)
+- **AI Backend**: Generates code based on your prompts (Claude Code, Codex, or OpenCode with 75+ provider options)
 
 ## License
 
