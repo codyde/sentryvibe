@@ -1,6 +1,9 @@
 /**
  * Upgrade command - In-place upgrade to latest version
- * Preserves configuration and user data while replacing application code
+ * 
+ * This command upgrades both:
+ * 1. The CLI itself (globally installed npm package)
+ * 2. The app/monorepo (local installation that runs the web app)
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, copyFileSync } from 'node:fs';
@@ -12,6 +15,12 @@ import { CLIError, errors } from '../utils/cli-error.js';
 import { isInsideMonorepo } from '../utils/repo-detector.js';
 import { configManager } from '../utils/config-manager.js';
 
+// GitHub API endpoint for releases
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/codyde/openbuilder/releases/latest';
+
+// Install command for CLI
+const INSTALL_COMMAND = 'curl -fsSL https://openbuilder.app/install | bash';
+
 interface UpgradeOptions {
   branch?: string;
   force?: boolean;
@@ -22,11 +31,128 @@ interface EnvBackup {
   openbuilder: { env?: string; envLocal?: string };
 }
 
+/**
+ * Fetch the latest release version from GitHub
+ */
+async function fetchLatestVersion(): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(GITHUB_RELEASES_URL, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'OpenBuilder-CLI-Upgrade',
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json() as { tag_name: string };
+    return data.tag_name.replace(/^v/, '');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compare two semver versions
+ * Returns true if version1 < version2 (i.e., version2 is newer)
+ */
+function isNewerVersion(current: string, latest: string): boolean {
+  const parseVersion = (v: string) => {
+    const parts = v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+    return { major: parts[0] || 0, minor: parts[1] || 0, patch: parts[2] || 0 };
+  };
+
+  const c = parseVersion(current);
+  const l = parseVersion(latest);
+
+  if (l.major > c.major) return true;
+  if (l.major < c.major) return false;
+  if (l.minor > c.minor) return true;
+  if (l.minor < c.minor) return false;
+  return l.patch > c.patch;
+}
+
+/**
+ * Perform the CLI update by running the install script
+ */
+function performCLIUpdate(): boolean {
+  try {
+    execSync(INSTALL_COMMAND, {
+      stdio: 'inherit',
+      shell: '/bin/bash',
+      env: {
+        ...process.env,
+        OPENBUILDER_QUIET_INSTALL: '1',
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function upgradeCommand(options: UpgradeOptions) {
   const s = p.spinner();
+  
+  // Get current CLI version
+  let currentVersion = '0.0.0';
+  try {
+    // Try to find package.json by traversing up
+    let searchDir = dirname(new URL(import.meta.url).pathname);
+    for (let i = 0; i < 5; i++) {
+      const pkgPath = join(searchDir, 'package.json');
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+        currentVersion = pkg.version || '0.0.0';
+        break;
+      }
+      searchDir = dirname(searchDir);
+    }
+  } catch {
+    // Ignore errors reading package.json
+  }
+  
+  // ========================================
+  // STEP 1: Always update CLI automatically
+  // ========================================
+  s.start('Checking for CLI updates');
+  
+  const latestVersion = await fetchLatestVersion();
+  
+  if (latestVersion && isNewerVersion(currentVersion, latestVersion)) {
+    s.stop(pc.cyan('⬆') + ` CLI update available: ${pc.dim(currentVersion)} → ${pc.green(latestVersion)}`);
+    
+    console.log();
+    console.log(`  ${pc.dim('Updating CLI...')}`);
+    
+    const cliSuccess = performCLIUpdate();
+    
+    if (cliSuccess) {
+      console.log(`  ${pc.green('✓')} CLI updated to ${pc.green(latestVersion)}`);
+      console.log();
+    } else {
+      console.log(`  ${pc.yellow('⚠')} CLI update failed`);
+      console.log(`  ${pc.dim('Run manually:')} ${pc.cyan(INSTALL_COMMAND)}`);
+      console.log();
+    }
+  } else if (latestVersion) {
+    s.stop(pc.green('✓') + ` CLI is up to date (${currentVersion})`);
+  } else {
+    s.stop(pc.yellow('⚠') + ' Could not check for CLI updates');
+  }
 
-  // Step 1: Find current monorepo
-  s.start('Locating OpenBuilder installation');
+  // ========================================
+  // STEP 2: Find app installation and prompt
+  // ========================================
+  s.start('Locating OpenBuilder app installation');
 
   let monorepoRoot: string | undefined;
   const config = configManager.get();
@@ -45,22 +171,40 @@ export async function upgradeCommand(options: UpgradeOptions) {
   }
 
   if (!monorepoRoot) {
-    s.stop(pc.red('✗') + ' OpenBuilder installation not found');
-    throw new CLIError({
-      code: 'UPGRADE_NOT_IN_REPO',
-      message: 'Could not locate OpenBuilder installation',
-      suggestions: [
-        'Run from within OpenBuilder directory',
-        'Or run init first: openbuilder init',
-        config.monorepoPath ? `Configured path not found: ${config.monorepoPath}` : 'No installation path configured',
-      ],
-      docs: 'https://github.com/codyde/openbuilder#upgrade',
-    });
+    s.stop(pc.dim('ℹ') + ' No OpenBuilder app installation found');
+    console.log();
+    console.log(pc.dim('  The CLI has been updated. No local app installation to upgrade.'));
+    console.log(pc.dim('  Run ') + pc.cyan('openbuilder init') + pc.dim(' to set up a local installation.'));
+    console.log();
+    return;
   }
 
-  s.stop(pc.green('✓') + ` Found: ${monorepoRoot}`);
+  s.stop(pc.green('✓') + ` Found app installation`);
+  
+  // Prompt user about upgrading the app
+  console.log();
+  console.log(`  ${pc.bold('App installation found:')}`);
+  console.log(`  ${pc.cyan(monorepoRoot)}`);
+  console.log();
+  
+  // Skip prompt if --force is used
+  if (!options.force) {
+    const shouldUpgradeApp = await p.confirm({
+      message: 'Would you like to upgrade the app installation as well?',
+      initialValue: true,
+    });
+    
+    if (p.isCancel(shouldUpgradeApp) || !shouldUpgradeApp) {
+      console.log();
+      console.log(pc.dim('  Skipping app upgrade. CLI has been updated.'));
+      console.log();
+      return;
+    }
+  }
+  
+  console.log();
 
-  // Step 2: Check git status
+  // Check git status before upgrading
   if (!options.force) {
     s.start('Checking for uncommitted changes');
 
@@ -97,7 +241,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
     }
   }
 
-  // Step 3: Backup configuration files
+  // Backup configuration files
   s.start('Backing up configuration files');
 
   const envBackup: EnvBackup = {
@@ -133,7 +277,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   s.stop(pc.green('✓') + ` Backed up ${backedUpCount} configuration file(s)`);
 
-  // Step 4: Determine branch
+  // Determine branch and clone
   const branch = options.branch || 'main';
 
   s.start(`Cloning fresh copy from ${pc.cyan(branch)}`);
@@ -176,7 +320,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
     });
   }
 
-  // Step 5: Restore configuration files
+  // Restore configuration files
   s.start('Restoring configuration files');
 
   let restoredCount = 0;
@@ -201,7 +345,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
 
   s.stop(pc.green('✓') + ` Restored ${restoredCount} configuration file(s)`);
 
-  // Step 6: Install dependencies
+  // Install dependencies
   s.start('Installing dependencies');
 
   try {
@@ -229,7 +373,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
     });
   }
 
-  // Step 7: Build services
+  // Build services
   s.start('Building services (this may take a moment)');
 
   try {
@@ -276,7 +420,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
     });
   }
 
-  // Step 7.5: Apply database migrations (if DATABASE_URL exists)
+  // Apply database migrations (if DATABASE_URL exists)
   const databaseUrl =
     envBackup.openbuilder.env?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
     envBackup.openbuilder.envLocal?.match(/DATABASE_URL=["']?([^"'\n]+)["']?/)?.[1] ||
@@ -306,7 +450,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
     s.stop(pc.yellow('⚠') + ' No database configured');
   }
 
-  // Step 8: Swap directories (atomic operation)
+  // Swap directories (atomic operation)
   s.start('Finalizing upgrade');
 
   const backupDir = join(parentDir, `${repoName}-backup-${Date.now()}`);
@@ -339,7 +483,7 @@ export async function upgradeCommand(options: UpgradeOptions) {
     throw error;
   }
 
-  // Step 9: Cleanup backup
+  // Cleanup backup
   s.start('Cleaning up');
 
   try {

@@ -111,38 +111,27 @@ if (isSilentMode) {
 }
 
 // Auto-update check - do this BEFORE displaying banner to avoid double banners
-// For TUI modes: check only and store result for display (don't auto-update to avoid disruption)
-// For CLI modes: full auto-update with restart
+// All modes (TUI and CLI): full auto-update with restart
 // For version mode: skip entirely - just show version
 let willAutoUpdate = false;
 if (!process.env.OPENBUILDER_SKIP_UPDATE_CHECK && !isVersionCommand) {
-  const { checkAndAutoUpdate, checkForUpdate } = await import('./utils/auto-update.js');
+  const { checkAndAutoUpdate } = await import('./utils/auto-update.js');
   
   try {
-    if (isTUIMode) {
-      // TUI mode: just check for updates, store result for TUI to display
-      const updateInfo = await checkForUpdate(packageJson.version);
-      if (updateInfo?.updateAvailable) {
-        // Store update info for TUI components to access
-        process.env.OPENBUILDER_UPDATE_AVAILABLE = updateInfo.latestVersion;
-      }
-    } else {
-      // CLI mode: full auto-update
-      // Show banner first since we're in CLI mode and might not auto-update
+    // Show banner first for non-TUI modes
+    if (!isSilentMode) {
       displayBanner();
-      const didUpdate = await checkAndAutoUpdate(packageJson.version);
-      if (didUpdate) {
-        // CLI will be relaunched by auto-update, exit this process
-        willAutoUpdate = true;
-        process.exit(0);
-      }
+    }
+    
+    // Full auto-update for all modes
+    const didUpdate = await checkAndAutoUpdate(packageJson.version);
+    if (didUpdate) {
+      // CLI will be relaunched by auto-update, exit this process
+      willAutoUpdate = true;
+      process.exit(0);
     }
   } catch {
     // Auto-update failed silently, continue with current version
-    // Show banner if we haven't yet (non-TUI mode)
-    if (!isTUIMode) {
-      // Banner already shown above before checkAndAutoUpdate
-    }
   }
 } else if (!isSilentMode) {
   // Update check skipped, show banner for CLI mode (but not version mode)
