@@ -225,7 +225,7 @@ program
 program
   .command('runner')
   .description('Start runner only (connect to OpenBuilder server)')
-  .option('-u, --url <url>', 'OpenBuilder server URL (default: https://openbuilder.up.railway.app)')
+  .option('-u, --url <url>', 'OpenBuilder server URL (default: https://openbuilder.sh)')
   .option('-w, --workspace <path>', 'Workspace directory (default: ~/openbuilder-workspace)')
   .option('-i, --runner-id <id>', 'Runner identifier (default: system username)')
   .option('-s, --secret <secret>', 'Shared secret for authentication (required)')

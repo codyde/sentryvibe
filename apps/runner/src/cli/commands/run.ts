@@ -17,7 +17,7 @@ import {
 } from '../utils/cli-auth.js';
 
 // Default public OpenBuilder instance
-const DEFAULT_URL = 'https://openbuilder.up.railway.app';
+const DEFAULT_URL = 'https://openbuilder.sh';
 const DEFAULT_WORKSPACE = join(homedir(), 'openbuilder-workspace');
 
 /**
