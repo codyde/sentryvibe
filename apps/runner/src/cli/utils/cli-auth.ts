@@ -84,6 +84,9 @@ function getDeviceName(): string {
  */
 function startCallbackServer(port: number): Promise<AuthResult> {
   return new Promise((resolve) => {
+    // Track active connections so we can forcefully close them
+    const connections = new Set<import('net').Socket>();
+    
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || '/', `http://localhost:${port}`);
       
@@ -135,8 +138,9 @@ function startCallbackServer(port: number): Promise<AuthResult> {
             </html>
           `);
           
-          // Close server and resolve
+          // Close server and resolve - destroy all connections to ensure clean exit
           server.close();
+          connections.forEach(conn => conn.destroy());
           resolve({ success: true, token });
         } else {
           res.end(`
@@ -180,6 +184,7 @@ function startCallbackServer(port: number): Promise<AuthResult> {
           `);
           
           server.close();
+          connections.forEach(conn => conn.destroy());
           resolve({ success: false, error: error || 'Authentication failed' });
         }
       } else {
@@ -192,6 +197,7 @@ function startCallbackServer(port: number): Promise<AuthResult> {
     // Timeout after 5 minutes
     const timeout = setTimeout(() => {
       server.close();
+      connections.forEach(conn => conn.destroy());
       resolve({ success: false, error: 'Authentication timed out' });
     }, 5 * 60 * 1000);
     
@@ -207,6 +213,12 @@ function startCallbackServer(port: number): Promise<AuthResult> {
       } else {
         resolve({ success: false, error: `Server error: ${err.message}` });
       }
+    });
+    
+    // Track connections for cleanup
+    server.on('connection', (conn) => {
+      connections.add(conn);
+      conn.on('close', () => connections.delete(conn));
     });
     
     server.listen(port, '127.0.0.1');
