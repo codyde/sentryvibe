@@ -1,7 +1,7 @@
 {
   "name": "@openbuilder/cli",
   "version": "0.50.23",
-  "description": "OpenBuilder CLI - AI-powered application builder",
+  "description": "OpenBuilder CLI - Build AI-powered apps with Claude. Just run: npx @openbuilder/cli runner",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
@@ -23,11 +23,13 @@
   },
   "keywords": [
     "openbuilder",
-    "runner",
-    "cli",
     "ai",
-    "build",
-    "claude"
+    "claude",
+    "code-generation",
+    "app-builder",
+    "cli",
+    "runner",
+    "vibe-coding"
   ],
   "author": "Cody De Arkland",
   "repository": {

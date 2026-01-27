@@ -1,1053 +1,274 @@
 # OpenBuilder CLI
 
-The OpenBuilder CLI is a command-line tool for building AI-powered applications locally on your machine. It connects to the OpenBuilder server and uses Claude AI to generate and build projects in an isolated workspace.
+The OpenBuilder CLI connects your local machine to [OpenBuilder](https://openbuilder.sh) to build AI-powered applications. It handles code generation, dev servers, and live previews - all running on your machine.
 
-## Table of Contents
-
-- [Installation](#installation)
-- [Getting Started from Zero](#getting-started-from-zero)
-- [CLI Reference](#cli-reference)
-- [Configuration](#configuration)
-- [Architecture](#architecture)
-- [Development](#development)
-- [Troubleshooting](#troubleshooting)
-
-## Installation
-
-### Quick Install (Recommended)
+## Quick Start
 
 ```bash
-# Install via curl
-curl -fsSL https://openbuilder.sh/install | bash
+# Run directly with npx (no install needed)
+npx @openbuilder/cli runner
 
-# Verify installation
-openbuilder --version
+# Or install globally
+npm install -g @openbuilder/cli
+openbuilder runner
 ```
 
-This installs the OpenBuilder CLI globally on your machine.
+That's it! The CLI will:
+1. Open your browser to authenticate (GitHub or Sentry SSO)
+2. Automatically generate and store your runner token
+3. Connect to openbuilder.sh and start listening for builds
 
-### From Source (Development)
+## Installation Options
 
+### npx (Recommended)
+No installation needed - always uses the latest version:
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd openbuilder/apps/runner
-
-# Install dependencies
-pnpm install
-
-# Build the CLI
-pnpm run build
-
-# Link globally for testing
-npm link
-
-# Verify
-openbuilder-cli --version
+npx @openbuilder/cli runner
 ```
 
-## Getting Started from Zero
+### Global Install
+```bash
+npm install -g @openbuilder/cli
+openbuilder runner
+```
 
-### Prerequisites
-
-Before you begin, ensure you have:
-
-1. **Node.js 18 or higher** installed
-   ```bash
-   node --version  # Should be 18.0.0 or higher
-   ```
-
-2. **npm or pnpm** package manager
-   ```bash
-   npm --version
-   # or
-   pnpm --version
-   ```
-
-3. **Git** installed (for template downloads)
-   ```bash
-   git --version
-   ```
-
-4. **A shared secret** from your OpenBuilder deployment
-   - Get this from your Railway deployment environment variables
-   - Or from your local `.env.local` if running locally
-
-### Two Ways to Use OpenBuilder
-
-**Option A: Full Stack (Local Development)**
-- Runs web app, broker, and runner all locally
-- Perfect for development and testing
-- Command: `openbuilder run`
-
-**Option B: Runner Only (Production Use)**
-- Connects to remote broker (e.g., Railway)
-- Just executes builds on your machine
-- Command: `openbuilder --runner` or `openbuilder runner`
-
-### Step-by-Step Setup (Runner Only Mode)
-
-#### 1. Install the CLI
-
+### Curl Install Script
 ```bash
 curl -fsSL https://openbuilder.sh/install | bash
-```
-
-#### 2. Initialize Your Runner
-
-Run the interactive setup:
-
-```bash
-openbuilder init
-```
-
-You'll be asked:
-
-**Workspace Location:**
-```
-? Where should projects be stored?
-  Default: ~/openbuilder-workspace
-
-  This is where all generated projects will be saved.
-```
-
-**Broker URL:**
-```
-? Broker WebSocket URL:
-  Default: ws://localhost:4000/socket
-
-  For local development: Use default (localhost)
-  For remote (Railway): wss://broker.up.railway.app/socket
-```
-
-**Shared Secret:**
-```
-? Shared secret:
-  Default: dev-secret
-
-  For local development: Use default (dev-secret)
-  For remote: Get from your Railway deployment environment variables
-```
-
-**Runner ID:**
-```
-? Runner ID (identifier for this machine):
-  Default: local
-
-  For local development: Use default (local)
-  For multiple runners: Use descriptive names like "macbook-pro"
-```
-
-#### 3. Verify Configuration
-
-Check that everything is set up correctly:
-
-```bash
-openbuilder-cli status
-```
-
-You should see:
-```
-OpenBuilder Runner Status
-
-ℹ Status: Initialized
-
-Config File:
-  ~/Library/Application Support/openbuilder/config.json
-
-Workspace:
-  Path: ~/openbuilder-workspace
-  Exists: Yes
-  Projects: 0
-
-Broker:
-  URL: wss://broker.up.railway.app/socket
-  Secret: Set
-
-Runner:
-  ID: macbook-pro
-  Reconnect Attempts: 5
-  Heartbeat Interval: 15000ms
-
-Validation:
-  ✓ Configuration is valid
-
-Ready to run! Use:
-  openbuilder-cli run
-  or just openbuilder-cli
-```
-
-#### 4. Start the Runner
-
-**Runner only mode (connect to remote broker):**
-
-```bash
-openbuilder --runner
-```
-
-Or use the explicit command:
-```bash
 openbuilder runner
 ```
 
-**Full stack mode (local development):**
+## Usage
+
+### Connect to OpenBuilder SaaS
 
 ```bash
-openbuilder run
+# Start the runner (auto-authenticates via browser)
+npx @openbuilder/cli runner
+
+# Or if installed globally
+openbuilder runner
 ```
 
-Or simply:
+On first run, your browser will open for authentication. After logging in, the CLI automatically:
+- Creates a secure runner token
+- Stores it locally for future sessions
+- Connects to openbuilder.sh
+
+### Interactive TUI Mode
+
 ```bash
-openbuilder
-```
-
-You should see (runner-only mode):
-```
-Starting OpenBuilder Runner
-
-ℹ Broker: wss://broker.up.railway.app/socket
-ℹ Runner ID: macbook-pro
-ℹ Workspace: ~/openbuilder-workspace
-
-[runner] workspace root: /Users/yourname/openbuilder-workspace
-[runner] connected to broker wss://broker.up.railway.app/socket...
-```
-
-Or (full stack mode):
-```
-Starting OpenBuilder Full Stack
-
-ℹ Monorepo root: /Users/yourname/openbuilder
-ℹ Web app port: 3000
-ℹ Broker port: 4000
-
-ℹ Starting services...
-
-ℹ 1/3 Starting web app...
-ℹ 2/3 Starting broker...
-ℹ 3/3 Starting runner...
-
-✔ All services started!
-
-Services running:
-  Web App: http://localhost:3000
-  Broker: http://localhost:4000
-  Runner: Connected to broker
-
-Press Ctrl+C to stop all services
-```
-
-#### 5. Create Your First Project
-
-1. Open the OpenBuilder web app in your browser
-2. Click "New Project"
-3. Enter a prompt like:
-   ```
-   Create a React app with TypeScript and Tailwind CSS
-   ```
-4. Watch the runner execute the build in your terminal
-5. Once complete, click "Start Dev Server" in the UI
-6. Preview your project via the tunnel URL
-
-### What Happens Behind the Scenes
-
-1. **Template Download**: Runner clones the appropriate starter template
-2. **AI Build**: Claude AI modifies the template based on your prompt
-3. **Workspace Storage**: Project is saved to `~/openbuilder-workspace/project-name/`
-4. **Dev Server**: Runner starts the dev server (e.g., `npm run dev`)
-5. **Tunnel Creation**: Cloudflare tunnel exposes your local dev server
-6. **Preview**: Web UI displays your project in an iframe
-
-## CLI Reference
-
-### Default Commands
-
-**Start full stack:**
-```bash
-openbuilder
+npx @openbuilder/cli
 # or
-openbuilder run
-```
-
-**Start runner only:**
-```bash
-openbuilder --runner
-# or
-openbuilder runner
-```
-
-### `openbuilder init`
-
-Initialize workspace and configuration.
-
-```bash
-openbuilder init [options]
-```
-
-**Options:**
-- `--workspace <path>` - Set workspace directory without prompts
-- `--broker <url>` - Set broker URL without prompts
-- `--secret <secret>` - Set shared secret without prompts
-- `--non-interactive` - Use all defaults (requires --secret)
-
-**Examples:**
-
-```bash
-# Interactive mode (recommended)
-openbuilder init
-
-# Non-interactive with all options
-openbuilder init \
-  --workspace ~/my-projects \
-  --broker wss://broker.up.railway.app/socket \
-  --secret my-secret-key \
-  --non-interactive
-
-# Reset existing config
-openbuilder config reset
-openbuilder init
-```
-
----
-
-### `openbuilder run`
-
-Start the full stack (web app + broker + runner) locally.
-
-```bash
-openbuilder run [options]
-openbuilder [options]  # 'run' is the default command
-```
-
-**Options:**
-- `-p, --port <port>` - Web app port (default: 3000)
-- `-b, --broker-port <port>` - Broker port (default: 4000)
-
-**Examples:**
-
-```bash
-# Start full stack with defaults
-openbuilder run
-
-# Just use default (same as run)
 openbuilder
-
-# Custom ports
-openbuilder run --port 3001 --broker-port 4001
 ```
 
-**What starts:**
-1. **Web App** - Next.js app on port 3000
-2. **Broker** - WebSocket server on port 4000
-3. **Runner** - Connects to local broker
+This opens an interactive menu where you can:
+- **Runner Mode** - Connect to openbuilder.sh (SaaS)
+- **Local Mode** - Run everything locally (self-hosted)
 
----
+### Local Mode (Self-Hosted)
 
-### `openbuilder runner`
-
-Start runner only (connect to existing broker).
+Run the entire OpenBuilder stack locally:
 
 ```bash
-openbuilder runner [options]
-openbuilder --runner  # Alternative: use --runner flag
+openbuilder run
 ```
 
-**Options:**
-- `-b, --broker <url>` - Override broker WebSocket URL
-- `-w, --workspace <path>` - Override workspace directory
-- `-i, --runner-id <id>` - Override runner identifier
-- `-s, --secret <secret>` - Override shared secret
-- `-v, --verbose` - Enable verbose logging
+This starts:
+- Web App on `http://localhost:3000`
+- Runner connected to local web app
 
-**Examples:**
+## Keyboard Shortcuts
 
-```bash
-# Use saved configuration
-openbuilder runner
+When the runner is connected, use these shortcuts:
 
-# Alternative syntax
-openbuilder --runner
-
-# Connect to local broker
-openbuilder runner --broker ws://localhost:4000/socket
-
-# Use custom workspace
-openbuilder runner --workspace ~/custom-projects
-
-# Override all settings
-openbuilder runner \
-  --broker wss://broker.up.railway.app/socket \
-  --workspace ~/dev-projects \
-  --runner-id my-laptop \
-  --secret production-secret \
-  --verbose
-```
-
-**Stopping the Runner:**
-
-Press `Ctrl+C` to gracefully shutdown. The runner will:
-1. Close all active tunnels
-2. Stop dev servers
-3. Flush telemetry data
-4. Close broker connection
-
----
-
-### `openbuilder status`
-
-Show runner status and configuration.
-
-```bash
-openbuilder status
-```
-
-**Output includes:**
-- Initialization status
-- Config file location
-- Workspace path and project count
-- Broker connection details
-- Runner settings
-- Configuration validation
-
----
-
-### `openbuilder config`
-
-Manage runner configuration.
-
-```bash
-openbuilder config <action> [key] [value]
-```
-
-**Actions:**
-
-**`list`** - Show all configuration:
-```bash
-openbuilder config list
-```
-
-**`get <key>`** - Get specific value:
-```bash
-openbuilder config get workspace
-openbuilder config get broker.url
-```
-
-**`set <key> <value>`** - Update configuration:
-```bash
-openbuilder config set workspace ~/new-workspace
-openbuilder config set runner.id my-laptop
-```
-
-**`path`** - Show config file location:
-```bash
-openbuilder config path
-```
-
-**`validate`** - Validate configuration:
-```bash
-openbuilder config validate
-```
-
-**`reset`** - Reset to defaults (requires confirmation):
-```bash
-openbuilder config reset
-```
-
----
-
-### `openbuilder cleanup`
-
-Clean up projects and resources.
-
-```bash
-openbuilder cleanup [options]
-```
-
-**Options:**
-- `--project <slug>` - Delete specific project
-- `--all` - Delete all projects (requires confirmation)
-- `--tunnels` - Close all tunnels (runner must be running)
-- `--processes` - Kill all dev servers (runner must be running)
-
-**Examples:**
-
-```bash
-# Delete specific project
-openbuilder cleanup --project my-react-app
-
-# Delete all projects (with confirmation)
-openbuilder cleanup --all
-
-# Show cleanup help
-openbuilder cleanup
-```
-
----
-
-### `openbuilder --help`
-
-Show help for any command.
-
-```bash
-openbuilder --help
-openbuilder init --help
-openbuilder run --help
-openbuilder runner --help
-```
-
----
-
-### `openbuilder --version`
-
-Show CLI version.
-
-```bash
-openbuilder --version
-```
+| Key | Action |
+|-----|--------|
+| `b` | Open OpenBuilder in browser |
+| `r` | Restart runner connection |
+| `q` | Quit the runner |
 
 ## Configuration
 
-### Config File Location
+Configuration is stored at:
+- **macOS**: `~/Library/Application Support/openbuilder/config.json`
+- **Linux**: `~/.config/openbuilder/config.json`
 
-Configuration is stored in a platform-specific location:
-
-**macOS:**
-```
-~/Library/Application Support/openbuilder/config.json
-```
-
-**Linux:**
-```
-~/.config/openbuilder/config.json
-```
-
-### Config File Structure
-
-```json
-{
-  "version": "0.1.0",
-  "workspace": "/Users/yourname/openbuilder-workspace",
-  "broker": {
-    "url": "wss://broker.up.railway.app/socket",
-    "secret": "your-shared-secret"
-  },
-  "runner": {
-    "id": "macbook-pro",
-    "reconnectAttempts": 5,
-    "heartbeatInterval": 15000
-  },
-  "tunnel": {
-    "provider": "cloudflare",
-    "autoCreate": true
-  }
-}
-```
-
-### Configuration Priority
-
-Settings are resolved in this order (highest to lowest):
-
-1. **Command-line flags** (`--broker`, `--workspace`, etc.)
-2. **Config file** (`config.json`)
-3. **Environment variables** (when running from source)
-4. **Defaults**
-
-### Workspace Directory
-
-The workspace directory stores all generated projects:
-
-```
-~/openbuilder-workspace/
-├── react-todo-app/
-│   ├── package.json
-│   ├── src/
-│   └── ...
-├── nextjs-blog/
-│   ├── package.json
-│   ├── app/
-│   └── ...
-└── vite-portfolio/
-    ├── package.json
-    ├── src/
-    └── ...
-```
-
-Each project is completely isolated with its own:
-- Dependencies (`node_modules/`)
-- Configuration files
-- Git history (initialized)
-- Dev server process
-
-## Architecture
-
-### Component Overview
-
-```
-┌─────────────────────────────────────┐
-│         CLI Entry Point             │
-│      (src/cli/index.ts)             │
-└────────────┬────────────────────────┘
-             │
-      ┌──────┴───────┐
-      │   Commands   │
-      └──────┬───────┘
-             │
-   ┌─────────┼─────────┐
-   │         │         │
-   ▼         ▼         ▼
-┌──────┐ ┌──────┐ ┌──────┐
-│ init │ │ run  │ │ ...  │
-└───┬──┘ └───┬──┘ └──────┘
-    │        │
-    ▼        ▼
-┌────────────────────┐
-│   Utilities        │
-│ - Config Manager   │
-│ - Logger           │
-│ - Prompts          │
-│ - Spinner          │
-└────────────────────┘
-         │
-         ▼
-┌────────────────────┐
-│  Runner Core       │
-│  (src/index.ts)    │
-│  - WebSocket       │
-│  - Build Engine    │
-│  - Process Manager │
-│  - Tunnel Manager  │
-└────────────────────┘
-```
-
-### Key Components
-
-**CLI Layer** (`src/cli/`):
-- Commander.js-based command parser
-- Interactive prompts with Inquirer
-- Colored output with Chalk
-- Progress indicators with Ora
-- Configuration management with Conf
-
-**Runner Core** (`src/`):
-- WebSocket client for broker communication
-- Claude AI integration for builds
-- Dev server process management
-- Cloudflare tunnel creation
-- Project scoped file permissions
-
-**Libraries** (`src/lib/`):
-- `build/` - Build orchestration and streaming
-- `templates/` - Template download and selection
-- `tunnel/` - Tunnel management and auto-install
-- `permissions/` - Project-scoped permission handlers
-- `process-manager.ts` - Dev server lifecycle
-
-### Message Flow
-
-```
-Web UI → OpenBuilder API → Broker → Runner CLI
-
-1. User submits prompt
-2. API creates build command
-3. Broker forwards via WebSocket
-4. Runner executes build
-5. Runner streams progress back
-6. UI shows real-time updates
-```
-
-### Security Model
-
-The runner implements strict security controls:
-
-1. **Project Isolation**: Each project confined to its directory
-2. **Path Validation**: All file operations validated
-3. **Permission Scoping**: Claude restricted to project directory only
-4. **Secret Management**: Shared secret for authentication
-5. **WebSocket TLS**: Encrypted communication (wss://)
-
-## Development
-
-### Setup Development Environment
+### View Configuration
 
 ```bash
-# Clone repository
-git clone <repo-url>
-cd openbuilder/apps/runner
-
-# Install dependencies
-pnpm install
-
-# Create environment file
-cp .env.example .env.local
-```
-
-### Development Workflow
-
-**Running in Development Mode:**
-
-```bash
-# Start runner directly (no CLI)
-pnpm run dev
-
-# Test CLI in development
-pnpm run dev:cli init
-pnpm run dev:cli status
-
-# Test full stack mode
-pnpm run dev:cli run
-
-# Test runner-only mode
-pnpm run dev:cli runner
-```
-
-**Building:**
-
-```bash
-# Build TypeScript to JavaScript
-pnpm run build
-
-# Output goes to dist/
-```
-
-**Testing CLI Locally:**
-
-```bash
-# Build and link globally
-pnpm run build
-npm link
-
-# Now use anywhere
 openbuilder status
-openbuilder --help
-openbuilder --runner  # Test runner mode
-openbuilder run       # Test full stack mode
-
-# Unlink when done
-npm unlink -g @openbuilder/cli
+openbuilder config list
 ```
 
-### Project Structure
+### Change Workspace
 
-```
-apps/runner/
-├── src/
-│   ├── cli/                    # CLI implementation
-│   │   ├── index.ts           # CLI entry point
-│   │   ├── commands/          # Command implementations
-│   │   │   ├── init.ts
-│   │   │   ├── run.ts
-│   │   │   ├── config.ts
-│   │   │   ├── status.ts
-│   │   │   └── cleanup.ts
-│   │   └── utils/             # CLI utilities
-│   │       ├── logger.ts
-│   │       ├── spinner.ts
-│   │       ├── prompts.ts
-│   │       └── config-manager.ts
-│   ├── lib/                   # Runner core libraries
-│   │   ├── build/
-│   │   ├── templates/
-│   │   ├── tunnel/
-│   │   └── permissions/
-│   ├── shared/                # Shared types
-│   │   └── runner/
-│   │       └── messages.ts
-│   └── index.ts               # Runner core
-├── templates/                 # Config templates
-│   └── config.template.json
-├── dist/                      # Build output
-├── package.json
-├── tsconfig.json
-└── README.md                  # This file
-```
-
-### Environment Variables (Development)
-
-Create `.env.local`:
-
-```env
-# Runner Configuration
-RUNNER_ID=default
-RUNNER_WS_URL=ws://localhost:3000/ws/runner
-RUNNER_SHARED_SECRET=your-secret-here
-WORKSPACE_ROOT=/Users/yourname/openbuilder-workspace
-API_BASE_URL=http://localhost:3000
-
-# Sentry Configuration
-SENTRY_DSN=your-sentry-dsn
-SENTRY_AUTH_TOKEN=your-sentry-token
-```
-
-### Adding New Commands
-
-1. Create command file in `src/cli/commands/`:
-
-```typescript
-// src/cli/commands/mycommand.ts
-import { logger } from '../utils/logger.js';
-
-export async function myCommand(options: any) {
-  logger.info('Executing my command...');
-  // Implementation here
-}
-```
-
-2. Register in `src/cli/index.ts`:
-
-```typescript
-program
-  .command('mycommand')
-  .description('My new command')
-  .action(async (options) => {
-    const { myCommand } = await import('./commands/mycommand.js');
-    await myCommand(options);
-  });
-```
-
-3. Build and test:
+Projects are stored in `~/openbuilder-projects/` by default:
 
 ```bash
-pnpm run build
-node dist/cli/index.js mycommand
+openbuilder config set workspace ~/my-projects
 ```
 
-### Testing
+### CLI Options
+
+Override settings via command-line:
 
 ```bash
-# Run type checking
-pnpm run build
-
-# Test specific command
-node dist/cli/index.js status
-node dist/cli/index.js config list
-
-# Test with debugger
-node --inspect dist/cli/index.js run
+openbuilder runner \
+  --workspace ~/custom-projects \
+  --runner-id my-macbook
 ```
 
-### Publishing
+## Commands Reference
 
-```bash
-# Update version
-npm version patch  # or minor, major
+| Command | Description |
+|---------|-------------|
+| `openbuilder` | Launch interactive TUI |
+| `openbuilder runner` | Connect to openbuilder.sh |
+| `openbuilder run` | Start local mode (self-hosted) |
+| `openbuilder login` | Authenticate with openbuilder.sh |
+| `openbuilder logout` | Clear stored credentials |
+| `openbuilder status` | Show runner status |
+| `openbuilder config list` | View all settings |
+| `openbuilder config set <key> <value>` | Update a setting |
+| `openbuilder config reset` | Reset to defaults |
+| `openbuilder cleanup --all` | Remove all projects |
+| `openbuilder upgrade` | Upgrade to latest version |
 
-# Build
-pnpm run build
+## How It Works
 
-# Publish to npm
-npm publish --access public
-
-# Create git tag
-git tag v0.1.1
-git push origin v0.1.1
 ```
+┌─────────────────────┐         ┌─────────────────┐
+│   openbuilder.sh    │◀──────▶│   Runner CLI    │
+│   (Web Interface)   │  WSS   │ (Your Machine)  │
+└─────────────────────┘         └────────┬────────┘
+                                         │
+                                         ▼
+                                ┌─────────────────┐
+                                │   AI Backend    │
+                                │ (Claude Code)   │
+                                └─────────────────┘
+```
+
+1. You create a project at openbuilder.sh
+2. The web app sends build commands to your runner via WebSocket
+3. Your runner executes the AI agent (Claude Code) locally
+4. Generated code is saved to your workspace
+5. Runner starts dev server and creates a Cloudflare tunnel for preview
+
+## Prerequisites
+
+- **Node.js 18+** - [Download](https://nodejs.org/)
+- **Claude CLI** - For AI code generation
+  ```bash
+  # Install Claude CLI
+  npm install -g @anthropic-ai/claude-cli
+  claude auth login
+  ```
 
 ## Troubleshooting
 
-### Common Issues
+### "Runner not authenticated"
 
-#### "Runner not initialized"
-
-**Problem:** Running `openbuilder runner` before `init`.
-
-**Solution:**
+The OAuth flow didn't complete. Try:
 ```bash
-openbuilder init
+openbuilder login
 ```
 
-#### "Cannot connect to broker"
+### "Cannot connect to server"
 
-**Problem:** Broker URL is incorrect or broker is down.
-
-**Solutions:**
-1. Check broker URL:
-   ```bash
-   openbuilder config get broker.url
-   ```
-2. Test broker connectivity:
-   ```bash
-   curl https://broker.up.railway.app/status
-   ```
-3. Try local broker:
-   ```bash
-   openbuilder runner --broker ws://localhost:4000/socket
-   ```
-
-#### "Shared secret is required"
-
-**Problem:** Secret not set in config.
-
-**Solution:**
+Check your internet connection and runner status:
 ```bash
-openbuilder config set broker.secret your-secret-here
-# or
-openbuilder init  # Re-run setup
+openbuilder status
 ```
 
-#### "Workspace directory does not exist"
+### Browser doesn't open for auth
 
-**Problem:** Workspace path is invalid or was deleted.
-
-**Solution:**
+Manually visit the URL shown in the terminal, or:
 ```bash
-mkdir -p ~/openbuilder-workspace
-# or
-openbuilder config set workspace ~/new-workspace
+openbuilder login
 ```
 
-#### Build fails with template errors
+### Projects not appearing
 
-**Problem:** Template download failed or git not installed.
-
-**Solutions:**
-1. Verify git is installed:
-   ```bash
-   git --version
-   ```
-2. Check network connectivity
-3. Clear and retry:
-   ```bash
-   openbuilder cleanup --project failed-project
-   # Try build again in UI
-   ```
-
-#### Tunnel creation fails
-
-**Problem:** Cloudflared binary not installed or port not ready.
-
-**Solutions:**
-1. Runner auto-installs cloudflared, check logs
-2. Verify port is listening:
-   ```bash
-   lsof -i :3000
-   ```
-3. Try manual tunnel:
-   ```bash
-   cloudflared tunnel --url localhost:3000
-   ```
-
-#### Config corruption
-
-**Problem:** Config file is invalid JSON.
-
-**Solution:**
+Ensure you're connected to the same account:
 ```bash
-# Show config location
-openbuilder-cli config path
-
-# Reset and reconfigure
-openbuilder-cli config reset
-openbuilder-cli init
+openbuilder status  # Shows connected account
 ```
 
-### Debug Mode
-
-Enable verbose logging:
+### Reset everything
 
 ```bash
-openbuilder-cli run --verbose
+openbuilder logout
+openbuilder config reset
+openbuilder cleanup --all
+openbuilder runner  # Re-authenticate
 ```
-
-Or set environment variable:
-
-```bash
-DEBUG=* openbuilder-cli run
-```
-
-### Getting Help
-
-1. Check status:
-   ```bash
-   openbuilder-cli status
-   ```
-
-2. Validate config:
-   ```bash
-   openbuilder-cli config validate
-   ```
-
-3. View logs:
-   - Runner logs appear in terminal
-   - Check Sentry dashboard for errors
-
-4. Reset everything:
-   ```bash
-   openbuilder-cli config reset
-   openbuilder-cli cleanup --all
-   openbuilder-cli init
-   ```
 
 ## FAQ
 
-**Q: Can I run multiple runners?**
-A: Yes! Each runner needs a unique `runner-id`. Set it during init or with:
-```bash
-openbuilder runner --runner-id my-second-runner
-```
+**Q: Do I need an API key?**
+A: No! Authentication is handled via OAuth (GitHub or Sentry SSO). The CLI automatically manages tokens.
 
 **Q: Where are my projects stored?**
-A: In your workspace directory. Check with:
-```bash
-openbuilder config get workspace
-```
+A: In `~/openbuilder-projects/` by default. Check with `openbuilder config get workspace`.
 
-**Q: Can I change the workspace location?**
-A: Yes:
+**Q: Can I run multiple runners?**
+A: Yes! Each runner gets a unique ID. Run on different machines or use `--runner-id`:
 ```bash
-openbuilder config set workspace ~/new-location
-```
-
-**Q: How do I update the CLI?**
-A: Reinstall from npm:
-```bash
-npm update -g @openbuilder/cli
+openbuilder runner --runner-id work-laptop
+openbuilder runner --runner-id home-desktop
 ```
 
 **Q: Does the runner need to stay running?**
-A: Yes, while you're using the web UI. It executes builds and manages dev servers.
+A: Yes, while you're using openbuilder.sh. It executes builds and serves previews.
 
-**Q: Can I run the runner in the background?**
-A: Use a process manager like PM2:
+**Q: Can I use a different AI model?**
+A: Yes! Select your preferred Claude model using the `@model` tag in the web UI:
+- `claude-haiku-4-5` (fast)
+- `claude-sonnet-4-5` (balanced)
+- `claude-opus-4-5` (most capable)
+
+**Q: How do I update the CLI?**
+A: 
 ```bash
-pm2 start openbuilder --name runner -- runner
-pm2 logs runner
-```
+# If using npx, it auto-updates
+npx @openbuilder/cli runner
 
-**Q: How do I start just the runner vs full stack?**
-A:
-```bash
-# Full stack (web + broker + runner)
-openbuilder run
-
-# Runner only (connect to remote broker)
-openbuilder --runner
+# If installed globally
+npm update -g @openbuilder/cli
 # or
-openbuilder runner
+openbuilder upgrade
 ```
 
 **Q: How do I uninstall?**
 A:
 ```bash
-# Clean up projects
 openbuilder cleanup --all
-
-# Uninstall CLI
 npm uninstall -g @openbuilder/cli
-
-# Remove config (optional)
-rm -rf ~/Library/Application\ Support/openbuilder
+rm -rf ~/Library/Application\ Support/openbuilder  # macOS
+rm -rf ~/.config/openbuilder  # Linux
 ```
 
-## Contributing
+## Development
 
-Contributions are welcome! Please:
+See the main [OpenBuilder repository](https://github.com/codyde/openbuilder) for development instructions.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+```bash
+# Clone and setup
+git clone https://github.com/codyde/openbuilder.git
+cd openbuilder
+pnpm install
+
+# Build the CLI
+cd apps/runner
+pnpm run build
+
+# Test locally
+node dist/cli/index.js runner
+```
 
 ## License
 
-[License info here]
+MIT
