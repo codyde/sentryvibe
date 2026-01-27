@@ -70,6 +70,7 @@ export const runnerKeys = pgTable('runner_keys', {
   name: text('name').notNull(), // User-friendly name like "My MacBook"
   keyHash: text('key_hash').notNull(), // SHA-256 hash of the full key
   keyPrefix: text('key_prefix').notNull(), // First 8 chars for display: "sv_abc123..."
+  source: text('source').default('web'), // 'web' | 'cli' - how the key was created
   lastUsedAt: timestamp('last_used_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   revokedAt: timestamp('revoked_at'), // Soft delete - null means active
@@ -77,6 +78,27 @@ export const runnerKeys = pgTable('runner_keys', {
   userIdIdx: index('runner_keys_user_id_idx').on(table.userId),
   keyHashIdx: uniqueIndex('runner_keys_key_hash_idx').on(table.keyHash),
 }));
+
+// CLI authentication sessions - temporary tokens for OAuth flow
+export const cliAuthSessions = pgTable('cli_auth_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  token: text('token').notNull().unique(), // Random token for session identification
+  callbackPort: integer('callback_port').notNull(), // Port the CLI is listening on
+  callbackHost: text('callback_host').default('localhost'), // Host for callback
+  state: text('state').notNull().default('pending'), // 'pending' | 'authenticated' | 'completed' | 'expired'
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }), // Set after auth
+  runnerKeyId: uuid('runner_key_id').references(() => runnerKeys.id, { onDelete: 'cascade' }), // Created key
+  deviceName: text('device_name'), // Auto-detected device name
+  expiresAt: timestamp('expires_at').notNull(), // Session expiration (short-lived)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  authenticatedAt: timestamp('authenticated_at'), // When user completed OAuth
+}, (table) => ({
+  tokenIdx: uniqueIndex('cli_auth_sessions_token_idx').on(table.token),
+  expiresAtIdx: index('cli_auth_sessions_expires_at_idx').on(table.expiresAt),
+}));
+
+export type CliAuthSession = typeof cliAuthSessions.$inferSelect;
+export type NewCliAuthSession = typeof cliAuthSessions.$inferInsert;
 
 // ============================================================================
 // Application Tables

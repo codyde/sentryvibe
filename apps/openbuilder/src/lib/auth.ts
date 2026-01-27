@@ -87,10 +87,11 @@ function createAuth() {
       minPasswordLength: 8,
       maxPasswordLength: 128,
     },
-    // Sentry OAuth plugin
+    // OAuth plugins: Sentry and GitHub
     plugins: [
       genericOAuth({
         config: [
+          // Sentry OAuth
           {
             providerId: "sentry",
             clientId: process.env.SENTRY_OAUTH_CLIENT_ID!,
@@ -108,6 +109,70 @@ function createAuth() {
                 email: user.email,
                 name: user.name,
                 emailVerified: true,
+              };
+            },
+          },
+          // GitHub OAuth
+          {
+            providerId: "github",
+            clientId: process.env.GITHUB_OAUTH_CLIENT_ID!,
+            clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET!,
+            authorizationUrl: "https://github.com/login/oauth/authorize",
+            tokenUrl: "https://github.com/login/oauth/access_token",
+            scopes: ["read:user", "user:email"],
+            pkce: false, // GitHub doesn't support PKCE
+            getUserInfo: async (tokens) => {
+              // Fetch user info from GitHub API
+              const userResponse = await fetch("https://api.github.com/user", {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  Accept: "application/vnd.github.v3+json",
+                },
+              });
+              
+              if (!userResponse.ok) {
+                throw new Error("Failed to fetch GitHub user info");
+              }
+              
+              const user = await userResponse.json() as { 
+                id: number; 
+                login: string; 
+                name: string | null; 
+                email: string | null;
+                avatar_url: string;
+              };
+              
+              // If email is not public, fetch from emails endpoint
+              let email = user.email;
+              if (!email) {
+                const emailsResponse = await fetch("https://api.github.com/user/emails", {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                    Accept: "application/vnd.github.v3+json",
+                  },
+                });
+                
+                if (emailsResponse.ok) {
+                  const emails = await emailsResponse.json() as Array<{ 
+                    email: string; 
+                    primary: boolean; 
+                    verified: boolean;
+                  }>;
+                  const primaryEmail = emails.find(e => e.primary && e.verified);
+                  email = primaryEmail?.email || emails[0]?.email || null;
+                }
+              }
+              
+              if (!email) {
+                throw new Error("Could not retrieve email from GitHub");
+              }
+              
+              return {
+                id: user.id.toString(),
+                email,
+                name: user.name || user.login,
+                image: user.avatar_url,
+                emailVerified: true, // GitHub emails are verified
               };
             },
           },

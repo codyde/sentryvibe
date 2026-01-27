@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail, Lock, User, AlertCircle, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, AlertCircle, ArrowLeft, Github } from "lucide-react";
 
 interface LoginModalProps {
   open: boolean;
@@ -32,6 +32,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSentryLoading, setIsSentryLoading] = useState(false);
+  const [isGitHubLoading, setIsGitHubLoading] = useState(false);
 
   const resetForm = () => {
     setEmail("");
@@ -122,6 +123,21 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
     }
   };
 
+  const handleGitHubLogin = async () => {
+    setError(null);
+    setIsGitHubLoading(true);
+    try {
+      await signIn.oauth2({
+        providerId: "github",
+        callbackURL: "/",
+      });
+    } catch (err) {
+      console.error("GitHub OAuth error:", err);
+      setError("Failed to initiate GitHub login. Please try again.");
+      setIsGitHubLoading(false);
+    }
+  };
+
   const handleBackToSentry = () => {
     setAuthMethod("sentry");
     setError(null);
@@ -144,13 +160,15 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
 
         {authMethod === "sentry" ? (
           <>
-            {/* Sentry OAuth Button - Square icon with logo */}
-            <div className="mt-4 flex justify-center">
+            {/* OAuth Provider Buttons */}
+            <div className="mt-4 flex justify-center gap-4">
+              {/* Sentry OAuth Button */}
               <button
                 type="button"
                 onClick={handleSentryLogin}
-                disabled={isSentryLoading || isLoading}
+                disabled={isSentryLoading || isGitHubLoading || isLoading}
                 className="w-16 h-16 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-700 hover:border-zinc-600 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Sign in with Sentry"
               >
                 {isSentryLoading ? (
                   <Loader2 className="h-8 w-8 animate-spin text-white" />
@@ -162,6 +180,21 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
                     height={32}
                     className="h-8 w-8"
                   />
+                )}
+              </button>
+
+              {/* GitHub OAuth Button */}
+              <button
+                type="button"
+                onClick={handleGitHubLogin}
+                disabled={isSentryLoading || isGitHubLoading || isLoading}
+                className="w-16 h-16 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-700 hover:border-zinc-600 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Sign in with GitHub"
+              >
+                {isGitHubLoading ? (
+                  <Loader2 className="h-8 w-8 animate-spin text-white" />
+                ) : (
+                  <Github className="h-8 w-8 text-white" />
                 )}
               </button>
             </div>
@@ -181,7 +214,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
               type="button"
               variant="outline"
               onClick={() => setAuthMethod("email")}
-              disabled={isSentryLoading}
+              disabled={isSentryLoading || isGitHubLoading}
               className="w-full bg-transparent border-zinc-700 hover:bg-zinc-900 hover:border-zinc-600 text-zinc-300"
             >
               <Mail className="h-4 w-4 mr-2" />
