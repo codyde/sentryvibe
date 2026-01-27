@@ -18,7 +18,7 @@ The OpenBuilder CLI is a command-line tool for building AI-powered applications 
 
 ```bash
 # Install via curl
-curl -fsSL https://openbuilder.app/install | bash
+curl -fsSL https://openbuilder.sh/install | bash
 
 # Verify installation
 openbuilder --version
@@ -90,7 +90,7 @@ Before you begin, ensure you have:
 #### 1. Install the CLI
 
 ```bash
-curl -fsSL https://openbuilder.app/install | bash
+curl -fsSL https://openbuilder.sh/install | bash
 ```
 
 #### 2. Initialize Your Runner

@@ -6,7 +6,7 @@ const GITHUB_INSTALL_SCRIPT_URL =
 /**
  * GET /install
  * Proxies the CLI install script from GitHub
- * Usage: curl -fsSL https://openbuilder.app/install | bash
+ * Usage: curl -fsSL https://openbuilder.sh/install | bash
  */
 export async function GET() {
   try {

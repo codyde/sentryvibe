@@ -31,7 +31,7 @@ export function InstallStep({ onNext, onSkip }: InstallStepProps) {
 
       {/* Install command */}
       <TerminalCodeBlock 
-        code="curl -fsSL https://openbuilder.app/install | bash" 
+        code="curl -fsSL https://openbuilder.sh/install | bash" 
         title="Install OpenBuilder CLI"
       />
 

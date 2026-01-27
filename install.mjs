@@ -5,7 +5,7 @@
  * 
  * A beautiful installer for the OpenBuilder CLI.
  * 
- * Usage: curl -fsSL https://openbuilder.app/install.mjs | node -
+ * Usage: curl -fsSL https://openbuilder.sh/install.mjs | node -
  */
 
 import { execSync, spawn } from 'node:child_process';
@@ -338,8 +338,10 @@ function printPnpmSetupError(error) {
 
 // Install the CLI
 async function installCLI(version) {
-  // Install from npm registry (preferred) - version is used for display only
-  const packageSpec = '@openbuilder/cli';
+  // Install from npm registry with explicit version to avoid pnpm cache issues
+  // Strip 'v' prefix if present (GitHub releases use 'v1.0.0', npm uses '1.0.0')
+  const cleanVersion = version.startsWith('v') ? version.slice(1) : version;
+  const packageSpec = `@openbuilder/cli@${cleanVersion}`;
   
   // Check pnpm availability - install if not present
   if (!hasPnpm()) {

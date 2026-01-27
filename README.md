@@ -6,7 +6,7 @@ OpenBuilder is an AI-powered application builder that leverages Claude Code, Ope
 
 ```bash
 # Install the CLI
-curl -fsSL https://openbuilder.app/install | bash
+curl -fsSL https://openbuilder.sh/install | bash
 
 # Launch the TUI
 openbuilder

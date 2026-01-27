@@ -4,7 +4,7 @@
 # This is a thin wrapper that ensures Node.js is available,
 # then runs the Node.js-based installer for a beautiful experience.
 #
-# Usage: curl -fsSL https://openbuilder.app/install | bash
+# Usage: curl -fsSL https://openbuilder.sh/install | bash
 
 set -e
 

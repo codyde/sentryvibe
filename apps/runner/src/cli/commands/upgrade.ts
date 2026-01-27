@@ -19,7 +19,7 @@ import { configManager } from '../utils/config-manager.js';
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/codyde/openbuilder/releases/latest';
 
 // Install command for CLI
-const INSTALL_COMMAND = 'curl -fsSL https://openbuilder.app/install | bash';
+const INSTALL_COMMAND = 'curl -fsSL https://openbuilder.sh/install | bash';
 
 interface UpgradeOptions {
   branch?: string;

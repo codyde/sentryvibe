@@ -17,6 +17,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Fetch full history to get the version bump commit
+          fetch-depth: 0
+          # Checkout main branch (which has the version bump) instead of the tag
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

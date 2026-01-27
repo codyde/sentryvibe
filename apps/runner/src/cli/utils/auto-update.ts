@@ -18,7 +18,7 @@ import { configManager } from './config-manager.js';
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/codyde/openbuilder/releases/latest';
 
 // Install command for CLI
-const INSTALL_COMMAND = 'curl -fsSL https://openbuilder.app/install | bash';
+const INSTALL_COMMAND = 'curl -fsSL https://openbuilder.sh/install | bash';
 
 // Cache settings
 const CACHE_DIR = join(homedir(), '.config', 'openbuilder');
@@ -293,7 +293,7 @@ export async function checkAndAutoUpdate(currentVersion: string): Promise<boolea
     // CLI update failed, continue with current version
     console.log();
     console.log(`  ${pc.yellow('⚠')} ${pc.dim('CLI update failed. Continuing with current version.')}`);
-    console.log(`  ${pc.dim('You can manually update with:')} ${pc.cyan('curl -fsSL https://openbuilder.app/install | bash')}`);
+    console.log(`  ${pc.dim('You can manually update with:')} ${pc.cyan('curl -fsSL https://openbuilder.sh/install | bash')}`);
     console.log();
     return false;
   }
