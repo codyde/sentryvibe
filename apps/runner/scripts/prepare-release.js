@@ -51,6 +51,15 @@ for (const dep of workspaceDeps) {
   }
 }
 
+// REMOVE react - it's bundled by rollup to prevent multiple instances issue with ink
+// When react is both bundled AND listed as a dependency, ink uses the npm-installed
+// version while our code uses the bundled version, causing "Cannot read properties of null"
+if (packageJson.dependencies['react']) {
+  console.log(`  Removing react (bundled by rollup to prevent multiple instances)`);
+  delete packageJson.dependencies['react'];
+  modified = true;
+}
+
 // Remove bundledDependencies if it exists (no longer needed)
 if (packageJson.bundledDependencies) {
   console.log(`  Removing bundledDependencies (agent-core is inlined, not bundled)`);
