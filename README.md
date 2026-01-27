@@ -49,16 +49,21 @@ openbuilder runner --secret <your-runner-key>
 
 ## AI Backends
 
-OpenBuilder supports multiple AI backends for code generation. Select your preferred agent when creating a project in the web UI.
+OpenBuilder supports multiple AI backends for code generation.
 
 ### Claude Code (Default)
 
-Uses your local Claude Code subscription via the Claude CLI.
+Uses the Claude Agent SDK with the same authentication as your local Claude CLI installation.
 
 ```bash
 # Ensure Claude CLI is installed and authenticated
 claude --version
 ```
+
+Select your preferred Claude model using the `@model` tag in the web UI:
+- `claude-haiku-4-5` (default, fastest)
+- `claude-sonnet-4-5` (balanced)
+- `claude-opus-4-5` (most capable)
 
 ### OpenAI Codex
 
@@ -68,7 +73,7 @@ Use OpenAI's Codex for code generation. Set your API key as an environment varia
 export OPENAI_API_KEY=your-api-key
 ```
 
-Then select **Codex** as the agent when creating a project.
+Then select the `gpt-5.2-codex` model using the `@model` tag in the web UI.
 
 ### OpenCode (Model Agnostic)
 
@@ -78,21 +83,24 @@ Then select **Codex** as the agent when creating a project.
 - **Local models**: Ollama, LM Studio, llama.cpp
 - **OpenCode Zen**: Curated list of tested and verified models from the OpenCode team
 
-To use OpenCode with OpenBuilder:
+OpenCode is configured at the **runner level** (not per-project). To use OpenCode:
 
 ```bash
 # Install OpenCode
 curl -fsSL https://opencode.ai/install | bash
 
-# Start OpenCode in server mode
+# Start OpenCode in server mode (in a separate terminal)
 opencode --server
 
-# Configure your runner to use OpenCode
+# Set environment variables before starting your runner
 export USE_OPENCODE_SDK=1
 export OPENCODE_URL=http://localhost:4096
+
+# Then start OpenBuilder
+openbuilder
 ```
 
-Then select **OpenCode** as the agent when creating a project. Configure your preferred provider by running `/connect` in the OpenCode TUI. See the [OpenCode Providers documentation](https://opencode.ai/docs/providers/) for the full list of 75+ supported providers.
+When OpenCode is enabled, all AI requests are routed through your OpenCode server. Configure your preferred provider by running `/connect` in the OpenCode TUI. See the [OpenCode Providers documentation](https://opencode.ai/docs/providers/) for the full list of 75+ supported providers.
 
 ## Prerequisites
 
@@ -110,24 +118,19 @@ node --version  # Should be 18.0.0 or higher
 
 1. **You describe what you want** - Enter a prompt like "Create a React app with a todo list"
 2. **AI generates the code** - Your configured AI backend (Claude, Codex, or OpenCode) builds the application
-3. **Preview instantly** - The runner starts a dev server and creates a preview URL via tunnel
-4. **Iterate with tags** - Use `@` tags to reference files, URLs, or context in your prompts
+3. **Preview instantly** - The runner starts a dev server and creates a preview URL via Cloudflare tunnel
+4. **Iterate** - Continue refining with follow-up prompts
 
-### Using Tags
+### Configuration Tags
 
-Tags let you provide context to the AI:
+Use the tag selector in the web UI to configure your build:
 
-| Tag | Description | Example |
+| Tag | Description | Options |
 |-----|-------------|---------|
-| `@file` | Reference a file in your project | `@file:src/App.tsx` |
-| `@url` | Include content from a URL | `@url:https://api.example.com/docs` |
-| `@image` | Attach an image for visual context | `@image:design.png` |
-| `@git` | Reference git diff or history | `@git:diff` |
-
-Example prompt:
-```
-Update the header component @file:src/components/Header.tsx to match this design @image:header-mockup.png
-```
+| `@model` | AI model to use | `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-5`, `gpt-5.2-codex` |
+| `@framework` | Project framework | Next.js, Vite, Astro, TanStack |
+| `@runner` | Which runner to use | Your connected runners |
+| `@brand` | Design theme | Sentry, Stripe, Vercel, and more |
 
 ## CLI Commands
 
@@ -153,7 +156,7 @@ Override settings with command-line flags:
 openbuilder runner \
   --secret <your-runner-key> \
   --workspace ~/my-projects \
-  --id my-runner
+  --runner-id my-runner
 ```
 
 ## Project Structure
