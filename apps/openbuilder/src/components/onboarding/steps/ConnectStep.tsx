@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Loader2, CheckCircle2, Wifi, WifiOff, HelpCircle } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, Wifi, HelpCircle, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { TerminalCodeBlock } from "../TerminalCodeBlock";
 import { useRunner } from "@/contexts/RunnerContext";
 
 interface ConnectStepProps {
-  runnerKey: string;
+  runnerKey?: string; // Optional - for legacy key-based flow
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
@@ -23,10 +23,16 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
   const [waitingTime, setWaitingTime] = useState(0);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
 
+  // If we have a runnerKey prop, use the legacy key-based command
+  // Otherwise use the new OAuth-based command
+  const useOAuthFlow = !runnerKey;
+  
   // Build the command based on options
-  const baseCommand = `openbuilder runner --secret ${runnerKey}`;
+  const baseCommand = useOAuthFlow 
+    ? "openbuilder runner"
+    : `openbuilder runner --secret ${runnerKey}`;
   const commandWithId = runnerId.trim() 
-    ? `${baseCommand} --id ${runnerId.trim()}`
+    ? `${baseCommand} --runner-id ${runnerId.trim()}`
     : baseCommand;
   const displayCommand = includeRunnerId ? commandWithId : baseCommand;
 
@@ -71,7 +77,10 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
           Connect your runner
         </h2>
         <p className="text-muted-foreground">
-          Run this command in a new terminal window
+          {useOAuthFlow 
+            ? "Run this command - it will open your browser to sign in"
+            : "Run this command in a new terminal window"
+          }
         </p>
       </div>
 
@@ -80,6 +89,20 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
         code={displayCommand} 
         title="Start Runner"
       />
+
+      {/* OAuth flow explanation */}
+      {useOAuthFlow && (
+        <div className="flex items-start gap-3 p-4 bg-theme-primary-muted rounded-lg border border-theme-primary/20">
+          <ExternalLink className="w-5 h-5 text-theme-primary shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Automatic sign-in</p>
+            <p className="text-xs text-muted-foreground">
+              A browser window will open automatically for authentication. 
+              Sign in with GitHub or Sentry and you&apos;ll be connected instantly.
+            </p>
+          </div>
+        </div>
+      )}
       
       {/* Runner ID option */}
       <div className="space-y-3">
@@ -130,24 +153,6 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
           )}
         </AnimatePresence>
       </div>
-
-      {/* Alternative method */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border"></div>
-        </div>
-        <div className="relative flex justify-center">
-          <span className="px-3 bg-background text-xs text-muted-foreground">or use interactive mode</span>
-        </div>
-      </div>
-
-      <TerminalCodeBlock 
-        code="openbuilder" 
-        title="Interactive Setup"
-      />
-      <p className="text-xs text-muted-foreground text-center">
-        Select <span className="text-theme-primary">&quot;Runner mode&quot;</span> and paste your key when prompted
-      </p>
 
       {/* Connection status */}
       <motion.div 
@@ -218,6 +223,7 @@ export function ConnectStep({ runnerKey, onNext, onBack, onSkip }: ConnectStepPr
                 <ul className="text-xs text-amber-200/80 space-y-1">
                   <li>Make sure you copied the full command</li>
                   <li>Check that the CLI installed successfully</li>
+                  {useOAuthFlow && <li>Complete the sign-in in your browser</li>}
                   <li>Ensure you have an internet connection</li>
                   <li>Try running <code className="px-1 bg-black/30 rounded">openbuilder --version</code> to verify installation</li>
                 </ul>

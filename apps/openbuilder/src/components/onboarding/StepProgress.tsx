@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Terminal, Key, Plug } from "lucide-react";
+import { Check, Terminal, Plug } from "lucide-react";
 
 interface Step {
   id: number;
@@ -11,8 +11,7 @@ interface Step {
 
 const steps: Step[] = [
   { id: 1, label: "Install", icon: <Terminal className="w-4 h-4" /> },
-  { id: 2, label: "Create Key", icon: <Key className="w-4 h-4" /> },
-  { id: 3, label: "Connect", icon: <Plug className="w-4 h-4" /> },
+  { id: 2, label: "Connect", icon: <Plug className="w-4 h-4" /> },
 ];
 
 interface StepProgressProps {
@@ -20,8 +19,8 @@ interface StepProgressProps {
 }
 
 export function StepProgress({ currentStep }: StepProgressProps) {
-  // Map step 4 (complete) to show all steps as completed
-  const displayStep = currentStep === 4 ? 4 : currentStep;
+  // Map step 3 (complete) to show all steps as completed
+  const displayStep = currentStep === 3 ? 3 : currentStep;
   
   return (
     <div className="w-full">
@@ -40,8 +39,8 @@ export function StepProgress({ currentStep }: StepProgressProps) {
         />
 
         {steps.map((step) => {
-          const isCompleted = step.id < displayStep || displayStep === 4;
-          const isCurrent = step.id === displayStep && displayStep !== 4;
+          const isCompleted = step.id < displayStep || displayStep === 3;
+          const isCurrent = step.id === displayStep && displayStep !== 3;
           const isPending = step.id > displayStep;
 
           return (

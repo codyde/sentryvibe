@@ -9,11 +9,10 @@ import {
 import { useRunner } from "@/contexts/RunnerContext";
 import { StepProgress } from "./StepProgress";
 import { InstallStep } from "./steps/InstallStep";
-import { CreateKeyStep } from "./steps/CreateKeyStep";
 import { ConnectStep } from "./steps/ConnectStep";
 import { CompleteStep } from "./steps/CompleteStep";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3;
 
 interface OnboardingModalProps {
   open: boolean;
@@ -26,7 +25,6 @@ interface OnboardingModalProps {
 export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtStepOne = false }: OnboardingModalProps) {
   const { availableRunners } = useRunner();
   const [currentStep, setCurrentStep] = useState<Step>(1);
-  const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // If a runner connects while modal is open, jump to complete step
@@ -34,37 +32,30 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
   // Use availableRunners.length instead of availableRunners to avoid re-running
   // when heartbeat polling updates the runner objects' lastHeartbeat timestamps
   useEffect(() => {
-    if (!forceStartAtStepOne && availableRunners.length > 0 && currentStep < 4 && hasInitialized) {
-      setCurrentStep(4);
+    if (!forceStartAtStepOne && availableRunners.length > 0 && currentStep < 3 && hasInitialized) {
+      setCurrentStep(3);
     }
   }, [availableRunners.length, currentStep, forceStartAtStepOne, hasInitialized]);
 
   // Initialize state when modal first opens
-  // Preserve createdKey and currentStep when modal is closed and reopened
-  // so users don't lose progress if they accidentally close the modal
   useEffect(() => {
     if (open && !hasInitialized) {
-      // If forcing step one (testing), always start at 1 and reset key
+      // If forcing step one (testing), always start at 1
       if (forceStartAtStepOne) {
         setCurrentStep(1);
-        setCreatedKey(null);
-      } else if (createdKey) {
-        // User has a key from previous session - resume where they left off
-        // Don't reset their progress
       } else if (availableRunners.length > 0) {
-        // If runners are already connected and no existing progress, start at complete
-        setCurrentStep(4);
+        // If runners are already connected, start at complete
+        setCurrentStep(3);
       } else {
         // Fresh start
         setCurrentStep(1);
       }
       setHasInitialized(true);
     } else if (!open) {
-      // Only reset initialization flag when modal closes
-      // Keep createdKey and currentStep so user can resume
+      // Reset initialization flag when modal closes
       setHasInitialized(false);
     }
-  }, [open, availableRunners.length, forceStartAtStepOne, hasInitialized, createdKey]);
+  }, [open, availableRunners.length, forceStartAtStepOne, hasInitialized]);
 
   const handleSkip = async () => {
     // Mark onboarding as complete even when skipping, so it doesn't show again
@@ -91,7 +82,6 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
       }
       // Reset state on successful completion
       setCurrentStep(1);
-      setCreatedKey(null);
       onComplete();
       onOpenChange(false);
     } catch (error) {
@@ -122,31 +112,19 @@ export function OnboardingModal({ open, onOpenChange, onComplete, forceStartAtSt
             )}
 
             {currentStep === 2 && (
-              <CreateKeyStep
-                key="create-key"
-                onNext={(key) => {
-                  setCreatedKey(key);
-                  setCurrentStep(3);
-                }}
-                onBack={() => setCurrentStep(1)}
-              />
-            )}
-
-            {currentStep === 3 && (
               <ConnectStep
                 key="connect"
-                runnerKey={createdKey || "<your-key>"}
-                onNext={() => setCurrentStep(4)}
-                onBack={() => setCurrentStep(2)}
+                onNext={() => setCurrentStep(3)}
+                onBack={() => setCurrentStep(1)}
                 onSkip={handleSkip}
               />
             )}
 
-            {currentStep === 4 && (
+            {currentStep === 3 && (
               <CompleteStep 
                 key="complete"
                 onComplete={handleComplete} 
-                onBack={forceStartAtStepOne ? () => setCurrentStep(3) : undefined}
+                onBack={forceStartAtStepOne ? () => setCurrentStep(2) : undefined}
               />
             )}
           </AnimatePresence>

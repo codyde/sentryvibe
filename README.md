@@ -35,16 +35,20 @@ Open `http://localhost:3000` in your browser and start building!
 
 Connect your local machine as a runner to the hosted OpenBuilder at [openbuilder.sh](https://openbuilder.sh).
 
-1. Sign up at [openbuilder.sh](https://openbuilder.sh)
-2. Click **"Connect a Runner"** to get your runner key
-3. Run the CLI:
+```bash
+# Connect to openbuilder.sh (opens browser for authentication)
+openbuilder runner
+```
 
+This will:
+1. Open your browser for authentication (GitHub or Sentry)
+2. Automatically create a runner token
+3. Connect your machine to openbuilder.sh
+
+You can also use the interactive TUI:
 ```bash
 openbuilder
-# Select "Runner mode" from the TUI and enter your key
-
-# Or directly via command line:
-openbuilder runner --secret <your-runner-key>
+# Select "Runner mode" from the menu
 ```
 
 ## AI Backends
@@ -137,7 +141,8 @@ Use the tag selector in the web UI to configure your build:
 | Command | Description |
 |---------|-------------|
 | `openbuilder` | Launch TUI to choose local or runner mode |
-| `openbuilder runner` | Start runner only (connect to openbuilder.sh) |
+| `openbuilder runner` | Connect to openbuilder.sh (auto-login via browser) |
+| `openbuilder login` | Authenticate with openbuilder.sh |
 | `openbuilder run` | Start local mode directly |
 | `openbuilder init` | Interactive setup wizard |
 | `openbuilder upgrade` | Upgrade CLI and app installation |
@@ -154,7 +159,6 @@ Configuration is stored at:
 Override settings with command-line flags:
 ```bash
 openbuilder runner \
-  --secret <your-runner-key> \
   --workspace ~/my-projects \
   --runner-id my-runner
 ```

@@ -9,11 +9,10 @@ import {
 import { useRunner } from "@/contexts/RunnerContext";
 import { ConnectRunnerStepProgress } from "./ConnectRunnerStepProgress";
 import { InstallStep } from "../onboarding/steps/InstallStep";
-import { CreateKeyStep } from "../onboarding/steps/CreateKeyStep";
 import { ConnectStep } from "../onboarding/steps/ConnectStep";
 import { RunnerConnectedStep } from "./RunnerConnectedStep";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3;
 
 interface ConnectRunnerWizardProps {
   open: boolean;
@@ -24,24 +23,21 @@ interface ConnectRunnerWizardProps {
 export function ConnectRunnerWizard({ open, onOpenChange, onComplete }: ConnectRunnerWizardProps) {
   const { availableRunners } = useRunner();
   const [currentStep, setCurrentStep] = useState<Step>(1);
-  const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // If a runner connects while modal is open, jump to complete step
   useEffect(() => {
-    if (availableRunners.length > 0 && currentStep < 4 && hasInitialized) {
-      setCurrentStep(4);
+    if (availableRunners.length > 0 && currentStep < 3 && hasInitialized) {
+      setCurrentStep(3);
     }
   }, [availableRunners.length, currentStep, hasInitialized]);
 
   // Initialize state when modal first opens
   useEffect(() => {
     if (open && !hasInitialized) {
-      if (createdKey) {
-        // User has a key from previous session - resume where they left off
-      } else if (availableRunners.length > 0) {
+      if (availableRunners.length > 0) {
         // If runners are already connected, start at complete
-        setCurrentStep(4);
+        setCurrentStep(3);
       } else {
         // Fresh start
         setCurrentStep(1);
@@ -50,7 +46,7 @@ export function ConnectRunnerWizard({ open, onOpenChange, onComplete }: ConnectR
     } else if (!open) {
       setHasInitialized(false);
     }
-  }, [open, availableRunners.length, hasInitialized, createdKey]);
+  }, [open, availableRunners.length, hasInitialized]);
 
   const handleClose = () => {
     onOpenChange(false);
@@ -59,7 +55,6 @@ export function ConnectRunnerWizard({ open, onOpenChange, onComplete }: ConnectR
   const handleComplete = () => {
     // Reset state on completion
     setCurrentStep(1);
-    setCreatedKey(null);
     onComplete?.();
     onOpenChange(false);
   };
@@ -85,27 +80,15 @@ export function ConnectRunnerWizard({ open, onOpenChange, onComplete }: ConnectR
             )}
 
             {currentStep === 2 && (
-              <CreateKeyStep
-                key="create-key"
-                onNext={(key) => {
-                  setCreatedKey(key);
-                  setCurrentStep(3);
-                }}
-                onBack={() => setCurrentStep(1)}
-              />
-            )}
-
-            {currentStep === 3 && (
               <ConnectStep
                 key="connect"
-                runnerKey={createdKey || "<your-key>"}
-                onNext={() => setCurrentStep(4)}
-                onBack={() => setCurrentStep(2)}
+                onNext={() => setCurrentStep(3)}
+                onBack={() => setCurrentStep(1)}
                 onSkip={handleClose}
               />
             )}
 
-            {currentStep === 4 && (
+            {currentStep === 3 && (
               <RunnerConnectedStep 
                 key="complete"
                 onComplete={handleComplete} 
