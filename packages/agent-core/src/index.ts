@@ -56,3 +56,15 @@ export {
   type DatabaseClient
 } from './lib/db/client';
 export { runMigrations } from './lib/db/migrate';
+
+// Schemas for AI-generated structured output
+export {
+  ProjectMetadataSchema,
+  TemplateAnalysisSchema,
+  ProjectNamingSchema,
+  AVAILABLE_ICONS,
+  type ProjectMetadata,
+  type TemplateAnalysis,
+  type ProjectNaming,
+  type ProjectIcon,
+} from './schemas/metadata';

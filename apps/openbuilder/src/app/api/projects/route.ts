@@ -1,16 +1,25 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
-import { Codex } from '@openai/codex-sdk';
 import { db } from '@openbuilder/agent-core/lib/db/client';
 import { projects, messages } from '@openbuilder/agent-core/lib/db/schema';
 import { eq, or, isNull } from 'drizzle-orm';
 import type { AgentId } from '@openbuilder/agent-core/types/agent';
-import { generateStructuredOutput } from '@/lib/anthropic-client';
-import { ProjectMetadataSchema } from '@/schemas/metadata';
 import { getSession, isLocalMode, getUserId } from '@/lib/auth-helpers';
 import { enrichProjectsWithRunnerStatus } from '@/lib/runner-utils';
 
-const CODEX_MODEL = 'gpt-5-codex';
+/**
+ * NOTE: This endpoint now uses FALLBACK naming only (no AI calls).
+ * 
+ * The primary project creation path is:
+ * 1. Frontend sends analyze-project to runner
+ * 2. Runner does AI analysis and returns metadata
+ * 3. Frontend calls POST /api/projects/create-from-analysis
+ * 
+ * This legacy POST endpoint is kept for:
+ * - Backwards compatibility
+ * - Fallback when runner analysis fails
+ * - Direct API usage without runner
+ */
 
 export async function GET() {
   try {
@@ -51,59 +60,47 @@ export async function GET() {
   }
 }
 
-function buildMetadataPrompt(userPrompt: string): string {
-  return `Extract project metadata from this request:
+/**
+ * Generate fallback metadata from prompt without AI
+ * Extracts meaningful words and generates slug/name
+ */
+function generateFallbackMetadata(prompt: string): {
+  slug: string;
+  friendlyName: string;
+  description: string;
+  icon: string;
+} {
+  // Extract key words, filtering out common filler words
+  const fillerWords = new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of',
+    'with', 'by', 'is', 'it', 'that', 'this', 'i', 'want', 'would', 'like',
+    'please', 'can', 'you', 'me', 'my', 'make', 'create', 'build', 'need',
+    'help', 'using', 'should', 'could', 'give', 'some', 'new'
+  ]);
+  
+  const words = prompt
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !fillerWords.has(w))
+    .slice(0, 4); // Take first 4 meaningful words
+  
+  // Generate short slug (max 30 chars)
+  const slug = words
+    .join('-')
+    .replace(/[^a-z0-9-]+/g, '')
+    .substring(0, 30) || `project-${Date.now()}`;
 
-User's request: "${userPrompt}"
+  // Generate friendly name (max 4 words, title case)
+  const friendlyName = words.length > 0
+    ? words.slice(0, 4).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+    : 'New Project';
 
-IMPORTANT: Extract only the PROJECT CONCEPT. Ignore all conversational phrases:
-- Ignore: "I want", "I need", "please", "can you", "build me", "create me", "make me"
-- Focus ONLY on WHAT is being built, not how the user asked for it
-
-Examples:
-- "I want to build a todo app" → slug: "todo-app", friendlyName: "Todo App"
-- "I want a workflow automation tool" → slug: "workflow-automation", friendlyName: "Workflow Automation"
-- "Build me an AI dashboard please" → slug: "ai-dashboard", friendlyName: "AI Dashboard"
-- "I would like a chat application" → slug: "chat-app", friendlyName: "Chat Application"
-
-Available icons: Folder, Code, Layout, Database, Zap, Globe, Lock, Users, ShoppingCart, Calendar, MessageSquare, FileText, Image, Music, Video, CheckCircle, Star
-
-Generate:
-- slug: kebab-case, max 30 chars, NO filler words like "want", "need", "build"
-- friendlyName: Title Case, 2-5 words, professional
-- description: 1-2 sentences about what the project does
-- icon: most appropriate icon from the list above`;
-}
-
-async function runCodexMetadataPrompt(promptText: string): Promise<string> {
-  // Note: Codex is auto-instrumented by Sentry's openAIIntegration via OTel
-  const codex = new Codex();
-
-  const thread = codex.startThread({
-    sandboxMode: "danger-full-access",
-    model: CODEX_MODEL,
-    workingDirectory: process.cwd(),
-    skipGitRepoCheck: true,
-  });
-
-  // Consume events directly to preserve Sentry async context for AI spans
-  const { events } = await thread.runStreamed(promptText);
-  let accumulated = '';
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for await (const event of events as AsyncIterable<any>) {
-    if (event?.type === 'item.completed') {
-      const item = event.item as Record<string, unknown> | undefined;
-      const text = typeof item?.text === 'string' ? item.text : undefined;
-      if (text) {
-        accumulated += text;
-      }
-    } else if (event?.type === 'turn.completed' && typeof event.finalResponse === 'string') {
-      accumulated += event.finalResponse;
-    }
-  }
-
-  return accumulated;
+  return {
+    slug,
+    friendlyName,
+    description: prompt.substring(0, 150) || 'A new project',
+    icon: 'Code',
+  };
 }
 
 export async function POST(request: Request) {
@@ -150,112 +147,19 @@ export async function POST(request: Request) {
     console.log('Selected tags:', tags);
 
     Sentry.logger.info(
-      Sentry.logger.fmt`Creating project from prompt ${{
+      Sentry.logger.fmt`Creating project from prompt (fallback path) ${{
         prompt,
         promptPreview: prompt.substring(0, 100),
         agent,
-        operation: 'project_creation',
+        operation: 'project_creation_fallback',
       }}`
     );
 
-    const metadataPrompt = buildMetadataPrompt(prompt);
-    let metadata;
-
-    // Use Claude with structured output via Anthropic SDK
-    if (agent === 'claude-code') {
-      try {
-        console.log('🤖 Generating project metadata with Claude...');
-        const result = await generateStructuredOutput({
-          model: 'claude-haiku-4-5',
-          schema: ProjectMetadataSchema,
-          prompt: metadataPrompt,
-        });
-
-        metadata = result.object;
-        console.log('✅ AI metadata generated:', metadata);
-      } catch (error) {
-        console.error('❌ AI metadata generation failed:', error);
-        // If validation failed but we got valid JSON, extract it with fallback icon
-        if (error && typeof error === 'object' && 'text' in error) {
-          try {
-            const parsed = JSON.parse((error as { text: string }).text);
-            metadata = {
-              slug: parsed.slug || 'generated-project',
-              friendlyName: parsed.friendlyName || 'Generated Project',
-              description: parsed.description || prompt.substring(0, 150),
-              icon: 'Code', // Fallback to Code if invalid icon chosen
-            };
-            console.log('📝 Recovered partial metadata from error:', metadata);
-          } catch (parseError) {
-            console.error('❌ Failed to parse metadata from error response');
-            // Fall through to simple metadata generation
-          }
-        }
-      }
-    } else if (agent === 'openai-codex') {
-      try {
-        const jsonResponse = await runCodexMetadataPrompt(metadataPrompt);
-
-        if (jsonResponse && jsonResponse.trim().length > 0) {
-          let cleanedResponse = jsonResponse.trim();
-          cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
-          cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
-          cleanedResponse = cleanedResponse.trim();
-
-          const jsonMatches = [...cleanedResponse.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g)];
-
-          for (let i = 0; i < jsonMatches.length; i++) {
-            try {
-              const candidate = jsonMatches[i][0];
-              const parsed = JSON.parse(candidate);
-
-              if (parsed.slug && parsed.friendlyName && parsed.description && parsed.icon) {
-                metadata = parsed;
-                break;
-              }
-            } catch (parseError) {
-              // Try next match
-            }
-          }
-        }
-      } catch (error) {
-        // Fall through to simple metadata generation
-      }
-    }
-
-    // If metadata is still undefined, use fallback with SHORTER names
-    if (!metadata) {
-      console.log('⚠️ AI metadata generation failed, using fallback naming');
-      
-      // Extract key words, filtering out common filler words
-      const fillerWords = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'it', 'that', 'this', 'i', 'want', 'would', 'like', 'please', 'can', 'you', 'me', 'my', 'make', 'create', 'build', 'need', 'help', 'using', 'should', 'could', 'give', 'some', 'new']);
-      const words = prompt
-        .toLowerCase()
-        .split(/\s+/)
-        .filter(w => w.length > 2 && !fillerWords.has(w))
-        .slice(0, 4); // Take first 4 meaningful words
-      
-      // Generate short slug (max 30 chars)
-      const slug = words
-        .join('-')
-        .replace(/[^a-z0-9-]+/g, '')
-        .substring(0, 30) || 'project-' + Date.now();
-
-      // Generate friendly name (max 4 words, title case)
-      const friendlyName = words
-        .slice(0, 4)
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ') || 'New Project';
-
-      metadata = {
-        slug,
-        friendlyName,
-        description: prompt.substring(0, 150) || 'A new project',
-        icon: 'Code',
-      };
-      
-      console.log('📝 Fallback metadata generated:', { slug, friendlyName });
-    }
+    // NOTE: This endpoint now uses FALLBACK naming only (no AI calls).
+    // The primary path uses runner analysis + create-from-analysis endpoint.
+    console.log('📝 Using fallback metadata generation (no AI)');
+    const metadata = generateFallbackMetadata(prompt);
+    console.log('📝 Fallback metadata generated:', { slug: metadata.slug, friendlyName: metadata.friendlyName });
 
     // Check for slug collision
     let finalSlug = metadata.slug;
