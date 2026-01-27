@@ -51,13 +51,16 @@ for (const dep of workspaceDeps) {
   }
 }
 
-// REMOVE react - it's bundled by rollup to prevent multiple instances issue with ink
-// When react is both bundled AND listed as a dependency, ink uses the npm-installed
-// version while our code uses the bundled version, causing "Cannot read properties of null"
-if (packageJson.dependencies['react']) {
-  console.log(`  Removing react (bundled by rollup to prevent multiple instances)`);
-  delete packageJson.dependencies['react'];
-  modified = true;
+// REMOVE react and ink ecosystem - they're bundled by rollup to prevent multiple React instances
+// When these are both bundled AND listed as dependencies, multiple React instances get loaded
+// causing "Cannot read properties of null (reading 'useState')" errors
+const bundledReactEcosystem = ['react', 'ink', 'ink-select-input', 'ink-spinner', 'ink-text-input'];
+for (const dep of bundledReactEcosystem) {
+  if (packageJson.dependencies[dep]) {
+    console.log(`  Removing ${dep} (bundled by rollup to prevent multiple React instances)`);
+    delete packageJson.dependencies[dep];
+    modified = true;
+  }
 }
 
 // Remove bundledDependencies if it exists (no longer needed)
