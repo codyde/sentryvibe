@@ -1,3 +1,7 @@
+/**
+ * Rollup configuration for @openbuilder/cli
+ * Bundles the CLI with React included to prevent multiple instances issue with ink
+ */
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
