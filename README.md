@@ -49,7 +49,7 @@ openbuilder runner --secret <your-runner-key>
 
 ## AI Backends
 
-OpenBuilder supports multiple AI backends for code generation:
+OpenBuilder supports multiple AI backends for code generation. Select your preferred agent when creating a project in the web UI.
 
 ### Claude Code (Default)
 
@@ -62,15 +62,13 @@ claude --version
 
 ### OpenAI Codex
 
-Use OpenAI's Codex for code generation:
+Use OpenAI's Codex for code generation. Set your API key as an environment variable:
 
 ```bash
-# Set your OpenAI API key
 export OPENAI_API_KEY=your-api-key
-
-# Configure OpenBuilder to use Codex
-openbuilder config set ai.provider codex
 ```
+
+Then select **Codex** as the agent when creating a project.
 
 ### OpenCode (Model Agnostic)
 
@@ -80,15 +78,21 @@ openbuilder config set ai.provider codex
 - **Local models**: Ollama, LM Studio, llama.cpp
 - **OpenCode Zen**: Curated list of tested and verified models from the OpenCode team
 
+To use OpenCode with OpenBuilder:
+
 ```bash
 # Install OpenCode
 curl -fsSL https://opencode.ai/install | bash
 
-# Configure OpenBuilder to use OpenCode
-openbuilder config set ai.provider opencode
+# Start OpenCode in server mode
+opencode --server
+
+# Configure your runner to use OpenCode
+export USE_OPENCODE_SDK=1
+export OPENCODE_URL=http://localhost:4096
 ```
 
-To configure OpenCode with your preferred provider, run `/connect` in the OpenCode TUI and select from 75+ supported providers. See the [OpenCode Providers documentation](https://opencode.ai/docs/providers/) for the full list.
+Then select **OpenCode** as the agent when creating a project. Configure your preferred provider by running `/connect` in the OpenCode TUI. See the [OpenCode Providers documentation](https://opencode.ai/docs/providers/) for the full list of 75+ supported providers.
 
 ## Prerequisites
 
