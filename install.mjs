@@ -111,25 +111,13 @@ function checkNodeVersion() {
   return version;
 }
 
-// Get latest release version
+// Get latest release version from npm (source of truth for installable versions)
 async function getLatestVersion() {
   // In quiet mode, skip the spinner
   const spinner = isQuietMode ? null : new Spinner('Fetching latest release...').start();
   
   try {
-    // Try GitHub releases API first
-    const response = await fetch('https://api.github.com/repos/codyde/openbuilder/releases/latest', {
-      headers: { 'Accept': 'application/vnd.github.v3+json' },
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const version = data.tag_name;
-      if (spinner) spinner.success(`Latest version: ${c.cyan}${version}${c.reset}`);
-      return version;
-    }
-    
-    // Fallback to npm registry
+    // Use npm registry as source of truth since that's where we install from
     const npmResponse = await fetch('https://registry.npmjs.org/@openbuilder/cli/latest');
     if (npmResponse.ok) {
       const data = await npmResponse.json();
@@ -138,7 +126,7 @@ async function getLatestVersion() {
       return version;
     }
     
-    throw new Error('Could not determine latest version');
+    throw new Error('Could not determine latest version from npm');
   } catch (error) {
     if (spinner) spinner.error('Failed to fetch latest version');
     throw error;
