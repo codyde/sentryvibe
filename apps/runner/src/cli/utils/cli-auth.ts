@@ -199,6 +199,16 @@ function startCallbackServer(port: number): Promise<AuthResult> {
       clearTimeout(timeout);
     });
     
+    // Handle server errors (e.g., port became unavailable due to race condition)
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      clearTimeout(timeout);
+      if (err.code === 'EADDRINUSE') {
+        resolve({ success: false, error: `Port ${port} is no longer available. Please try again.` });
+      } else {
+        resolve({ success: false, error: `Server error: ${err.message}` });
+      }
+    });
+    
     server.listen(port, '127.0.0.1');
   });
 }
