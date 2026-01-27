@@ -1468,7 +1468,16 @@ function HomeContent() {
     operationType: BuildOperationType,
     isElementChange: boolean = false,
     messageParts?: MessagePart[],
-    buildId?: string
+    buildId?: string,
+    template?: {
+      id: string;
+      name: string;
+      framework: string;
+      port: number;
+      runCommand: string;
+      repository: string;
+      branch: string;
+    }
   ) => {
     // CRITICAL: Use the buildId passed from startGeneration() or fall back to ref
     // This ensures client and server use the SAME build ID for proper deduplication
@@ -1519,6 +1528,7 @@ function HomeContent() {
           claudeModel: effectiveClaudeModel,
           codexThreadId: generationStateRef.current?.codex?.threadId, // For Codex thread resumption
           tags: appliedTags.length > 0 ? appliedTags : undefined, // Tag-based configuration
+          template, // Pass template from runner analysis (for initial builds)
           context: isElementChange
             ? {
                 elementSelector: "unknown", // Will be enhanced later
@@ -2188,15 +2198,43 @@ function HomeContent() {
           effectiveClaudeModel = parsed.claudeModel;
         }
 
-        const res = await fetch("/api/projects", {
+        // Step 1: Analyze project with AI to get friendly name, icon, template
+        if (DEBUG_PAGE) console.log("🔍 Analyzing project...");
+        const analyzeRes = await fetch("/api/projects/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: userPrompt,
             agent: effectiveAgent,
+            claudeModel: effectiveClaudeModel,
+            tags: serializeTags(appliedTags),
+            runnerId: selectedRunnerId,
+          }),
+        });
+
+        if (!analyzeRes.ok) {
+          const errorData = await analyzeRes.json().catch(() => ({}));
+          console.error("Analysis failed:", errorData);
+          // Fall back to old flow if analysis fails
+          throw new Error(errorData.error || "Analysis failed");
+        }
+
+        const analyzeData = await analyzeRes.json();
+        const analysis = analyzeData.analysis;
+
+        if (DEBUG_PAGE) console.log("✅ Analysis complete:", analysis.friendlyName, `(${analysis.slug})`);
+
+        // Step 2: Create project with AI-generated metadata
+        const res = await fetch("/api/projects/create-from-analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: userPrompt,
+            analysis,
+            agent: effectiveAgent,
             runnerId: selectedRunnerId,
             claudeModel: effectiveClaudeModel,
-            tags: serializeTags(appliedTags), // Persist tags to DB
+            tags: serializeTags(appliedTags),
           }),
         });
 
@@ -2314,7 +2352,8 @@ function HomeContent() {
           "initial-build",
           false,
           messageParts.length > 0 ? messageParts : undefined,
-          freshState.id // Pass buildId for initial builds too
+          freshState.id, // Pass buildId for initial builds too
+          analysis.template // Pass template from runner analysis
         );
 
         // Refresh project list to pick up final state
