@@ -76,8 +76,10 @@ Sentry.init({
     /^https?:\/\/localhost:\d+$/,
 
     // Production domains
+    "openbuilder.sh",
     "openbuilder.app",
     "openbuilder.up.railway.app",
+    "broker.openbuilder.sh",
     "broker.openbuilder.app",
     "broker.up.railway.app",
 

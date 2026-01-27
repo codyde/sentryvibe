@@ -224,7 +224,7 @@ function startCallbackServer(port: number): Promise<AuthResult> {
  * 6. Return token
  */
 export async function performOAuthLogin(options: CLIAuthOptions = {}): Promise<AuthResult> {
-  const apiUrl = options.apiUrl || 'https://openbuilder.app';
+  const apiUrl = options.apiUrl || 'https://openbuilder.sh';
   const deviceName = options.deviceName || getDeviceName();
   const silent = options.silent || false;
   
@@ -329,7 +329,7 @@ export function getStoredToken(): string | null {
  */
 export function storeToken(token: string, apiUrl?: string): void {
   // Determine the WebSocket URL from the API URL
-  let wsUrl = 'wss://openbuilder.app/ws/runner';
+  let wsUrl = 'wss://openbuilder.sh/ws/runner';
   if (apiUrl) {
     const url = new URL(apiUrl);
     const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';

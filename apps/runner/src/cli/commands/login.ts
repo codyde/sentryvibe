@@ -19,7 +19,7 @@ interface LoginOptions {
  * 3. Stores the token locally for future use
  */
 export async function loginCommand(options: LoginOptions = {}) {
-  const apiUrl = options.url || 'https://openbuilder.app';
+  const apiUrl = options.url || 'https://openbuilder.sh';
   
   logger.section('OpenBuilder Login');
   

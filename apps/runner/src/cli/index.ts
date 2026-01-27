@@ -326,7 +326,7 @@ program
 program
   .command('login')
   .description('Authenticate with OpenBuilder via OAuth (GitHub/Sentry)')
-  .option('-u, --url <url>', 'OpenBuilder server URL (default: https://openbuilder.app)')
+  .option('-u, --url <url>', 'OpenBuilder server URL (default: https://openbuilder.sh)')
   .option('-f, --force', 'Force re-authentication even if already logged in')
   .action(async (options) => {
     try {
