@@ -146,16 +146,16 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
   if (isLocalMode) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl text-white">Runner Keys</DialogTitle>
+            <DialogTitle className="text-xl">Runner Keys</DialogTitle>
           </DialogHeader>
           <div className="py-6 text-center">
-            <Key className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
-            <p className="text-zinc-400">
+            <Key className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">
               Runner keys are not needed in local mode.
             </p>
-            <p className="text-sm text-zinc-500 mt-2">
+            <p className="text-sm text-muted-foreground/70 mt-2">
               When running locally, the runner connects directly without authentication.
             </p>
           </div>
@@ -166,10 +166,10 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-zinc-950 border-zinc-800">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-xl text-white">Runner Keys</DialogTitle>
-          <DialogDescription className="text-zinc-400">
+          <DialogTitle className="text-xl">Runner Keys</DialogTitle>
+          <DialogDescription>
             Create keys to authenticate your runners. Each key is shown only once when created.
           </DialogDescription>
         </DialogHeader>
@@ -178,13 +178,13 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
         {newlyCreatedKey && (
           <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-green-400" />
-              <span className="text-sm font-medium text-green-400">
+              <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+              <span className="text-sm font-medium text-green-600 dark:text-green-400">
                 Key created! Copy it now - it won&apos;t be shown again.
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-black/40 rounded font-mono text-sm text-white overflow-x-auto">
+              <code className="flex-1 px-3 py-2 bg-muted rounded font-mono text-sm text-foreground overflow-x-auto">
                 {newlyCreatedKey}
               </code>
               <Button
@@ -204,7 +204,7 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
               size="sm"
               variant="ghost"
               onClick={() => setNewlyCreatedKey(null)}
-              className="mt-2 text-zinc-500 hover:text-zinc-300"
+              className="mt-2 text-muted-foreground hover:text-foreground"
             >
               I&apos;ve copied the key
             </Button>
@@ -217,7 +217,7 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
             placeholder="Key name (e.g., My MacBook)"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
-            className="flex-1 bg-zinc-900 border-zinc-800 text-white"
+            className="flex-1"
           />
           <Button
             type="submit"
@@ -235,8 +235,8 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
         {/* Error message */}
         {error && (
           <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
+            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
 
@@ -244,13 +244,13 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : keys.length === 0 ? (
             <div className="py-8 text-center">
-              <Key className="w-10 h-10 mx-auto mb-3 text-zinc-700" />
-              <p className="text-sm text-zinc-500">No runner keys yet</p>
-              <p className="text-xs text-zinc-600 mt-1">
+              <Key className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">No runner keys yet</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
                 Create a key to connect your runner
               </p>
             </div>
@@ -258,20 +258,20 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
             keys.map((key) => (
               <div
                 key={key.id}
-                className="flex items-center justify-between p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg"
+                className="flex items-center justify-between p-3 bg-muted/50 border border-border rounded-lg"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <Key className="w-4 h-4 text-zinc-500" />
-                    <span className="text-sm font-medium text-white truncate">
+                    <Key className="w-4 h-4 text-theme-primary" />
+                    <span className="text-sm font-medium text-foreground truncate">
                       {key.name}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 mt-1">
-                    <code className="text-xs text-zinc-500 font-mono">
+                    <code className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
                       {key.keyPrefix}
                     </code>
-                    <span className="flex items-center gap-1 text-xs text-zinc-600">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
                       {key.lastUsedAt ? `Used ${formatDate(key.lastUsedAt)}` : "Never used"}
                     </span>
@@ -282,7 +282,7 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
                   variant="ghost"
                   onClick={() => handleDeleteKey(key.id)}
                   disabled={deletingKeyId === key.id}
-                  className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                  className="text-theme-primary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
                 >
                   {deletingKeyId === key.id ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -296,11 +296,11 @@ export function RunnerKeyManager({ open, onOpenChange }: RunnerKeyManagerProps) 
         </div>
 
         {/* Usage instructions */}
-        <div className="pt-4 border-t border-zinc-800">
-          <p className="text-xs text-zinc-500">
+        <div className="pt-4 border-t border-border">
+          <p className="text-xs text-muted-foreground">
             Use your key when starting the runner:
           </p>
-          <code className="block mt-1 px-2 py-1 bg-zinc-900 rounded text-xs text-zinc-400 font-mono">
+          <code className="block mt-1 px-2 py-1 bg-muted rounded text-xs text-muted-foreground font-mono">
             RUNNER_KEY=sv_xxx openbuilder run
           </code>
         </div>
