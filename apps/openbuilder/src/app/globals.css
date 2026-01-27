@@ -452,6 +452,24 @@
   color: #1e293b !important;
 }
 
+/* Exception: Keep white text on gradient buttons and dark backgrounds */
+.theme-light .bg-theme-gradient,
+.theme-light .bg-theme-gradient *,
+.theme-light .bg-theme-gradient .text-white,
+.theme-light .bg-theme-gradient.text-white,
+.theme-light [class*="bg-gradient"].text-white,
+.theme-light [class*="bg-gradient"] .text-white,
+.theme-light [class*="bg-gradient"] *,
+.theme-light .bg-green-500 .text-white,
+.theme-light .bg-red-500 .text-white,
+.theme-light .bg-blue-500 .text-white,
+.theme-light button.bg-theme-gradient,
+.theme-light button.bg-theme-gradient *,
+.theme-light button[class*="bg-theme-gradient"],
+.theme-light button[class*="bg-theme-gradient"] * {
+  color: #ffffff !important;
+}
+
 .theme-light .text-gray-300 {
   color: #475569 !important;
 }
@@ -760,9 +778,41 @@
   color: #475569 !important;
 }
 
-/* Terminal/code backgrounds */
+/* Terminal/code backgrounds - terminals should always stay dark */
 .theme-light .terminal-theme {
   background-color: #1e293b !important;
+}
+
+/* Onboarding terminal - always dark regardless of theme */
+.onboarding-terminal {
+  background-color: #18181b !important;
+  border: 1px solid #3f3f46 !important;
+}
+
+.onboarding-terminal-header {
+  background-color: #27272a !important;
+  border-bottom: 1px solid #3f3f46 !important;
+}
+
+.onboarding-terminal-title {
+  color: #a1a1aa !important;
+}
+
+.onboarding-terminal-copy {
+  color: #a1a1aa !important;
+}
+
+.onboarding-terminal-copy:hover {
+  color: #e4e4e7 !important;
+  background-color: #3f3f46 !important;
+}
+
+.onboarding-terminal-content {
+  background-color: #18181b !important;
+}
+
+.onboarding-terminal-code {
+  color: #f4f4f5 !important;
 }
 
 /* --- PREVIEW PANEL / RIGHT SIDE FOR LIGHT MODE --- */
@@ -845,12 +895,28 @@
   color: #92400e !important;
 }
 
+.theme-light .text-amber-300 {
+  color: #b45309 !important;
+}
+
+.theme-light .text-amber-400 {
+  color: #d97706 !important;
+}
+
 .theme-light .bg-amber-500\/20 {
   background-color: rgba(245, 158, 11, 0.15) !important;
 }
 
+.theme-light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
 .theme-light .border-amber-400\/40 {
   border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+.theme-light .border-amber-500\/20 {
+  border-color: rgba(245, 158, 11, 0.3) !important;
 }
 
 /* --- COMMAND PALETTE & MODALS FOR LIGHT MODE --- */
