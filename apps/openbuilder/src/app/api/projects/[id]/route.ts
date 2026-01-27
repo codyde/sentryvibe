@@ -4,7 +4,7 @@ import { projects } from '@openbuilder/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
 import { sendCommandToRunner } from '@openbuilder/agent-core/lib/runner/broker-state';
-import { getProjectRunnerId } from '@/lib/runner-utils';
+import { getProjectRunnerId, enrichProjectWithRunnerStatus } from '@/lib/runner-utils';
 import { randomUUID } from 'crypto';
 import { requireProjectOwnership, handleAuthError } from '@/lib/auth-helpers';
 
@@ -18,8 +18,11 @@ export async function GET(
     
     // Verify user owns this project
     const { project } = await requireProjectOwnership(id);
+    
+    // Enrich project with runner connection status
+    const enrichedProject = await enrichProjectWithRunnerStatus(project);
 
-    return NextResponse.json({ project });
+    return NextResponse.json({ project: enrichedProject });
   } catch (error) {
     // Handle auth errors (401, 403, 404)
     const authResponse = handleAuthError(error);

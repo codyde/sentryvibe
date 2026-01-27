@@ -8,6 +8,7 @@ import type { AgentId } from '@openbuilder/agent-core/types/agent';
 import { generateStructuredOutput } from '@/lib/anthropic-client';
 import { ProjectMetadataSchema } from '@/schemas/metadata';
 import { getSession, isLocalMode, getUserId } from '@/lib/auth-helpers';
+import { enrichProjectsWithRunnerStatus } from '@/lib/runner-utils';
 
 const CODEX_MODEL = 'gpt-5-codex';
 
@@ -16,7 +17,9 @@ export async function GET() {
     // In local mode, return all projects (no user filtering)
     if (isLocalMode()) {
       const allProjects = await db.select().from(projects).orderBy(projects.createdAt);
-      return NextResponse.json({ projects: allProjects });
+      // Enrich projects with runner connection status
+      const enrichedProjects = await enrichProjectsWithRunnerStatus(allProjects);
+      return NextResponse.json({ projects: enrichedProjects });
     }
 
     // In hosted mode, filter by user
@@ -39,7 +42,9 @@ export async function GET() {
       )
       .orderBy(projects.createdAt);
     
-    return NextResponse.json({ projects: userProjects });
+    // Enrich projects with runner connection status
+    const enrichedProjects = await enrichProjectsWithRunnerStatus(userProjects);
+    return NextResponse.json({ projects: enrichedProjects });
   } catch (error) {
     console.error('Error fetching projects:', error);
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });

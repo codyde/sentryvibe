@@ -1,4 +1,43 @@
-import { listRunnerConnections } from '@openbuilder/agent-core/lib/runner/broker-state';
+import { listRunnerConnections, isRunnerConnected } from '@openbuilder/agent-core/lib/runner/broker-state';
+
+/**
+ * Check if a specific runner is connected
+ * @param runnerId - The runner ID to check
+ * @returns true if connected, false otherwise
+ */
+export async function checkRunnerConnected(runnerId: string | null): Promise<boolean> {
+  if (!runnerId) return false;
+  return await isRunnerConnected(runnerId);
+}
+
+/**
+ * Enrich a project with runner connection status
+ * Adds `runnerConnected` field to the project
+ */
+export async function enrichProjectWithRunnerStatus<T extends { runnerId: string | null }>(
+  project: T
+): Promise<T & { runnerConnected: boolean }> {
+  const runnerConnected = await checkRunnerConnected(project.runnerId);
+  return { ...project, runnerConnected };
+}
+
+/**
+ * Enrich multiple projects with runner connection status
+ * More efficient than calling enrichProjectWithRunnerStatus for each project
+ */
+export async function enrichProjectsWithRunnerStatus<T extends { runnerId: string | null }>(
+  projectsList: T[]
+): Promise<(T & { runnerConnected: boolean })[]> {
+  // Get all connected runners once
+  const connections = await listRunnerConnections();
+  const connectedRunnerIds = new Set(connections.map(c => c.runnerId));
+  
+  // Enrich each project
+  return projectsList.map(project => ({
+    ...project,
+    runnerConnected: project.runnerId ? connectedRunnerIds.has(project.runnerId) : false,
+  }));
+}
 
 /**
  * Get the runner ID for a project - NO FALLBACK.

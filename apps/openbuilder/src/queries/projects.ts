@@ -18,6 +18,7 @@ export interface Project {
   devServerStatus: 'stopped' | 'starting' | 'running' | 'stopping' | 'restarting' | 'failed' | null;
   tunnelUrl: string | null;
   runnerId: string | null;
+  runnerConnected: boolean; // Whether the project's runner is currently connected
   generationState: string | null;
   tags: any | null;
   lastActivityAt: Date | null;

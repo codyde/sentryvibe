@@ -26,7 +26,7 @@ import { publishRunnerEvent } from '../runner/event-stream';
 import * as Sentry from '@sentry/node';
 import { buildLogger } from '../logging/build-logger';
 import { db } from '../db/client';
-import { runnerKeys, generationSessions, generationTodos, generationToolCalls } from '../db/schema';
+import { runnerKeys, generationSessions, generationTodos, generationToolCalls, runningProcesses, projects } from '../db/schema';
 import { eq, and, isNull, desc } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { httpProxyManager } from './http-proxy-manager';
@@ -418,6 +418,9 @@ class BuildWebSocketServer {
       
       // Disconnect any HMR connections for this runner
       hmrProxyManager.disconnectRunner(runnerId);
+      
+      // Clean up running processes for this runner and update project statuses
+      this.cleanupRunnerProcesses(runnerId);
 
       Sentry.addBreadcrumb({
         category: 'websocket',
@@ -590,7 +593,74 @@ class BuildWebSocketServer {
         clearInterval(conn.pingInterval);
         conn.socket.close(1000, 'Heartbeat timeout');
         this.runnerConnections.delete(runnerId);
+        
+        // Clean up processes for this stale runner
+        this.cleanupRunnerProcesses(runnerId);
       }
+    }
+  }
+
+  /**
+   * Clean up running processes and update project statuses when a runner disconnects.
+   * This ensures the UI shows accurate state when the runner is gone.
+   */
+  private async cleanupRunnerProcesses(runnerId: string) {
+    try {
+      buildLogger.log('info', 'websocket', `Cleaning up processes for disconnected runner: ${runnerId}`, { runnerId });
+
+      // Find all running processes for this runner
+      const processes = await db
+        .select({ projectId: runningProcesses.projectId })
+        .from(runningProcesses)
+        .where(eq(runningProcesses.runnerId, runnerId));
+
+      if (processes.length === 0) {
+        buildLogger.log('debug', 'websocket', `No running processes found for runner: ${runnerId}`, { runnerId });
+        return;
+      }
+
+      const projectIds = processes.map(p => p.projectId);
+      buildLogger.log('info', 'websocket', `Found ${projectIds.length} processes to clean up for runner: ${runnerId}`, { 
+        runnerId, 
+        projectIds 
+      });
+
+      // Delete all running processes for this runner
+      await db
+        .delete(runningProcesses)
+        .where(eq(runningProcesses.runnerId, runnerId));
+
+      // Update project statuses to 'disconnected' so UI shows accurate state
+      // We use 'stopped' status but the frontend will check runnerConnected to show disconnected state
+      const now = new Date();
+      for (const projectId of projectIds) {
+        await db
+          .update(projects)
+          .set({
+            devServerStatus: 'stopped',
+            devServerStatusUpdatedAt: now,
+            devServerPid: null,
+          })
+          .where(eq(projects.id, projectId));
+      }
+
+      buildLogger.log('info', 'websocket', `Cleaned up ${projectIds.length} processes for disconnected runner: ${runnerId}`, { 
+        runnerId, 
+        projectIds 
+      });
+
+      Sentry.addBreadcrumb({
+        category: 'websocket',
+        message: `Cleaned up processes for disconnected runner`,
+        level: 'info',
+        data: { runnerId, processCount: projectIds.length },
+      });
+    } catch (error) {
+      buildLogger.websocket.error('Failed to cleanup runner processes', error, { runnerId });
+      Sentry.captureException(error, {
+        tags: { runnerId, source: 'runner_cleanup' },
+        level: 'error',
+      });
     }
   }
 

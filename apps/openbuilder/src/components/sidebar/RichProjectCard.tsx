@@ -9,6 +9,7 @@ import {
   Edit3,
   Trash2,
   Folder,
+  Unplug,
   type LucideIcon
 } from "lucide-react"
 import { type Project } from "@/contexts/ProjectContext"
@@ -50,9 +51,13 @@ export function RichProjectCard({
   const isBuilding = project.status === 'in_progress'
   const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed'
   const isServerBusy = isStarting || isStopping || isRestarting
+  
+  // Check if runner is disconnected - project has a runnerId but runner is not connected
+  const isRunnerDisconnected = project.runnerId && !project.runnerConnected
 
   // Status indicator
   const getStatusColor = () => {
+    if (isRunnerDisconnected) return 'bg-orange-400' // Disconnected state
     if (isBuilding) return 'bg-yellow-400'
     if (isStarting) return 'bg-green-400'
     if (isStopping) return 'bg-orange-400'
@@ -108,15 +113,20 @@ export function RichProjectCard({
             isCurrentProject ? 'text-white font-medium' : 'text-white'
           }`}>{project.name}</span>
 
-          {/* Runner badge */}
-          {project.runnerId && !isHovered && (
+          {/* Runner badge / Disconnected indicator */}
+          {isRunnerDisconnected && !isHovered && (
+            <span className="text-[10px] text-orange-400 flex items-center gap-0.5">
+              <Unplug className="w-2.5 h-2.5" />
+            </span>
+          )}
+          {project.runnerId && !isRunnerDisconnected && !isHovered && (
             <span className="text-[10px] text-gray-500 font-mono truncate max-w-[60px]">
               {project.runnerId.substring(0, 8)}
             </span>
           )}
 
           {/* Quick actions on hover */}
-          {isHovered && (
+          {isHovered && !isRunnerDisconnected && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -147,6 +157,9 @@ export function RichProjectCard({
                 </button>
               )}
             </motion.div>
+          )}
+          {isHovered && isRunnerDisconnected && (
+            <span className="text-[9px] text-orange-400">disconnected</span>
           )}
 
           <DropdownMenu>
@@ -215,37 +228,43 @@ export function RichProjectCard({
 
       {/* Status info */}
       <div className="flex items-center gap-2 text-xs mb-3 flex-wrap">
-        {isRunning && (
+        {isRunnerDisconnected && (
+          <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 flex items-center gap-1">
+            <Unplug className="w-3 h-3" />
+            Runner Disconnected
+          </span>
+        )}
+        {!isRunnerDisconnected && isRunning && (
           <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-500/30">
             Running :{project.devServerPort || project.port}
           </span>
         )}
-        {isStarting && (
+        {!isRunnerDisconnected && isStarting && (
           <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-500/30">
             Starting...
           </span>
         )}
-        {isStopping && (
+        {!isRunnerDisconnected && isStopping && (
           <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
             Stopping...
           </span>
         )}
-        {isRestarting && (
+        {!isRunnerDisconnected && isRestarting && (
           <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
             Restarting...
           </span>
         )}
-        {isBuilding && (
+        {!isRunnerDisconnected && isBuilding && (
           <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
             Building...
           </span>
         )}
-        {hasFailed && (
+        {!isRunnerDisconnected && hasFailed && (
           <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
             Failed
           </span>
         )}
-        {project.runnerId && (
+        {project.runnerId && !isRunnerDisconnected && (
           <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono text-[10px]">
             {project.runnerId.substring(0, 12)}
           </span>
@@ -259,7 +278,12 @@ export function RichProjectCard({
 
       {/* Quick actions */}
       <div className="flex items-center gap-2">
-        {isRunning ? (
+        {isRunnerDisconnected ? (
+          <div className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs bg-orange-500/10 border border-orange-500/20 text-orange-300/70 rounded cursor-not-allowed">
+            <Unplug className="w-3 h-3" />
+            Reconnect runner to continue
+          </div>
+        ) : isRunning ? (
           <>
             <button
               onClick={handleOpenBrowser}

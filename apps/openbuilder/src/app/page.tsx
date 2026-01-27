@@ -2807,6 +2807,26 @@ function HomeContent() {
             enable builds and previews.
           </div>
         )}
+        
+        {/* Project's runner disconnected warning */}
+        {currentProject && currentProject.runnerId && !currentProject.runnerConnected && (
+          <div className="bg-orange-500/20 border border-orange-400/40 text-orange-200 px-4 py-2 text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m19 5 3-3"/>
+                <path d="m2 22 3-3"/>
+                <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/>
+                <path d="M7.5 13.5 10 11"/>
+                <path d="M10.5 16.5 13 14"/>
+                <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-3.6-3.6a2.4 2.4 0 0 0-3.4 0Z"/>
+              </svg>
+              <span>
+                <strong>Runner disconnected.</strong> This project was managed by runner <code className="bg-orange-400/20 px-1 rounded text-xs">{currentProject.runnerId}</code> which is no longer connected. 
+                Restart the runner CLI to continue working on this project.
+              </span>
+            </div>
+          </div>
+        )}
         <div className="h-[calc(100vh-3.5rem)] bg-theme-content text-foreground flex flex-col overflow-hidden">
           {/* Landing Page */}
           <AnimatePresence mode="wait">

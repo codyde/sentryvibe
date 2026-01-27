@@ -10,7 +10,8 @@ import {
   Trash2,
   Folder,
   Loader2,
-  Server
+  Server,
+  Unplug
 } from "lucide-react"
 import { type Project } from "@/contexts/ProjectContext"
 import {
@@ -51,6 +52,9 @@ export function ProjectCard({
   const isBuilding = project.status === 'in_progress' || project.status === 'pending'
   const hasFailed = project.status === 'failed' || project.devServerStatus === 'failed'
   const isServerBusy = isStarting || isStopping || isRestarting
+  
+  // Check if runner is disconnected - project has a runnerId but runner is not connected
+  const isRunnerDisconnected = project.runnerId && !project.runnerConnected
 
   // Get framework logo path (theme-aware)
   const frameworkLogoPath = project.detectedFramework
@@ -100,7 +104,9 @@ export function ProjectCard({
     >
       {/* Status indicator */}
       <div className="relative flex-shrink-0">
-        {(isBuilding || isServerBusy) ? (
+        {isRunnerDisconnected ? (
+          <Unplug className="w-3.5 h-3.5 text-orange-400" />
+        ) : (isBuilding || isServerBusy) ? (
           <Loader2 className={`w-4 h-4 animate-spin ${
             isStarting ? 'text-green-400' :
             isStopping ? 'text-orange-400' :
@@ -135,8 +141,12 @@ export function ProjectCard({
 
         {/* Secondary info row */}
         <div className="flex items-center gap-2 mt-0.5">
+          {/* Runner disconnected state */}
+          {isRunnerDisconnected && (
+            <span className="text-[10px] text-orange-400">Runner disconnected</span>
+          )}
           {/* Status badge for active states */}
-          {isRunning && (
+          {!isRunnerDisconnected && isRunning && (
             <>
               <span className="text-[10px] text-green-500 font-medium">
                 :{project.devServerPort || project.port}
@@ -151,16 +161,16 @@ export function ProjectCard({
               )}
             </>
           )}
-          {isStarting && (
+          {!isRunnerDisconnected && isStarting && (
             <span className="text-[10px] text-green-500">Starting...</span>
           )}
-          {isStopping && (
+          {!isRunnerDisconnected && isStopping && (
             <span className="text-[10px] text-orange-500">Stopping...</span>
           )}
-          {isRestarting && (
+          {!isRunnerDisconnected && isRestarting && (
             <span className="text-[10px] text-blue-500">Restarting...</span>
           )}
-          {isBuilding && !isServerBusy && (
+          {!isRunnerDisconnected && isBuilding && !isServerBusy && (
             <>
               <span className="text-[10px] text-yellow-500">Building...</span>
               {showRunner && project.runnerId && (
@@ -173,12 +183,12 @@ export function ProjectCard({
               )}
             </>
           )}
-          {hasFailed && (
+          {!isRunnerDisconnected && hasFailed && (
             <span className="text-[10px] text-red-500">Failed</span>
           )}
 
           {/* Framework + runner + time for inactive */}
-          {!isRunning && !isBuilding && !hasFailed && !isServerBusy && (
+          {!isRunnerDisconnected && !isRunning && !isBuilding && !hasFailed && !isServerBusy && (
             <>
               {frameworkLogoPath && (
                 <div className="flex items-center gap-1">
@@ -214,7 +224,14 @@ export function ProjectCard({
 
       {/* Inline Actions - Always visible */}
       <div className="flex items-center gap-0.5 flex-shrink-0">
-        {isRunning && (
+        {/* Show disabled state when runner is disconnected */}
+        {isRunnerDisconnected && (
+          <span className="text-[9px] text-orange-400 opacity-0 group-hover:opacity-100 px-1">
+            reconnect runner
+          </span>
+        )}
+        
+        {!isRunnerDisconnected && isRunning && (
           <>
             <button
               onClick={handleOpenBrowser}
@@ -234,7 +251,7 @@ export function ProjectCard({
           </>
         )}
 
-        {!isRunning && !isBuilding && !isServerBusy && project.runCommand && (
+        {!isRunnerDisconnected && !isRunning && !isBuilding && !isServerBusy && project.runCommand && (
           <button
             onClick={(e) => handleAction(e, onStartServer!)}
             className="p-1.5 hover:bg-green-500/20 rounded transition-colors opacity-0 group-hover:opacity-100"
