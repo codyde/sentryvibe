@@ -13,8 +13,6 @@
     "bin/",
     "dist/",
     "templates/",
-    "vendor/*.tgz",
-    "scripts/",
     "templates.json",
     ".npmrc"
   ],
@@ -43,7 +41,6 @@
   "homepage": "https://github.com/codyde/openbuilder#readme",
   "preferGlobal": true,
   "scripts": {
-    "postinstall": "node scripts/install-vendor.js",
     "dev": "RUNNER_WS_URL=ws://localhost:3000/ws/runner tsx --import ./src/instrument.ts src/index.ts",
     "dev:cli": "tsx --import ./src/instrument.ts src/cli/index.ts",
     "build": "rollup -c && cp templates.json dist/",
@@ -52,18 +49,12 @@
     "cli": "node --import ./dist/instrument.js dist/cli/index.js"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.53",
     "@anthropic-ai/claude-agent-sdk": "^0.2.12",
     "@clack/prompts": "^0.11.0",
     "@openai/codex-sdk": "^0.53.0",
-    "@sentry/core": "file:./vendor/sentry-core-LOCAL.tgz",
-    "@sentry/nextjs": "file:./vendor/sentry-nextjs-LOCAL.tgz",
-    "@sentry/node": "file:./vendor/sentry-node-LOCAL.tgz",
-    "@sentry/node-core": "file:./vendor/sentry-node-core-LOCAL.tgz",
+    "@sentry/node": "^10.37.0",
     "@openbuilder/agent-core": "workspace:*",
     "@openbuilder/opencode-client": "workspace:*",
-    "ai": "^5.0.79",
-    "ai-sdk-provider-claude-code": "file:./vendor/ai-sdk-provider-claude-code-LOCAL.tgz",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
     "conf": "^15.0.2",

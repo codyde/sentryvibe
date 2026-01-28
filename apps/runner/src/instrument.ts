@@ -1,61 +1,16 @@
 import * as Sentry from "@sentry/node";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const SentryAny = Sentry as any;
-
 // Debug logging for instrumentation (enabled via DEBUG_SENTRY=1)
 const debugSentry = process.env.DEBUG_SENTRY === '1';
 const log = (msg: string) => debugSentry && console.log(`[sentry-instrument] ${msg}`);
 
-// Build integrations array, gracefully handling missing custom integrations
-// Custom integrations (claudeCodeAgentSdkIntegration, vercelAIIntegration, openAIIntegration)
-// are only available in the vendored Sentry SDK, not the public npm version
+// Build integrations array
 const integrations: unknown[] = [];
 
-// Always add http integration (available in all versions)
+// Add http integration for request tracing
 if (typeof Sentry.httpIntegration === "function") {
   integrations.push(Sentry.httpIntegration());
-  log('✓ Added httpIntegration');
-}
-
-// Add custom integrations if available (vendored SDK only)
-// Use 'opencode' as agent name when OpenCode SDK is enabled for better Sentry visibility
-const useOpenCodeSdk = process.env.USE_OPENCODE_SDK === '1' && !!process.env.OPENCODE_URL;
-if (typeof SentryAny.claudeCodeAgentSdkIntegration === "function") {
-  integrations.push(
-    SentryAny.claudeCodeAgentSdkIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-      agentName: useOpenCodeSdk ? 'opencode' : 'claude-code',
-    })
-  );
-  log(`✓ Added claudeCodeAgentSdkIntegration (agentName: ${useOpenCodeSdk ? 'opencode' : 'claude-code'})`);
-} else {
-  log('✗ claudeCodeAgentSdkIntegration NOT available - AI spans will use manual instrumentation');
-}
-
-if (typeof SentryAny.vercelAIIntegration === "function") {
-  integrations.push(
-    SentryAny.vercelAIIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    })
-  );
-  log('✓ Added vercelAIIntegration');
-} else {
-  log('✗ vercelAIIntegration NOT available');
-}
-
-if (typeof SentryAny.openAIIntegration === "function") {
-  integrations.push(
-    SentryAny.openAIIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    })
-  );
-  log('✓ Added openAIIntegration');
-} else {
-  log('✗ openAIIntegration NOT available');
+  log('Added httpIntegration');
 }
 
 log(`Total integrations configured: ${integrations.length}`);

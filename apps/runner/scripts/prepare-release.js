@@ -3,10 +3,8 @@
  * Prepare package.json for publishing
  * 
  * This script:
- * 1. Replaces file: dependencies with npm versions (for Sentry/vendor packages)
- * 2. REMOVES @openbuilder/agent-core from dependencies (it's bundled by tsup)
- * 
- * The vendor files are still included, and postinstall will replace npm versions with vendor versions
+ * 1. REMOVES @openbuilder/agent-core from dependencies (it's bundled by rollup)
+ * 2. Removes bundled React ecosystem packages to prevent duplicate React instances
  */
 import { readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -21,24 +19,7 @@ console.log('');
 
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
-// Replace file: dependencies with npm versions
-const replacements = {
-  '@sentry/core': '^10.17.0',
-  '@sentry/node': '^10.17.0',
-  '@sentry/node-core': '^10.17.0',
-  '@sentry/nextjs': '^10.17.0',
-  'ai-sdk-provider-claude-code': '^2.1.0', // Use npm version, postinstall will replace with vendor
-};
-
 let modified = false;
-
-for (const [pkg, version] of Object.entries(replacements)) {
-  if (packageJson.dependencies[pkg] && packageJson.dependencies[pkg].startsWith('file:')) {
-    console.log(`  Replacing ${pkg}: ${packageJson.dependencies[pkg]} → ${version}`);
-    packageJson.dependencies[pkg] = version;
-    modified = true;
-  }
-}
 
 // REMOVE workspace dependencies - they're bundled into dist/ by rollup
 // This eliminates npm 404 errors since these packages don't exist on npm
