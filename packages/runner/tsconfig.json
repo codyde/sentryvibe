@@ -7,15 +7,24 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "declarationDir": "./dist",
+    "declaration": false,
     "outDir": "./dist",
-    "rootDir": "./src",
     "jsx": "react-jsx",
     "lib": ["ES2022"],
     "types": ["node"],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@openbuilder/cli/*": ["../../apps/runner/src/*"],
+      "@openbuilder/cli": ["../../apps/runner/src/index.ts"],
+      "@openbuilder/agent-core/*": ["../agent-core/src/*"],
+      "@openbuilder/agent-core": ["../agent-core/src/index.ts"]
+    },
+    "baseUrl": "."
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*",
+    "../../apps/runner/src/**/*",
+    "../agent-core/src/**/*"
+  ],
   "exclude": ["node_modules", "dist"]
 }
