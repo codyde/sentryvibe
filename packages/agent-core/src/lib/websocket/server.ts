@@ -137,6 +137,9 @@ class BuildWebSocketServer {
   private readonly instanceId = Math.random().toString(36).substring(7);
   private initialized = false;
 
+  // Callback for runner status changes (set by app layer)
+  private onRunnerStatusChangeCallback: ((runnerId: string, connected: boolean, affectedProjectIds: string[]) => void) | null = null;
+
   constructor() {
     buildLogger.websocket.serverCreated(this.instanceId);
   }
@@ -370,6 +373,10 @@ class BuildWebSocketServer {
       });
     }
 
+    // Notify app layer about runner connection so it can update project status in UI
+    // Find projects associated with this runner and notify
+    this.notifyRunnerConnected(runnerId);
+
     // Handle pong (heartbeat response)
     ws.on('pong', () => {
       const conn = this.runnerConnections.get(runnerId);
@@ -559,7 +566,26 @@ class BuildWebSocketServer {
    */
   isRunnerConnected(runnerId: string): boolean {
     const conn = this.runnerConnections.get(runnerId);
-    return conn !== undefined && conn.socket.readyState === WebSocket.OPEN;
+    const isConnected = conn !== undefined && conn.socket.readyState === WebSocket.OPEN;
+    
+    // Debug logging to diagnose runner connection issues
+    console.log(`[isRunnerConnected] Checking runner '${runnerId}':`, {
+      hasConnection: conn !== undefined,
+      socketState: conn?.socket.readyState,
+      isOpen: conn?.socket.readyState === WebSocket.OPEN,
+      result: isConnected,
+      allRunners: Array.from(this.runnerConnections.keys()),
+    });
+    
+    return isConnected;
+  }
+
+  /**
+   * Register a callback to be notified when runner status changes
+   * This allows the app layer to emit project events when runners connect/disconnect
+   */
+  onRunnerStatusChange(callback: (runnerId: string, connected: boolean, affectedProjectIds: string[]) => void) {
+    this.onRunnerStatusChangeCallback = callback;
   }
 
   /**
@@ -655,12 +681,47 @@ class BuildWebSocketServer {
         level: 'info',
         data: { runnerId, processCount: projectIds.length },
       });
+
+      // Notify app layer about runner disconnection so it can emit project events
+      if (this.onRunnerStatusChangeCallback) {
+        try {
+          this.onRunnerStatusChangeCallback(runnerId, false, projectIds);
+        } catch (callbackError) {
+          buildLogger.websocket.error('Runner status change callback failed', callbackError, { runnerId });
+        }
+      }
     } catch (error) {
       buildLogger.websocket.error('Failed to cleanup runner processes', error, { runnerId });
       Sentry.captureException(error, {
         tags: { runnerId, source: 'runner_cleanup' },
         level: 'error',
       });
+    }
+  }
+
+  /**
+   * Notify app layer when a runner connects so projects can update their UI
+   */
+  private async notifyRunnerConnected(runnerId: string) {
+    if (!this.onRunnerStatusChangeCallback) return;
+
+    try {
+      // Find all projects that have this runner assigned
+      const projectsWithRunner = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.runnerId, runnerId));
+
+      if (projectsWithRunner.length > 0) {
+        const projectIds = projectsWithRunner.map(p => p.id);
+        buildLogger.log('info', 'websocket', `Runner ${runnerId} connected - notifying ${projectIds.length} projects`, { 
+          runnerId, 
+          projectIds 
+        });
+        this.onRunnerStatusChangeCallback(runnerId, true, projectIds);
+      }
+    } catch (error) {
+      buildLogger.websocket.error('Failed to notify runner connected', error, { runnerId });
     }
   }
 

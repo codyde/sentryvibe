@@ -18,6 +18,7 @@ export async function enrichProjectWithRunnerStatus<T extends { runnerId: string
   project: T
 ): Promise<T & { runnerConnected: boolean }> {
   const runnerConnected = await checkRunnerConnected(project.runnerId);
+  console.log(`[enrichProjectWithRunnerStatus] Project runnerId: '${project.runnerId}', connected: ${runnerConnected}`);
   return { ...project, runnerConnected };
 }
 
