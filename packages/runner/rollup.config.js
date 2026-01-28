@@ -77,6 +77,7 @@ const external = [
   // 'react',
   'ws',
   'zod',
+  'zod-to-json-schema',
 ];
 
 // Check if a module should be external
