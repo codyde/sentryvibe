@@ -2849,8 +2849,8 @@ function HomeContent() {
           </div>
         )}
         
-        {/* Project's runner disconnected warning */}
-        {currentProject && currentProject.runnerId && !currentProject.runnerConnected && (
+        {/* Project's runner disconnected warning - hide during active builds since we're clearly receiving traffic */}
+        {currentProject && currentProject.runnerId && !currentProject.runnerConnected && !generationState?.isActive && (
           <div className="bg-orange-500/20 border border-orange-400/40 text-orange-200 px-4 py-2 text-sm flex items-center justify-between">
             <div className="flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
