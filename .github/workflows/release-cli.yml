@@ -90,51 +90,8 @@ jobs:
           echo ""
           echo "All required vendor packages verified"
 
-      - name: Verify packages/runner vendor packages
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Verifying vendor packages in packages/runner/vendor/"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          if [ ! -d "packages/runner/vendor" ]; then
-            echo "ERROR: packages/runner/vendor/ directory not found!"
-            exit 1
-          fi
-
-          echo ""
-          echo "Vendor files:"
-          ls -lh packages/runner/vendor/
-
-          # Check for required files (subset for lightweight runner)
-          REQUIRED_FILES=(
-            "sentry-core-LOCAL.tgz"
-            "sentry-node-LOCAL.tgz"
-            "sentry-node-core-LOCAL.tgz"
-            "ai-sdk-provider-claude-code-LOCAL.tgz"
-          )
-
-          for file in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "packages/runner/vendor/$file" ]; then
-              echo "MISSING: $file"
-              echo "ERROR: Required vendor file not found!"
-              exit 1
-            else
-              echo "Found: $file"
-            fi
-          done
-
-          echo ""
-          echo "Lightweight runner vendor packages verified"
-
       - name: Build CLI
         run: pnpm run build:cli
-
-      - name: Build Lightweight Runner
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Building @openbuilder/runner (lightweight)"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          pnpm --filter @openbuilder/runner build
 
       - name: Prepare package.json for publishing
         run: |
@@ -147,24 +104,7 @@ jobs:
           echo "Verifying updated package.json dependencies:"
           cat apps/runner/package.json | jq '.dependencies'
 
-      - name: Prepare lightweight runner package.json for publishing
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Preparing @openbuilder/runner package.json"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          # Remove workspace dependencies from the lightweight runner
-          cd packages/runner
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            // Remove devDependencies (they include workspace refs)
-            delete pkg.devDependencies;
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-          echo "Updated package.json:"
-          cat package.json | jq '.dependencies'
-
-      - name: Create CLI tarball (includes vendor/ and dist/)
+      - name: Create tarball (includes vendor/ and dist/)
         run: |
           cd apps/runner
 
@@ -226,41 +166,6 @@ jobs:
           echo ""
           echo "Package created: openbuilder-cli.tgz"
 
-      - name: Create lightweight runner tarball
-        run: |
-          cd packages/runner
-
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Creating @openbuilder/runner tarball"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          echo ""
-          echo "1. Checking vendor/ directory:"
-          ls -lh vendor/
-
-          echo ""
-          echo "2. Checking dist/ directory:"
-          if [ -d "dist" ]; then
-            echo "  dist/ exists"
-            echo "  File count: $(find dist/ -type f | wc -l)"
-            du -sh dist/
-          else
-            echo "  ERROR: dist/ directory does not exist!"
-            exit 1
-          fi
-
-          echo ""
-          pnpm pack
-
-          echo ""
-          echo "3. Created tarball:"
-          ls -lh *.tgz
-
-          mv *.tgz openbuilder-runner.tgz
-
-          echo ""
-          echo "Package created: openbuilder-runner.tgz"
-
       - name: Extract version from tag
         id: version
         run: |
@@ -274,25 +179,14 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Publish @openbuilder/runner to npm (lightweight)
-        run: |
-          cd packages/runner
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Publishing @openbuilder/runner to npm..."
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          npm publish --access public
-          echo "Published @openbuilder/runner to npm"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @openbuilder/cli to npm
+      - name: Publish to npm
         run: |
           cd apps/runner
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Publishing @openbuilder/cli to npm..."
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           npm publish --access public
-          echo "Published @openbuilder/cli to npm"
+          echo "Published to npm"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -308,41 +202,26 @@ jobs:
 
             ## Installation
 
-            ### Full CLI (all features)
             ```bash
             curl -fsSL https://openbuilder.sh/install | bash
             ```
 
             Or install via npm:
+
             ```bash
             npm install -g @openbuilder/cli
-            ```
-
-            ### Lightweight Runner Only (smaller download)
-            ```bash
-            npx @openbuilder/runner
-            ```
-
-            Or install globally:
-            ```bash
-            npm install -g @openbuilder/runner
             ```
 
             ## Quick Start
 
             ```bash
-            # Full CLI
             openbuilder init -y
             openbuilder run
-
-            # Or lightweight runner only
-            npx @openbuilder/runner
             ```
 
             See [full documentation](https://github.com/codyde/openbuilder/blob/main/apps/runner/README.md) for details.
           files: |
             apps/runner/openbuilder-cli.tgz
-            packages/runner/openbuilder-runner.tgz
           draft: false
           prerelease: false
         env:
