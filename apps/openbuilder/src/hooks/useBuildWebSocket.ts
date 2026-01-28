@@ -53,6 +53,7 @@ interface UseBuildWebSocketReturn {
   cancelBuild: () => Promise<boolean>; // Cancel the current build
   isCancelling: boolean; // Whether a cancel is in progress
   sentryTrace: { trace?: string; baggage?: string } | null; // Current trace context from last WebSocket message
+  runnerActive: boolean; // True if we've received runner events recently (within last 30s)
 }
 
 const DEBUG = false; // Set to true for verbose logging
@@ -69,6 +70,7 @@ export function useBuildWebSocket({
   const [error, setError] = useState<Error | null>(null);
   const [sentryTrace, setSentryTrace] = useState<{ trace?: string; baggage?: string } | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [lastRunnerEventTime, setLastRunnerEventTime] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -236,6 +238,10 @@ export function useBuildWebSocket({
   const processBatchUpdate = useCallback((message: WebSocketMessage) => {
     const updates = message.updates;
     if (!updates || !Array.isArray(updates) || updates.length === 0) return;
+    
+    // Track that we received events from the runner
+    // This is used to determine if the runner is actively connected
+    setLastRunnerEventTime(Date.now());
     
     // Extract trace context from the most recent update that has it
     // This allows linking frontend operations back to backend AI operations
@@ -727,6 +733,11 @@ export function useBuildWebSocket({
     };
   }, [projectId, sessionId, enabled, connect, hydrateState]);
 
+  // Runner is considered active if we received events within the last 30 seconds
+  const RUNNER_ACTIVE_THRESHOLD_MS = 30000;
+  const runnerActive = lastRunnerEventTime !== null && 
+    (Date.now() - lastRunnerEventTime) < RUNNER_ACTIVE_THRESHOLD_MS;
+
   return {
     state,
     autoFixState,
@@ -739,6 +750,7 @@ export function useBuildWebSocket({
     cancelBuild,
     isCancelling,
     sentryTrace,
+    runnerActive,
   };
 }
 
