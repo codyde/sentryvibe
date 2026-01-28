@@ -55,3 +55,16 @@ export function isRunnerConnected(runnerId: string): boolean {
 export function getRunnerMetrics() {
   return buildWebSocketServer.getRunnerMetrics();
 }
+
+/**
+ * Register a callback to be notified when runner status changes
+ * This allows the app layer to emit project events when runners connect/disconnect
+ * 
+ * @param callback - Function called when runner connects/disconnects
+ *                   (runnerId, connected, affectedProjectIds)
+ */
+export function onRunnerStatusChange(
+  callback: (runnerId: string, connected: boolean, affectedProjectIds: string[]) => void
+) {
+  buildWebSocketServer.onRunnerStatusChange(callback);
+}

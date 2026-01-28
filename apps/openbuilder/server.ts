@@ -22,7 +22,12 @@ import './sentry.server.config';
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
-import { buildWebSocketServer } from '@openbuilder/agent-core';
+import { buildWebSocketServer, db } from '@openbuilder/agent-core';
+import { onRunnerStatusChange } from '@openbuilder/agent-core/lib/runner/broker-state';
+import { projects } from '@openbuilder/agent-core/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { projectEvents } from './src/lib/project-events';
+import { enrichProjectWithRunnerStatus } from './src/lib/runner-utils';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || 'localhost';
@@ -69,6 +74,31 @@ app.prepare().then(() => {
   // Initialize WebSocket server on the same HTTP server
   // This sets up both /ws (frontend) and /ws/runner (runner) WebSocket servers
   buildWebSocketServer.initialize(server, '/ws');
+
+  // Register callback for runner status changes to update UI in real-time
+  onRunnerStatusChange(async (runnerId, connected, affectedProjectIds) => {
+    console.log(`[server] Runner ${runnerId} ${connected ? 'connected' : 'disconnected'}, notifying ${affectedProjectIds.length} projects`);
+    
+    // Emit project events for each affected project so SSE clients get updated
+    for (const projectId of affectedProjectIds) {
+      try {
+        // Fetch the current project data from DB
+        const projectData = await db
+          .select()
+          .from(projects)
+          .where(eq(projects.id, projectId))
+          .limit(1);
+        
+        if (projectData.length > 0) {
+          // Enrich with runner status and emit
+          const enrichedProject = await enrichProjectWithRunnerStatus(projectData[0]);
+          projectEvents.emitProjectUpdate(projectId, enrichedProject);
+        }
+      } catch (error) {
+        console.error(`[server] Failed to emit project update for ${projectId}:`, error);
+      }
+    }
+  });
 
   // Start listening
   server.listen(port, () => {
