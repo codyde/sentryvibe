@@ -181,6 +181,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.11",
     "@sentry/node": "^10.37.0",
+    "ai": "^5.0.79",
     "better-auth": "^1.4.9",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.7",
