@@ -136,11 +136,27 @@ export default {
   output: {
     dir: 'dist',
     format: 'esm',
-    sourcemap: true,
+    // Disable sourcemaps in production builds to reduce package size (~40% reduction)
+    sourcemap: process.env.NODE_ENV === 'development',
     entryFileNames: '[name].js',
     chunkFileNames: 'chunks/[name]-[hash].js',
     // Use CJS shim for instrument.js (Sentry SDK), default banner for others
     banner: (chunk) => chunk.name === 'instrument' ? cjsShimBanner : defaultBanner,
+    // Manual chunks to reduce duplication
+    manualChunks(id) {
+      // Group Sentry SDK into a single chunk
+      if (id.includes('@sentry/') || id.includes('sentry-')) {
+        return 'vendor-sentry';
+      }
+      // Group AI SDK into a single chunk
+      if (id.includes('ai-sdk-provider-claude-code')) {
+        return 'vendor-ai-sdk';
+      }
+      // Group React and Ink into a single chunk
+      if (id.includes('node_modules/react') || id.includes('node_modules/ink')) {
+        return 'vendor-react';
+      }
+    },
   },
   external: isExternal,
   plugins: commonPlugins,

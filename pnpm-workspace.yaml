@@ -4,3 +4,4 @@ packages:
   - apps/opencode-service
   - packages/agent-core
   - packages/opencode-client
+  - packages/runner

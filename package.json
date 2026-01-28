@@ -18,6 +18,7 @@
     "build": "turbo run build --filter=openbuilder",
     "build:all": "turbo run build",
     "build:cli": "turbo run build --filter=@openbuilder/cli",
+    "build:runner": "turbo run build --filter=@openbuilder/runner",
     "build:agent-core": "turbo run build --filter=@openbuilder/agent-core",
     "build:opencode": "turbo run build --filter=@openbuilder/opencode-service",
     "start": "turbo run start --filter=openbuilder",
