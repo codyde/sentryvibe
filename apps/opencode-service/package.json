@@ -16,7 +16,7 @@
   "dependencies": {
     "@opencode-ai/sdk": "^1.0.0",
     "@openbuilder/agent-core": "workspace:*",
-    "@sentry/node": "file:../openbuilder/vendor/sentry-node-LOCAL.tgz",
+    "@sentry/node": "^10.37.0",
     "drizzle-orm": "^0.43.1",
     "express": "^4.21.0",
     "http-proxy-middleware": "^3.0.0"

@@ -53,17 +53,10 @@ const external = [
   'url',
   'util',
 
-  // Vendor packages - BUNDLED (not external)
-  // '@sentry/core',
-  // '@sentry/node',
-  // '@sentry/node-core',
-  // 'ai-sdk-provider-claude-code',
-
   // NPM dependencies that are external
-  '@ai-sdk/openai',
+  '@sentry/node',
   '@anthropic-ai/claude-agent-sdk',
   '@openai/codex-sdk',
-  'ai',
   'chalk',
   'commander',
   'conf',

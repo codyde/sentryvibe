@@ -9,17 +9,6 @@ Sentry.init({
   // Sample all traces for metrics and performance monitoring
   tracesSampleRate: 1.0,
 
-  integrations: [
-    Sentry.claudeCodeAgentSdkIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
-    Sentry.openAIIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
-  ],
-
   // Use tracesSampler for granular control to reduce noise
   tracesSampler: ({ name, attributes }) => {
     // Never trace polling endpoints - these create excessive span noise

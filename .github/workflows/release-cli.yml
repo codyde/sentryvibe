@@ -42,61 +42,13 @@ jobs:
           echo "Building agent-core..."
           pnpm --filter @openbuilder/agent-core build
 
-      - name: Verify vendor packages (now committed to git)
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Verifying vendor packages in apps/runner/vendor/"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          if [ ! -d "apps/runner/vendor" ]; then
-            echo "ERROR: apps/runner/vendor/ directory not found!"
-            exit 1
-          fi
-
-          echo ""
-          echo "Vendor files (should all be committed to git):"
-          ls -lh apps/runner/vendor/
-
-          # Count vendor files
-          VENDOR_COUNT=$(ls -1 apps/runner/vendor/*.tgz 2>/dev/null | wc -l | tr -d ' ')
-          echo ""
-          echo "Total .tgz files: $VENDOR_COUNT"
-
-          # Check for all required files (Sentry SDKs + AI SDK provider)
-          REQUIRED_FILES=(
-            "sentry-core-LOCAL.tgz"
-            "sentry-node-LOCAL.tgz"
-            "sentry-node-core-LOCAL.tgz"
-            "sentry-nextjs-LOCAL.tgz"
-            "ai-sdk-provider-claude-code-LOCAL.tgz"
-          )
-
-          for file in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "apps/runner/vendor/$file" ]; then
-              echo "MISSING: $file"
-              echo "ERROR: Required vendor file not found!"
-              exit 1
-            else
-              echo "Found: $file"
-            fi
-          done
-
-          if [ "$VENDOR_COUNT" -ne 5 ]; then
-            echo ""
-            echo "ERROR: Expected 5 vendor files (4 Sentry SDKs + ai-sdk-provider-claude-code), found $VENDOR_COUNT"
-            exit 1
-          fi
-
-          echo ""
-          echo "All required vendor packages verified"
-
       - name: Build CLI
         run: pnpm run build:cli
 
       - name: Prepare package.json for publishing
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Replacing file: dependencies with npm versions"
+          echo "Preparing package.json for release"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           node apps/runner/scripts/prepare-release.js
 
@@ -104,7 +56,7 @@ jobs:
           echo "Verifying updated package.json dependencies:"
           cat apps/runner/package.json | jq '.dependencies'
 
-      - name: Create tarball (includes vendor/ and dist/)
+      - name: Create tarball
         run: |
           cd apps/runner
 
@@ -113,17 +65,7 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           echo ""
-          echo "1. Checking vendor/ directory:"
-          if [ -d "vendor" ]; then
-            ls -lh vendor/
-            echo "  File count: $(ls -1 vendor/ | wc -l)"
-          else
-            echo "  ERROR: vendor/ directory does not exist!"
-            exit 1
-          fi
-
-          echo ""
-          echo "2. Checking dist/ directory:"
+          echo "Checking dist/ directory:"
           if [ -d "dist" ]; then
             echo "  dist/ exists"
             echo "  File count: $(find dist/ -type f | wc -l)"
@@ -133,34 +75,20 @@ jobs:
           fi
 
           echo ""
-          echo "3. What npm pack will include (dry run):"
-          npm pack --dry-run 2>&1 | grep -E "vendor/|files:" | head -10
-
-          echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Creating tarball with npm pack..."
+          echo "Creating tarball with pnpm pack..."
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          # Use pnpm pack instead of npm pack to handle workspace dependencies correctly
           pnpm pack
 
           echo ""
-          echo "4. Created tarball:"
+          echo "Created tarball:"
           ls -lh *.tgz
 
           # Rename to standard name
           mv *.tgz openbuilder-cli.tgz
 
           echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Verifying final tarball contents:"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          echo ""
-          echo "5. Vendor files in tarball:"
-          tar -tzf openbuilder-cli.tgz | grep "vendor/" || echo "  WARNING: No vendor/ files found in tarball!"
-
-          echo ""
-          echo "6. All tarball contents (sample):"
+          echo "Tarball contents (sample):"
           tar -tzf openbuilder-cli.tgz | head -50
 
           echo ""

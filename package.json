@@ -27,14 +27,6 @@
     "runner": "turbo run dev --filter=@openbuilder/cli",
     "local:prod": "turbo run build && turbo run start --filter=openbuilder"
   },
-  "pnpm": {
-    "overrides": {
-      "@sentry/core": "file:./apps/openbuilder/vendor/sentry-core-1765299043.tgz",
-      "@sentry/node": "file:./apps/openbuilder/vendor/sentry-node-1765299043.tgz",
-      "@sentry/node-core": "file:./apps/openbuilder/vendor/sentry-node-core-1765299043.tgz",
-      "@sentry/nextjs": "file:./apps/openbuilder/vendor/sentry-nextjs-1765299043.tgz"
-    }
-  },
   "devDependencies": {
     "turbo": "^2.5.8"
   },

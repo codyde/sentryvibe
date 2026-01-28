@@ -7,9 +7,7 @@ import { fileLog, setFileLoggerTuiMode } from "./lib/file-logger.js";
 import { config as loadEnv } from "dotenv";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { streamText, generateText, type TextPart, type ImagePart, type ToolSet } from "ai";
-import { claudeCode } from "ai-sdk-provider-claude-code";
-import { createNativeClaudeQuery, USE_NATIVE_SDK } from "./lib/native-claude-sdk.js";
+import { createNativeClaudeQuery } from "./lib/native-claude-sdk.js";
 import { createOpenCodeQuery, USE_OPENCODE_SDK } from "./lib/opencode-sdk.js";
 import WebSocket from "ws";
 import os from "node:os";
@@ -40,7 +38,6 @@ import {
   resetTransformerState,
   setExpectedCwd,
 } from "./lib/message-transformer.js";
-import { transformAISDKStream } from "./lib/ai-sdk-adapter.js";
 import { transformCodexStream } from "./lib/codex-sdk-adapter.js";
 
 import { orchestrateBuild } from "./lib/build-orchestrator.js";
@@ -56,7 +53,7 @@ import {
   type RunnerLoggerOptions 
 } from "./lib/logging/index.js";
 
-globalThis.AI_SDK_LOG_WARNINGS = false;
+// AI SDK log warnings disabled (legacy - no longer using AI SDK)
 
 /**
  * Truncate strings for logging to prevent excessive output
@@ -497,174 +494,6 @@ async function* convertCodexEventsToAgentMessages(
 }
 
 /**
- * Create Claude query function using AI SDK
- *
- * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
- * The orchestrator provides context-specific sections only (no base prompt).
- */
-function createClaudeQuery(
-  modelId: ClaudeModelId = DEFAULT_CLAUDE_MODEL_ID
-): BuildQueryFn {
-  return async function* (prompt, workingDirectory, systemPrompt, agent, codexThreadId, messageParts) {
-    // Note: query is auto-instrumented by Sentry's claudeCodeAgentSdkIntegration via OpenTelemetry
-
-    stderrDebug(
-      "[runner] [createClaudeQuery] 🎯 Query function called\n"
-    );
-    stderrDebug(`[runner] [createClaudeQuery] Model: ${modelId}\n`);
-    stderrDebug(
-      `[runner] [createClaudeQuery] Working dir: ${workingDirectory}\n`
-    );
-    stderrDebug(
-      `[runner] [createClaudeQuery] Prompt length: ${prompt.length}\n`
-    );
-
-    // Check if we have image parts
-    const hasImages = messageParts?.some(p => p.type === 'image');
-    if (hasImages) {
-      const imageCount = messageParts?.filter(p => p.type === 'image').length || 0;
-      stderrDebug(
-        `[runner] [createClaudeQuery] 🖼️  Multi-modal message with ${imageCount} image(s)\n`
-      );
-    }
-
-    // Build combined system prompt
-    const systemPromptSegments: string[] = [CLAUDE_SYSTEM_PROMPT.trim()];
-    if (systemPrompt && systemPrompt.trim().length > 0) {
-      systemPromptSegments.push(systemPrompt.trim());
-    }
-    const appendedSystemPrompt = systemPromptSegments.join("\n\n");
-
-    // Use the full model ID as-is (claude-haiku-4-5, claude-sonnet-4-5, claude-opus-4-5)
-    const aiSdkModelId = modelId || "claude-haiku-4-5";
-
-    // Ensure working directory exists before passing to Claude Code
-    if (!existsSync(workingDirectory)) {
-      console.log(`[createClaudeQuery] Creating working directory: ${workingDirectory}`);
-      mkdirSync(workingDirectory, { recursive: true });
-    }
-    
-    // Ensure project has skills copied from bundled skills
-    ensureProjectSkills(workingDirectory);
-
-    // NOTE: The community provider (ai-sdk-provider-claude-code) bundles an older
-    // version of the SDK types. We cast to `any` to avoid type conflicts.
-    // This legacy path is deprecated in favor of the native SDK implementation.
-    const model = claudeCode(aiSdkModelId, {
-      queryFunction: query as any, // Cast to avoid SDK version type conflict
-      systemPrompt: {
-        type: "preset",
-        preset: "claude_code",
-        append: appendedSystemPrompt,
-      },
-      cwd: workingDirectory,
-      permissionMode: "bypassPermissions",
-      maxTurns: 100,
-      additionalDirectories: [workingDirectory],
-      env: {
-        // Claude Code CLI default output cap is 32k; bumping to 64k per
-        // https://docs.claude.com/en/docs/claude-code/settings#environment-variables
-        CLAUDE_CODE_MAX_OUTPUT_TOKENS:
-          process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS ?? "64000",
-      },
-      // Explicitly allow all tools to prevent "No tools are available" errors
-      canUseTool: createProjectScopedPermissionHandler(workingDirectory) as any, // Cast for type compat
-      streamingInput: "always", // REQUIRED when using canUseTool - enables tool callbacks
-      includePartialMessages: true,
-      settingSources: ["user", "project"], // Load skills from user and project directories
-    });
-
-    // Build user message - either simple text or multi-part with images
-    let userMessage: string | Array<TextPart | ImagePart>;
-
-    if (messageParts && messageParts.length > 0) {
-      // Multi-part message with images
-      const contentParts: Array<TextPart | ImagePart> = [];
-
-      // Add image parts first (Claude best practice)
-      for (const part of messageParts) {
-        if (part.type === 'image' && part.image) {
-          // AI SDK expects images as data URLs, which we already have
-          contentParts.push({
-            type: 'image',
-            image: part.image, // Already a base64 data URL
-          });
-
-          // Extract media type for logging
-          const match = part.image.match(/^data:(.+);base64,/);
-          if (match) {
-            stderrDebug(
-              `[runner] [createClaudeQuery] ✅ Added image part (${match[1]})\n`
-            );
-          }
-        } else if (part.type === 'text' && part.text) {
-          contentParts.push({
-            type: 'text',
-            text: part.text
-          });
-        }
-      }
-
-      // Add prompt text if not already in parts
-      if (!contentParts.some(p => p.type === 'text')) {
-        contentParts.push({
-          type: 'text',
-          text: prompt
-        });
-      }
-
-      userMessage = contentParts;
-      stderrDebug(
-        `[runner] [createClaudeQuery] 📦 Built multi-part message with ${contentParts.length} part(s)\n`
-      );
-    } else {
-      // Simple text message (existing behavior)
-      userMessage = prompt;
-    }
-
-    // Stream with telemetry enabled for Sentry
-    // Use 'messages' param for multi-part content, 'prompt' for simple text
-    // IMPORTANT: experimental_telemetry is REQUIRED for the Vercel AI SDK integration to work
-    const streamOptions = {
-      model,
-      tools: CLAUDE_CLI_TOOL_REGISTRY as ToolSet,
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'createClaudeQuery',
-        recordInputs: true,
-        recordOutputs: true,
-      },
-    } as const;
-
-    const result = Array.isArray(userMessage)
-      ? streamText({
-          ...streamOptions,
-          messages: [{ role: 'user', content: userMessage }],
-        })
-      : streamText({
-          ...streamOptions,
-          prompt: userMessage,
-        });
-
-    // Transform AI SDK stream format to our message format
-    if (process.env.DEBUG_BUILD === "1") {
-      console.log("[createClaudeQuery] Starting stream consumption...");
-    }
-
-    for await (const message of transformAISDKStream(result.fullStream)) {
-      if (process.env.DEBUG_BUILD === "1") {
-        console.log("[createClaudeQuery] Yielding message:", message.type);
-      }
-      yield message;
-    }
-
-    if (process.env.DEBUG_BUILD === "1") {
-      console.log("[createClaudeQuery] Stream consumption complete");
-    }
-  };
-}
-
-/**
  * Create Codex query function using ORIGINAL Codex SDK (NOT AI SDK)
  *
  * NOTE: This function prepends CLAUDE_SYSTEM_PROMPT to the systemPrompt from orchestrator.
@@ -874,14 +703,8 @@ function createBuildQuery(
     return createCodexQuery();
   }
 
-  // Use legacy AI SDK path when explicitly requested
-  if (!USE_NATIVE_SDK) {
-    console.log('[runner] 🔄 Using AI SDK with claude-code provider (legacy mode)');
-    return createClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID);
-  }
-
   // Default: Use native Claude Agent SDK (direct integration)
-  console.log('[runner] 🔄 Using NATIVE Claude Agent SDK v0.1.76');
+  console.log('[runner] 🔄 Using NATIVE Claude Agent SDK');
   return createNativeClaudeQuery((modelId as ClaudeModelId) ?? DEFAULT_CLAUDE_MODEL_ID, abortController);
 }
 
@@ -2991,12 +2814,26 @@ ${completedTodoSnapshot.length > 0 ? `Tasks completed:\n${completedTodoSnapshot.
 
 Write a brief, professional summary (1-3 sentences) describing what was accomplished. Focus on the outcome, not the process. Do not use phrases like "I did" or "The assistant". Just describe what was built or changed.`;
 
-                const summaryResult = await generateText({
-                  model: claudeCode("claude-haiku-4-5"),
+                // Use native Claude Agent SDK for summary generation
+                let summaryText = '';
+                for await (const msg of query({
                   prompt: summaryPrompt,
-                });
+                  options: {
+                    model: 'claude-haiku-4-5',
+                    maxTurns: 1,
+                    permissionMode: 'default',
+                  },
+                })) {
+                  if (msg.type === 'assistant' && msg.message?.content) {
+                    for (const block of msg.message.content) {
+                      if (block.type === 'text') {
+                        summaryText += block.text;
+                      }
+                    }
+                  }
+                }
 
-                const summaryText = summaryResult.text?.trim();
+                summaryText = summaryText.trim();
                 if (summaryText) {
                   buildLog(` ✅ AI summary generated (${summaryText.length} chars)`);
                   sendEvent({
