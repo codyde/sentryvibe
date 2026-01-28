@@ -1,6 +1,6 @@
 {
   "name": "@openbuilder/agent-core",
-  "version": "0.50.44",
+  "version": "0.50.45",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
