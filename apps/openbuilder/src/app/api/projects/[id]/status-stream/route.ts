@@ -3,6 +3,7 @@ import { db } from '@openbuilder/agent-core/lib/db/client';
 import { projects } from '@openbuilder/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { projectEvents } from '@/lib/project-events';
+import { enrichProjectWithRunnerStatus } from '@/lib/runner-utils';
 
 const isVerboseSSELogging = process.env.OPENBUILDER_DEBUG_SSE === '1';
 const debugLog = (...args: unknown[]) => {
@@ -77,9 +78,11 @@ export async function GET(
           .limit(1);
 
         if (initialProject.length > 0) {
+          // Enrich with runner connection status
+          const enrichedProject = await enrichProjectWithRunnerStatus(initialProject[0]);
           const data = `data: ${JSON.stringify({
             type: 'status-update',
-            project: initialProject[0],
+            project: enrichedProject,
           })}\n\n`;
           safeEnqueue(controller, data);
           debugLog(`✅ Sent initial status for ${id}`);
@@ -99,17 +102,20 @@ export async function GET(
 
         // Event-driven updates: listen for project changes
         // This is the PRIMARY mechanism - no polling needed!
-        const projectUpdateHandler = (project: any) => {
+        const projectUpdateHandler = async (project: any) => {
           try {
+            // Enrich with runner connection status for each update
+            const enrichedProject = await enrichProjectWithRunnerStatus(project);
             const data = `data: ${JSON.stringify({
               type: 'status-update',
-              project,
+              project: enrichedProject,
             })}\n\n`;
             safeEnqueue(controller, data);
             debugLog(`📤 Event-driven update for ${id}:`, {
-              status: project.devServerStatus,
-              port: project.devServerPort,
-              tunnel: project.tunnelUrl,
+              status: enrichedProject.devServerStatus,
+              port: enrichedProject.devServerPort,
+              tunnel: enrichedProject.tunnelUrl,
+              runnerConnected: enrichedProject.runnerConnected,
             });
           } catch (err) {
             console.error(`   Failed to send update for ${id}:`, err);

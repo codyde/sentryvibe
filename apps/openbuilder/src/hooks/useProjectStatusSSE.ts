@@ -56,6 +56,8 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
                 : null,
               // STICKY FRAMEWORK: Don't overwrite existing framework with null
               detectedFramework: data.project.detectedFramework || base.detectedFramework || null,
+              // RUNNER STATUS: Use the enriched value from SSE, fall back to cached value
+              runnerConnected: data.project.runnerConnected ?? base.runnerConnected ?? false,
             };
           });
 
@@ -72,6 +74,8 @@ export function useProjectStatusSSE(projectId: string | undefined | null, enable
                     lastActivityAt: data.project.lastActivityAt
                       ? new Date(data.project.lastActivityAt)
                       : null,
+                    // RUNNER STATUS: Use the enriched value from SSE, fall back to cached value
+                    runnerConnected: data.project.runnerConnected ?? proj.runnerConnected ?? false,
                   }
                 : proj
             );
