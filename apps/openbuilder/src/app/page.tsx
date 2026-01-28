@@ -367,11 +367,13 @@ function HomeContent() {
       if (projectFromQuery.detectedFramework !== current.detectedFramework ||
           projectFromQuery.devServerStatus !== current.devServerStatus ||
           projectFromQuery.devServerPort !== current.devServerPort ||
-          projectFromQuery.tunnelUrl !== current.tunnelUrl) {
+          projectFromQuery.tunnelUrl !== current.tunnelUrl ||
+          projectFromQuery.runnerConnected !== current.runnerConnected) {
         console.log('[page] 🔄 Syncing project from SSE query update:', {
           detectedFramework: projectFromQuery.detectedFramework,
           existingFramework: current.detectedFramework,
           devServerStatus: projectFromQuery.devServerStatus,
+          runnerConnected: projectFromQuery.runnerConnected,
         });
 
         // STICKY FRAMEWORK: Preserve existing framework if new value is null

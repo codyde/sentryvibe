@@ -4,6 +4,7 @@ import { db } from '@openbuilder/agent-core/lib/db/client';
 import { projects, messages } from '@openbuilder/agent-core/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getSession, isLocalMode } from '@/lib/auth-helpers';
+import { enrichProjectWithRunnerStatus } from '@/lib/runner-utils';
 
 /**
  * Create a project from runner analysis results
@@ -108,8 +109,12 @@ export async function POST(request: Request) {
       }
     });
 
+    // Enrich project with runner connection status before returning
+    // This ensures the frontend knows the runner is connected from the start
+    const enrichedProject = await enrichProjectWithRunnerStatus(project);
+
     return NextResponse.json({
-      project,
+      project: enrichedProject,
       template,
     });
   } catch (error) {
