@@ -52,8 +52,16 @@ next-env.d.ts
 # Sentry Config File
 .env.sentry-build-plugin
 
-# Vendor packages (DO commit these .tgz files)
-# These are local builds that need to be committed for deployment
-# vendor/*.tgz should be tracked in git
+# Log files
 logs/
 nox/
+
+# Node compile cache
+node-compile-cache/
+
+# Build outputs (should not be committed)
+packages/opencode-client/dist/
+apps/opencode-service/dist/
+
+# Local IDE settings
+.claude/settings.local.json
