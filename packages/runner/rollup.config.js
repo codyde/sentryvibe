@@ -8,11 +8,14 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import json from '@rollup/plugin-json';
-import alias from '@rollup/plugin-alias';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Paths to workspace packages
+const CLI_SRC = path.resolve(__dirname, '../../apps/runner/src');
+const AGENT_CORE_SRC = path.resolve(__dirname, '../agent-core/src');
 
 // External dependencies - these won't be bundled
 const external = [
@@ -92,27 +95,40 @@ function isExternal(id) {
   return false;
 }
 
+// Custom plugin to resolve @openbuilder/* imports to source files
+function workspaceAliasPlugin() {
+  return {
+    name: 'workspace-alias',
+    resolveId(source, importer) {
+      // Handle @openbuilder/cli imports
+      if (source === '@openbuilder/cli/index' || source === '@openbuilder/cli') {
+        return { id: path.join(CLI_SRC, 'index.ts'), external: false };
+      }
+      if (source.startsWith('@openbuilder/cli/')) {
+        const subpath = source.replace('@openbuilder/cli/', '');
+        return { id: path.join(CLI_SRC, subpath + '.ts'), external: false };
+      }
+
+      // Handle @openbuilder/agent-core imports
+      if (source === '@openbuilder/agent-core/index' || source === '@openbuilder/agent-core') {
+        return { id: path.join(AGENT_CORE_SRC, 'index.ts'), external: false };
+      }
+      if (source.startsWith('@openbuilder/agent-core/')) {
+        const subpath = source.replace('@openbuilder/agent-core/', '');
+        return { id: path.join(AGENT_CORE_SRC, subpath + '.ts'), external: false };
+      }
+
+      return null;
+    },
+  };
+}
+
 const commonPlugins = [
-  // Resolve workspace packages to their source
-  alias({
-    entries: [
-      {
-        find: '@openbuilder/cli',
-        replacement: path.resolve(__dirname, '../../apps/runner/src'),
-      },
-      {
-        find: '@openbuilder/agent-core',
-        replacement: path.resolve(__dirname, '../agent-core/src'),
-      },
-      {
-        find: '@openbuilder/agent-core/lib',
-        replacement: path.resolve(__dirname, '../agent-core/src/lib'),
-      },
-    ],
-  }),
+  workspaceAliasPlugin(),
   nodeResolve({
     preferBuiltins: true,
     exportConditions: ['node', 'import', 'default'],
+    extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
   }),
   commonjs({
     transformMixedEsModules: true,

@@ -7,14 +7,14 @@
 
 // Re-export the startRunner function and types from the CLI source
 // These imports are resolved by the alias plugin at build time
-export { startRunner } from '@openbuilder/cli/index.js';
-export type { RunnerOptions } from '@openbuilder/cli/index.js';
+export { startRunner } from '@openbuilder/cli/index';
+export type { RunnerOptions } from '@openbuilder/cli/index';
 
 // Re-export runner command for CLI usage
-export { runCommand } from '@openbuilder/cli/cli/commands/run.js';
+export { runCommand } from '@openbuilder/cli/cli/commands/run';
 
 // Re-export TUI components
-export { RunnerDashboard } from '@openbuilder/cli/cli/tui/screens/RunnerDashboard.js';
+export { RunnerDashboard } from '@openbuilder/cli/cli/tui/screens/RunnerDashboard';
 
 // Re-export auth utilities
 export {
@@ -24,10 +24,10 @@ export {
   storeToken,
   clearToken,
   validateToken,
-} from '@openbuilder/cli/cli/utils/cli-auth.js';
+} from '@openbuilder/cli/cli/utils/cli-auth';
 
 // Re-export config manager
 export {
   configManager,
   type RunnerConfig,
-} from '@openbuilder/cli/cli/utils/config-manager.js';
+} from '@openbuilder/cli/cli/utils/config-manager';

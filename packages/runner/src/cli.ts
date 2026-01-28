@@ -95,7 +95,7 @@ program
   .action(async (options) => {
     try {
       // Import the runner command - this will be resolved by the alias plugin at build time
-      const { runCommand } = await import('@openbuilder/cli/cli/commands/run.js');
+      const { runCommand } = await import('@openbuilder/cli/cli/commands/run');
       await runCommand(options);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : 'Unknown error');
