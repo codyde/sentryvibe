@@ -10,6 +10,7 @@ import typescript from '@rollup/plugin-typescript';
 import json from '@rollup/plugin-json';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -96,6 +97,25 @@ function isExternal(id) {
   return false;
 }
 
+// Try to resolve a path with different extensions
+function resolveWithExtensions(basePath, extensions = ['.ts', '.tsx', '.js', '.jsx']) {
+  for (const ext of extensions) {
+    const fullPath = basePath + ext;
+    if (existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+  // Also try index files
+  for (const ext of extensions) {
+    const indexPath = path.join(basePath, 'index' + ext);
+    if (existsSync(indexPath)) {
+      return indexPath;
+    }
+  }
+  // Return .ts as default (will error if not found, which is expected)
+  return basePath + '.ts';
+}
+
 // Custom plugin to resolve @openbuilder/* imports to source files
 function workspaceAliasPlugin() {
   return {
@@ -103,20 +123,20 @@ function workspaceAliasPlugin() {
     resolveId(source, importer) {
       // Handle @openbuilder/cli imports
       if (source === '@openbuilder/cli/index' || source === '@openbuilder/cli') {
-        return { id: path.join(CLI_SRC, 'index.ts'), external: false };
+        return { id: resolveWithExtensions(path.join(CLI_SRC, 'index')), external: false };
       }
       if (source.startsWith('@openbuilder/cli/')) {
         const subpath = source.replace('@openbuilder/cli/', '');
-        return { id: path.join(CLI_SRC, subpath + '.ts'), external: false };
+        return { id: resolveWithExtensions(path.join(CLI_SRC, subpath)), external: false };
       }
 
       // Handle @openbuilder/agent-core imports
       if (source === '@openbuilder/agent-core/index' || source === '@openbuilder/agent-core') {
-        return { id: path.join(AGENT_CORE_SRC, 'index.ts'), external: false };
+        return { id: resolveWithExtensions(path.join(AGENT_CORE_SRC, 'index')), external: false };
       }
       if (source.startsWith('@openbuilder/agent-core/')) {
         const subpath = source.replace('@openbuilder/agent-core/', '');
-        return { id: path.join(AGENT_CORE_SRC, subpath + '.ts'), external: false };
+        return { id: resolveWithExtensions(path.join(AGENT_CORE_SRC, subpath)), external: false };
       }
 
       return null;
